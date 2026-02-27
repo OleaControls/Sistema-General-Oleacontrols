@@ -6,28 +6,25 @@ const initialOTs = [
     title: "Instalación de Sensores Planta Norte",
     description: "Montaje y calibración de 12 sensores de presión serie V3.",
     priority: "HIGH",
-    status: "ASSIGNED", // [UNASSIGNED, ASSIGNED, IN_PROGRESS, COMPLETED, VALIDATED]
-    assignedToId: "user-tech-01",
-    assignedToName: "Gabriel Técnico",
+    status: "ASSIGNED", // [UNASSIGNED, ASSIGNED, ACCEPTED, IN_PROGRESS, COMPLETED, VALIDATED]
+    assignedToId: "user-123",
+    assignedToName: "Gabriel Técnico (Pruebas)",
     client: "Minera del Potosí",
     location: "San Luis Potosí, MX",
     createdAt: "2026-02-20",
     expensesSubmitted: 2,
-    validationPending: false
-  },
-  {
-    id: "OT-2026-002",
-    title: "Mantenimiento Preventivo Calderas",
-    description: "Limpieza profunda y cambio de sellos en caldera #4.",
-    priority: "MEDIUM",
-    status: "UNASSIGNED",
-    assignedToId: null,
-    assignedToName: null,
-    client: "Bebidas Globales",
-    location: "Querétaro, MX",
-    createdAt: "2026-02-25",
-    expensesSubmitted: 0,
-    validationPending: false
+    validationPending: false,
+    storeNumber: "ST-001",
+    storeName: "Planta Norte Main",
+    clientEmail: "contacto@minera.mx",
+    clientPhone: "4441234567",
+    address: "Eje 124, Zona Industrial, SLP",
+    workDescription: "Montaje y calibración de 12 sensores de presión serie V3.",
+    arrivalTime: "09:00",
+    assignedFunds: 500,
+    pendingTasks: "",
+    signature: null,
+    completionPhotos: []
   }
 ];
 
@@ -37,21 +34,45 @@ export const otService = {
     return data ? JSON.parse(data) : initialOTs;
   },
 
-  async assignOT(otId, techId, techName) {
+  async saveOT(otData) {
+    const ots = await this.getOTs();
+    const newOT = {
+      ...otData,
+      id: otData.id || `OT-2026-${Math.floor(1000 + Math.random() * 9000)}`,
+      status: otData.assignedToId ? 'ASSIGNED' : 'UNASSIGNED',
+      location: otData.address || otData.location, // Para compatibilidad con vistas existentes
+      createdAt: new Date().toISOString(),
+      expensesSubmitted: 0,
+      validationPending: false,
+      completionPhotos: [],
+      pendingTasks: "",
+      signature: null
+    };
+    const updated = [newOT, ...ots];
+    localStorage.setItem(OTS_KEY, JSON.stringify(updated));
+    return newOT;
+  },
+
+  async assignOT(otId, techId, techName, funds = 0) {
     const ots = await this.getOTs();
     const updated = ots.map(ot => 
-      ot.id === otId ? { ...ot, assignedToId: techId, assignedToName: techName, status: 'ASSIGNED' } : ot
+      ot.id === otId ? { ...ot, assignedToId: techId, assignedToName: techName, status: 'ASSIGNED', assignedFunds: funds } : ot
     );
     localStorage.setItem(OTS_KEY, JSON.stringify(updated));
     return true;
   },
 
-  async updateStatus(otId, status) {
+  async updateStatus(otId, status, extraData = {}) {
     const ots = await this.getOTs();
     const updated = ots.map(ot => 
-      ot.id === otId ? { ...ot, status } : ot
+      ot.id === otId ? { ...ot, ...extraData, status } : ot
     );
     localStorage.setItem(OTS_KEY, JSON.stringify(updated));
     return true;
+  },
+
+  async getById(id) {
+    const ots = await this.getOTs();
+    return ots.find(o => o.id === id);
   }
 };
