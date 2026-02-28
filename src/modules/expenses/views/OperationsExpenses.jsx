@@ -108,13 +108,13 @@ export default function OperationsExpenses() {
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-          <div className="flex gap-2 w-full md:w-auto">
+          <div className="flex gap-2 w-full md:w-auto overflow-x-auto scrollbar-hide pb-1 md:pb-0">
             {['ALL', 'APPROVED', 'SUBMITTED', 'REJECTED'].map((s) => (
               <button
                 key={s}
                 onClick={() => setStatusFilter(s)}
                 className={cn(
-                  "px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all",
+                  "px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all whitespace-nowrap",
                   statusFilter === s 
                     ? "bg-gray-900 text-white border-gray-900 shadow-lg" 
                     : "bg-white text-gray-500 border-gray-100 hover:border-gray-300"
@@ -126,8 +126,54 @@ export default function OperationsExpenses() {
           </div>
         </div>
         
-        <div className="overflow-x-auto">
-          <table className="w-full text-left">
+        {/* Mobile View: Cards */}
+        <div className="md:hidden divide-y divide-gray-100">
+          {filtered.map((exp) => (
+            <div key={exp.id} className="p-5 space-y-3 hover:bg-gray-50/30 transition-colors">
+              <div className="flex justify-between items-start">
+                <div>
+                  <p className="font-black text-xs text-gray-900">{exp.id}</p>
+                  <p className="text-[10px] text-gray-400 font-bold uppercase flex items-center gap-1 mt-0.5">
+                    <Calendar className="h-3 w-3" /> {exp.date}
+                  </p>
+                </div>
+                <span className={cn(
+                  "text-[8px] font-black px-2 py-1 rounded-lg uppercase tracking-widest border",
+                  exp.status === 'APPROVED' ? "bg-green-50 text-green-700 border-green-100" :
+                  exp.status === 'SUBMITTED' ? "bg-blue-50 text-blue-700 border-blue-100" :
+                  exp.status === 'REJECTED' ? "bg-red-50 text-red-700 border-red-100" : "bg-gray-50 text-gray-400 border-gray-100"
+                )}>
+                  {exp.status === 'SUBMITTED' ? 'PENDIENTE' : exp.status}
+                </span>
+              </div>
+              
+              <div>
+                <p className="text-sm font-bold text-gray-900 leading-tight">{exp.description}</p>
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="text-[9px] font-black text-primary bg-primary/5 px-1.5 py-0.5 rounded border border-primary/10">#{exp.otId}</span>
+                  <span className="text-[9px] font-bold text-gray-400 uppercase">{exp.category}</span>
+                </div>
+              </div>
+
+              <div className="flex justify-between items-center pt-1">
+                <div className="flex items-center gap-2">
+                  <div className="h-6 w-6 rounded-full bg-primary/10 text-primary flex items-center justify-center font-black text-[8px]">
+                    {exp.userId.charAt(0).toUpperCase()}
+                  </div>
+                  <span className="text-[10px] font-bold text-gray-700 uppercase">{exp.userId}</span>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm font-black text-gray-900">${exp.amount.toLocaleString()}</p>
+                  <p className="text-[8px] text-gray-400 font-bold uppercase">{exp.currency}</p>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Desktop View: Table */}
+        <div className="hidden md:block overflow-x-auto scrollbar-hide">
+          <table className="w-full text-left min-w-[900px]">
             <thead className="bg-white border-b">
               <tr className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
                 <th className="px-8 py-5">Referencia / Fecha</th>
