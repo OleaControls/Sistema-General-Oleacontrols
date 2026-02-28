@@ -6,11 +6,15 @@ import AppShell from '@/components/layout/AppShell';
 import Login from '@/modules/Login';
 import ExpensesList from '@/modules/expenses/views/ExpensesList';
 import ApprovalsList from '@/modules/expenses/views/ApprovalsList';
+import OperationsExpenses from '@/modules/expenses/views/OperationsExpenses';
 import ExpensesDashboard from '@/modules/expenses/views/ExpensesDashboard';
 import OTDetail from '@/modules/ots/OTDetail';
 import SupervisorOTs from '@/modules/ots/views/SupervisorOTs';
 import TechnicianOTs from '@/modules/ots/views/TechnicianOTs';
+import TechGamification from '@/modules/ots/views/TechGamification';
 import OTValidation from '@/modules/ots/views/OTValidation';
+import OTCatalogs from '@/modules/ots/views/OTCatalogs';
+import DeliveryAct from '@/modules/ots/views/DeliveryAct';
 import CourseCatalog from '@/modules/lms/views/CourseCatalog';
 import CoursePlayer from '@/modules/lms/views/CoursePlayer';
 import HRLayout from '@/modules/human-resources/components/HRLayout';
@@ -28,6 +32,7 @@ import Announcements from '@/modules/human-resources/views/Announcements';
 import HRReports from '@/modules/human-resources/views/HRReports';
 import HRSettings from '@/modules/human-resources/views/HRSettings';
 import AcademyManager from '@/modules/human-resources/views/AcademyManager';
+import RewardManager from '@/modules/human-resources/views/RewardManager';
 import SurveyManager from '@/modules/human-resources/views/SurveyManager';
 import CRMLayout from '@/modules/crm/components/CRMLayout';
 import SalesPipeline from '@/modules/crm/views/SalesPipeline';
@@ -36,45 +41,23 @@ import QuotesList from '@/modules/crm/views/QuotesList';
 import InvoicesOrders from '@/modules/crm/views/InvoicesOrders';
 import AcademyHome from '@/modules/lms/views/AcademyHome';
 
-// Vistas Temporales
-const Dashboard = () => <div className="space-y-6 animate-in fade-in duration-500">
-  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-    <div className="bg-white p-6 rounded-xl border shadow-sm">
-      <h3 className="text-gray-500 text-sm font-medium">OTs Pendientes</h3>
-      <p className="text-3xl font-bold mt-2 text-gray-900">12</p>
-    </div>
-    <div className="bg-white p-6 rounded-xl border shadow-sm">
-      <h3 className="text-gray-500 text-sm font-medium">Gastos por Aprobar</h3>
-      <p className="text-3xl font-bold mt-2 text-gray-900">$4,250.00</p>
-    </div>
-    <div className="bg-white p-6 rounded-xl border shadow-sm">
-      <h3 className="text-gray-500 text-sm font-medium">Próximas Capacitaciones</h3>
-      <p className="text-3xl font-bold mt-2 text-gray-900">3</p>
-    </div>
-  </div>
-  <div className="bg-white p-6 rounded-xl border shadow-sm h-64 flex flex-col items-center justify-center text-gray-400 border-dashed gap-4">
-    <BarChart4 className="h-12 w-12 opacity-20" />
-    <p className="italic font-medium text-sm">Resumen de Actividad Global (BI Integrado)</p>
-  </div>
-</div>;
-
 // Selector de Dashboard por Cargo
 const DashboardSelector = () => {
   const { user } = useAuth();
   
   switch(user?.role) {
     case 'ADMIN':
-      return <Dashboard />; // Dashboard Global
+      return <SupervisorOTs />;
     case 'OPERATIONS':
-      return <SupervisorOTs />; // Portal de Supervisión de OTs
+      return <SupervisorOTs />;
     case 'TECHNICIAN':
-      return <TechnicianOTs />; // Portal de Trabajos de Campo
+      return <TechnicianOTs />;
     case 'HR':
-      return <HRDashboard />; // Portal de Gestión de Talento
+      return <HRDashboard />;
     case 'SALES':
-      return <SalesPipeline />; // Portal de Ventas / CRM
+      return <SalesPipeline />;
     default:
-      return <Dashboard />;
+      return <TechnicianOTs />;
   }
 };
 
@@ -87,14 +70,8 @@ const ProtectedRoute = ({ children, noShell = false }) => {
     if (noShell) return children;
     return <AppShell>{children}</AppShell>;
   };
-    const OTViewSelector = () => {
-    const { user } = useAuth();
-    if (user?.role === 'TECHNICIAN') return <TechnicianOTs />;
-    return <SupervisorOTs />;
-  };
-  
-  export default function AppRouter() {
-  
+
+export default function AppRouter() {
   return (
     <BrowserRouter>
       <Routes>
@@ -104,13 +81,15 @@ const ProtectedRoute = ({ children, noShell = false }) => {
         <Route path="/expenses" element={<ProtectedRoute><ExpensesList /></ProtectedRoute>} />
         <Route path="/expenses/dashboard" element={<ProtectedRoute><ExpensesDashboard /></ProtectedRoute>} />
         <Route path="/ops/approvals/expenses" element={<ProtectedRoute><ApprovalsList /></ProtectedRoute>} />
-        <Route path="/ots" element={<ProtectedRoute><OTViewSelector /></ProtectedRoute>} />
+        <Route path="/ops/expenses/control" element={<ProtectedRoute><OperationsExpenses /></ProtectedRoute>} />
+        <Route path="/ots" element={<ProtectedRoute><TechnicianOTs /></ProtectedRoute>} />
+        <Route path="/ots/leaderboard" element={<ProtectedRoute><TechGamification /></ProtectedRoute>} />
         <Route path="/ots/:id" element={<ProtectedRoute><OTDetail /></ProtectedRoute>} />
         <Route path="/ops/ots/validate/:id" element={<ProtectedRoute><OTValidation /></ProtectedRoute>} />
-        <Route path="/lms" element={<ProtectedRoute><CourseCatalog /></ProtectedRoute>} />
-        <Route path="/lms/course/:id" element={<ProtectedRoute><CoursePlayer /></ProtectedRoute>} />
+        <Route path="/ops/ots/catalogs" element={<ProtectedRoute><OTCatalogs /></ProtectedRoute>} />
+        <Route path="/ops/ots/delivery-act/:id" element={<ProtectedRoute><DeliveryAct /></ProtectedRoute>} />
         
-        {/* Módulo RH - Rutas Anidadas */}
+        {/* Módulo RH */}
         <Route path="/hr" element={<ProtectedRoute><HRLayout /></ProtectedRoute>}>
           <Route index element={<HRDashboard />} />
           <Route path="directory" element={<EmployeeDirectory />} />
@@ -121,16 +100,16 @@ const ProtectedRoute = ({ children, noShell = false }) => {
           <Route path="org-chart" element={<OrgChart />} />
           <Route path="recruitment" element={<Recruitment />} />
           <Route path="performance" element={<Performance />} />
+          <Route path="rewards" element={<RewardManager />} />
           <Route path="assets" element={<Assets />} />
           <Route path="academy-admin" element={<AcademyManager />} />
           <Route path="surveys" element={<SurveyManager />} />
           <Route path="announcements" element={<Announcements />} />
           <Route path="reports" element={<HRReports />} />
           <Route path="settings" element={<HRSettings />} />
-          <Route path="*" element={<div className="p-10 text-center text-gray-400 font-bold italic">Sección en construcción para MVP</div>} />
         </Route>
 
-        {/* Módulo CRM - Rutas Anidadas */}
+        {/* Módulo CRM */}
         <Route path="/crm" element={<ProtectedRoute><CRMLayout /></ProtectedRoute>}>
           <Route index element={<SalesPipeline />} />
           <Route path="leads" element={<SalesPipeline />} />
@@ -138,10 +117,9 @@ const ProtectedRoute = ({ children, noShell = false }) => {
           <Route path="quotes" element={<QuotesList />} />
           <Route path="orders" element={<InvoicesOrders />} />
           <Route path="invoices" element={<InvoicesOrders />} />
-          <Route path="*" element={<div className="p-10 text-center text-gray-400 font-bold italic">Sección CRM en construcción</div>} />
         </Route>
 
-        {/* Rama Olea Academy (Independiente) */}
+        {/* Olea Academy */}
         <Route path="/academy" element={<ProtectedRoute noShell><AcademyHome /></ProtectedRoute>} />
         <Route path="/academy/course/:id" element={<ProtectedRoute noShell><CoursePlayer /></ProtectedRoute>} />
         

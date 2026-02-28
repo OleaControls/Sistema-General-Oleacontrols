@@ -12,6 +12,7 @@ import {
   Image as ImageIcon
 } from 'lucide-react';
 import { expenseService } from '@/api/expenseService';
+import { otService } from '@/api/otService';
 import { cn } from '@/lib/utils';
 
 export default function ApprovalsList() {
@@ -34,8 +35,18 @@ export default function ApprovalsList() {
 
   const loadPendingExpenses = async () => {
     setLoading(true);
-    const data = await expenseService.getAll();
-    setExpenses(data.filter(e => e.status === 'SUBMITTED'));
+    const [expensesData, otsData] = await Promise.all([
+      expenseService.getAll(),
+      otService.getOTs()
+    ]);
+    
+    // Enriquecer gastos con info de presupuesto de OT
+    const enriched = await Promise.all(expensesData.filter(e => e.status === 'SUBMITTED').map(async e => {
+      const financials = await otService.getOTFinancials(e.otId);
+      return { ...e, financials };
+    }));
+
+    setExpenses(enriched);
     setLoading(false);
     setNewCount(0);
   };
@@ -44,17 +55,22 @@ export default function ApprovalsList() {
     const data = await expenseService.getAll();
     const pending = data.filter(e => e.status === 'SUBMITTED');
     
-    // Si hay más gastos de los que tenemos actualmente, notificamos
     if (pending.length > expenses.length) {
       setNewCount(pending.length - expenses.length);
-      // Actualizamos la lista automáticamente para el tiempo real
-      setExpenses(pending);
+      loadPendingExpenses(); // Recarga completa para tener financieros frescos
     }
   };
 
-  const handleAction = async (id, status) => {
+  const handleAction = async (exp, status) => {
     const comment = status === 'APPROVED' ? 'Aprobado por operaciones' : 'Rechazado: Documentación incompleta';
-    await expenseService.updateStatus(id, status, comment);
+    
+    if (status === 'APPROVED' && exp.financials?.isOverLimit) {
+      // Si el gasto excede el fondo, sumamos este monto al fondo asignado de la OT
+      // según el requerimiento: "si se autorizan se sumaran a los viaticos que ya se les habia puesto"
+      await otService.addSupplementalFunds(exp.otId, exp.amount);
+    }
+
+    await expenseService.updateStatus(exp.id, status, comment);
     loadPendingExpenses();
   };
 
@@ -131,9 +147,14 @@ export default function ApprovalsList() {
                   </td>
                   <td className="px-6 py-4">
                     <p className="text-sm font-bold text-gray-900">{exp.description}</p>
-                    <div className="flex items-center gap-2 mt-1">
+                    <div className="flex flex-wrap items-center gap-2 mt-1">
                       <span className="text-[10px] font-bold bg-gray-100 px-2 py-0.5 rounded text-gray-600 uppercase">{exp.category}</span>
                       <span className="text-[10px] font-black text-primary bg-primary/5 px-2 py-0.5 rounded border border-primary/10">#{exp.otId}</span>
+                      {exp.financials?.isOverLimit && (
+                        <span className="flex items-center gap-1 text-[9px] font-black text-red-600 bg-red-50 px-2 py-0.5 rounded border border-red-100 animate-pulse">
+                          <AlertCircle className="h-3 w-3" /> EXEDE FONDO
+                        </span>
+                      )}
                     </div>
                   </td>
                   <td className="px-6 py-4">
@@ -146,20 +167,22 @@ export default function ApprovalsList() {
                     </button>
                   </td>
                   <td className="px-6 py-4">
-                    <p className="text-sm font-black text-gray-900">${exp.amount.toLocaleString()}</p>
+                    <p className={cn("text-sm font-black", exp.financials?.isOverLimit ? "text-red-600" : "text-gray-900")}>
+                      ${exp.amount.toLocaleString()}
+                    </p>
                     <p className="text-[10px] text-gray-400 uppercase font-bold">{exp.currency}</p>
                   </td>
                   <td className="px-6 py-4 text-right">
                     <div className="flex items-center justify-end gap-2">
                       <button 
-                        onClick={() => handleAction(exp.id, 'REJECTED')}
+                        onClick={() => handleAction(exp, 'REJECTED')}
                         className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors border border-transparent hover:border-red-100" 
                         title="Rechazar"
                       >
                         <XCircle className="h-5 w-5" />
                       </button>
                       <button 
-                        onClick={() => handleAction(exp.id, 'APPROVED')}
+                        onClick={() => handleAction(exp, 'APPROVED')}
                         className="p-2 text-green-500 hover:bg-green-50 rounded-lg transition-colors border border-transparent hover:border-green-100 shadow-sm" 
                         title="Aprobar"
                       >

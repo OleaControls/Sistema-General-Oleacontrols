@@ -14,7 +14,8 @@ import {
   BarChart4, 
   Settings,
   GraduationCap,
-  ClipboardCheck
+  ClipboardCheck,
+  Gift
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -27,6 +28,7 @@ const hrNavItems = [
   { name: 'Organigrama', path: '/hr/org-chart', icon: Network },
   { name: 'Reclutamiento', path: '/hr/recruitment', icon: UserPlus },
   { name: 'Desempeño', path: '/hr/performance', icon: Target },
+  { name: 'Incentivos y Premios', path: '/hr/rewards', icon: Gift },
   { name: 'EPP e Inventario', path: '/hr/assets', icon: HardHat },
   { name: 'Gestión Academia', path: '/hr/academy-admin', icon: GraduationCap },
   { name: 'Encuestas de Clima', path: '/hr/surveys', icon: ClipboardCheck },
