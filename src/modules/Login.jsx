@@ -8,8 +8,17 @@ export default function Login() {
   const { login } = useAuth();
   const navigate = useNavigate();
   const [portal, setPortal] = useState('OPERATIONS');
+  const [step, setStep] = useState(1); // 1: Portal, 2: Identity (Only for mobile)
   const [isLogginIn, setIsLoggingIn] = useState(false);
   const [welcomeMsg, setWelcomeMsg] = useState(null);
+
+  const handlePortalSelect = (p) => {
+    setPortal(p);
+    // On mobile, advance to next step
+    if (window.innerWidth < 1024) {
+      setStep(2);
+    }
+  };
 
   const handleLogin = (opt) => {
     setIsLoggingIn(true);
@@ -90,7 +99,10 @@ export default function Login() {
       <div className="max-w-5xl w-full grid grid-cols-1 lg:grid-cols-5 gap-0 bg-white rounded-[3rem] shadow-2xl overflow-hidden relative z-10 border border-gray-100">
         
         {/* Left Side: Portal Selector (2 cols) */}
-        <div className="lg:col-span-2 p-12 bg-gray-50 flex flex-col justify-between border-r border-gray-100">
+        <div className={cn(
+          "lg:col-span-2 p-12 bg-gray-50 flex flex-col justify-between border-r border-gray-100 transition-all duration-500",
+          step === 2 ? "hidden lg:flex" : "flex"
+        )}>
           <div className="space-y-2">
             <div className="bg-primary text-white w-fit p-2 rounded-xl mb-4 shadow-lg shadow-primary/20">
               <Sparkles className="h-6 w-6" />
@@ -103,7 +115,7 @@ export default function Login() {
             <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Modo de Acceso</p>
             <div className="grid gap-4">
               <button 
-                onClick={() => setPortal('OPERATIONS')}
+                onClick={() => handlePortalSelect('OPERATIONS')}
                 className={cn(
                   "flex items-center gap-4 p-6 rounded-[2rem] border-2 transition-all group text-left",
                   portal === 'OPERATIONS' ? "border-primary bg-white shadow-xl ring-4 ring-primary/5" : "border-transparent bg-gray-100/50 hover:bg-white"
@@ -119,7 +131,7 @@ export default function Login() {
               </button>
 
               <button 
-                onClick={() => setPortal('ACADEMY')}
+                onClick={() => handlePortalSelect('ACADEMY')}
                 className={cn(
                   "flex items-center gap-4 p-6 rounded-[2rem] border-2 transition-all group text-left",
                   portal === 'ACADEMY' ? "border-primary bg-white shadow-xl ring-4 ring-primary/5" : "border-transparent bg-gray-100/50 hover:bg-white"
@@ -143,8 +155,19 @@ export default function Login() {
         </div>
 
         {/* Right Side: Identity Selector (3 cols) */}
-        <div className="lg:col-span-3 p-12 flex flex-col h-full bg-white">
+        <div className={cn(
+          "lg:col-span-3 p-12 flex flex-col h-full bg-white transition-all duration-500",
+          step === 1 ? "hidden lg:flex" : "flex"
+        )}>
           <div className="space-y-2 mb-10">
+            {step === 2 && (
+              <button 
+                onClick={() => setStep(1)}
+                className="lg:hidden text-[10px] font-black text-primary uppercase tracking-widest mb-4 flex items-center gap-1"
+              >
+                <ArrowRight className="h-3 w-3 rotate-180" /> Volver a Portales
+              </button>
+            )}
             <h2 className="text-4xl font-black text-gray-900 tracking-tight">Bienvenido.</h2>
             <p className="text-gray-500 font-medium">Selecciona tu departamento para ingresar a {portal === 'ACADEMY' ? 'la Academia' : 'la Plataforma'}.</p>
           </div>

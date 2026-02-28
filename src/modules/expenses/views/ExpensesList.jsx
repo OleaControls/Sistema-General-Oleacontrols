@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Filter, Search, Receipt, ChevronRight, MapPin, Calendar, CreditCard, CloudOff, Check } from 'lucide-react';
+import { Plus, Filter, Search, Receipt, ChevronRight, MapPin, Calendar, CreditCard, CloudOff, Check, AlertTriangle } from 'lucide-react';
 import { expenseService } from '@/api/expenseService';
+import { otService } from '@/api/otService';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/store/AuthContext';
 import NewExpenseForm from '../components/NewExpenseForm';
@@ -14,21 +15,29 @@ const statusStyles = {
   REIMBURSED: "bg-emerald-100 text-emerald-700",
 };
 
-export default function ExpensesList() {
+export default function ExpensesList({ otId = null, hideHeader = false, refreshTrigger = 0 }) {
   const { user } = useAuth();
   const [expenses, setExpenses] = useState([]);
+  const [otFinancials, setOtFinancials] = useState(null);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('ALL');
   const [isFormOpen, setFormOpen] = useState(false);
 
   useEffect(() => {
     loadExpenses();
-  }, []);
+  }, [otId, refreshTrigger]);
 
   const loadExpenses = async () => {
     setLoading(true);
-    const data = await expenseService.getAll();
-    setExpenses(data);
+    const [data, financials] = await Promise.all([
+      expenseService.getAll(),
+      otId ? otService.getOTFinancials(otId) : Promise.resolve(null)
+    ]);
+    
+    setOtFinancials(financials);
+    // Filter by OT if provided
+    const baseData = otId ? data.filter(e => e.otId === otId) : data;
+    setExpenses(baseData);
     setLoading(false);
   };
 
@@ -49,19 +58,21 @@ export default function ExpensesList() {
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       {/* Header Acciones */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900">Mis Gastos</h2>
-          <p className="text-sm text-gray-500">Gestiona tus reembolsos y gastos operativos.</p>
+      {!hideHeader && (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <h2 className="text-2xl font-bold text-gray-900">Mis Gastos</h2>
+            <p className="text-sm text-gray-500">Gestiona tus reembolsos y gastos operativos.</p>
+          </div>
+          <button 
+            onClick={() => setFormOpen(true)}
+            className="flex items-center justify-center gap-2 bg-primary text-white px-5 py-2.5 rounded-xl font-bold hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all"
+          >
+            <Plus className="h-5 w-5" />
+            <span>Registrar Gasto</span>
+          </button>
         </div>
-        <button 
-          onClick={() => setFormOpen(true)}
-          className="flex items-center justify-center gap-2 bg-primary text-white px-5 py-2.5 rounded-xl font-bold hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all"
-        >
-          <Plus className="h-5 w-5" />
-          <span>Registrar Gasto</span>
-        </button>
-      </div>
+      )}
 
       <NewExpenseForm 
         isOpen={isFormOpen} 
@@ -92,60 +103,70 @@ export default function ExpensesList() {
         {loading ? (
           [1, 2, 3].map(i => <div key={i} className="h-24 bg-gray-100 animate-pulse rounded-2xl" />)
         ) : filteredExpenses.length > 0 ? (
-          filteredExpenses.map((exp) => (
-            <div 
-              key={exp.id} 
-              className="group bg-white border border-gray-100 p-4 rounded-2xl hover:border-primary/30 hover:shadow-md transition-all cursor-pointer relative overflow-hidden"
-            >
-              <div className="flex items-center gap-4">
-                <div className="h-12 w-12 bg-gray-50 rounded-xl flex items-center justify-center text-gray-400 group-hover:bg-primary/10 group-hover:text-primary transition-colors">
-                  <Receipt className="h-6 w-6" />
-                </div>
-                
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className={cn("text-[10px] font-black px-2 py-0.5 rounded-md uppercase", statusStyles[exp.status])}>
-                      {exp.status}
-                    </span>
-                    {exp.pendingSync && (
-                      <span className="flex items-center gap-1 text-[9px] font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-100">
-                        <CloudOff className="h-3 w-3" />
-                        OFFLINE
+          filteredExpenses.map((exp, index) => {
+            // Logic to determine if this expense contributes to an over-limit state
+            // For simplicity, if balance is negative and it's one of the last expenses, or total is over
+            const isOverLimit = otFinancials?.isOverLimit && exp.status !== 'REJECTED';
+            
+            return (
+              <div 
+                key={exp.id} 
+                className={cn(
+                  "group bg-white border p-4 rounded-2xl transition-all cursor-pointer relative overflow-hidden",
+                  isOverLimit ? "border-red-100 bg-red-50/30 shadow-sm" : "border-gray-100 hover:border-primary/30 hover:shadow-md"
+                )}
+              >
+                <div className="flex items-center gap-4">
+                  <div className={cn(
+                    "h-12 w-12 rounded-xl flex items-center justify-center transition-colors",
+                    isOverLimit ? "bg-red-100 text-red-600" : "bg-gray-50 text-gray-400 group-hover:bg-primary/10 group-hover:text-primary"
+                  )}>
+                    {isOverLimit ? <AlertTriangle className="h-6 w-6" /> : <Receipt className="h-6 w-6" />}
+                  </div>
+                  
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className={cn("text-[10px] font-black px-2 py-0.5 rounded-md uppercase", statusStyles[exp.status])}>
+                        {exp.status}
                       </span>
-                    )}
-                    <span className="text-[10px] text-gray-400 font-medium">{exp.id}</span>
-                  </div>
-                  <h3 className="text-sm font-bold text-gray-900 truncate">{exp.description}</h3>
-                  <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1">
-                    <div className="flex items-center gap-1 text-[11px] text-gray-500 font-medium">
-                      <Calendar className="h-3 w-3" />
-                      {exp.date}
+                      {isOverLimit && (
+                        <span className="bg-red-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded uppercase animate-pulse">
+                          Excede Fondo
+                        </span>
+                      )}
+                      {exp.pendingSync && (
+                        <span className="flex items-center gap-1 text-[9px] font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-100">
+                          <CloudOff className="h-3 w-3" />
+                          OFFLINE
+                        </span>
+                      )}
                     </div>
-                    {exp.otId && (
-                      <div className="flex items-center gap-1 text-[11px] text-gray-500 font-medium">
-                        <MapPin className="h-3 w-3" />
-                        {exp.otId}
+                    <h3 className={cn("text-sm font-bold truncate", isOverLimit ? "text-red-900" : "text-gray-900")}>{exp.description}</h3>
+                    <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1 text-[11px] font-medium text-gray-500">
+                      <div className="flex items-center gap-1">
+                        <Calendar className="h-3 w-3" />
+                        {exp.date}
                       </div>
-                    )}
-                    <div className="flex items-center gap-1 text-[11px] text-gray-500 font-medium">
-                      <CreditCard className="h-3 w-3" />
-                      {exp.paymentMethod.replace('_', ' ')}
+                      <div className="flex items-center gap-1">
+                        <CreditCard className="h-3 w-3" />
+                        {exp.paymentMethod.replace('_', ' ')}
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                <div className="text-right flex items-center gap-3">
-                  <div>
-                    <p className="text-lg font-black text-gray-900">
-                      ${exp.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                    </p>
-                    <p className="text-[10px] font-bold text-gray-400 uppercase">{exp.currency}</p>
+                  <div className="text-right flex items-center gap-3">
+                    <div>
+                      <p className={cn("text-lg font-black", isOverLimit ? "text-red-600" : "text-gray-900")}>
+                        ${exp.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                      </p>
+                      <p className="text-[10px] font-bold text-gray-400 uppercase">{exp.currency}</p>
+                    </div>
+                    <ChevronRight className="h-5 w-5 text-gray-300 group-hover:text-primary transition-colors" />
                   </div>
-                  <ChevronRight className="h-5 w-5 text-gray-300 group-hover:text-primary transition-colors" />
                 </div>
               </div>
-            </div>
-          ))
+            );
+          })
         ) : (
           <div className="text-center py-12 bg-gray-50 rounded-3xl border-2 border-dashed border-gray-200">
             <p className="text-gray-500 font-medium italic">No se encontraron gastos con este filtro.</p>

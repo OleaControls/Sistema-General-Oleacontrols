@@ -11,7 +11,8 @@ import {
   X,
   LogOut,
   Bell,
-  ChevronDown
+  ChevronDown,
+  Trophy
 } from 'lucide-react';
 import { useAuth, ROLES } from '@/store/AuthContext';
 import { useTenant } from '@/store/TenantContext';
@@ -38,6 +39,13 @@ const navItems = [
     icon: ClipboardList, 
     roles: [ROLES.ADMIN, ROLES.OPS, ROLES.TECH],
     getName: (user) => user?.role === ROLES.TECH ? 'Órdenes Asignadas' : 'Gestión de OTs'
+  },
+  { 
+    name: 'Ranking', 
+    path: '/ots/leaderboard', 
+    icon: Trophy, 
+    roles: [ROLES.OPS, ROLES.TECH],
+    getName: () => 'Arena de Líderes'
   },
   { 
     name: 'Gastos', 
@@ -94,7 +102,7 @@ export default function AppShell({ children }) {
 
       {/* Sidebar (Desktop) / Drawer (Mobile) */}
       <aside className={cn(
-        "fixed inset-y-0 left-0 z-50 w-64 bg-white border-r transform transition-transform duration-300 md:relative md:translate-x-0",
+        "fixed inset-y-0 left-0 z-50 w-64 bg-white border-r transform transition-transform duration-300 md:sticky md:top-0 md:h-screen md:translate-x-0",
         isSidebarOpen ? "translate-x-0" : "-translate-x-full"
       )}>
         <div className="h-full flex flex-col">
@@ -181,20 +189,25 @@ export default function AppShell({ children }) {
         </div>
 
         {/* Bottom Nav (Mobile/PWA) */}
-        <nav className="md:hidden fixed bottom-0 inset-x-0 bg-white border-t flex justify-around py-3 px-2 z-50">
-          {filteredNavItems.slice(0, 4).map((item) => (
-            <Link
-              key={item.name}
-              to={item.path}
-              className={cn(
-                "flex flex-col items-center gap-1",
-                location.pathname === item.path ? "text-primary" : "text-gray-400"
-              )}
-            >
-              <item.icon className="h-6 w-6" />
-              <span className="text-[10px] font-medium">{item.name}</span>
-            </Link>
-          ))}
+        <nav className="md:hidden fixed bottom-0 inset-x-0 bg-white border-t flex justify-around py-2 px-1 z-50 shadow-[0_-4px_10px_rgba(0,0,0,0.05)]">
+          {filteredNavItems.slice(0, 5).map((item) => {
+            const itemPath = item.getPath ? item.getPath(user) : item.path;
+            const itemName = item.getName ? item.getName(user) : item.name;
+            const isActive = location.pathname === itemPath;
+            return (
+              <Link
+                key={item.name}
+                to={itemPath}
+                className={cn(
+                  "flex flex-col items-center justify-center flex-1 gap-1 py-1 transition-all",
+                  isActive ? "text-primary scale-110" : "text-gray-400"
+                )}
+              >
+                <item.icon className={cn("h-5 w-5", isActive ? "stroke-[3px]" : "stroke-[2px]")} />
+                <span className="text-[8px] font-black uppercase tracking-tighter truncate w-full text-center">{itemName.split(' ')[0]}</span>
+              </Link>
+            );
+          })}
         </nav>
       </main>
 
