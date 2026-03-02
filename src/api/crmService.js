@@ -2,8 +2,30 @@ const CRM_CLIENTS_KEY = 'olea_crm_clients';
 const CRM_QUOTES_KEY = 'olea_crm_quotes';
 
 const initialClients = [
-  { id: 'CLI-001', name: 'Minera del Potosí S.A.', rfc: 'MPO920101XYZ', contact: 'Roberto Sierra', email: 'r.sierra@minera.mx', phone: '4421234567', address: 'Carretera Central KM 45, SLP', status: 'ACTIVE' },
-  { id: 'CLI-002', name: 'Bebidas Globales S.A. de C.V.', rfc: 'BGL050812ABC', contact: 'Martha Cruz', email: 'm.cruz@bebidas.com', phone: '5512345678', address: 'Av. Industrial 102, Querétaro', status: 'ACTIVE' }
+  { 
+    id: 'CLI-001', 
+    name: 'Minera del Potosí S.A.', 
+    rfc: 'MPO920101XYZ', 
+    contact: 'Roberto Sierra', 
+    email: 'r.sierra@minera.mx', 
+    phone: '4421234567', 
+    address: 'Carretera Central KM 45, SLP', 
+    lat: 22.1444,
+    lng: -100.9167,
+    status: 'ACTIVE' 
+  },
+  { 
+    id: 'CLI-002', 
+    name: 'Bebidas Globales S.A. de C.V.', 
+    rfc: 'BGL050812ABC', 
+    contact: 'Martha Cruz', 
+    email: 'm.cruz@bebidas.com', 
+    phone: '5512345678', 
+    address: 'Av. Industrial 102, Querétaro', 
+    lat: 20.5888,
+    lng: -100.3899,
+    status: 'ACTIVE' 
+  }
 ];
 
 const initialQuotes = [
@@ -15,7 +37,11 @@ export const crmService = {
   // Clientes
   async getClients() {
     const data = localStorage.getItem(CRM_CLIENTS_KEY);
-    return data ? JSON.parse(data) : initialClients;
+    if (!data) {
+        localStorage.setItem(CRM_CLIENTS_KEY, JSON.stringify(initialClients));
+        return initialClients;
+    }
+    return JSON.parse(data);
   },
   async saveClient(client) {
     const clients = await this.getClients();
@@ -27,7 +53,11 @@ export const crmService = {
   // Presupuestos (Quotes)
   async getQuotes() {
     const data = localStorage.getItem(CRM_QUOTES_KEY);
-    return data ? JSON.parse(data) : initialQuotes;
+    if (!data) {
+        localStorage.setItem(CRM_QUOTES_KEY, JSON.stringify(initialQuotes));
+        return initialQuotes;
+    }
+    return JSON.parse(data);
   },
   async saveQuote(quote) {
     const quotes = await this.getQuotes();

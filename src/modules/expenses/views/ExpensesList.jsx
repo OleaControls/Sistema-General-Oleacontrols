@@ -22,6 +22,7 @@ export default function ExpensesList({ otId = null, hideHeader = false, refreshT
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('ALL');
   const [isFormOpen, setFormOpen] = useState(false);
+  const [editingExpense, setEditingExpense] = useState(null);
 
   useEffect(() => {
     loadExpenses();
@@ -37,18 +38,43 @@ export default function ExpensesList({ otId = null, hideHeader = false, refreshT
     setOtFinancials(financials);
     // Filter by OT if provided
     const baseData = otId ? data.filter(e => e.otId === otId) : data;
-    setExpenses(baseData);
+    // Filter by user (technicians only see their own expenses)
+    const myData = (user.role === 'ADMIN' || user.role === 'OPERATIONS') ? baseData : baseData.filter(e => e.userId === user.id);
+    setExpenses(myData);
     setLoading(false);
   };
 
-  const handleSaveExpense = async (formData) => {
-    await expenseService.save({
-      ...formData,
-      userId: user.id,
-      tenantId: 'olea-mx', // Por ahora mock
-      amount: parseFloat(formData.amount)
-    });
+  const handleSaveExpense = async (formData, isUpdate = false) => {
+    if (isUpdate && editingExpense) {
+      await expenseService.update(editingExpense.id, {
+        ...formData,
+        amount: parseFloat(formData.amount)
+      });
+    } else {
+      await expenseService.save({
+        ...formData,
+        userId: user.id,
+        tenantId: 'olea-mx', // Por ahora mock
+        amount: parseFloat(formData.amount)
+      });
+    }
     loadExpenses();
+    setEditingExpense(null);
+  };
+
+  const handleEditClick = (exp) => {
+    // Only allow editing if not approved or reimbursed
+    if (['DRAFT', 'SUBMITTED', 'REJECTED'].includes(exp.status)) {
+      setEditingExpense(exp);
+      setFormOpen(true);
+    } else {
+      alert("No se puede editar un gasto que ya ha sido aprobado o reembolsado.");
+    }
+  };
+
+  const closeForm = () => {
+    setFormOpen(false);
+    setEditingExpense(null);
   };
 
   const filteredExpenses = filter === 'ALL' 
@@ -65,7 +91,7 @@ export default function ExpensesList({ otId = null, hideHeader = false, refreshT
             <p className="text-sm text-gray-500">Gestiona tus reembolsos y gastos operativos.</p>
           </div>
           <button 
-            onClick={() => setFormOpen(true)}
+            onClick={() => { setEditingExpense(null); setFormOpen(true); }}
             className="flex items-center justify-center gap-2 bg-primary text-white px-5 py-2.5 rounded-xl font-bold hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all"
           >
             <Plus className="h-5 w-5" />
@@ -76,8 +102,10 @@ export default function ExpensesList({ otId = null, hideHeader = false, refreshT
 
       <NewExpenseForm 
         isOpen={isFormOpen} 
-        onClose={() => setFormOpen(false)} 
+        onClose={closeForm} 
         onSave={handleSaveExpense}
+        initialData={editingExpense}
+        prefilledOtId={otId}
       />
 
       {/* Filtros Rápidos */}
@@ -111,6 +139,7 @@ export default function ExpensesList({ otId = null, hideHeader = false, refreshT
             return (
               <div 
                 key={exp.id} 
+                onClick={() => handleEditClick(exp)}
                 className={cn(
                   "group bg-white border p-4 rounded-2xl transition-all cursor-pointer relative overflow-hidden",
                   isOverLimit ? "border-red-100 bg-red-50/30 shadow-sm" : "border-gray-100 hover:border-primary/30 hover:shadow-md"

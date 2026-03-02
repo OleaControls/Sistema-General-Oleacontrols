@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Users2, Plus, Search, Mail, Phone, MapPin, Building2, MoreVertical, X } from 'lucide-react';
+import { Users2, Plus, Search, Mail, Phone, MapPin, Building2, MoreVertical, X, Loader2 } from 'lucide-react';
 import { crmService } from '@/api/crmService';
 
 export default function ClientsList() {
@@ -67,14 +67,14 @@ export default function ClientsList() {
                 <td className="px-6 py-4">
                   <p className="text-sm font-bold text-gray-700">{client.contact}</p>
                   <div className="flex gap-3 mt-1">
-                    <Mail className="h-3 w-3 text-gray-400" />
-                    <Phone className="h-3 w-3 text-gray-400" />
+                    <Mail className="h-3 w-3 text-gray-400" title={client.email} />
+                    <Phone className="h-3 w-3 text-gray-400" title={client.phone} />
                   </div>
                 </td>
                 <td className="px-6 py-4 text-xs font-bold text-gray-500">
                   <div className="flex items-center gap-1">
                     <MapPin className="h-3 w-3" />
-                    {client.address}
+                    <span className="truncate max-w-[200px]">{client.address}</span>
                   </div>
                 </td>
                 <td className="px-6 py-4 text-right">
@@ -94,7 +94,57 @@ export default function ClientsList() {
 }
 
 function ClientFormModal({ onClose, onSave }) {
-  const [formData, setFormData] = useState({ name: '', rfc: '', contact: '', email: '', phone: '', address: '' });
+  const [formData, setFormData] = useState({ 
+    name: '', 
+    rfc: '', 
+    contact: '', 
+    email: '', 
+    phone: '', 
+    address: '',
+    lat: null,
+    lng: null
+  });
+  const [searchLoading, setSearchLoading] = useState(false);
+
+  const handleLocationSearch = async () => {
+    if (!formData.address) return;
+    setSearchLoading(true);
+    
+    const searchNominatim = async (query) => {
+      const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&countrycodes=mx&limit=1`);
+      return await response.json();
+    };
+
+    try {
+      let data = await searchNominatim(formData.address);
+      
+      if (!data || data.length === 0) {
+        const simplified = formData.address.split(',').slice(0, 3).join(',');
+        data = await searchNominatim(simplified);
+      }
+
+      if (!data || data.length === 0) {
+        const verySimplified = formData.address.split(',')[0];
+        data = await searchNominatim(verySimplified);
+      }
+
+      if (data && data.length > 0) {
+        const { lat, lon, display_name } = data[0];
+        setFormData(prev => ({ 
+          ...prev, 
+          lat: parseFloat(lat), 
+          lng: parseFloat(lon), 
+          address: display_name 
+        }));
+      } else {
+        alert("No se pudo geolocalizar la dirección. Intenta con una referencia más general.");
+      }
+    } catch (error) {
+      console.error('Location search error:', error);
+    } finally {
+      setSearchLoading(false);
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -115,7 +165,7 @@ function ClientFormModal({ onClose, onSave }) {
           <button onClick={onClose} className="p-2 hover:bg-gray-200 rounded-full transition-colors"><X className="h-5 w-5" /></button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-8 space-y-4">
+        <form onSubmit={handleSubmit} className="p-8 space-y-4 max-h-[70vh] overflow-y-auto">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="md:col-span-2 space-y-1">
               <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Razón Social</label>
@@ -143,13 +193,34 @@ function ClientFormModal({ onClose, onSave }) {
                 value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} />
             </div>
             <div className="md:col-span-2 space-y-1">
-              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Dirección Fiscal / Entrega</label>
-              <textarea rows="2" className="w-full bg-gray-50 border px-4 py-3 rounded-xl font-bold outline-none focus:border-primary" 
-                value={formData.address} onChange={e => setFormData({...formData, address: e.target.value})} />
+              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Dirección y Localización</label>
+              <div className="flex gap-2">
+                <input 
+                  required 
+                  className="flex-1 bg-gray-50 border px-4 py-3 rounded-xl font-bold outline-none focus:border-primary" 
+                  value={formData.address} 
+                  onChange={e => setFormData({...formData, address: e.target.value})}
+                  onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), handleLocationSearch())}
+                  placeholder="Calle, ciudad, cp..."
+                />
+                <button 
+                  type="button"
+                  onClick={handleLocationSearch}
+                  disabled={searchLoading}
+                  className="bg-gray-900 text-white px-4 rounded-xl flex items-center justify-center disabled:opacity-50"
+                >
+                  {searchLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+                </button>
+              </div>
+              {formData.lat && (
+                <div className="flex items-center gap-2 mt-2 text-[10px] font-black text-emerald-600 uppercase">
+                    <MapPin className="h-3 w-3" /> Ubicación Vinculada: {formData.lat.toFixed(4)}, {formData.lng.toFixed(4)}
+                </div>
+              )}
             </div>
           </div>
           <button type="submit" className="w-full bg-primary text-white py-4 rounded-2xl font-black shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all mt-4 uppercase tracking-widest text-sm">
-            Guardar Cliente
+            Confirmar Registro
           </button>
         </form>
       </div>

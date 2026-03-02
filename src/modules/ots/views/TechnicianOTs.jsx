@@ -15,19 +15,72 @@ import {
   Trophy 
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
+import L from 'leaflet';
 import { otService } from '@/api/otService';
 import { useAuth } from '@/store/AuthContext';
 import { cn } from '@/lib/utils';
 
+// Custom Marker Icons
+const otIcon = new L.Icon({
+    iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
+    shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+    iconSize: [25, 41],
+    iconAnchor: [12, 41],
+    popupAnchor: [1, -34],
+    shadowSize: [41, 41]
+});
+
+const techIcon = new L.Icon({
+    iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
+    shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+    iconSize: [25, 41],
+    iconAnchor: [12, 41],
+    popupAnchor: [1, -34],
+    shadowSize: [41, 41]
+});
+
+// Fix Leaflet marker icons
+delete L.Icon.Default.prototype._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+  iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+});
+
+function MapResizer() {
+  const map = useMap();
+  useEffect(() => {
+    setTimeout(() => {
+      map.invalidateSize();
+    }, 400);
+  }, [map]);
+  return null;
+}
+
 export default function TechnicianOTs() {
   const { user } = useAuth();
   const [ots, setOts] = useState([]);
+  const [techLocation, setTechLocation] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [showMap, setShowMap] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
     loadData();
-  }, []);
+    
+    // Polling for self location (simulated or real)
+    const pollLocation = async () => {
+        const locs = await otService.getTechnicianLocations();
+        if (locs[user.id]) {
+            setTechLocation(locs[user.id]);
+        }
+    };
+    
+    pollLocation();
+    const interval = setInterval(pollLocation, 10000);
+    return () => clearInterval(interval);
+  }, [user.id]);
 
   const loadData = async () => {
     setLoading(true);
@@ -58,14 +111,68 @@ export default function TechnicianOTs() {
               <Calendar className="h-3 w-3 text-primary" /> {new Date().toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' })}
             </p>
           </div>
-          <button 
-            onClick={() => navigate('/ots/leaderboard')}
-            className="bg-white/10 hover:bg-white/20 p-3 rounded-2xl border border-white/10 transition-all flex flex-col items-center gap-1 group shadow-lg"
-          >
-            <Trophy className="h-5 w-5 text-amber-400 group-hover:scale-110 transition-transform" />
-            <span className="text-[8px] font-black uppercase text-white tracking-widest">Ranking</span>
-          </button>
+          <div className="flex gap-2">
+            <button 
+                onClick={() => setShowMap(!showMap)}
+                className={cn(
+                    "p-3 rounded-2xl border transition-all flex flex-col items-center gap-1 group shadow-lg",
+                    showMap ? "bg-primary border-primary text-white" : "bg-white/10 border-white/10 text-white hover:bg-white/20"
+                )}
+            >
+                <MapPin className={cn("h-5 w-5 transition-transform group-hover:scale-110", showMap ? "text-white" : "text-primary")} />
+                <span className="text-[8px] font-black uppercase tracking-widest">Ruta</span>
+            </button>
+            <button 
+                onClick={() => navigate('/ots/leaderboard')}
+                className="bg-white/10 hover:bg-white/20 p-3 rounded-2xl border border-white/10 transition-all flex flex-col items-center gap-1 group shadow-lg"
+            >
+                <Trophy className="h-5 w-5 text-amber-400 group-hover:scale-110 transition-transform" />
+                <span className="text-[8px] font-black uppercase text-white tracking-widest">Ranking</span>
+            </button>
+          </div>
         </div>
+
+        {showMap && (
+            <div className="mt-6 md:mt-8 bg-white/5 border border-white/10 rounded-[2rem] overflow-hidden h-64 md:h-80 relative animate-in zoom-in duration-500">
+                <MapContainer 
+                    center={
+                        (techLocation && typeof techLocation.lat === 'number') 
+                        ? [techLocation.lat, techLocation.lng] 
+                        : (ots[0] && typeof ots[0].lat === 'number' ? [ots[0].lat, ots[0].lng] : [19.4326, -99.1332])
+                    } 
+                    zoom={12} 
+                    style={{ height: '100%', width: '100%' }}
+                >
+                    <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+                    <MapResizer />
+                    
+                    {/* OTs to complete */}
+                    {ots.filter(o => o.status !== 'COMPLETED' && o.status !== 'VALIDATED' && typeof o.lat === 'number' && typeof o.lng === 'number').map(ot => (
+                        <Marker key={ot.id} position={[ot.lat, ot.lng]} icon={otIcon}>
+                            <Popup>
+                                <div className="p-1">
+                                    <p className="font-black text-[10px] text-primary mb-1 uppercase tracking-widest">{ot.id}</p>
+                                    <p className="font-bold text-xs text-gray-900 leading-tight">{ot.title}</p>
+                                    <p className="text-[9px] text-gray-500 font-bold uppercase mt-1">{ot.arrivalTime} HRS</p>
+                                </div>
+                            </Popup>
+                        </Marker>
+                    ))}
+
+                    {/* My Position */}
+                    {techLocation && typeof techLocation.lat === 'number' && typeof techLocation.lng === 'number' && (
+                        <Marker position={[techLocation.lat, techLocation.lng]} icon={techIcon}>
+                            <Popup>
+                                <div className="p-1 flex items-center gap-2">
+                                    <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
+                                    <p className="font-black text-[10px] text-gray-900 uppercase tracking-widest">Mi Posición Actual</p>
+                                </div>
+                            </Popup>
+                        </Marker>
+                    )}
+                </MapContainer>
+            </div>
+        )}
       </div>
 
       {/* Task Roadmap */}

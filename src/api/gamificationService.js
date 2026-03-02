@@ -2,10 +2,10 @@ const GAMIFICATION_KEY = 'olea_gamification_db';
 const REWARDS_KEY = 'olea_rewards_db';
 
 const initialPlayers = [
-  { id: 'user-123', name: 'Gabriel Técnico (Pruebas)', xp: 1250, level: 14, completedOTs: 45, perfectServices: 38, rank: 1, avatar: 'https://i.pravatar.cc/150?u=user-123' },
-  { id: 'user-tech-02', name: 'Juan Pérez', xp: 980, level: 11, completedOTs: 32, perfectServices: 25, rank: 2, avatar: 'https://i.pravatar.cc/150?u=user-tech-02' },
-  { id: 'user-tech-03', name: 'Luis Gómez', xp: 850, level: 9, completedOTs: 28, perfectServices: 20, rank: 3, avatar: 'https://i.pravatar.cc/150?u=user-tech-03' },
-  { id: 'user-tech-04', name: 'Ana Martínez', xp: 1100, level: 12, completedOTs: 40, perfectServices: 30, rank: 2, avatar: 'https://i.pravatar.cc/150?u=user-tech-04' }
+  { id: 'user-123', name: 'Gabriel Técnico (Pruebas)', xp: 1250, level: 14, completedOTs: 45, perfectServices: 38, avgCompletionTime: 2.5, rank: 1, avatar: 'https://i.pravatar.cc/150?u=user-123' },
+  { id: 'user-tech-02', name: 'Juan Pérez', xp: 980, level: 11, completedOTs: 32, perfectServices: 25, avgCompletionTime: 3.1, rank: 2, avatar: 'https://i.pravatar.cc/150?u=user-tech-02' },
+  { id: 'user-tech-03', name: 'Luis Gómez', xp: 850, level: 9, completedOTs: 28, perfectServices: 20, avgCompletionTime: 2.8, rank: 3, avatar: 'https://i.pravatar.cc/150?u=user-tech-03' },
+  { id: 'user-tech-04', name: 'Ana Martínez', xp: 1100, level: 12, completedOTs: 40, perfectServices: 30, avgCompletionTime: 2.2, rank: 2, avatar: 'https://i.pravatar.cc/150?u=user-tech-04' }
 ];
 
 const initialRewards = [
@@ -31,25 +31,34 @@ export const gamificationService = {
     const players = await this.getLeaderboard();
     const player = players.find(p => p.id === userId);
     if (!player) {
-      // Si no existe, crear uno temporal para que no se bloquee la UI
-      return { id: userId, name: 'Nuevo Recluta', xp: 0, level: 1, completedOTs: 0, perfectServices: 0, rank: players.length + 1, avatar: 'https://i.pravatar.cc/150' };
+      return { id: userId, name: 'Nuevo Recluta', xp: 0, level: 1, completedOTs: 0, perfectServices: 0, avgCompletionTime: 0, rank: players.length + 1, avatar: 'https://i.pravatar.cc/150' };
     }
     return player;
   },
 
-  async addXP(userId, amount, reason) {
+  async addXP(userId, amount, reason, extra = {}) {
     const players = await this.getLeaderboard();
     let found = false;
     const updated = players.map(p => {
       if (p.id === userId) {
         found = true;
         const newXP = p.xp + amount;
+        
+        let newAvgTime = p.avgCompletionTime || 0;
+        if (reason === 'OT_COMPLETED' && extra.completionTime) {
+            // Promedio móvil simple
+            newAvgTime = p.completedOTs === 0 
+                ? extra.completionTime 
+                : ((p.avgCompletionTime * p.completedOTs) + extra.completionTime) / (p.completedOTs + 1);
+        }
+
         return { 
           ...p, 
           xp: newXP, 
           level: Math.floor(newXP / 100) + 1,
           completedOTs: reason === 'OT_COMPLETED' ? p.completedOTs + 1 : p.completedOTs,
-          perfectServices: reason === 'PERFECT_SCORE' ? p.perfectServices + 1 : p.perfectServices
+          perfectServices: reason === 'PERFECT_SCORE' ? p.perfectServices + 1 : p.perfectServices,
+          avgCompletionTime: Number(newAvgTime.toFixed(1))
         };
       }
       return p;
@@ -63,6 +72,7 @@ export const gamificationService = {
         level: 1,
         completedOTs: reason === 'OT_COMPLETED' ? 1 : 0,
         perfectServices: 0,
+        avgCompletionTime: extra.completionTime || 0,
         avatar: 'https://i.pravatar.cc/150'
       });
     }

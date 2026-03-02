@@ -130,7 +130,7 @@ export default function DeliveryAct() {
             <h3 className="text-[10px] md:text-xs font-black text-gray-400 uppercase tracking-widest border-b pb-2">Ubicación del Servicio</h3>
             <div className="h-48 md:h-64 w-full rounded-2xl md:rounded-3xl overflow-hidden border border-gray-100 shadow-sm relative z-0">
               <MapContainer 
-                center={[ot.lat || 22.1444, ot.lng || -100.9167]} 
+                center={[ot.lat || 19.4326, ot.lng || -99.1332]} 
                 zoom={16} 
                 zoomControl={false}
                 attributionControl={false}
@@ -141,7 +141,7 @@ export default function DeliveryAct() {
                 style={{ height: '100%', width: '100%' }}
               >
                 <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-                <Marker position={[ot.lat || 22.1444, ot.lng || -100.9167]} />
+                <Marker position={[ot.lat || 19.4326, ot.lng || -99.1332]} />
               </MapContainer>
               <div className="absolute bottom-3 right-3 md:bottom-4 md:right-4 z-[500] bg-white px-2 py-1 md:px-3 md:py-1.5 rounded-lg md:rounded-xl shadow-lg border border-gray-100 flex items-center gap-2 text-[8px] md:text-[9px] font-black text-gray-500 uppercase tracking-widest">
                 <MapPin className="h-3 w-3 md:h-4 md:h-4 text-primary" />

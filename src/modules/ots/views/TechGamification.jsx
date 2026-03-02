@@ -11,7 +11,8 @@ import {
   ShieldCheck,
   Zap,
   Crown,
-  Gift
+  Gift,
+  Clock
 } from 'lucide-react';
 import { gamificationService } from '@/api/gamificationService';
 import { useAuth } from '@/store/AuthContext';
@@ -98,20 +99,59 @@ export default function TechGamification() {
       </div>
 
       {/* Achievement Grid */}
-      <div className="grid grid-cols-2 gap-4">
-        <div className="bg-white p-6 rounded-[2.5rem] border shadow-sm flex flex-col items-center justify-center text-center gap-2">
-          <div className="bg-emerald-50 h-12 w-12 rounded-2xl flex items-center justify-center text-emerald-600 mb-2">
-            <ShieldCheck className="h-6 w-6" />
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="bg-white p-4 rounded-[2rem] border shadow-sm flex flex-col items-center justify-center text-center gap-1">
+          <div className="bg-emerald-50 h-10 w-10 rounded-xl flex items-center justify-center text-emerald-600 mb-1">
+            <ShieldCheck className="h-5 w-5" />
           </div>
-          <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">OTs Perfectas</p>
-          <p className="text-2xl font-black text-gray-900">{player.perfectServices}</p>
+          <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Perfectas</p>
+          <p className="text-xl font-black text-gray-900">{player.perfectServices}</p>
         </div>
-        <div className="bg-white p-6 rounded-[2.5rem] border shadow-sm flex flex-col items-center justify-center text-center gap-2">
-          <div className="bg-blue-50 h-12 w-12 rounded-2xl flex items-center justify-center text-blue-600 mb-2">
-            <Target className="h-6 w-6" />
+        <div className="bg-white p-4 rounded-[2rem] border shadow-sm flex flex-col items-center justify-center text-center gap-1">
+          <div className="bg-blue-50 h-10 w-10 rounded-xl flex items-center justify-center text-blue-600 mb-1">
+            <Target className="h-5 w-5" />
           </div>
-          <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Finalizadas</p>
-          <p className="text-2xl font-black text-gray-900">{player.completedOTs}</p>
+          <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Finalizadas</p>
+          <p className="text-xl font-black text-gray-900">{player.completedOTs}</p>
+        </div>
+        <div className="bg-white p-4 rounded-[2rem] border shadow-sm flex flex-col items-center justify-center text-center gap-1">
+          <div className="bg-amber-50 h-10 w-10 rounded-xl flex items-center justify-center text-amber-600 mb-1">
+            <Clock className="h-5 w-5" />
+          </div>
+          <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Eficiencia</p>
+          <p className="text-xl font-black text-gray-900">{player.avgCompletionTime || '0.0'}h</p>
+        </div>
+        <div className="bg-white p-4 rounded-[2rem] border shadow-sm flex flex-col items-center justify-center text-center gap-1">
+          <div className="bg-orange-50 h-10 w-10 rounded-xl flex items-center justify-center text-orange-600 mb-1">
+            <Flame className="h-5 w-5" />
+          </div>
+          <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Racha</p>
+          <p className="text-xl font-black text-gray-900">12 d</p>
+        </div>
+      </div>
+
+      {/* Performance Tips */}
+      <div className="bg-primary/5 border border-primary/10 rounded-[2.5rem] p-6 space-y-4">
+        <h3 className="text-sm font-black text-primary uppercase tracking-[0.2em] flex items-center gap-2">
+            <Zap className="h-4 w-4 fill-primary" /> Tips de Mejora (Más XP)
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {[
+                { tip: "Sube fotos de antes/después", xp: "+50 XP", detail: "Mejora tu score de perfección." },
+                { tip: "Cierra tu OT en sitio", xp: "+30 XP", detail: "Aumenta tu bono de eficiencia." },
+                { tip: "Completa cursos en Academy", xp: "+100 XP", detail: "Sube de nivel más rápido." },
+                { tip: "Evita gastos sin ticket", xp: "BONO", detail: "Mantén tu reputación impecable." }
+            ].map((t, i) => (
+                <div key={i} className="bg-white p-3 rounded-2xl border border-primary/5 flex items-center gap-3 group hover:border-primary/20 transition-all">
+                    <div className="h-8 w-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center text-[10px] font-black shrink-0">
+                        {t.xp}
+                    </div>
+                    <div>
+                        <p className="text-[10px] font-black text-gray-900 leading-tight">{t.tip}</p>
+                        <p className="text-[9px] text-gray-400 font-bold uppercase">{t.detail}</p>
+                    </div>
+                </div>
+            ))}
         </div>
       </div>
 
@@ -125,36 +165,57 @@ export default function TechGamification() {
         </div>
         
         <div className="divide-y divide-gray-50">
-          {leaderboard.map((p, i) => (
-            <div key={p.id} className={cn(
-              "flex items-center gap-4 p-6 transition-all",
-              p.id === user.id ? "bg-primary/5 ring-inset ring-1 ring-primary/10" : "hover:bg-gray-50/50"
-            )}>
-              <div className="w-8 flex justify-center">
-                {i === 0 ? <Medal className="h-6 w-6 text-amber-400" /> :
-                 i === 1 ? <Medal className="h-6 w-6 text-gray-400" /> :
-                 i === 2 ? <Medal className="h-6 w-6 text-amber-700" /> :
-                 <span className="text-xs font-black text-gray-300">#{i + 1}</span>}
-              </div>
-              
-              <div className="h-12 w-12 rounded-2xl bg-gray-100 overflow-hidden shrink-0 border border-gray-200">
-                <img src={p.avatar} className="h-full w-full object-cover" />
-              </div>
-              
-              <div className="flex-1 min-w-0">
-                <p className="font-black text-gray-900 text-sm truncate uppercase tracking-tight">{p.name}</p>
-                <div className="flex items-center gap-2">
-                  <span className="text-[9px] font-black text-primary bg-primary/10 px-1.5 py-0.5 rounded uppercase">LVL {p.level}</span>
-                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{p.completedOTs} OTs</span>
+          {leaderboard.map((p, i) => {
+            const isMostOTs = p.completedOTs === Math.max(...leaderboard.map(x => x.completedOTs));
+            const isFastest = p.avgCompletionTime > 0 && p.avgCompletionTime === Math.min(...leaderboard.filter(x => x.avgCompletionTime > 0).map(x => x.avgCompletionTime));
+
+            return (
+              <div key={p.id} className={cn(
+                "flex items-center gap-4 p-6 transition-all",
+                p.id === user.id ? "bg-primary/5 ring-inset ring-1 ring-primary/10" : "hover:bg-gray-50/50"
+              )}>
+                <div className="w-8 flex justify-center">
+                  {i === 0 ? <Medal className="h-6 w-6 text-amber-400" /> :
+                   i === 1 ? <Medal className="h-6 w-6 text-gray-400" /> :
+                   i === 2 ? <Medal className="h-6 w-6 text-amber-700" /> :
+                   <span className="text-xs font-black text-gray-300">#{i + 1}</span>}
+                </div>
+                
+                <div className="h-12 w-12 rounded-2xl bg-gray-100 overflow-hidden shrink-0 border border-gray-200 relative">
+                  <img src={p.avatar} className="h-full w-full object-cover" />
+                  {isFastest && (
+                    <div className="absolute -top-1 -right-1 bg-blue-500 text-white p-1 rounded-md shadow-lg ring-2 ring-white" title="El más veloz">
+                        <Zap className="h-2 w-2 fill-white" />
+                    </div>
+                  )}
+                </div>
+                
+                <div className="flex-1 min-w-0">
+                  <p className="font-black text-gray-900 text-sm truncate uppercase tracking-tight">{p.name}</p>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[9px] font-black text-primary bg-primary/10 px-1.5 py-0.5 rounded uppercase">LVL {p.level}</span>
+                    <span className={cn(
+                        "text-[10px] font-bold uppercase tracking-widest flex items-center gap-1",
+                        isMostOTs ? "text-orange-600 font-black" : "text-gray-400"
+                    )}>
+                        {isMostOTs && <Flame className="h-3 w-3" />}
+                        {p.completedOTs} OTs
+                    </span>
+                    {p.avgCompletionTime > 0 && (
+                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest border-l pl-2">
+                            {p.avgCompletionTime}h med.
+                        </span>
+                    )}
+                  </div>
+                </div>
+                
+                <div className="text-right">
+                  <p className="text-sm font-black text-gray-900 leading-none">{p.xp.toLocaleString()}</p>
+                  <p className="text-[8px] font-bold text-gray-400 uppercase tracking-widest">PUNTOS</p>
                 </div>
               </div>
-              
-              <div className="text-right">
-                <p className="text-sm font-black text-gray-900 leading-none">{p.xp.toLocaleString()}</p>
-                <p className="text-[8px] font-bold text-gray-400 uppercase tracking-widest">PUNTOS</p>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 

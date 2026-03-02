@@ -55,8 +55,9 @@ export default function EmployeeProfile() {
         <div className="flex-1 space-y-4 relative z-10">
           <div className="space-y-1">
             <h2 className="text-3xl font-black text-gray-900 leading-none">{employee.name}</h2>
-            <div className="flex flex-wrap justify-center md:justify-start gap-2 pt-2">
-              <span className="bg-primary/10 text-primary text-[10px] font-black px-3 py-1 rounded-lg uppercase tracking-wider">{employee.role}</span>
+            <div className="flex flex-col md:flex-row md:items-center gap-2 pt-2">
+              <span className="bg-primary/10 text-primary text-[10px] font-black px-3 py-1 rounded-lg uppercase tracking-wider">{employee.position || 'Sin Categoría'}</span>
+              <span className="bg-gray-100 text-gray-600 text-[10px] font-black px-3 py-1 rounded-lg uppercase tracking-wider">{employee.role}</span>
               <span className="bg-gray-100 text-gray-600 text-[10px] font-black px-3 py-1 rounded-lg uppercase tracking-wider">{employee.department}</span>
               <span className="bg-emerald-50 text-emerald-600 border border-emerald-100 text-[10px] font-black px-3 py-1 rounded-lg uppercase tracking-wider">Activo</span>
             </div>

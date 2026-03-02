@@ -212,12 +212,12 @@ export default function OTDetail() {
 
                 <div className="h-48 w-full rounded-2xl overflow-hidden border border-gray-100 relative z-0">
                   <MapContainer 
-                    center={[ot.lat || 22.1444, ot.lng || -100.9167]} 
+                    center={[ot.lat || 19.4326, ot.lng || -99.1332]} 
                     zoom={15} 
                     style={{ height: '100%', width: '100%' }}
                   >
                     <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-                    <Marker position={[ot.lat || 22.1444, ot.lng || -100.9167]} />
+                    <Marker position={[ot.lat || 19.4326, ot.lng || -99.1332]} />
                   </MapContainer>
                   <div className="absolute bottom-2 right-2 z-[500] flex gap-2">
                     <button 

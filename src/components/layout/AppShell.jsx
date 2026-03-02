@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { useAuth, ROLES } from '@/store/AuthContext';
 import { useTenant } from '@/store/TenantContext';
+import { useTechnicianTracking } from '@/hooks/useTechnicianTracking';
 import { cn } from '@/lib/utils';
 import ConnectivityAlert from '@/components/shared/ConnectivityAlert';
 
@@ -30,15 +31,22 @@ const navItems = [
       if (user?.role === ROLES.OPS) return 'Control OTs';
       if (user?.role === ROLES.HR) return 'Métricas RH';
       if (user?.role === ROLES.SALES) return 'Pipeline Ventas';
+      if (user?.role === ROLES.COLLABORATOR) return 'Mi Inicio';
       return 'Panel Global';
     }
+  },
+  {
+    name: 'Mi Perfil (RH)',
+    path: '/profile',
+    icon: Users,
+    roles: [ROLES.COLLABORATOR]
   },
   { 
     name: 'Operaciones', 
     path: '/ots', 
     icon: ClipboardList, 
-    roles: [ROLES.ADMIN, ROLES.OPS, ROLES.TECH],
-    getName: (user) => user?.role === ROLES.TECH ? 'Órdenes Asignadas' : 'Gestión de OTs'
+    roles: [ROLES.TECH],
+    getName: () => 'Órdenes Asignadas'
   },
   { 
     name: 'Ranking', 
@@ -71,6 +79,7 @@ const navItems = [
 
 export default function AppShell({ children }) {
   const { user, logout } = useAuth();
+  useTechnicianTracking();
   const { activeTenant, switchTenant, allTenants } = useTenant();
   const [isSidebarOpen, setSidebarOpen] = useState(false);
   const location = useLocation();
@@ -169,8 +178,9 @@ export default function AppShell({ children }) {
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Topbar (Desktop) */}
         <header className="hidden md:flex bg-white border-b h-16 items-center justify-between px-8 sticky top-0 z-10">
-          <h1 className="text-lg font-semibold text-gray-800">
-            {navItems.find(n => n.path === location.pathname)?.name || 'Dashboard'}
+          <h1 className="text-lg font-semibold text-gray-800 uppercase tracking-widest text-[11px] font-black">
+            {navItems.find(n => n.path === location.pathname)?.name || 
+             (location.pathname === '/profile' ? 'Mi Perfil RH' : 'Plataforma Olea')}
           </h1>
           <div className="flex items-center gap-4">
             <div className="text-right mr-2">

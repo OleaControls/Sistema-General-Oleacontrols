@@ -7,7 +7,8 @@ export const ROLES = {
   OPS: 'OPERATIONS',
   TECH: 'TECHNICIAN',
   HR: 'HR',
-  SALES: 'SALES'
+  SALES: 'SALES',
+  COLLABORATOR: 'COLLABORATOR'
 };
 
 export function AuthProvider({ children }) {
@@ -34,13 +35,36 @@ export function AuthProvider({ children }) {
     localStorage.setItem('olea_user', JSON.stringify(mockUser));
   };
 
+  const loginWithCredentials = (email, password, portal) => {
+    const credentialsKey = 'olea_credentials';
+    const credentialsData = localStorage.getItem(credentialsKey);
+    const credentials = credentialsData ? JSON.parse(credentialsData) : [];
+    
+    const userCreds = credentials.find(c => c.email === email && c.password === password);
+    
+    if (userCreds) {
+        const fullUser = {
+            id: userCreds.id,
+            name: userCreds.name,
+            role: portal === 'COLLABORATOR' ? ROLES.COLLABORATOR : userCreds.role,
+            realRole: userCreds.role, // Guardamos el rol real por si acaso
+            email: userCreds.email,
+            avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(userCreds.name)}&background=random`
+        };
+        setUser(fullUser);
+        localStorage.setItem('olea_user', JSON.stringify(fullUser));
+        return true;
+    }
+    return false;
+  };
+
   const logout = () => {
     setUser(null);
     localStorage.removeItem('olea_user');
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, loading }}>
+    <AuthContext.Provider value={{ user, login, loginWithCredentials, logout, loading }}>
       {children}
     </AuthContext.Provider>
   );

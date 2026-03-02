@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   ClipboardList, 
@@ -6,7 +6,6 @@ import {
   Search, 
   Filter, 
   MoreHorizontal, 
-  CheckCircle2, 
   Clock, 
   AlertTriangle, 
   Eye, 
@@ -19,13 +18,32 @@ import {
   Map as MapIcon, 
   Loader2, 
   LayoutGrid, 
-  Users 
+  Trophy 
 } from 'lucide-react';
-import { MapContainer, TileLayer, Marker, useMap, useMapEvents } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, useMap, useMapEvents, Popup } from 'react-leaflet';
 import L from 'leaflet';
 import { otService } from '@/api/otService';
 import { crmService } from '@/api/crmService';
 import { cn } from '@/lib/utils';
+
+// Custom Marker Icons
+const otIcon = new L.Icon({
+    iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
+    shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+    iconSize: [25, 41],
+    iconAnchor: [12, 41],
+    popupAnchor: [1, -34],
+    shadowSize: [41, 41]
+});
+
+const techIcon = new L.Icon({
+    iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
+    shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+    iconSize: [25, 41],
+    iconAnchor: [12, 41],
+    popupAnchor: [1, -34],
+    shadowSize: [41, 41]
+});
 
 // Fix Leaflet marker icons
 delete L.Icon.Default.prototype._getIconUrl;
@@ -54,11 +72,12 @@ export default function SupervisorOTs() {
   const [ots, setOts] = useState([]);
   const [clients, setClients] = useState([]);
   const [templates, setTemplates] = useState([]);
+  const [techLocations, setTechLocations] = useState({});
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [editingId, setEditingId] = useState(null);
-  const [mapCenter, setMapCenter] = useState([22.1444, -100.9167]);
+  const [mapCenter, setMapCenter] = useState([19.4326, -99.1332]);
   const [searchLoading, setSearchLoading] = useState(false);
   
   const initialNewOT = {
@@ -67,8 +86,8 @@ export default function SupervisorOTs() {
     storeName: '',
     client: '',
     address: '',
-    lat: 22.1444,
-    lng: -100.9167,
+    lat: 19.4326,
+    lng: -99.1332,
     clientEmail: '',
     clientPhone: '',
     leadTechId: 'user-123',
@@ -91,6 +110,16 @@ export default function SupervisorOTs() {
 
   useEffect(() => {
     loadData();
+    
+    // Polling for tech locations
+    const pollLocations = async () => {
+        const locs = await otService.getTechnicianLocations();
+        setTechLocations(locs);
+    };
+    
+    pollLocations();
+    const interval = setInterval(pollLocations, 10000);
+    return () => clearInterval(interval);
   }, []);
 
   const loadData = async () => {
@@ -115,8 +144,13 @@ export default function SupervisorOTs() {
         client: client.name,
         address: client.address,
         clientEmail: client.email,
-        clientPhone: client.phone
+        clientPhone: client.phone,
+        lat: client.lat || prev.lat,
+        lng: client.lng || prev.lng
       }));
+      if (client.lat && client.lng) {
+        setMapCenter([client.lat, client.lng]);
+      }
     }
   };
 
@@ -138,15 +172,26 @@ export default function SupervisorOTs() {
     if (!newOT.address) return;
     setSearchLoading(true);
     try {
-      const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(newOT.address)}`);
+      const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(newOT.address)}&countrycodes=mx&limit=1`);
       const data = await response.json();
       if (data && data.length > 0) {
         const { lat, lon, display_name } = data[0];
-        setNewOT(prev => ({ ...prev, lat: parseFloat(lat), lng: parseFloat(lon), address: display_name }));
-        setMapCenter([parseFloat(lat), parseFloat(lon)]);
+        const newLat = parseFloat(lat);
+        const newLon = parseFloat(lon);
+        
+        setNewOT(prev => ({ 
+          ...prev, 
+          lat: newLat, 
+          lng: newLon, 
+          address: display_name 
+        }));
+        setMapCenter([newLat, newLon]);
+      } else {
+        alert("No se encontró la ubicación. Intenta ser más específico o busca una calle principal cercana.");
       }
     } catch (error) {
       console.error('Location search error:', error);
+      alert("Error al buscar la ubicación.");
     } finally {
       setSearchLoading(false);
     }
@@ -167,7 +212,7 @@ export default function SupervisorOTs() {
     setNewOT(initialNewOT);
     setIsEditMode(false);
     setEditingId(null);
-    setMapCenter([22.1444, -100.9167]);
+    setMapCenter([19.4326, -99.1332]);
     setIsModalOpen(true);
   };
 
@@ -178,8 +223,8 @@ export default function SupervisorOTs() {
       storeName: ot.storeName || '',
       client: ot.client || '',
       address: ot.address || '',
-      lat: ot.lat || 22.1444,
-      lng: ot.lng || -100.9167,
+      lat: ot.lat || 19.4326,
+      lng: ot.lng || -99.1332,
       clientEmail: ot.clientEmail || '',
       clientPhone: ot.clientPhone || '',
       leadTechId: ot.leadTechId || 'user-123',
@@ -192,7 +237,7 @@ export default function SupervisorOTs() {
     });
     setEditingId(ot.id);
     setIsEditMode(true);
-    setMapCenter([ot.lat || 22.1444, ot.lng || -100.9167]);
+    setMapCenter([ot.lat || 19.4326, ot.lng || -99.1332]);
     setIsModalOpen(true);
   };
 
@@ -332,6 +377,12 @@ export default function SupervisorOTs() {
                             className="flex-1 px-4 py-2 border rounded-xl outline-none focus:border-primary font-bold"
                             value={newOT.address}
                             onChange={(e) => setNewOT({...newOT, address: e.target.value})}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                handleLocationSearch();
+                              }
+                            }}
                             placeholder="Calle, localidad, ciudad..."
                           />
                           <button 
@@ -400,8 +451,17 @@ export default function SupervisorOTs() {
                       <MapContainer center={mapCenter} zoom={15} style={{ height: '100%', width: '100%' }}>
                         <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
                         <Marker position={[newOT.lat, newOT.lng]} />
-                        <MapEvents onLocationSelect={(latlng) => {
+                        <MapEvents onLocationSelect={async (latlng) => {
                           setNewOT(prev => ({ ...prev, lat: latlng.lat, lng: latlng.lng }));
+                          try {
+                            const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latlng.lat}&lon=${latlng.lng}`);
+                            const data = await res.json();
+                            if (data && data.display_name) {
+                              setNewOT(prev => ({ ...prev, address: data.display_name }));
+                            }
+                          } catch (err) {
+                            console.error("Reverse geocoding error:", err);
+                          }
                         }} />
                         <ChangeView center={mapCenter} />
                       </MapContainer>
@@ -457,6 +517,79 @@ export default function SupervisorOTs() {
           </div>
         </div>
       )}
+
+      {/* Real-time Tracking Map */}
+      <div className="bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm space-y-4 mb-6 animate-in fade-in slide-in-from-bottom-4 duration-700 delay-150">
+          <div className="flex justify-between items-center px-2">
+              <h3 className="text-xs font-black text-gray-900 uppercase tracking-widest flex items-center gap-2">
+                  <MapIcon className="h-4 w-4 text-primary" /> Seguimiento de Cuadrilla en Tiempo Real
+              </h3>
+              <div className="flex gap-4">
+                  <div className="flex items-center gap-2 text-[10px] font-bold text-gray-500">
+                      <div className="h-2 w-2 rounded-full bg-blue-500" /> Servicios (OT)
+                  </div>
+                  <div className="flex items-center gap-2 text-[10px] font-bold text-gray-500">
+                      <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" /> Técnicos Activos
+                  </div>
+              </div>
+          </div>
+          
+          <div className="h-[450px] rounded-[2rem] overflow-hidden border border-gray-100 relative z-0 shadow-inner">
+              <MapContainer center={[19.4326, -99.1332]} zoom={12} style={{ height: '100%', width: '100%' }}>
+                  <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+                  
+                  {/* OT Markers */}
+                  {ots.filter(ot => typeof ot.lat === 'number' && typeof ot.lng === 'number').map(ot => (
+                      <Marker key={ot.id} position={[ot.lat, ot.lng]} icon={otIcon}>
+                          <Popup className="custom-popup">
+                              <div className="p-2 space-y-2">
+                                  <div className="flex justify-between items-center">
+                                      <span className="font-black text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded uppercase tracking-wider">{ot.id}</span>
+                                      <span className={cn(
+                                          "text-[8px] font-black px-1.5 py-0.5 rounded uppercase",
+                                          ot.priority === 'HIGH' ? "bg-red-50 text-red-600" : "bg-blue-50 text-blue-600"
+                                      )}>{ot.priority}</span>
+                                  </div>
+                                  <div>
+                                      <p className="font-black text-sm text-gray-900 leading-tight">{ot.title}</p>
+                                      <p className="text-[10px] text-gray-500 font-bold uppercase mt-1">{ot.client}</p>
+                                  </div>
+                                  <div className="pt-2 border-t border-gray-100 flex items-center justify-between">
+                                      <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">{ot.status}</span>
+                                      <button 
+                                          onClick={() => navigate(`/ots/${ot.id}`)}
+                                          className="text-primary font-black text-[9px] uppercase hover:underline"
+                                      >
+                                          Ver Detalles
+                                      </button>
+                                  </div>
+                              </div>
+                          </Popup>
+                      </Marker>
+                  ))}
+
+                  {/* Tech Markers */}
+                  {Object.values(techLocations).filter(loc => typeof loc.lat === 'number' && typeof loc.lng === 'number').map(loc => (
+                      <Marker key={loc.id} position={[loc.lat, loc.lng]} icon={techIcon}>
+                          <Popup>
+                              <div className="p-2 space-y-2">
+                                  <div className="flex items-center gap-2">
+                                      <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
+                                      <p className="font-black text-[10px] text-green-600 uppercase tracking-widest">En Línea</p>
+                                  </div>
+                                  <div>
+                                      <p className="font-black text-sm text-gray-900">{loc.name}</p>
+                                      <p className="text-[9px] text-gray-400 font-bold mt-1 uppercase tracking-widest">
+                                          Última act: {new Date(loc.lastUpdate).toLocaleTimeString()}
+                                      </p>
+                                  </div>
+                              </div>
+                          </Popup>
+                      </Marker>
+                  ))}
+              </MapContainer>
+          </div>
+      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <div className="bg-white p-6 rounded-3xl border shadow-sm">

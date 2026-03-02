@@ -58,6 +58,23 @@ export const expenseService = {
     );
     localStorage.setItem(EXPENSES_KEY, JSON.stringify(updated));
     return true;
+  },
+
+  async update(id, updatedData) {
+    const isOnline = navigator.onLine;
+    if (isOnline) await sleep(400);
+    
+    const expenses = await this.getAll();
+    const updated = expenses.map(exp => 
+      exp.id === id ? { 
+        ...exp, 
+        ...updatedData, 
+        pendingSync: !isOnline,
+        syncStatus: isOnline ? 'SYNCED' : 'OFFLINE'
+      } : exp
+    );
+    localStorage.setItem(EXPENSES_KEY, JSON.stringify(updated));
+    return true;
   }
 };
 

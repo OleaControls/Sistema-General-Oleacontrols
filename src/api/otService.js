@@ -1,5 +1,6 @@
 const OTS_KEY = 'olea_ots_db';
 const OT_TEMPLATES_KEY = 'olea_ot_templates_db';
+const TECH_LOCATIONS_KEY = 'olea_tech_locations_db';
 
 const initialOTs = [
   {
@@ -23,8 +24,8 @@ const initialOTs = [
     clientEmail: "contacto@minera.mx",
     clientPhone: "4441234567",
     address: "Eje 124, Zona Industrial, SLP",
-    lat: 22.1444,
-    lng: -100.9167,
+    lat: 19.4326,
+    lng: -99.1332,
     workDescription: "Montaje y calibración de 12 sensores de presión serie V3.",
     arrivalTime: "09:00",
     assignedFunds: 500,
@@ -49,13 +50,21 @@ const initialTemplates = [
 export const otService = {
   async getOTs() {
     const data = localStorage.getItem(OTS_KEY);
-    return data ? JSON.parse(data) : initialOTs;
+    if (!data) {
+        localStorage.setItem(OTS_KEY, JSON.stringify(initialOTs));
+        return initialOTs;
+    }
+    return JSON.parse(data);
   },
 
   // Templates
   async getTemplates() {
     const data = localStorage.getItem(OT_TEMPLATES_KEY);
-    return data ? JSON.parse(data) : initialTemplates;
+    if (!data) {
+        localStorage.setItem(OT_TEMPLATES_KEY, JSON.stringify(initialTemplates));
+        return initialTemplates;
+    }
+    return JSON.parse(data);
   },
 
   async saveTemplate(templateData) {
@@ -160,5 +169,25 @@ export const otService = {
       isOverLimit: balance < 0,
       expenses: otExpenses
     };
+  },
+
+  // Real-time location
+  async updateTechnicianLocation(techId, techName, lat, lng) {
+    const data = localStorage.getItem(TECH_LOCATIONS_KEY);
+    const locations = data ? JSON.parse(data) : {};
+    locations[techId] = {
+        id: techId,
+        name: techName,
+        lat,
+        lng,
+        lastUpdate: new Date().toISOString()
+    };
+    localStorage.setItem(TECH_LOCATIONS_KEY, JSON.stringify(locations));
+    return true;
+  },
+
+  async getTechnicianLocations() {
+    const data = localStorage.getItem(TECH_LOCATIONS_KEY);
+    return data ? JSON.parse(data) : {};
   }
 };

@@ -12,7 +12,7 @@ const categories = [
   { id: 'OTROS', label: 'Otros', icon: '📦' },
 ];
 
-export default function NewExpenseForm({ isOpen, onClose, onSave, prefilledOtId }) {
+export default function NewExpenseForm({ isOpen, onClose, onSave, prefilledOtId, initialData }) {
   const [step, setStep] = useState(1);
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
@@ -26,10 +26,26 @@ export default function NewExpenseForm({ isOpen, onClose, onSave, prefilledOtId 
   });
 
   useEffect(() => {
-    if (prefilledOtId) {
-      setFormData(prev => ({ ...prev, otId: prefilledOtId }));
+    if (initialData) {
+      setFormData({
+        ...initialData,
+        amount: initialData.amount.toString()
+      });
+      setStep(1);
+    } else {
+      setFormData({
+        date: new Date().toISOString().split('T')[0],
+        category: '',
+        amount: '',
+        currency: 'MXN',
+        paymentMethod: 'CASH',
+        description: '',
+        otId: prefilledOtId || '',
+        evidence: null
+      });
+      setStep(1);
     }
-  }, [prefilledOtId, isOpen]);
+  }, [initialData, isOpen, prefilledOtId]);
 
   if (!isOpen) return null;
 
@@ -37,7 +53,7 @@ export default function NewExpenseForm({ isOpen, onClose, onSave, prefilledOtId 
   const handleBack = () => setStep(step - 1);
 
   const handleSubmit = (status) => {
-    onSave({ ...formData, status });
+    onSave({ ...formData, status }, !!initialData);
     onClose();
   };
 
@@ -52,7 +68,7 @@ export default function NewExpenseForm({ isOpen, onClose, onSave, prefilledOtId 
         {/* Header */}
         <div className="px-6 py-4 border-b flex justify-between items-center bg-gray-50/50">
           <div>
-            <h3 className="text-lg font-bold text-gray-900">Registrar Gasto</h3>
+            <h3 className="text-lg font-bold text-gray-900">{initialData ? 'Editar Gasto' : 'Registrar Gasto'}</h3>
             <p className="text-[11px] text-gray-500 font-bold uppercase tracking-wider">Paso {step} de 3</p>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-gray-200 rounded-full transition-colors">

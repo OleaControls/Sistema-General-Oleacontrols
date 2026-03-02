@@ -1,7 +1,6 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { BarChart4 } from 'lucide-react';
-import { useAuth } from '@/store/AuthContext';
+import { useAuth, ROLES } from '@/store/AuthContext';
 import AppShell from '@/components/layout/AppShell';
 import Login from '@/modules/Login';
 import ExpensesList from '@/modules/expenses/views/ExpensesList';
@@ -15,14 +14,13 @@ import TechGamification from '@/modules/ots/views/TechGamification';
 import OTValidation from '@/modules/ots/views/OTValidation';
 import OTCatalogs from '@/modules/ots/views/OTCatalogs';
 import DeliveryAct from '@/modules/ots/views/DeliveryAct';
-import CourseCatalog from '@/modules/lms/views/CourseCatalog';
-import CoursePlayer from '@/modules/lms/views/CoursePlayer';
 import HRLayout from '@/modules/human-resources/components/HRLayout';
 import HRDashboard from '@/modules/human-resources/views/HRDashboard';
 import TimeOff from '@/modules/human-resources/views/TimeOff';
 import HRDocuments from '@/modules/human-resources/views/HRDocuments';
 import EmployeeDirectory from '@/modules/human-resources/views/EmployeeDirectory';
 import EmployeeProfile from '@/modules/human-resources/views/EmployeeProfile';
+import MyProfile from '@/modules/human-resources/views/MyProfile';
 import Attendance from '@/modules/human-resources/views/Attendance';
 import OrgChart from '@/modules/human-resources/views/OrgChart';
 import Recruitment from '@/modules/human-resources/views/Recruitment';
@@ -40,24 +38,27 @@ import ClientsList from '@/modules/crm/views/ClientsList';
 import QuotesList from '@/modules/crm/views/QuotesList';
 import InvoicesOrders from '@/modules/crm/views/InvoicesOrders';
 import AcademyHome from '@/modules/lms/views/AcademyHome';
+import CoursePlayer from '@/modules/lms/views/CoursePlayer';
 
 // Selector de Dashboard por Cargo
 const DashboardSelector = () => {
   const { user } = useAuth();
   
   switch(user?.role) {
-    case 'ADMIN':
+    case ROLES.ADMIN:
       return <SupervisorOTs />;
-    case 'OPERATIONS':
+    case ROLES.OPS:
       return <SupervisorOTs />;
-    case 'TECHNICIAN':
+    case ROLES.TECH:
       return <TechnicianOTs />;
-    case 'HR':
+    case ROLES.HR:
       return <HRDashboard />;
-    case 'SALES':
+    case ROLES.SALES:
       return <SalesPipeline />;
+    case ROLES.COLLABORATOR:
+      return <MyProfile />;
     default:
-      return <TechnicianOTs />;
+      return <MyProfile />;
   }
 };
 
@@ -78,6 +79,8 @@ export default function AppRouter() {
         <Route path="/login" element={<Login />} />
         
         <Route path="/" element={<ProtectedRoute><DashboardSelector /></ProtectedRoute>} />
+        <Route path="/profile" element={<ProtectedRoute><MyProfile /></ProtectedRoute>} />
+        
         <Route path="/expenses" element={<ProtectedRoute><ExpensesList /></ProtectedRoute>} />
         <Route path="/expenses/dashboard" element={<ProtectedRoute><ExpensesDashboard /></ProtectedRoute>} />
         <Route path="/ops/approvals/expenses" element={<ProtectedRoute><ApprovalsList /></ProtectedRoute>} />
