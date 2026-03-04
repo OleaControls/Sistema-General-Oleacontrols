@@ -51,6 +51,7 @@ export default function EmployeeDirectory() {
 
   const [formData, setFormData] = useState(initialForm);
   const [editingId, setEditingId] = useState(null);
+  const [successMsg, setSuccessMsg] = useState('');
 
   useEffect(() => {
     loadData();
@@ -73,6 +74,8 @@ export default function EmployeeDirectory() {
     try {
       await hrService.saveEmployee(formData);
       await loadData();
+      setSuccessMsg('Empleado creado exitosamente con sus credenciales de acceso.');
+      setTimeout(() => setSuccessMsg(''), 3000);
       setIsModalOpen(false);
       setFormData(initialForm);
     } catch (error) {
@@ -88,6 +91,8 @@ export default function EmployeeDirectory() {
     try {
         await hrService.updateEmployee(editingId, formData);
         await loadData();
+        setSuccessMsg('Perfil actualizado correctamente.');
+        setTimeout(() => setSuccessMsg(''), 3000);
         setIsEditModalOpen(false);
         setEditingId(null);
         setFormData(initialForm);
@@ -111,20 +116,26 @@ export default function EmployeeDirectory() {
     setFormData({
         name: emp.name,
         email: emp.email,
-        phone: emp.phone,
+        phone: emp.phone || '',
         role: emp.role,
         position: emp.position || '',
-        department: emp.department,
-        location: emp.location,
+        department: emp.department || '',
+        location: emp.location || '',
         joinDate: emp.joinDate || new Date().toISOString().split('T')[0],
         reportsTo: emp.reportsTo || '',
-        password: '' // No editamos password aquí por seguridad en este paso
+        password: '' 
     });
     setIsEditModalOpen(true);
   };
 
   return (
     <div className="space-y-6">
+      {successMsg && (
+        <div className="fixed top-20 right-8 z-[60] bg-emerald-500 text-white px-6 py-3 rounded-2xl shadow-xl animate-in slide-in-from-right-10 font-bold flex items-center gap-2">
+            <Shield className="h-5 w-5" />
+            {successMsg}
+        </div>
+      )}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-black text-gray-900">Capital Humano</h2>
@@ -350,29 +361,27 @@ export default function EmployeeDirectory() {
                     </div>
                   </div>
 
-                  {!isEditModalOpen && (
-                    <div className="space-y-2">
-                        <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Contraseña de Acceso</label>
-                        <div className="relative group">
-                        <Lock className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-300" />
-                        <input 
-                            required
-                            type={showPassword ? "text" : "password"} 
-                            className="w-full pl-10 pr-10 py-3 bg-gray-50 border border-transparent rounded-2xl outline-none focus:bg-white focus:border-primary font-bold text-sm transition-all"
-                            value={formData.password}
-                            onChange={e => setFormData({...formData, password: e.target.value})}
-                            placeholder="••••••••"
-                        />
-                        <button
-                            type="button"
-                            onClick={() => setShowPassword(!showPassword)}
-                            className="absolute right-4 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-primary transition-colors"
-                        >
-                            {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                        </button>
-                        </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest">{isEditModalOpen ? 'Cambiar Contraseña (Opcional)' : 'Contraseña de Acceso'}</label>
+                    <div className="relative group">
+                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-300" />
+                    <input 
+                        required={!isEditModalOpen}
+                        type={showPassword ? "text" : "password"} 
+                        className="w-full pl-10 pr-10 py-3 bg-gray-50 border border-transparent rounded-2xl outline-none focus:bg-white focus:border-primary font-bold text-sm transition-all"
+                        value={formData.password}
+                        onChange={e => setFormData({...formData, password: e.target.value})}
+                        placeholder={isEditModalOpen ? "Dejar en blanco para no cambiar" : "••••••••"}
+                    />
+                    <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-4 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-primary transition-colors"
+                    >
+                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
                     </div>
-                  )}
+                  </div>
                 </div>
 
                 <div className="pt-4 flex flex-col md:flex-row gap-3">

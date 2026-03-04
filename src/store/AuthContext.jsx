@@ -16,7 +16,6 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Simular carga de sesión desde localStorage
     const savedUser = localStorage.getItem('olea_user');
     if (savedUser) {
       setUser(JSON.parse(savedUser));
@@ -25,8 +24,9 @@ export function AuthProvider({ children }) {
   }, []);
 
   const login = (role) => {
+    // Esto es para QA/Invitado, sigue igual para pruebas rápidas
     const mockUser = {
-      id: 'user-123',
+      id: 'user-qa',
       name: `Usuario ${role}`,
       role: role,
       avatar: 'https://github.com/shadcn.png'
@@ -35,27 +35,30 @@ export function AuthProvider({ children }) {
     localStorage.setItem('olea_user', JSON.stringify(mockUser));
   };
 
-  const loginWithCredentials = (email, password, portal) => {
-    const credentialsKey = 'olea_credentials';
-    const credentialsData = localStorage.getItem(credentialsKey);
-    const credentials = credentialsData ? JSON.parse(credentialsData) : [];
-    
-    const userCreds = credentials.find(c => c.email === email && c.password === password);
-    
-    if (userCreds) {
-        const fullUser = {
-            id: userCreds.id,
-            name: userCreds.name,
-            role: portal === 'COLLABORATOR' ? ROLES.COLLABORATOR : userCreds.role,
-            realRole: userCreds.role, // Guardamos el rol real por si acaso
-            email: userCreds.email,
-            avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(userCreds.name)}&background=random`
-        };
-        setUser(fullUser);
-        localStorage.setItem('olea_user', JSON.stringify(fullUser));
-        return true;
+  const loginWithCredentials = async (email, password, portal) => {
+    try {
+        const response = await fetch('/api/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password })
+        });
+
+        if (response.ok) {
+            const userData = await response.json();
+            const fullUser = {
+                ...userData,
+                // Si entra por el portal colaborador, forzamos ese rol para la sesión
+                role: portal === 'COLLABORATOR' ? ROLES.COLLABORATOR : userData.role
+            };
+            setUser(fullUser);
+            localStorage.setItem('olea_user', JSON.stringify(fullUser));
+            return true;
+        }
+        return false;
+    } catch (error) {
+        console.error('Login error:', error);
+        return false;
     }
-    return false;
   };
 
   const logout = () => {

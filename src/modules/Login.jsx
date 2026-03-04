@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth, ROLES } from '@/store/AuthContext';
 import { 
   ShieldCheck, 
@@ -255,6 +255,9 @@ export default function Login() {
             >
                 Entrar a la Plataforma <ArrowRight className="h-5 w-5 group-hover:translate-x-1 transition-transform" />
             </button>
+            <p className="text-center text-xs font-bold text-gray-400">
+                ¿Eres nuevo colaborador? <Link to="/register" className="text-primary hover:underline">Regístrate aquí</Link>
+            </p>
           </form>
 
           <div className="mt-10">
