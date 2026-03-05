@@ -3,7 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth, ROLES } from '@/store/AuthContext';
 import AppShell from '@/components/layout/AppShell';
 import Login from '@/modules/Login';
-import Register from '@/modules/Register';
+
 import ExpensesList from '@/modules/expenses/views/ExpensesList';
 import ApprovalsList from '@/modules/expenses/views/ApprovalsList';
 import OperationsExpenses from '@/modules/expenses/views/OperationsExpenses';
@@ -78,7 +78,6 @@ export default function AppRouter() {
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
         
         <Route path="/" element={<ProtectedRoute><DashboardSelector /></ProtectedRoute>} />
         <Route path="/profile" element={<ProtectedRoute><MyProfile /></ProtectedRoute>} />

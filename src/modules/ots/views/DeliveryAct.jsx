@@ -1,219 +1,382 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { 
+  ChevronLeft, FileText, User, Mail, MapPin, CheckCircle2, 
+  Camera, Trash2, Plus, Send, X, Signature as SignatureIcon,
+  ShieldCheck, Smartphone, Info, Download, Loader2, Store, Phone, Hash
+} from 'lucide-react';
+import SignatureCanvas from 'react-signature-canvas';
 import { otService } from '@/api/otService';
-import { ChevronLeft, Printer, Download, CheckCircle2, MapPin, Clock, User, Phone, Mail, Store, Map as MapIcon } from 'lucide-react';
-import { MapContainer, TileLayer, Marker } from 'react-leaflet';
-import L from 'leaflet';
+import { useAuth } from '@/store/AuthContext';
+import { cn } from '@/lib/utils';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
-// Fix Leaflet marker icons
-delete L.Icon.Default.prototype._getIconUrl;
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
-  iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-});
+const SYSTEM_TYPES = [
+    { id: 'SDI', label: 'SDI: Sistema De Incendio' },
+    { id: 'SCA', label: 'SCA: Control de Acceso' },
+    { id: 'CCTV', label: 'CCTV: Circuito Cerrado TV' },
+    { id: 'SSA', label: 'SSA: Sonido Ambiental' },
+    { id: 'RMC', label: 'RMC: Aire Acondicionado' },
+    { id: 'MDE', label: 'MDE: Muro de Electrónica' }
+];
 
 export default function DeliveryAct() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [ot, setOt] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  
+  const tscSigPad = useRef(null);
+  const clientSigPad = useRef(null);
+
+  const [formData, setFormData] = useState({
+    systemType: '',
+    deliveryDetails: '',
+    pendingTasks: [{ id: Date.now(), description: '' }],
+    clientName: '',
+    clientLastName: '',
+    clientEmail: '',
+    photos: []
+  });
 
   useEffect(() => {
-    loadOT();
+    loadData();
   }, [id]);
 
-  const loadOT = async () => {
+  const loadData = async () => {
     setLoading(true);
-    const data = await otService.getById(id);
-    setOt(data);
-    setLoading(false);
+    try {
+        const data = await otService.getOTDetail(id);
+        setOt(data);
+        if (data) {
+            setFormData(prev => ({
+                ...prev,
+                clientName: data.contactName?.split(' ')[0] || '',
+                clientLastName: data.contactName?.split(' ').slice(1).join(' ') || '',
+                clientEmail: data.contactEmail || ''
+            }));
+        }
+    } catch (err) { console.error(err); }
+    finally { setLoading(false); }
   };
 
-  if (loading) return <div className="p-10 text-center font-bold text-gray-400 italic">Cargando acta de entrega...</div>;
-  if (!ot) return <div className="p-10 text-center font-bold text-red-400 italic">Orden de trabajo no encontrada.</div>;
+  const handleAddPending = () => {
+    setFormData({ ...formData, pendingTasks: [...formData.pendingTasks, { id: Date.now(), description: '' }] });
+  };
+
+  const handlePhotoUpload = (e) => {
+    const files = Array.from(e.target.files);
+    files.forEach(file => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = () => {
+            setFormData(prev => ({ ...prev, photos: [...prev.photos, reader.result] }));
+        };
+    });
+  };
+
+  const generatePDF = (data) => {
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    
+    // Header
+    doc.setFillColor(15, 23, 42);
+    doc.rect(0, 0, pageWidth, 45, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(22);
+    doc.setFont(undefined, 'bold');
+    doc.text("OLEA CONTROLS", pageWidth/2, 20, { align: 'center' });
+    doc.setFontSize(14);
+    doc.text("ACTA DE ENTREGA / RECEPCIÓN (A.E.R.)", pageWidth/2, 32, { align: 'center' });
+    
+    doc.setTextColor(0, 0, 0);
+    
+    // Info General
+    autoTable(doc, {
+        startY: 50,
+        head: [['FECHA Y HORA CIERRE', 'FOLIO DE ORDEN', 'CLIENTE / EMPRESA']],
+        body: [[
+            new Date().toLocaleString('es-MX'),
+            ot.otNumber,
+            ot.clientName || ot.client
+        ]],
+        theme: 'grid',
+        headStyles: { fillColor: [241, 245, 249], textColor: [71, 85, 105] }
+    });
+
+    // Ubicación y Contacto
+    autoTable(doc, {
+        startY: doc.lastAutoTable.finalY + 5,
+        head: [['SUCURSAL / TIENDA', 'UBICACIÓN DEL SITIO', 'CONTACTO EN SITIO']],
+        body: [[
+            `${ot.storeName || 'N/A'} (#${ot.storeNumber || 'S/N'})`,
+            ot.address,
+            `${formData.clientName} ${formData.clientLastName}\n${formData.clientEmail}`
+        ]],
+        theme: 'grid',
+        headStyles: { fillColor: [241, 245, 249], textColor: [71, 85, 105] }
+    });
+
+    const nextY = doc.lastAutoTable.finalY + 15;
+    doc.setFontSize(11);
+    doc.setFont(undefined, 'bold');
+    doc.text(`TIPO DE SISTEMA: ${formData.systemType}`, 14, nextY);
+
+    doc.text("DETALLES DE ENTREGA / RECEPCIÓN:", 14, nextY + 10);
+    doc.setFont(undefined, 'normal');
+    doc.setFontSize(10);
+    const splitDetails = doc.splitTextToSize(formData.deliveryDetails || 'N/A', pageWidth - 28);
+    doc.text(splitDetails, 14, nextY + 17);
+
+    // Tabla de Pendientes
+    const pendingY = nextY + 25 + (splitDetails.length * 5);
+    autoTable(doc, {
+        startY: pendingY,
+        head: [['#', 'OBSERVACIONES / PENDIENTES']],
+        body: formData.pendingTasks.map((p, i) => [i + 1, p.description]),
+        theme: 'grid',
+        headStyles: { fillColor: [241, 245, 249], textColor: [71, 85, 105] }
+    });
+
+    // Firmas
+    let sigY = doc.lastAutoTable.finalY + 20;
+    if (sigY > 240) { doc.addPage(); sigY = 20; }
+
+    if (!tscSigPad.current.isEmpty()) {
+        doc.addImage(tscSigPad.current.toDataURL(), 'PNG', 20, sigY, 60, 30);
+    }
+    if (!clientSigPad.current.isEmpty()) {
+        doc.addImage(clientSigPad.current.toDataURL(), 'PNG', pageWidth - 80, sigY, 60, 30);
+    }
+
+    doc.line(20, sigY + 30, 80, sigY + 30);
+    doc.line(pageWidth - 80, sigY + 30, pageWidth - 20, sigY + 30);
+    doc.setFontSize(8);
+    doc.text(`TSC: ${user.name}`, 20, sigY + 35);
+    doc.text(`CLIENTE: ${formData.clientName} ${formData.clientLastName}`, pageWidth - 80, sigY + 35);
+
+    // Anexo Fotográfico
+    if (formData.photos.length > 0) {
+        doc.addPage();
+        doc.setFontSize(14);
+        doc.setFont(undefined, 'bold');
+        doc.text("ANEXO FOTOGRÁFICO DE EVIDENCIA", pageWidth/2, 20, { align: 'center' });
+        
+        let photoY = 30;
+        formData.photos.forEach((photo, index) => {
+            if (photoY > 230) { doc.addPage(); photoY = 20; }
+            // Ajustar tamaño para que quepan 2 por fila si es necesario
+            doc.addImage(photo, 'JPEG', 14, photoY, 90, 60);
+            photoY += 70;
+        });
+    }
+
+    doc.save(`Acta_Entrega_${ot.otNumber}.pdf`);
+  };
+
+  const handleFinish = async () => {
+    if (tscSigPad.current.isEmpty() || clientSigPad.current.isEmpty()) {
+        alert("Ambas firmas son obligatorias.");
+        return;
+    }
+    setIsSaving(true);
+    try {
+        const updateData = {
+            status: 'COMPLETED',
+            systemType: formData.systemType,
+            deliveryDetails: formData.deliveryDetails,
+            pendingTasks: formData.pendingTasks,
+            signature: tscSigPad.current.toDataURL(),
+            clientSignature: clientSigPad.current.toDataURL(),
+            photos: formData.photos,
+            finishedAt: new Date().toISOString()
+        };
+        await otService.updateOT(ot.id, updateData);
+        generatePDF(updateData);
+        navigate(`/ots/${ot.id}`);
+    } catch (err) {
+        alert("Error: " + err.message);
+    } finally { setIsSaving(false); }
+  };
+
+  if (loading) return <div className="p-20 text-center font-black animate-pulse">CARGANDO ACTA...</div>;
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6 md:space-y-8 pb-10 md:pb-20 px-4 md:px-0 animate-in fade-in slide-in-from-bottom-4 duration-700">
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 no-print">
-        <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-gray-500 font-bold hover:text-gray-900 transition-colors self-start sm:self-auto">
-          <ChevronLeft className="h-5 w-5" /> Regresar
+    <div className="max-w-5xl mx-auto space-y-8 pb-32 animate-in fade-in duration-500">
+      <header className="flex items-center justify-between bg-white p-8 rounded-[2.5rem] border shadow-sm relative overflow-hidden">
+        <div className="absolute top-0 left-0 w-2 h-full bg-primary" />
+        <button onClick={() => navigate(-1)} className="p-3 hover:bg-gray-50 rounded-2xl transition-all border group">
+          <ChevronLeft className="h-6 w-6 text-gray-400 group-hover:text-primary" />
         </button>
-        <div className="flex gap-2 w-full sm:w-auto">
-          <button onClick={() => window.print()} className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-white border border-gray-200 px-4 py-2.5 rounded-xl font-bold text-xs md:text-sm hover:bg-gray-50 transition-all shadow-sm">
-            <Printer className="h-4 w-4" /> Imprimir
-          </button>
-          <button className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-primary text-white px-4 py-2.5 rounded-xl font-bold text-xs md:text-sm hover:bg-primary/90 transition-all shadow-lg shadow-primary/20">
-            <Download className="h-4 w-4" /> Descargar
-          </button>
+        <div className="text-center">
+          <h2 className="text-2xl font-black text-gray-900 tracking-tighter uppercase">ACTA DE ENTREGA / RECEPCIÓN</h2>
+          <p className="text-xs font-bold text-gray-400 uppercase tracking-[0.3em] mt-1">Folio: {ot.otNumber}</p>
         </div>
-      </div>
+        <div className="w-12" />
+      </header>
 
-      <div className="bg-white rounded-[2rem] md:rounded-[2.5rem] shadow-2xl overflow-hidden border border-gray-100 print:shadow-none print:border-none">
-        {/* Header del Acta */}
-        <div className="bg-gray-900 p-6 md:p-10 text-white flex flex-col md:flex-row justify-between items-start gap-6">
-          <div>
-            <div className="flex items-center gap-3 mb-4">
-              <div className="bg-primary h-8 w-8 md:h-10 md:w-10 rounded-lg md:rounded-xl flex items-center justify-center font-black text-white text-lg md:text-xl">O</div>
-              <h1 className="text-xl md:text-2xl font-black uppercase tracking-tighter">OleaControls <span className="text-primary">System</span></h1>
-            </div>
-            <h2 className="text-3xl md:text-4xl font-black mb-2 leading-tight">Acta de Entrega</h2>
-            <p className="text-gray-400 font-bold uppercase tracking-widest text-[9px] md:text-xs">Documento de conformidad de servicio</p>
-          </div>
-          <div className="text-left md:text-right border-t border-white/10 md:border-none pt-4 md:pt-0 w-full md:w-auto">
-            <p className="text-[10px] font-black text-gray-500 uppercase mb-1">Folio de Servicio</p>
-            <p className="text-2xl md:text-3xl font-black text-primary">{ot.id}</p>
-            <p className="text-[10px] md:text-xs font-bold text-gray-400 mt-1 md:mt-2">{new Date(ot.finishedAt || ot.createdAt).toLocaleDateString('es-MX', { dateStyle: 'long' })}</p>
-          </div>
-        </div>
-
-        <div className="p-6 md:p-10 space-y-8 md:space-y-10">
-          {/* Información General */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-10">
-            <div className="space-y-6">
-              <h3 className="text-[10px] md:text-xs font-black text-gray-400 uppercase tracking-widest border-b pb-2">Información del Cliente</h3>
-              <div className="space-y-4">
-                <div className="flex gap-4">
-                  <Store className="h-5 w-5 text-primary shrink-0" />
-                  <div>
-                    <p className="text-[9px] md:text-[10px] font-black text-gray-400 uppercase">Tienda / Sucursal</p>
-                    <p className="text-sm md:text-base font-bold text-gray-900">{ot.storeNumber} - {ot.storeName}</p>
-                  </div>
-                </div>
-                <div className="flex gap-4">
-                  <User className="h-5 w-5 text-primary shrink-0" />
-                  <div>
-                    <p className="text-[9px] md:text-[10px] font-black text-gray-400 uppercase">Persona Encargada</p>
-                    <p className="text-sm md:text-base font-bold text-gray-900">{ot.contactName || 'N/A'}</p>
-                    {ot.contactEmail && <p className="text-[10px] text-primary font-bold lowercase">{ot.contactEmail}</p>}
-                  </div>
-                </div>
-                <div className="flex gap-4">
-                  <MapPin className="h-5 w-5 text-primary shrink-0" />
-                  <div>
-                    <p className="text-[9px] md:text-[10px] font-black text-gray-400 uppercase">Ubicación del Servicio</p>
-                    <p className="text-sm md:text-base font-bold text-gray-900 leading-tight">{ot.address}</p>
-                    {ot.otAddress && (
-                      <p className="text-[11px] font-black text-gray-700 mt-1">
-                        Dir. Específica: {ot.otAddress}
-                      </p>
-                    )}
-                    {ot.otReference && (
-                      <p className="text-[11px] font-bold text-gray-500 italic mt-0.5">
-                        Ref: {ot.otReference}
-                      </p>
-                    )}
-                  </div>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="lg:col-span-2 space-y-8">
+          <div className="bg-white rounded-[3rem] border shadow-2xl overflow-hidden">
+            <div className="p-10 space-y-12">
+              
+              {/* Contexto */}
+              <div className="space-y-6">
+                <SectionTitle title="1. Datos del Servicio" icon={Store} />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100">
+                        <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Cliente</p>
+                        <p className="text-sm font-black text-gray-800 uppercase">{ot.clientName || ot.client}</p>
+                    </div>
+                    <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100">
+                        <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Sistema</p>
+                        <select 
+                            className="w-full bg-transparent border-none outline-none font-black text-sm text-primary p-0"
+                            value={formData.systemType}
+                            onChange={e => setFormData({...formData, systemType: e.target.value})}
+                        >
+                            <option value="">Seleccionar...</option>
+                            {SYSTEM_TYPES.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+                        </select>
+                    </div>
                 </div>
               </div>
-            </div>
 
-            <div className="space-y-6">
-              <h3 className="text-[10px] md:text-xs font-black text-gray-400 uppercase tracking-widest border-b pb-2">Detalles del Servicio</h3>
-              <div className="space-y-4">
-                <div className="flex gap-4">
-                  <Clock className="h-5 w-5 text-primary shrink-0" />
-                  <div>
-                    <p className="text-[9px] md:text-[10px] font-black text-gray-400 uppercase">Horarios</p>
-                    <p className="text-sm md:text-base font-bold text-gray-900">Llegada: {ot.arrivalTime} • Finalización: {ot.finishedAt ? new Date(ot.finishedAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : 'N/A'}</p>
-                  </div>
+              {/* Detalles */}
+              <div className="space-y-6">
+                <SectionTitle title="2. Alcance de Entrega" icon={FileText} />
+                <div className="space-y-4">
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Descripción de lo Entregado/Recibido *</label>
+                    <textarea 
+                        rows="6"
+                        className="w-full px-6 py-5 bg-gray-50 border border-gray-100 rounded-[2rem] outline-none focus:bg-white focus:border-primary font-medium text-sm transition-all shadow-inner"
+                        placeholder="Describe los trabajos realizados..."
+                        value={formData.deliveryDetails}
+                        onChange={e => setFormData({...formData, deliveryDetails: e.target.value})}
+                    />
                 </div>
-                <div className="flex gap-4">
-                  <User className="h-5 w-5 text-primary shrink-0" />
-                  <div>
-                    <p className="text-[9px] md:text-[10px] font-black text-gray-400 uppercase">Técnico Responsable</p>
-                    <p className="text-sm md:text-base font-bold text-gray-900">{ot.leadTechName || ot.assignedToName}</p>
-                  </div>
+
+                <div className="space-y-4 pt-4">
+                    <div className="flex items-center justify-between px-2">
+                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Observaciones / Pendientes</label>
+                        <button onClick={handleAddPending} className="flex items-center gap-2 text-[10px] font-black text-primary uppercase bg-primary/5 px-4 py-2 rounded-xl hover:bg-primary hover:text-white transition-all">
+                            <Plus className="h-4 w-4" /> Añadir Observación
+                        </button>
+                    </div>
+                    <div className="space-y-3">
+                        {formData.pendingTasks.map((task, idx) => (
+                            <div key={task.id} className="flex gap-3 animate-in slide-in-from-left-2 duration-300">
+                                <div className="h-12 w-12 shrink-0 bg-gray-900 text-white rounded-2xl flex items-center justify-center font-black text-sm">
+                                    {idx + 1}
+                                </div>
+                                <input 
+                                    className="flex-1 px-5 py-2 border rounded-2xl font-bold text-sm outline-none focus:border-primary shadow-sm"
+                                    placeholder="Descripción del pendiente..."
+                                    value={task.description}
+                                    onChange={e => {
+                                        const newTasks = [...formData.pendingTasks];
+                                        newTasks[idx].description = e.target.value;
+                                        setFormData({...formData, pendingTasks: newTasks});
+                                    }}
+                                />
+                                <button onClick={() => setFormData({...formData, pendingTasks: formData.pendingTasks.filter(p => p.id !== task.id)})} className="p-3 text-gray-300 hover:text-red-500 transition-colors">
+                                    <Trash2 className="h-5 w-5" />
+                                </button>
+                            </div>
+                        ))}
+                    </div>
                 </div>
-                <div className="flex gap-4">
-                  <CheckCircle2 className="h-5 w-5 text-primary shrink-0" />
-                  <div>
-                    <p className="text-[9px] md:text-[10px] font-black text-gray-400 uppercase">Estado Final</p>
-                    <p className="text-sm md:text-base font-black text-emerald-600 uppercase">COMPLETADO / CONFORMIDAD</p>
-                  </div>
+              </div>
+
+              {/* Firmas */}
+              <div className="space-y-8">
+                <SectionTitle title="3. Firmas de Conformidad" icon={SignatureIcon} />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                    <div className="space-y-4">
+                        <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] text-center">Técnico Responsable (TSC)</p>
+                        <div className="border-2 border-gray-100 rounded-[2rem] bg-gray-50/50 overflow-hidden shadow-inner">
+                            <SignatureCanvas ref={tscSigPad} penColor="black" canvasProps={{ className: "w-full h-48 cursor-crosshair" }} />
+                        </div>
+                        <div className="flex justify-between items-center px-4">
+                            <p className="text-[10px] font-black text-primary uppercase">{user.name}</p>
+                            <button onClick={() => tscSigPad.current.clear()} className="text-[10px] font-black text-red-400 hover:text-red-600 uppercase tracking-widest">Borrar</button>
+                        </div>
+                    </div>
+
+                    <div className="space-y-4">
+                        <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] text-center">Firma del Cliente</p>
+                        <div className="border-2 border-gray-100 rounded-[2rem] bg-gray-50/50 overflow-hidden shadow-inner">
+                            <SignatureCanvas ref={clientSigPad} penColor="navy" canvasProps={{ className: "w-full h-48 cursor-crosshair" }} />
+                        </div>
+                        <div className="space-y-2 mt-4 px-2">
+                            <div className="grid grid-cols-2 gap-2">
+                                <input className="px-4 py-2 bg-gray-50 border rounded-xl text-xs font-bold" placeholder="Nombre" value={formData.clientName} onChange={e => setFormData({...formData, clientName: e.target.value})} />
+                                <input className="px-4 py-2 bg-gray-50 border rounded-xl text-xs font-bold" placeholder="Apellido" value={formData.clientLastName} onChange={e => setFormData({...formData, clientLastName: e.target.value})} />
+                            </div>
+                            <input className="w-full px-4 py-2 bg-gray-50 border rounded-xl text-xs font-bold" placeholder="Email para envío de acta" value={formData.clientEmail} onChange={e => setFormData({...formData, clientEmail: e.target.value})} />
+                        </div>
+                        <div className="flex justify-end px-4">
+                            <button onClick={() => clientSigPad.current.clear()} className="text-[10px] font-black text-red-400 hover:text-red-600 uppercase tracking-widest">Borrar</button>
+                        </div>
+                    </div>
                 </div>
               </div>
-            </div>
-          </div>
-
-          {/* Ubicación del Servicio (Mapa) */}
-          <div className="space-y-4">
-            <h3 className="text-[10px] md:text-xs font-black text-gray-400 uppercase tracking-widest border-b pb-2">Ubicación del Servicio</h3>
-            <div className="h-48 md:h-64 w-full rounded-2xl md:rounded-3xl overflow-hidden border border-gray-100 shadow-sm relative z-0">
-              <MapContainer 
-                center={[ot.lat || 19.4326, ot.lng || -99.1332]} 
-                zoom={16} 
-                zoomControl={false}
-                attributionControl={false}
-                dragging={false}
-                touchZoom={false}
-                scrollWheelZoom={false}
-                doubleClickZoom={false}
-                style={{ height: '100%', width: '100%' }}
-              >
-                <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-                <Marker position={[ot.lat || 19.4326, ot.lng || -99.1332]} />
-              </MapContainer>
-              <div className="absolute bottom-3 right-3 md:bottom-4 md:right-4 z-[500] bg-white px-2 py-1 md:px-3 md:py-1.5 rounded-lg md:rounded-xl shadow-lg border border-gray-100 flex items-center gap-2 text-[8px] md:text-[9px] font-black text-gray-500 uppercase tracking-widest">
-                <MapPin className="h-3 w-3 md:h-4 md:h-4 text-primary" />
-                {ot.lat?.toFixed(5)}, {ot.lng?.toFixed(5)}
-              </div>
-            </div>
-          </div>
-
-          {/* Descripción de Trabajos */}
-          <div className="space-y-4">
-            <h3 className="text-[10px] md:text-xs font-black text-gray-400 uppercase tracking-widest border-b pb-2">Descripción de Trabajos Realizados</h3>
-            <div className="bg-gray-50 p-5 md:p-6 rounded-2xl md:rounded-3xl border border-gray-100 italic text-gray-700 leading-relaxed font-medium text-sm md:text-base">
-              "{ot.workDescription}"
-            </div>
-          </div>
-
-          {/* Trabajos Pendientes */}
-          {ot.pendingTasks && (
-            <div className="space-y-4">
-              <h3 className="text-[10px] md:text-xs font-black text-amber-500 uppercase tracking-widest border-b border-amber-100 pb-2">Observaciones / Pendientes</h3>
-              <div className="bg-amber-50 p-5 md:p-6 rounded-2xl md:rounded-3xl border border-amber-100 text-amber-900 leading-relaxed font-medium text-sm md:text-base">
-                {ot.pendingTasks}
-              </div>
-            </div>
-          )}
-
-          {/* Evidencia Fotográfica */}
-          {ot.completionPhotos && ot.completionPhotos.length > 0 && (
-            <div className="space-y-4">
-              <h3 className="text-[10px] md:text-xs font-black text-gray-400 uppercase tracking-widest border-b pb-2">Evidencia Fotográfica</h3>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
-                {ot.completionPhotos.map((photo, i) => (
-                  <div key={i} className="aspect-square bg-gray-100 rounded-xl md:rounded-2xl overflow-hidden border border-gray-100 shadow-sm">
-                    <img src={photo} className="w-full h-full object-cover" alt={`Evidencia ${i+1}`} />
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Firmas */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-10 md:gap-20 pt-6 md:pt-10">
-            <div className="text-center space-y-4 md:space-y-6">
-              <div className="h-24 md:h-32 flex items-end justify-center border-b-2 border-gray-900 pb-2 italic text-gray-400 font-serif text-sm md:text-base">
-                <p>{ot.leadTechName || ot.assignedToName}</p>
-              </div>
-              <p className="text-[9px] md:text-[10px] font-black text-gray-400 uppercase tracking-widest">Firma del Técnico</p>
-            </div>
-            <div className="text-center space-y-4 md:space-y-6">
-              <div className="h-24 md:h-32 flex items-end justify-center border-b-2 border-gray-900 pb-2">
-                {ot.signature && <span className="text-[10px] md:text-xs font-bold text-emerald-600 italic border border-emerald-100 bg-emerald-50 px-3 py-1 rounded-full">Firmado Digitalmente por Cliente</span>}
-              </div>
-              <p className="text-[9px] md:text-[10px] font-black text-gray-400 uppercase tracking-widest">Firma de Conformidad Cliente</p>
             </div>
           </div>
         </div>
 
-        <div className="bg-gray-50 p-6 text-center text-[8px] md:text-[10px] font-bold text-gray-400 uppercase tracking-[0.1em] md:tracking-[0.2em] leading-relaxed">
-          OleaControls System © 2026 - Control de Operaciones y Mantenimiento Industrial
+        {/* Sidebar: Fotos y Acción */}
+        <div className="space-y-8">
+            <div className="bg-white rounded-[3rem] border p-8 shadow-xl space-y-6">
+                <SectionTitle title="Evidencia" icon={Camera} />
+                <div className="grid grid-cols-2 gap-3">
+                    {formData.photos.map((photo, i) => (
+                        <div key={i} className="relative aspect-square rounded-2xl overflow-hidden border group shadow-sm">
+                            <img src={photo} className="w-full h-full object-cover" />
+                            <button onClick={() => setFormData({...formData, photos: formData.photos.filter((_, idx) => idx !== i)})} className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-all shadow-lg">
+                                <X className="h-3 w-3" />
+                            </button>
+                        </div>
+                    ))}
+                    <label className="aspect-square rounded-2xl border-2 border-dashed border-gray-200 flex flex-col items-center justify-center cursor-pointer hover:bg-primary/5 hover:border-primary transition-all text-gray-400 hover:text-primary">
+                        <Plus className="h-8 w-8 mb-1" />
+                        <span className="text-[9px] font-black uppercase">Subir Foto</span>
+                        <input type="file" accept="image/*" multiple className="hidden" onChange={handlePhotoUpload} />
+                    </label>
+                </div>
+            </div>
+
+            <div className="bg-gray-900 rounded-[3rem] p-10 text-center space-y-6 shadow-2xl">
+                <ShieldCheck className="h-16 w-16 text-primary mx-auto opacity-50" />
+                <div className="space-y-2">
+                    <h4 className="text-white font-black text-lg uppercase tracking-tighter">Finalizar Servicio</h4>
+                    <p className="text-gray-400 text-xs font-medium">Al procesar, se guardará el historial y se enviará el PDF al cliente.</p>
+                </div>
+                <button 
+                    onClick={handleFinish}
+                    disabled={isSaving}
+                    className="w-full bg-primary text-white py-5 rounded-2xl font-black uppercase tracking-[0.2em] shadow-xl shadow-primary/20 hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-3 disabled:opacity-50"
+                >
+                    {isSaving ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
+                    Cerrar Acta
+                </button>
+            </div>
         </div>
       </div>
     </div>
   );
+}
+
+function SectionTitle({ title, icon: Icon }) {
+    return (
+        <div className="flex items-center gap-3 border-b border-gray-50 pb-4">
+            <div className="h-10 w-10 rounded-2xl bg-primary/10 flex items-center justify-center text-primary">
+                <Icon className="h-5 w-5" />
+            </div>
+            <h3 className="text-xs font-black text-gray-900 uppercase tracking-widest">{title}</h3>
+        </div>
+    );
 }

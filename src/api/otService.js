@@ -1,40 +1,5 @@
-const OTS_KEY = 'olea_ots_db';
 const OT_TEMPLATES_KEY = 'olea_ot_templates_db';
 const TECH_LOCATIONS_KEY = 'olea_tech_locations_db';
-
-const initialOTs = [
-  {
-    id: "OT-2026-001",
-    title: "Instalación de Sensores Planta Norte",
-    description: "Montaje y calibración de 12 sensores de presión serie V3.",
-    priority: "HIGH",
-    status: "ASSIGNED", // [UNASSIGNED, ASSIGNED, ACCEPTED, IN_PROGRESS, COMPLETED, VALIDATED]
-    leadTechId: "user-123",
-    leadTechName: "Gabriel Técnico (Pruebas)",
-    supportTechs: [
-      { id: "user-tech-02", name: "Juan Pérez" }
-    ],
-    client: "Minera del Potosí",
-    location: "San Luis Potosí, MX",
-    createdAt: "2026-02-20",
-    expensesSubmitted: 2,
-    validationPending: false,
-    storeNumber: "ST-001",
-    storeName: "Planta Norte Main",
-    clientEmail: "contacto@minera.mx",
-    clientPhone: "4441234567",
-    address: "Eje 124, Zona Industrial, SLP",
-    lat: 19.4326,
-    lng: -99.1332,
-    workDescription: "Montaje y calibración de 12 sensores de presión serie V3.",
-    arrivalTime: "09:00",
-    assignedFunds: 500,
-    pendingTasks: "",
-    signature: null,
-    completionPhotos: [],
-    isLocked: false
-  }
-];
 
 const initialTemplates = [
   {
@@ -48,13 +13,11 @@ const initialTemplates = [
 ];
 
 export const otService = {
-  async getOTs() {
-    const data = localStorage.getItem(OTS_KEY);
-    if (!data) {
-        localStorage.setItem(OTS_KEY, JSON.stringify(initialOTs));
-        return initialOTs;
-    }
-    return JSON.parse(data);
+  async getOTs(filters = {}) {
+    const params = new URLSearchParams(filters).toString();
+    const response = await fetch(`/api/ots?${params}`);
+    if (!response.ok) throw new Error('Error al obtener OTs');
+    return response.json();
   },
 
   // Templates
@@ -79,102 +42,52 @@ export const otService = {
   },
 
   async saveOT(otData) {
-    const ots = await this.getOTs();
-    
-    // Generar ID personalizado: OT-[PREFIJO_TIENDA]-[NUM_TIENDA]-[SUFIJO]
-    const cleanName = (otData.storeName || 'NA')
-      .toUpperCase()
-      .replace(/[^A-Z0-9]/g, '')
-      .substring(0, 4);
-    
-    const cleanNum = (otData.storeNumber || '000')
-      .toUpperCase()
-      .replace(/[^A-Z0-9]/g, '');
-      
-    const baseId = `OT-${cleanName}-${cleanNum}`;
-    
-    // Verificar colisiones para añadir sufijo único
-    const existingCount = ots.filter(o => o.id.startsWith(baseId)).length;
-    let finalId = baseId;
-    
-    if (existingCount > 0) {
-      // Si ya existe la base, añade -A, -B, -C...
-      const suffix = String.fromCharCode(65 + (existingCount - 1));
-      finalId = `${baseId}-${suffix}`;
-    }
-
-    const newOT = {
-      ...otData,
-      id: otData.id || finalId,
-      status: otData.leadTechId ? 'ASSIGNED' : 'UNASSIGNED',
-      location: otData.address || otData.location,
-      createdAt: new Date().toISOString(),
-      expensesSubmitted: 0,
-      validationPending: false,
-      completionPhotos: [],
-      pendingTasks: "",
-      signature: null,
-      supportTechs: otData.supportTechs || [],
-      assistantTechs: otData.assistantTechs || [],
-      isLocked: false
-    };
-    const updated = [newOT, ...ots];
-    localStorage.setItem(OTS_KEY, JSON.stringify(updated));
-    return newOT;
+    const response = await fetch('/api/ots', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(otData)
+    });
+    if (!response.ok) throw new Error('Error al crear OT');
+    return response.json();
   },
 
   async assignOT(otId, leadId, leadName, supportTechs = [], funds = 0) {
-    const ots = await this.getOTs();
-    const updated = ots.map(ot => 
-      ot.id === otId ? { 
-        ...ot, 
-        leadTechId: leadId, 
-        leadTechName: leadName, 
-        supportTechs: supportTechs,
-        status: 'ASSIGNED', 
-        assignedFunds: funds 
-      } : ot
-    );
-    localStorage.setItem(OTS_KEY, JSON.stringify(updated));
-    return true;
+    return this.updateOT(otId, {
+      leadTechId: leadId,
+      leadTechName: leadName,
+      supportTechs,
+      assignedFunds: funds,
+      status: 'ASSIGNED'
+    });
   },
 
   async updateStatus(otId, status, extraData = {}) {
-    const ots = await this.getOTs();
-    const updated = ots.map(ot => {
-      if (ot.id === otId) {
-        const isNowLocked = status === 'VALIDATED';
-        return { ...ot, ...extraData, status, isLocked: isNowLocked };
-      }
-      return ot;
-    });
-    localStorage.setItem(OTS_KEY, JSON.stringify(updated));
-    return true;
+    const isNowLocked = status === 'VALIDATED';
+    return this.updateOT(otId, { status, ...extraData, isLocked: isNowLocked });
   },
 
   async updateOT(otId, updatedData) {
-    const ots = await this.getOTs();
-    const updated = ots.map(ot => 
-      ot.id === otId ? { ...ot, ...updatedData } : ot
-    );
-    localStorage.setItem(OTS_KEY, JSON.stringify(updated));
-    return true;
+    const response = await fetch('/api/ots', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: otId, ...updatedData })
+    });
+    if (!response.ok) throw new Error('Error al actualizar OT');
+    return response.json();
   },
 
   async deleteOT(otId) {
-    const ots = await this.getOTs();
-    const filtered = ots.filter(ot => ot.id !== otId);
-    localStorage.setItem(OTS_KEY, JSON.stringify(filtered));
-    return true;
+    const response = await fetch(`/api/ots?id=${otId}`, {
+      method: 'DELETE'
+    });
+    if (!response.ok) throw new Error('Error al eliminar OT');
+    return response.json();
   },
 
   async addSupplementalFunds(otId, amount) {
-    const ots = await this.getOTs();
-    const updated = ots.map(ot => 
-      ot.id === otId ? { ...ot, assignedFunds: (ot.assignedFunds || 0) + amount } : ot
-    );
-    localStorage.setItem(OTS_KEY, JSON.stringify(updated));
-    return true;
+    const ot = await this.getById(otId);
+    if (!ot) return;
+    return this.updateOT(otId, { assignedFunds: (ot.assignedFunds || 0) + amount });
   },
 
   async getById(id) {
@@ -182,13 +95,19 @@ export const otService = {
     return ots.find(o => o.id === id);
   },
 
+  async getOTDetail(id) {
+    return this.getById(id);
+  },
+
   async getOTFinancials(otId) {
     const ot = await this.getById(otId);
     if (!ot) return null;
 
-    const data = localStorage.getItem('olea_expenses_db');
-    const allExpenses = data ? JSON.parse(data) : [];
-    const otExpenses = allExpenses.filter(e => e.otId === otId && e.status !== 'REJECTED');
+    // Obtener gastos reales de la API
+    const response = await fetch(`/api/expenses?otId=${otId}`);
+    const allExpenses = response.ok ? await response.json() : [];
+    
+    const otExpenses = allExpenses.filter(e => e.status !== 'REJECTED');
     
     const totalSpent = otExpenses.reduce((sum, e) => sum + e.amount, 0);
     const balance = (ot.assignedFunds || 0) - totalSpent;

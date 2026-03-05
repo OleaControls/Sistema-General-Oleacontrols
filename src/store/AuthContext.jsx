@@ -4,7 +4,7 @@ const AuthContext = createContext();
 
 export const ROLES = {
   ADMIN: 'ADMIN',
-  OPS: 'OPERATIONS',
+  OPS: 'SUPERVISOR',
   TECH: 'TECHNICIAN',
   HR: 'HR',
   SALES: 'SALES',
@@ -45,10 +45,18 @@ export function AuthProvider({ children }) {
 
         if (response.ok) {
             const userData = await response.json();
+            
+            // Determinar el rol principal del array de roles
+            let primaryRole = ROLES.COLLABORATOR;
+            if (userData.roles && Array.isArray(userData.roles)) {
+                // Priorizar cualquier rol que no sea COLLABORATOR
+                primaryRole = userData.roles.find(r => r !== ROLES.COLLABORATOR) || ROLES.COLLABORATOR;
+            }
+
             const fullUser = {
                 ...userData,
-                // Si entra por el portal colaborador, forzamos ese rol para la sesión
-                role: portal === 'COLLABORATOR' ? ROLES.COLLABORATOR : userData.role
+                // Si entra por el portal colaborador, forzamos ese rol, si no, usamos su rol principal
+                role: portal === 'COLLABORATOR' ? ROLES.COLLABORATOR : primaryRole
             };
             setUser(fullUser);
             localStorage.setItem('olea_user', JSON.stringify(fullUser));
@@ -66,8 +74,26 @@ export function AuthProvider({ children }) {
     localStorage.removeItem('olea_user');
   };
 
+  const updateUser = (newData) => {
+    if (user && newData.id === user.id) {
+        // Determinar el nuevo rol principal si los roles cambiaron
+        let primaryRole = user.role;
+        if (newData.roles && Array.isArray(newData.roles)) {
+            primaryRole = newData.roles.find(r => r !== ROLES.COLLABORATOR) || ROLES.COLLABORATOR;
+        }
+
+        const updated = { 
+            ...user, 
+            ...newData,
+            role: primaryRole // Actualizar el rol de sesión
+        };
+        setUser(updated);
+        localStorage.setItem('olea_user', JSON.stringify(updated));
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ user, login, loginWithCredentials, logout, loading }}>
+    <AuthContext.Provider value={{ user, login, loginWithCredentials, logout, updateUser, loading }}>
       {children}
     </AuthContext.Provider>
   );

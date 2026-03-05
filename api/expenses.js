@@ -1,0 +1,113 @@
+import prisma from './_lib/prisma.js'
+
+export default async function handler(req, res) {
+  const { method } = req;
+
+  if (method === 'GET') {
+    const { userId, otId, status } = req.query;
+    try {
+      const where = {};
+      if (userId) where.employeeId = userId;
+      if (status) where.status = status;
+      
+      // Si recibimos otId, buscamos la OT real primero
+      if (otId) {
+          const targetOT = await prisma.workOrder.findFirst({
+              where: { OR: [ { id: otId }, { otNumber: otId } ] }
+          });
+          if (targetOT) where.workOrderId = targetOT.id;
+      }
+
+      const expenses = await prisma.expense.findMany({
+        where,
+        include: {
+          employee: { select: { name: true } },
+          workOrder: { select: { otNumber: true, title: true } }
+        },
+        orderBy: { createdAt: 'desc' }
+      });
+
+      // Mapear para compatibilidad con el frontend
+      const formatted = expenses.map(e => ({
+          ...e,
+          otId: e.workOrder?.otNumber, // El frontend espera el folio
+          userId: e.employeeId,
+          date: new Date(e.createdAt).toISOString().split('T')[0] // Formatear fecha
+      }));
+
+      return res.status(200).json(formatted);
+    } catch (error) {
+      console.error('❌ GET EXPENSES ERROR:', error);
+      return res.status(500).json({ error: error.message });
+    }
+  }
+
+  if (method === 'POST') {
+    const { amount, category, description, receipt, evidence, otId, userId, paymentMethod } = req.body;
+    
+    try {
+      // 1. Validaciones iniciales
+      const finalReceipt = receipt || evidence || null;
+      const parsedAmount = parseFloat(amount);
+
+      if (isNaN(parsedAmount) || !category || !otId || !userId) {
+          return res.status(400).json({ 
+              error: 'Datos incompletos o inválidos', 
+              message: 'El monto, categoría, orden y usuario son requeridos.' 
+          });
+      }
+
+      // 2. Encontrar la OT real (por folio o ID)
+      const targetOT = await prisma.workOrder.findFirst({
+        where: {
+          OR: [ { id: otId }, { otNumber: otId } ]
+        }
+      });
+
+      if (!targetOT) {
+          return res.status(404).json({ error: `No se encontró la Orden ${otId}` });
+      }
+
+      // 3. Crear el gasto con sintaxis robusta
+      const expense = await prisma.expense.create({
+        data: {
+          amount: parsedAmount,
+          category: category,
+          description: description || '',
+          paymentMethod: paymentMethod || 'CASH',
+          receipt: finalReceipt,
+          status: 'PENDING',
+          // Usamos scalar fields para máxima compatibilidad
+          workOrderId: targetOT.id,
+          employeeId: userId
+        }
+      });
+      
+      return res.status(201).json(expense);
+    } catch (error) {
+      console.error('❌ POST EXPENSE FATAL ERROR:', error);
+      return res.status(500).json({ 
+          error: 'Error en el servidor al guardar el gasto',
+          details: error.message
+      });
+    }
+  }
+
+  if (method === 'PUT') {
+    const { id, status, comment } = req.body;
+    try {
+      const updated = await prisma.expense.update({
+        where: { id },
+        data: { 
+            status,
+            comment: comment || null
+        }
+      });
+      return res.status(200).json(updated);
+    } catch (error) {
+      return res.status(500).json({ error: error.message });
+    }
+  }
+
+  return res.status(405).json({ error: 'Método no permitido' });
+}

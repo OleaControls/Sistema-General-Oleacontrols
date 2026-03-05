@@ -41,8 +41,30 @@ export default function HRLayout() {
   const location = useLocation();
 
   return (
-    <div className="flex h-[calc(100vh-4rem)] -m-4 md:-m-8 bg-gray-50">
-      {/* HR Sidebar */}
+    <div className="flex flex-col lg:flex-row h-[calc(100vh-4rem)] -m-4 md:-m-8 bg-gray-50">
+      {/* Mobile HR Nav (Top Scrollable) */}
+      <div className="lg:hidden bg-white border-b sticky top-0 z-20 flex overflow-x-auto no-scrollbar scroll-smooth px-2 py-3 gap-2 shadow-sm">
+        {hrNavItems.map((item) => {
+          const isActive = location.pathname === item.path || (location.pathname.startsWith(item.path) && item.path !== '/hr');
+          return (
+            <Link
+              key={item.name}
+              to={item.path}
+              className={cn(
+                "flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-tight whitespace-nowrap transition-all flex-shrink-0",
+                isActive 
+                  ? "bg-primary text-white shadow-md shadow-primary/20" 
+                  : "bg-gray-50 text-gray-500 border border-transparent hover:bg-gray-100"
+              )}
+            >
+              <item.icon className="h-3.5 w-3.5 shrink-0" />
+              {item.name}
+            </Link>
+          );
+        })}
+      </div>
+
+      {/* HR Sidebar (Desktop) */}
       <aside className="w-64 bg-white border-r hidden lg:flex flex-col h-full overflow-y-auto">
         <div className="p-6 border-b sticky top-0 bg-white z-10">
           <h2 className="text-xl font-black text-gray-900 leading-tight">Human<br/>Resources</h2>

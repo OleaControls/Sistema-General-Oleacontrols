@@ -16,7 +16,10 @@ export const hrService = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(employeeData)
     });
-    if (!response.ok) throw new Error('Error al guardar empleado');
+    if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.message || err.error || 'Error al guardar empleado');
+    }
     return response.json();
   },
 
@@ -26,23 +29,38 @@ export const hrService = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id, ...updatedData })
     });
-    if (!response.ok) throw new Error('Error al actualizar empleado');
+    if (!response.ok) {
+        const err = await response.json();
+        // Propagamos el mensaje real del servidor (ej: "Email ya existe" o "Fecha inválida")
+        throw new Error(err.message || err.error || 'Error al actualizar empleado');
+    }
     return response.json();
   },
 
-  // Temporales hasta mover categorías también a Prisma
+  async deleteEmployee(id) {
+    const response = await fetch(`/api/employees?id=${id}`, {
+      method: 'DELETE'
+    });
+    if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.error || 'Error al eliminar empleado');
+    }
+    return response.json();
+  },
+
   async getCategories() {
-    const data = localStorage.getItem('olea_hr_categories');
-    return data ? JSON.parse(data) : [];
+    const response = await fetch('/api/categories');
+    if (!response.ok) throw new Error('Error al obtener categorías');
+    return response.json();
   },
 
   async saveCategory(categoryName) {
-    const categories = await this.getCategories();
-    if (!categories.includes(categoryName)) {
-        const updated = [...categories, categoryName];
-        localStorage.setItem('olea_hr_categories', JSON.stringify(updated));
-        return updated;
-    }
-    return categories;
+    const response = await fetch('/api/categories', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: categoryName })
+    });
+    if (!response.ok) throw new Error('Error al guardar categoría');
+    return response.json();
   }
 };

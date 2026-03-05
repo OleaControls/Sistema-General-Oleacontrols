@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { 
-  ChevronLeft, Award, Briefcase, Calendar, ShieldCheck, FileText, Download, User, FileSignature, Palmtree, HardHat, MoreVertical
+  ChevronLeft, Award, Briefcase, Calendar, ShieldCheck, FileText, Download, User, FileSignature, Palmtree, HardHat, MoreVertical,
+  Zap, Star, CheckCircle, Target, TrendingUp, Users
 } from 'lucide-react';
 import { hrService } from '@/api/hrService';
+import { ROLES } from '@/store/AuthContext';
 import { cn } from '@/lib/utils';
 
 const PROFILE_TABS = [
@@ -12,6 +14,15 @@ const PROFILE_TABS = [
   { id: 'TIMEOFF', label: 'Asistencia y Vacaciones', icon: Palmtree },
   { id: 'ASSETS', label: 'Inventario y EPP', icon: HardHat }
 ];
+
+const ROLE_CONFIG = {
+    [ROLES.ADMIN]: { label: 'Administrador', color: 'bg-red-50 text-red-600 border-red-100', icon: ShieldCheck },
+    [ROLES.HR]: { label: 'Recursos Humanos', color: 'bg-purple-50 text-purple-600 border-purple-100', icon: Users },
+    [ROLES.OPS]: { label: 'Supervisor de Operaciones', color: 'bg-blue-50 text-blue-600 border-blue-100', icon: HardHat },
+    [ROLES.TECH]: { label: 'Técnico Especialista', color: 'bg-emerald-50 text-emerald-600 border-emerald-100', icon: Zap },
+    [ROLES.SALES]: { label: 'Consultor de Ventas', color: 'bg-orange-50 text-orange-600 border-orange-100', icon: TrendingUp },
+    [ROLES.COLLABORATOR]: { label: 'Colaborador', color: 'bg-gray-50 text-gray-600 border-gray-100', icon: User }
+};
 
 export default function EmployeeProfile() {
   const { id } = useParams();
@@ -31,6 +42,11 @@ export default function EmployeeProfile() {
 
   if (loading) return <div className="p-10 text-center animate-pulse text-gray-400 font-bold uppercase tracking-widest">Cargando expediente...</div>;
   if (!employee) return <div className="p-10 text-center text-red-500 font-bold">Empleado no encontrado</div>;
+
+  // Corregir detección de rol principal (priorizando roles que no sean COLLABORATOR)
+  const allRoles = Array.isArray(employee.roles) ? employee.roles : [employee.role || ROLES.COLLABORATOR];
+  const mainRole = allRoles.find(r => r !== ROLES.COLLABORATOR) || ROLES.COLLABORATOR;
+  const roleInfo = ROLE_CONFIG[mainRole] || ROLE_CONFIG[ROLES.COLLABORATOR];
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
@@ -55,15 +71,17 @@ export default function EmployeeProfile() {
         <div className="flex-1 space-y-4 relative z-10">
           <div className="space-y-1">
             <h2 className="text-3xl font-black text-gray-900 leading-none">{employee.name}</h2>
-            <div className="flex flex-col md:flex-row md:items-center gap-2 pt-2">
-              <span className="bg-primary/10 text-primary text-[10px] font-black px-3 py-1 rounded-lg uppercase tracking-wider">{employee.position || 'Sin Categoría'}</span>
-              <span className="bg-gray-100 text-gray-600 text-[10px] font-black px-3 py-1 rounded-lg uppercase tracking-wider">{employee.role}</span>
+            <div className="flex flex-wrap justify-center md:justify-start gap-2 pt-2">
+              <span className="bg-primary text-white text-[10px] font-black px-3 py-1 rounded-lg uppercase tracking-wider">{employee.position || 'Sin Puesto'}</span>
+              <span className={cn("text-[10px] font-black px-3 py-1 rounded-lg uppercase tracking-wider border flex items-center gap-1.5", roleInfo.color)}>
+                <roleInfo.icon className="h-3 w-3" /> {roleInfo.label}
+              </span>
               <span className="bg-gray-100 text-gray-600 text-[10px] font-black px-3 py-1 rounded-lg uppercase tracking-wider">{employee.department}</span>
               <span className="bg-emerald-50 text-emerald-600 border border-emerald-100 text-[10px] font-black px-3 py-1 rounded-lg uppercase tracking-wider">Activo</span>
             </div>
           </div>
           <p className="text-sm font-bold text-gray-500 max-w-lg leading-relaxed">
-            Ingreso: {employee.joinDate} • Base: {employee.location}
+            Ingreso: {employee.joinDate ? new Date(employee.joinDate).toLocaleDateString() : 'N/A'} • Base: {employee.location || 'Oficina Central'}
           </p>
         </div>
       </div>
@@ -90,88 +108,168 @@ export default function EmployeeProfile() {
       {/* Tab Content */}
       <div className="pt-2 min-h-[400px]">
         {activeTab === 'OVERVIEW' && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            {/* Left Col */}
-            <div className="space-y-6">
-              <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm space-y-6">
-                <h3 className="font-black text-gray-900 uppercase text-xs tracking-widest flex items-center gap-2">
-                  <Briefcase className="h-4 w-4 text-primary" /> Datos Personales
-                </h3>
-                <div className="space-y-5">
-                  <InfoRow label="ID Nómina / Empleado" value={employee.id} />
-                  <InfoRow label="Email Corporativo" value={employee.email} />
-                  <InfoRow label="Teléfono (Emergencia)" value={employee.phone} />
-                  <InfoRow label="NSS / RFC" value="Oculto por seguridad (Clic para revelar)" isSecret />
+          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            {/* KPI Section for Operations/Tech/Sales */}
+            {(mainRole === ROLES.TECH || mainRole === ROLES.OPS || mainRole === ROLES.SALES) && (
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <KPICard label={mainRole === ROLES.SALES ? "Ventas Mes" : "OTs Cerradas"} value={mainRole === ROLES.SALES ? "$42k" : "24"} icon={Target} color="blue" />
+                    <KPICard label="Satisfacción" value="4.8" icon={Star} color="amber" />
+                    <KPICard label="Efectividad" value="96%" icon={CheckCircle} color="emerald" />
+                    <KPICard label="Meta Anual" value="72%" icon={TrendingUp} color="purple" />
                 </div>
-              </div>
-            </div>
+            )}
 
-            {/* Right Col */}
-            <div className="md:col-span-2 space-y-6">
-              <div className="bg-white rounded-3xl p-8 border border-gray-100 shadow-sm space-y-6">
-                <div className="flex justify-between items-center">
-                  <h3 className="font-black text-gray-900 uppercase text-xs tracking-widest flex items-center gap-2">
-                    <Award className="h-4 w-4 text-primary" /> Certificaciones LMS
-                  </h3>
-                </div>
-                <div className="space-y-4">
-                  {employee.certifications.length > 0 ? employee.certifications.map((cert) => (
-                    <div key={cert.id} className="flex items-center justify-between p-4 bg-gray-50/50 rounded-2xl border hover:bg-white transition-all">
-                      <div className="flex items-center gap-4">
-                        <div className="h-10 w-10 rounded-xl bg-white flex items-center justify-center text-primary border shadow-sm">
-                          <ShieldCheck className="h-5 w-5" />
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {/* Left Col */}
+                <div className="space-y-6">
+                    <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm space-y-6">
+                        <h3 className="font-black text-gray-900 uppercase text-xs tracking-widest flex items-center gap-2">
+                        <Briefcase className="h-4 w-4 text-primary" /> Datos Personales
+                        </h3>
+                        <div className="space-y-5">
+                            <InfoRow label="ID Nómina / Empleado" value={employee.employeeId || employee.id} />
+                            <InfoRow label="Email Corporativo" value={employee.email} />
+                            <InfoRow label="Teléfono Personal" value={employee.phone || 'No registrado'} />
+                            <div className="pt-2 border-t border-gray-50">
+                                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Contacto de Emergencia</p>
+                                <InfoRow label="Nombre" value={employee.emergencyContactName || 'No registrado'} />
+                                <InfoRow label="Teléfono" value={employee.emergencyContactPhone || 'No registrado'} />
+                            </div>
                         </div>
-                        <div>
-                          <p className="text-sm font-black text-gray-900">{cert.name}</p>
-                          <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Obtenido: {new Date(cert.date).toLocaleDateString()}</p>
-                        </div>
-                      </div>
-                      <button className="p-2 text-gray-400 hover:text-primary transition-colors">
-                        <Download className="h-5 w-5" />
-                      </button>
                     </div>
-                  )) : (
-                    <p className="text-center py-6 text-gray-400 font-bold italic text-sm">Sin certificaciones completadas.</p>
-                  )}
                 </div>
-              </div>
+
+                {/* Right Col */}
+                <div className="md:col-span-2 space-y-6">
+                    <div className="bg-white rounded-3xl p-8 border border-gray-100 shadow-sm space-y-6">
+                        <div className="flex justify-between items-center">
+                        <h3 className="font-black text-gray-900 uppercase text-xs tracking-widest flex items-center gap-2">
+                            <Award className="h-4 w-4 text-primary" /> Certificaciones LMS
+                        </h3>
+                        </div>
+                        <div className="space-y-4">
+                        {(employee.certifications?.length || 0) > 0 ? employee.certifications.map((cert) => (
+                            <div key={cert.id} className="flex items-center justify-between p-4 bg-gray-50/50 rounded-2xl border hover:bg-white transition-all">
+                            <div className="flex items-center gap-4">
+                                <div className="h-10 w-10 rounded-xl bg-white flex items-center justify-center text-primary border shadow-sm">
+                                <ShieldCheck className="h-5 w-5" />
+                                </div>
+                                <div>
+                                <p className="text-sm font-black text-gray-900">{cert.name}</p>
+                                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Obtenido: {new Date(cert.date).toLocaleDateString()}</p>
+                                </div>
+                            </div>
+                            <button className="p-2 text-gray-400 hover:text-primary transition-colors">
+                                <Download className="h-5 w-5" />
+                            </button>
+                            </div>
+                        )) : (
+                            <p className="text-center py-6 text-gray-400 font-bold italic text-sm">Sin certificaciones completadas.</p>
+                        )}
+                        </div>
+                    </div>
+                </div>
             </div>
           </div>
         )}
 
         {activeTab === 'DOCUMENTS' && (
-          <div className="bg-white rounded-3xl p-8 border border-gray-100 shadow-sm animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <div className="flex justify-between items-center mb-8">
-              <h3 className="font-black text-gray-900 uppercase text-xs tracking-widest">Documentación Legal</h3>
-              <button className="bg-gray-900 text-white px-4 py-2 text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-primary transition-colors shadow-lg">
-                Subir Archivo
-              </button>
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {[
-                { name: 'Contrato Laboral Firmado', type: 'PDF', required: true, status: 'OK' },
-                { name: 'Identificación Oficial (INE)', type: 'PDF/IMG', required: true, status: 'OK' },
-                { name: 'Constancia Situación Fiscal', type: 'PDF', required: true, status: 'PENDING' },
-                { name: 'Comprobante de Domicilio', type: 'PDF/IMG', required: true, status: 'OK' },
-                { name: 'Políticas Confidencialidad (NDA)', type: 'PDF', required: false, status: 'OK' }
-              ].map((doc, i) => (
-                <div key={i} className="flex justify-between items-center p-4 border rounded-2xl bg-gray-50/50 hover:border-primary/30 transition-colors">
-                  <div className="flex items-center gap-3">
-                    <FileText className={cn("h-6 w-6", doc.status === 'OK' ? "text-primary" : "text-gray-300")} />
-                    <div>
-                      <p className="text-sm font-black text-gray-900">{doc.name}</p>
-                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Req: {doc.required ? 'Obligatorio' : 'Opcional'}</p>
-                    </div>
+          <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            {[
+              { 
+                title: '1. Datos Personales', 
+                color: 'blue',
+                docs: [
+                    { name: 'Acta de Nacimiento', value: employee.birthCertificate },
+                    { name: 'Identificación Oficial', value: employee.ineDoc || employee.ine },
+                    { name: 'CURP', value: employee.curp },
+                    { name: 'RFC (SAT)', value: employee.rfc },
+                    { name: 'NSS (IMSS)', value: employee.nss },
+                    { name: 'Comprobante Domicilio', value: employee.proofOfResidency },
+                    { name: 'Currículum Vitae', value: employee.cv }
+                ]
+              },
+              { 
+                title: '2. Contratación', 
+                color: 'purple',
+                docs: [
+                    { name: 'Contrato Laboral', value: employee.contractSigned },
+                    { name: 'Aviso de Privacidad', value: employee.privacyPolicySigned },
+                    { name: 'Reglamento Interno', value: employee.internalRulesSigned },
+                    { name: 'Alta en el IMSS', value: employee.imssHigh }
+                ]
+              },
+              { 
+                title: '3. Seguimiento Laboral', 
+                color: 'emerald',
+                docs: [
+                    { name: 'Certificado de Estudios', value: employee.studyCertificate },
+                    { name: 'Título / Cédula', value: employee.degreeOrProfessionalId },
+                    { name: 'Diplomas o Cursos', value: employee.diplomasOrCourses },
+                    { name: 'Certificaciones', value: employee.laborCertifications },
+                    { name: 'Evaluaciones Desempeño', value: employee.performanceEvaluations },
+                    { name: 'Capacitaciones', value: employee.receivedTraining },
+                    { name: 'Actas Administrativas', value: employee.administrativeActs },
+                    { name: 'Incidencias / Reportes', value: employee.disciplinaryReports },
+                    { name: 'Permisos / Licencias', value: employee.permitsOrLicenses }
+                ]
+              },
+              { 
+                title: '4. Baja del Empleado', 
+                color: 'red',
+                docs: [
+                    { name: 'Carta de Renuncia', value: employee.resignationLetter },
+                    { name: 'Finiquito / Liquidación', value: employee.settlementOrLiquidation },
+                    { name: 'Baja del IMSS', value: employee.imssLow },
+                    { name: 'Constancia Laboral', value: employee.laborConstancy }
+                ]
+              }
+            ].map((section, idx) => (
+              <div key={idx} className="bg-white rounded-[2.5rem] p-8 border border-gray-100 shadow-sm space-y-6">
+                <div className="flex items-center gap-3 border-b pb-4">
+                  <div className={cn(
+                    "h-10 w-10 rounded-2xl flex items-center justify-center",
+                    section.color === 'blue' ? "bg-blue-50 text-blue-600" :
+                    section.color === 'purple' ? "bg-purple-50 text-purple-600" :
+                    section.color === 'emerald' ? "bg-emerald-50 text-emerald-600" : "bg-red-50 text-red-600"
+                  )}>
+                    <FileSignature className="h-5 w-5" />
                   </div>
-                  {doc.status === 'OK' ? (
-                    <span className="text-[10px] font-black bg-green-50 text-green-700 px-2 py-1 rounded uppercase tracking-wider border border-green-100">Cargado</span>
-                  ) : (
-                    <span className="text-[10px] font-black bg-amber-50 text-amber-700 px-2 py-1 rounded uppercase tracking-wider border border-amber-100">Falta</span>
-                  )}
+                  <h4 className="font-black text-gray-900 uppercase text-xs tracking-widest">{section.title}</h4>
                 </div>
-              ))}
-            </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {section.docs.map((doc, i) => (
+                    <div key={i} className="flex justify-between items-center p-4 border rounded-2xl bg-gray-50/50 hover:bg-white transition-all group">
+                      <div className="flex items-center gap-3">
+                        <FileText className={cn("h-5 w-5", doc.value ? "text-primary" : "text-gray-300")} />
+                        <div>
+                          <p className="text-[11px] font-black text-gray-900 leading-tight">{doc.name}</p>
+                          <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">{doc.value ? 'Cargado' : 'Faltante'}</p>
+                        </div>
+                      </div>
+                      {doc.value && doc.value.startsWith('data:') ? (
+                        <button 
+                          onClick={() => {
+                            const link = document.createElement('a');
+                            link.href = doc.value;
+                            link.download = `${doc.name}.pdf`;
+                            link.click();
+                          }}
+                          className="p-2 bg-white border rounded-xl text-primary hover:bg-primary hover:text-white transition-all shadow-sm opacity-0 group-hover:opacity-100"
+                        >
+                          <Download className="h-4 w-4" />
+                        </button>
+                      ) : doc.value ? (
+                        <span className="text-[9px] font-black text-gray-500 bg-white border px-2 py-1 rounded-lg">{doc.value}</span>
+                      ) : (
+                        <div className="h-2 w-2 rounded-full bg-gray-200" />
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
           </div>
         )}
 
@@ -241,4 +339,23 @@ function InfoRow({ label, value, isSecret }) {
       <p className={cn("text-sm font-bold text-gray-900", isSecret && "blur-sm hover:blur-none transition-all cursor-pointer select-none")}>{value}</p>
     </div>
   );
+}
+
+function KPICard({ label, value, icon: Icon, color }) {
+    const colors = {
+        blue: "bg-blue-50 text-blue-600 border-blue-100",
+        amber: "bg-amber-50 text-amber-600 border-amber-100",
+        emerald: "bg-emerald-50 text-emerald-600 border-emerald-100",
+        purple: "bg-purple-50 text-purple-600 border-purple-100",
+    };
+
+    return (
+        <div className={cn("p-6 rounded-3xl border shadow-sm space-y-2", colors[color])}>
+            <div className="flex justify-between items-center">
+                <p className="text-[10px] font-black uppercase tracking-widest opacity-70">{label}</p>
+                <Icon className="h-4 w-4 opacity-70" />
+            </div>
+            <p className="text-3xl font-black leading-none">{value}</p>
+        </div>
+    );
 }

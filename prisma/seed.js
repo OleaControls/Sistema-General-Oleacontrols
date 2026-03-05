@@ -1,9 +1,7 @@
-import { PrismaClient } from '@prisma/client'
-
-const prisma = new PrismaClient()
+import prisma from '../api/_lib/prisma.js'
 
 async function main() {
-  console.log('🌱 Starting seed process...')
+  console.log('🌱 Starting seed process (Multiple Roles Support)...')
 
   // Inicializar Categorías por defecto
   const initialCategories = [
@@ -26,12 +24,12 @@ async function main() {
     })
   }
 
-  // Inicializar Empleados y sus Credenciales
+  // Inicializar Empleados y sus Credenciales con ARRAYS de roles
   const initialEmployees = [
     {
       employeeId: "EMP-001",
       name: "Roberto Olea",
-      role: "ADMIN",
+      roles: ["ADMIN", "HR"], // Ahora es un array
       position: "Director General",
       department: "Administración Central",
       email: "roberto@oleacontrols.com",
@@ -42,7 +40,7 @@ async function main() {
     {
       employeeId: "EMP-002",
       name: "Ana Admin",
-      role: "HR",
+      roles: ["HR"], // Ahora es un array
       position: "Gerente de Capital Humano",
       department: "Recursos Humanos",
       email: "ana@oleacontrols.com",
@@ -53,18 +51,21 @@ async function main() {
   ]
 
   for (const emp of initialEmployees) {
-    const { password, ...empData } = emp
+    const { password, roles, ...empData } = emp
     await prisma.employee.upsert({
       where: { email: emp.email },
-      update: {},
+      update: {
+        roles: roles
+      },
       create: {
         ...empData,
+        roles: roles,
         avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(emp.name)}&background=random`,
         credentials: {
           create: {
             email: emp.email,
             password: password,
-            role: emp.role
+            roles: roles
           }
         }
       }

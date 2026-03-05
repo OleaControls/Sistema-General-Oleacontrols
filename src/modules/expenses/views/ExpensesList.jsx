@@ -3,7 +3,7 @@ import { Plus, Filter, Search, Receipt, ChevronRight, MapPin, Calendar, CreditCa
 import { expenseService } from '@/api/expenseService';
 import { otService } from '@/api/otService';
 import { cn } from '@/lib/utils';
-import { useAuth } from '@/store/AuthContext';
+import { useAuth, ROLES } from '@/store/AuthContext';
 import NewExpenseForm from '../components/NewExpenseForm';
 import { useNetworkStatus } from '@/hooks/useNetworkStatus';
 
@@ -39,7 +39,7 @@ export default function ExpensesList({ otId = null, hideHeader = false, refreshT
     // Filter by OT if provided
     const baseData = otId ? data.filter(e => e.otId === otId) : data;
     // Filter by user (technicians only see their own expenses)
-    const myData = (user.role === 'ADMIN' || user.role === 'OPERATIONS') ? baseData : baseData.filter(e => e.userId === user.id);
+    const myData = (user.role === ROLES.ADMIN || user.role === ROLES.OPS) ? baseData : baseData.filter(e => e.userId === user.id);
     setExpenses(myData);
     setLoading(false);
   };
@@ -178,7 +178,7 @@ export default function ExpensesList({ otId = null, hideHeader = false, refreshT
                       </div>
                       <div className="flex items-center gap-1">
                         <CreditCard className="h-3 w-3" />
-                        {exp.paymentMethod.replace('_', ' ')}
+                        {(exp.paymentMethod || 'CASH').replace('_', ' ')}
                       </div>
                     </div>
                   </div>

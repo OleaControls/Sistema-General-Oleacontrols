@@ -11,28 +11,175 @@ datasource db {
 
 model Employee {
   id          String   @id @default(cuid())
-  employeeId  String   @unique // Ej: EMP-001
-  name        String
-  role        String   @default("COLLABORATOR")
-  position    String?
-  department  String?
+  employeeId  String   @unique // Número de empleado
+  name        String   // Nombre completo
+  roles       String[] @default(["COLLABORATOR"])
   email       String   @unique
-  phone       String?
-  joinDate    DateTime @default(now())
-  status      String   @default("ACTIVE")
   avatar      String?
-  location    String?
-  reportsTo   String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  credentials Credentials?
+  status      String   @default("ACTIVE")
+  
+  // 1. Datos personales básicos
+  birthDate       DateTime?
+  birthPlace      String?
+  nationality     String?
+  maritalStatus   String?
+  address         String?
+  phone           String?
+  emergencyContactName  String?
+  emergencyContactPhone String?
+
+  // 2. Documentos oficiales (ID/Strings y Referencias PDF)
+  ine             String?
+  curp            String?
+  rfc             String?
+  nss             String?
+  birthCertificate String? 
+  proofOfResidency String?
+  cv               String?
+  ineDoc           String?
+
+  // 3. Contratación
+  contractSigned       String?
+  privacyPolicySigned  String?
+  internalRulesSigned  String?
+  imssHigh            String?
+
+  // 4. Seguimiento Laboral
+  studyCertificate       String?
+  degreeOrProfessionalId String?
+  diplomasOrCourses      String?
+  laborCertifications    String?
+  recommendationLetter   String?
+  performanceEvaluations String?
+  receivedTraining       String?
+  administrativeActs     String?
+  disciplinaryReports    String?
+  permitsOrLicenses      String?
+
+  // 5. Baja del Empleado
+  resignationLetter       String?
+  settlementOrLiquidation String?
+  imssLow                String?
+  laborConstancy         String?
+
+  // 6. Datos laborales (Actuales)
+  position        String?
+  department      String?
+  joinDate        DateTime @default(now())
+  contractType    String?  // temporal, indefinido, etc.
+  workSchedule    String?  // Horario
+  salary          Float?   // Salario acordado
+
+  // 4. Datos para nómina
+  bankName        String?
+  bankAccount     String?  // Cuenta o CLABE
+  paymentType     String?  // semanal, quincenal, mensual
+
+  reportsTo       String?
+  location        String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  credentials     Credentials?
+  
+  // Relaciones Operativas
+  techOTs         WorkOrder[] @relation("TechOTs")
+  supervisorOTs   WorkOrder[] @relation("SupervisorOTs")
+  expenses        Expense[]
 }
 
 model Credentials {
   id         String   @id @default(cuid())
   email      String   @unique
   password   String
-  role       String
+  roles      String[]
   employeeId String   @unique
   employee   Employee @relation(fields: [employeeId], references: [id])
+}
+
+model Category {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+}
+
+model WorkOrder {
+  id                String   @id @default(cuid())
+  otNumber          String   @unique // Folio: OT-2026-001 o OT-ST01-A
+  title             String
+  description       String?  // Equivalent to workDescription
+  status            String   @default("PENDING") // UNASSIGNED, ASSIGNED, ACCEPTED, IN_PROGRESS, COMPLETED, VALIDATED
+  priority          String   @default("MEDIUM")  // LOW, MEDIUM, HIGH, URGENT
+  
+  // Ubicación y Establecimiento
+  storeNumber       String?
+  storeName         String?
+  clientName        String   // mapped to 'client' in frontend
+  clientEmail       String?
+  clientPhone       String?
+  contactName       String?
+  contactEmail      String?
+  contactPhone      String?
+  address           String
+  secondaryAddress  String?
+  otAddress         String?
+  otReference       String?
+  latitude          Float?
+  longitude         Float?   // Changed to Float to match Leaflet mapping
+  
+  // Fechas y Tiempos
+  scheduledDate     DateTime?
+  arrivalTime       String?   // "09:00"
+  startedAt         DateTime?
+  finishedAt        DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Personal Relacionado
+  technicianId      String?   // leadTechId
+  technician        Employee? @relation("TechOTs", fields: [technicianId], references: [id])
+  assistantTechs    Json?     // Almacena array de IDs o nombres de apoyo
+  supportTechs      Json?
+  
+  supervisorId      String
+  supervisor        Employee  @relation("SupervisorOTs", fields: [supervisorId], references: [id])
+
+  // Resultados, Financiero y Cierre
+  assignedFunds     Float     @default(0)
+  systemType        String?   // SDI, SCA, CCTV, SSA, RMC, MDE
+  deliveryDetails   String?   // "Por este conducto se hace la entrega..."
+  report            String?   // Resumen técnico
+  pendingTasks      Json?     // Lista de observaciones/pendientes [{id, desc}]
+  signature         String?   // Firma Técnico (Base64)
+  clientSignature   String?   // Firma Cliente (Base64)
+  clientSignature2  String?   // Firma Cliente 2 (Opcional)
+  clientContact2    Json?     // {name, email}
+  isLocked          Boolean   @default(false)
+  
+  evidences         Evidence[]
+  expenses          Expense[]
+}
+
+model Evidence {
+  id          String    @id @default(cuid())
+  url         String    // Base64 o URL del archivo
+  type        String    @default("IMAGE") // IMAGE, PDF
+  workOrderId String
+  workOrder   WorkOrder @relation(fields: [workOrderId], references: [id])
+  createdAt   DateTime  @default(now())
+}
+
+model Expense {
+  id          String    @id @default(cuid())
+  amount      Float
+  category    String
+  description String?
+  paymentMethod String    @default("CASH") // CASH, COMPANY_CARD, PERSONAL_CARD
+  receipt     String?   // PDF/Imagen Base64
+  status      String    @default("PENDING") // PENDING, APPROVED, REJECTED
+  comment     String?   // Motivo de aprobación o rechazo
+  workOrderId String
+  workOrder   WorkOrder @relation(fields: [workOrderId], references: [id])
+  employeeId  String
+  employee    Employee  @relation(fields: [employeeId], references: [id])
+  createdAt   DateTime  @default(now())
 }

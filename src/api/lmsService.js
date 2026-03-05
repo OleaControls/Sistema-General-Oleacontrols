@@ -7,7 +7,7 @@ const initialCourses = [
     category: "SEGURIDAD",
     duration: "2h 30m",
     lessons: 5,
-    roles: ["TECHNICIAN", "OPERATIONS", "ADMIN"],
+    roles: ["TECHNICIAN", "SUPERVISOR", "ADMIN"],
     thumbnail: "https://images.unsplash.com/photo-1504328345606-18bbc8c9d7d1?auto=format&fit=crop&q=80&w=400",
     description: "Protocolos obligatorios para trabajos en alturas y uso correcto del equipo de protección personal.",
     content: [
