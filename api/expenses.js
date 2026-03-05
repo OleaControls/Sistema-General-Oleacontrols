@@ -43,32 +43,37 @@ export default async function handler(req, res) {
   }
 
   if (method === 'POST') {
-    const { amount, category, description, receipt, evidence, otId, userId, paymentMethod } = req.body;
+    const { amount, category, description, receipt, evidence, otId, userId, paymentMethod, isExternal } = req.body;
     
     try {
       // 1. Validaciones iniciales
       const finalReceipt = receipt || evidence || null;
       const parsedAmount = parseFloat(amount);
 
-      if (isNaN(parsedAmount) || !category || !otId || !userId) {
+      if (isNaN(parsedAmount) || !category || !userId) {
           return res.status(400).json({ 
-              error: 'Datos incompletos o inválidos', 
-              message: 'El monto, categoría, orden y usuario son requeridos.' 
+              error: 'Datos incompletos', 
+              message: 'El monto, categoría y usuario son requeridos.' 
           });
       }
 
-      // 2. Encontrar la OT real (por folio o ID)
-      const targetOT = await prisma.workOrder.findFirst({
-        where: {
-          OR: [ { id: otId }, { otNumber: otId } ]
-        }
-      });
+      let workOrderId = null;
 
-      if (!targetOT) {
-          return res.status(404).json({ error: `No se encontró la Orden ${otId}` });
+      // 2. Solo buscar OT si no es externo y tiene un ID
+      if (!isExternal && otId) {
+          const targetOT = await prisma.workOrder.findFirst({
+            where: {
+              OR: [ { id: otId }, { otNumber: otId } ]
+            }
+          });
+
+          if (!targetOT) {
+              return res.status(404).json({ error: `No se encontró la Orden ${otId}. Verifique el folio o márquelo como gasto externo.` });
+          }
+          workOrderId = targetOT.id;
       }
 
-      // 3. Crear el gasto con sintaxis robusta
+      // 3. Crear el gasto
       const expense = await prisma.expense.create({
         data: {
           amount: parsedAmount,
@@ -77,8 +82,7 @@ export default async function handler(req, res) {
           paymentMethod: paymentMethod || 'CASH',
           receipt: finalReceipt,
           status: 'PENDING',
-          // Usamos scalar fields para máxima compatibilidad
-          workOrderId: targetOT.id,
+          workOrderId: workOrderId,
           employeeId: userId
         }
       });

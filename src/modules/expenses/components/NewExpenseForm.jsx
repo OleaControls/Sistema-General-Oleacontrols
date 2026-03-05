@@ -20,6 +20,8 @@ export default function NewExpenseForm({ isOpen, onClose, onSave, prefilledOtId,
   const [userOts, setUserOts] = useState([]);
   const [loadingOts, setLoadingOts] = useState(false);
   
+  const [isManualOt, setIsManualOt] = useState(false);
+  
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
     category: '',
@@ -28,7 +30,8 @@ export default function NewExpenseForm({ isOpen, onClose, onSave, prefilledOtId,
     paymentMethod: 'CASH',
     description: '',
     otId: prefilledOtId || '',
-    evidence: null
+    evidence: null,
+    isExternal: false
   });
 
   useEffect(() => {
@@ -36,8 +39,10 @@ export default function NewExpenseForm({ isOpen, onClose, onSave, prefilledOtId,
         if (initialData) {
           setFormData({
             ...initialData,
-            amount: initialData.amount.toString()
+            amount: initialData.amount.toString(),
+            isExternal: !initialData.otId
           });
+          setIsManualOt(!!initialData.otId && !userOts.find(o => o.id === initialData.otId));
           setStep(1);
         } else {
           setFormData({
@@ -48,14 +53,14 @@ export default function NewExpenseForm({ isOpen, onClose, onSave, prefilledOtId,
             paymentMethod: 'CASH',
             description: '',
             otId: prefilledOtId || '',
-            evidence: null
+            evidence: null,
+            isExternal: false
           });
+          setIsManualOt(false);
           setStep(1);
         }
 
-        if (!prefilledOtId) {
-            loadUserOts();
-        }
+        loadUserOts();
     }
   }, [initialData, isOpen, prefilledOtId]);
 
@@ -63,11 +68,10 @@ export default function NewExpenseForm({ isOpen, onClose, onSave, prefilledOtId,
       setLoadingOts(true);
       try {
           const data = await otService.getOTs({ techId: user.id });
-          const active = data.filter(ot => ot.status !== 'VALIDATED' && ot.status !== 'REJECTED');
-          setUserOts(active);
+          setUserOts(data); // Cargar todas las OTs, no solo activas
           
-          if (active.length === 1 && !formData.otId) {
-              setFormData(prev => ({ ...prev, otId: active[0].id }));
+          if (data.length === 1 && !formData.otId && !prefilledOtId) {
+              setFormData(prev => ({ ...prev, otId: data[0].id }));
           }
       } catch (error) {
           console.error(error);
@@ -132,8 +136,34 @@ export default function NewExpenseForm({ isOpen, onClose, onSave, prefilledOtId,
         <div className="p-6 max-h-[70vh] overflow-y-auto custom-scrollbar">
           {step === 1 && (
             <div className="space-y-6">
-              <div className="space-y-2">
-                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Vincular a Orden de Trabajo</label>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between px-1">
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Vinculación de Gasto</label>
+                    {!prefilledOtId && (
+                        <div className="flex gap-2">
+                            <button 
+                                type="button"
+                                onClick={() => {
+                                    setIsManualOt(false);
+                                    setFormData({...formData, otId: '', isExternal: true});
+                                }}
+                                className={cn("text-[9px] font-black uppercase px-3 py-1.5 rounded-lg border transition-all", formData.isExternal ? "bg-gray-900 text-white border-gray-900" : "bg-white text-gray-400 hover:bg-gray-50")}
+                            >
+                                Sin OT
+                            </button>
+                            <button 
+                                type="button"
+                                onClick={() => {
+                                    setIsManualOt(!isManualOt);
+                                    setFormData({...formData, isExternal: false});
+                                }}
+                                className={cn("text-[9px] font-black uppercase px-3 py-1.5 rounded-lg border transition-all", isManualOt ? "bg-primary text-white border-primary" : "bg-white text-gray-400 hover:bg-gray-50")}
+                            >
+                                Manual
+                            </button>
+                        </div>
+                    )}
+                </div>
                 
                 {prefilledOtId ? (
                     <div className="flex items-center gap-3 p-4 bg-primary/5 border-2 border-primary/20 rounded-2xl">
@@ -143,18 +173,34 @@ export default function NewExpenseForm({ isOpen, onClose, onSave, prefilledOtId,
                             <p className="text-sm font-black text-gray-900 mt-1">{prefilledOtId}</p>
                         </div>
                     </div>
+                ) : formData.isExternal ? (
+                    <div className="p-4 bg-gray-50 border-2 border-dashed border-gray-200 rounded-2xl flex items-center gap-3">
+                        <FileText className="h-5 w-5 text-gray-400" />
+                        <p className="text-[10px] font-bold text-gray-500 uppercase">Gasto Administrativo / Externo a OT</p>
+                    </div>
+                ) : isManualOt ? (
+                    <div className="relative group">
+                        <ClipboardList className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-300 group-focus-within:text-primary transition-colors" />
+                        <input 
+                            type="text"
+                            placeholder="Escribe el Folio de la OT..."
+                            className="w-full pl-12 pr-4 py-4 bg-gray-50 border-2 border-gray-100 rounded-2xl focus:border-primary outline-none font-black text-sm uppercase"
+                            value={formData.otId}
+                            onChange={(e) => setFormData({...formData, otId: e.target.value.toUpperCase()})}
+                        />
+                    </div>
                 ) : (
                     <div className="space-y-3">
                         {loadingOts ? (
                             <div className="flex items-center gap-2 p-4 bg-gray-50 rounded-2xl animate-pulse">
                                 <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
-                                <span className="text-xs font-bold text-gray-400">Cargando tus órdenes activas...</span>
+                                <span className="text-xs font-bold text-gray-400">Cargando órdenes...</span>
                             </div>
                         ) : userOts.length > 0 ? (
                             <select 
                                 className="w-full px-4 py-4 bg-gray-50 border-2 border-gray-100 rounded-2xl focus:border-primary outline-none font-black text-sm transition-all"
                                 value={formData.otId}
-                                onChange={(e) => setFormData({...formData, otId: e.target.value})}
+                                onChange={(e) => setFormData({...formData, otId: e.target.value, isExternal: false})}
                             >
                                 <option value="">Seleccionar Orden (OT)...</option>
                                 {userOts.map(ot => (
@@ -162,11 +208,9 @@ export default function NewExpenseForm({ isOpen, onClose, onSave, prefilledOtId,
                                 ))}
                             </select>
                         ) : (
-                            <div className="p-4 bg-amber-50 border-2 border-amber-100 rounded-2xl flex items-start gap-3">
-                                <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0" />
-                                <p className="text-[10px] font-bold text-amber-800 leading-tight">
-                                    No tienes órdenes activas asignadas. Para registrar viáticos debes tener al menos una OT en curso.
-                                </p>
+                            <div className="p-4 bg-amber-50 border-2 border-amber-100 rounded-2xl flex items-center justify-between gap-3">
+                                <p className="text-[10px] font-bold text-amber-800 leading-tight">No tienes órdenes activas en lista.</p>
+                                <button type="button" onClick={() => setIsManualOt(true)} className="text-[9px] font-black text-amber-600 underline uppercase whitespace-nowrap">Ingresar Manual</button>
                             </div>
                         )}
                     </div>

@@ -291,17 +291,29 @@ export default function SupervisorOTs() {
     });
 
     // ===== 6. Firmas =====
-    const footerY = pageHeight - 84;
+    const footerY = pageHeight - 100;
+
+    // Dibujar firmas antes de las líneas si existen
+    if (ot.signature) {
+      try {
+        doc.addImage(ot.signature, 'PNG', 100, footerY - 60, 100, 50);
+      } catch (e) { console.error("Error firma TSC", e); }
+    }
+    if (ot.clientSignature) {
+      try {
+        doc.addImage(ot.clientSignature, 'PNG', pageWidth - 200, footerY - 60, 100, 50);
+      } catch (e) { console.error("Error firma Cliente", e); }
+    }
 
     doc.setDrawColor(200, 200, 200);
-    doc.line(70, footerY, 250, footerY);
-    doc.line(pageWidth - 250, footerY, pageWidth - 70, footerY);
+    doc.line(70, footerY, 230, footerY);
+    doc.line(pageWidth - 230, footerY, pageWidth - 70, footerY);
 
     doc.setFontSize(8);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(15, 23, 42);
-    doc.text('FIRMA DEL TÉCNICO', 160, footerY + 14, { align: 'center' });
-    doc.text('FIRMA DE CONFORMIDAD CLIENTE', pageWidth - 160, footerY + 14, { align: 'center' });
+    doc.text(`TSC: ${ot.leadTechName || 'N/A'}`.toUpperCase(), 150, footerY + 14, { align: 'center' });
+    doc.text('FIRMA DE CONFORMIDAD CLIENTE', pageWidth - 150, footerY + 14, { align: 'center' });
 
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(150, 150, 150);
@@ -570,9 +582,14 @@ export default function SupervisorOTs() {
                       <button onClick={() => navigate(`/ots/${ot.id}`)} className="p-2 text-gray-400 hover:text-primary transition-all">
                         <Eye className="h-4 w-4" />
                       </button>
-                      <button onClick={() => openEditModal(ot)} className="p-2 text-gray-400 hover:text-primary transition-all">
+                      <button 
+                        onClick={() => openEditModal(ot)} 
+                        disabled={ot.status === 'COMPLETED'}
+                        className={cn("p-2 transition-all", ot.status === 'COMPLETED' ? "text-gray-200 cursor-not-allowed" : "text-gray-400 hover:text-primary")}
+                      >
                         <MoreHorizontal className="h-4 w-4" />
                       </button>
+
                       <button
                         onClick={() => { setOtToDelete(ot); setIsDeleteModalOpen(true); }}
                         className="p-2 text-gray-400 hover:text-red-500 transition-all"

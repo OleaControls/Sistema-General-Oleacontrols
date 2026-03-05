@@ -36,6 +36,7 @@ export default function OTDetail() {
   
   const isLead = ot?.technicianId === user?.id;
   const isSupervisor = user?.role === ROLES.OPS || user?.role === ROLES.ADMIN;
+  const isCompleted = ot?.status === 'COMPLETED';
 
   const [finishData, setFinishData] = useState({
     report: '',

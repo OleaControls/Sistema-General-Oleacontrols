@@ -185,8 +185,8 @@ model Expense {
   receipt     String?   // PDF/Imagen Base64
   status      String    @default("PENDING") // PENDING, APPROVED, REJECTED
   comment     String?   // Motivo de aprobación o rechazo
-  workOrderId String
-  workOrder   WorkOrder @relation(fields: [workOrderId], references: [id])
+  workOrderId String?
+  workOrder   WorkOrder? @relation(fields: [workOrderId], references: [id])
   employeeId  String
   employee    Employee  @relation(fields: [employeeId], references: [id])
   createdAt   DateTime  @default(now())

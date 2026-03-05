@@ -133,6 +133,11 @@ export default async function handler(req, res) {
 
       if (!targetOT) return res.status(404).json({ error: 'OT no encontrada' });
 
+      // BLOQUEO DE SEGURIDAD: Solo permitir cambios de fondos si ya está completada
+      if (targetOT.status === 'COMPLETED' && !req.body.assignedFunds && !req.body.isLocked) {
+          return res.status(403).json({ error: 'Esta OT está CERRADA. Solo se permite ampliar fondos.' });
+      }
+
       const updateData = {};
       if (status) updateData.status = status;
       if (report !== undefined) updateData.report = report;

@@ -12,53 +12,43 @@ export function useTechnicianTracking() {
     let intervalId;
 
     const reportLocation = async (lat, lng) => {
+        // OPTIMIZACIÓN: Solo reportar si hay un cambio significativo (> ~200 metros)
+        if (lastPos.current) {
+            const R = 6371e3; // radio de la tierra en metros
+            const dLat = (lat - lastPos.current.lat) * Math.PI / 180;
+            const dLng = (lng - lastPos.current.lng) * Math.PI / 180;
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                      Math.cos(lastPos.current.lat * Math.PI / 180) * Math.cos(lat * Math.PI / 180) *
+                      Math.sin(dLng/2) * Math.sin(dLng/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            const distance = R * c;
+
+            if (distance < 200) {
+                // console.log("Movimiento insignificante, no se gasta token.");
+                return;
+            }
+        }
+
         try {
             await otService.updateTechnicianLocation(user.id, user.name, lat, lng);
             lastPos.current = { lat, lng };
-            // console.log(`Location reported for ${user.name}: ${lat}, ${lng}`);
         } catch (error) {
             console.error('Error reporting location:', error);
         }
     };
 
     const runTracking = async () => {
-        if ("geolocation" in navigator && window.isSecureContext) {
+        if ("geolocation" in navigator) {
             navigator.geolocation.getCurrentPosition(
                 (pos) => reportLocation(pos.coords.latitude, pos.coords.longitude),
-                (err) => runSimulation()
+                (err) => { /* Silencioso para ahorrar logs */ }
             );
-        } else {
-            runSimulation();
         }
-    };
-
-    const runSimulation = async () => {
-        // More realistic simulation: move toward an OT location
-        const ots = await otService.getOTs();
-        const myActiveOT = ots.find(o => 
-            (o.leadTechId === user.id || o.supportTechs?.some(st => st.id === user.id)) &&
-            ['ACCEPTED', 'IN_PROGRESS'].includes(o.status)
-        );
-
-        let targetLat = 19.4326;
-        let targetLng = -99.1332;
-
-        if (myActiveOT) {
-            targetLat = myActiveOT.lat;
-            targetLng = myActiveOT.lng;
-        }
-
-        const currentPos = lastPos.current || { lat: 19.43, lng: -99.13 };
-        
-        // Move 5% closer to target each step
-        const newLat = currentPos.lat + (targetLat - currentPos.lat) * 0.05;
-        const newLng = currentPos.lng + (targetLng - currentPos.lng) * 0.05;
-        
-        reportLocation(newLat, newLng);
     };
 
     runTracking();
-    intervalId = setInterval(runTracking, 15000); // More frequent for prototype visibility
+    // OPTIMIZACIÓN: Intervalo de 5 minutos (300,000 ms) en lugar de 15 segundos
+    intervalId = setInterval(runTracking, 300000); 
 
     return () => {
         if (intervalId) clearInterval(intervalId);

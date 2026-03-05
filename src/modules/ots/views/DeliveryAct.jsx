@@ -169,11 +169,15 @@ export default function DeliveryAct() {
     doc.setFont("helvetica", "bold");
     doc.text("OBSERVACIONES / PENDIENTES EN SITIO", 15, pendingY);
 
+    // Corregido: Usar formData si data no tiene pendingTasks (caso de generación inmediata)
+    const tasksToPrint = (data.pendingTasks || formData.pendingTasks || [])
+        .filter(p => p.description && p.description.trim() !== '');
+
     autoTable(doc, {
         startY: pendingY + 5,
         head: [['#', 'DESCRIPCIÓN DEL PENDIENTE / OBSERVACIÓN']],
-        body: formData.pendingTasks.length > 0 && formData.pendingTasks[0].description 
-            ? formData.pendingTasks.map((p, i) => [i + 1, p.description.toUpperCase()])
+        body: tasksToPrint.length > 0 
+            ? tasksToPrint.map((p, i) => [i + 1, p.description.toUpperCase()])
             : [['-', 'SIN PENDIENTES REGISTRADOS']],
         theme: 'grid',
         headStyles: { fillColor: [71, 85, 105] },
@@ -181,25 +185,32 @@ export default function DeliveryAct() {
     });
 
     // 6. Firmas
-    let sigY = doc.lastAutoTable.finalY + 25;
-    if (sigY > pageHeight - 70) { doc.addPage(); sigY = 30; }
+    let sigY = doc.lastAutoTable.finalY + 40;
+    if (sigY > pageHeight - 100) { doc.addPage(); sigY = 50; }
 
-    // Cuadros de firma
-    if (!tscSigPad.current.isEmpty()) {
-        doc.addImage(tscSigPad.current.toDataURL(), 'PNG', 30, sigY, 50, 25);
+    // Obtener imágenes de firma (priorizar canvas actual, sino usar data de la DB)
+    const tscSignature = !tscSigPad.current?.isEmpty() ? tscSigPad.current.toDataURL() : ot.signature;
+    const clientSignature = !clientSigPad.current?.isEmpty() ? clientSigPad.current.toDataURL() : ot.clientSignature;
+
+    if (tscSignature) {
+        try {
+            doc.addImage(tscSignature, 'PNG', 30, sigY - 30, 50, 25);
+        } catch (e) { console.error("Error firma TSC", e); }
     }
-    if (!clientSigPad.current.isEmpty()) {
-        doc.addImage(clientSigPad.current.toDataURL(), 'PNG', pageWidth - 80, sigY, 50, 25);
+    if (clientSignature) {
+        try {
+            doc.addImage(clientSignature, 'PNG', pageWidth - 80, sigY - 30, 50, 25);
+        } catch (e) { console.error("Error firma Cliente", e); }
     }
 
     doc.setDrawColor(200, 200, 200);
-    doc.line(20, sigY + 25, 90, sigY + 25);
-    doc.line(pageWidth - 90, sigY + 25, pageWidth - 20, sigY + 25);
+    doc.line(20, sigY, 90, sigY);
+    doc.line(pageWidth - 90, sigY, pageWidth - 20, sigY);
 
     doc.setFontSize(8);
     doc.setFont("helvetica", "bold");
-    doc.text(`TSC: ${ot.leadTechName || user.name}`.toUpperCase(), 55, sigY + 30, { align: 'center' });
-    doc.text(`CLIENTE: ${formData.clientName} ${formData.clientLastName}`.toUpperCase(), pageWidth - 55, sigY + 30, { align: 'center' });
+    doc.text(`TSC: ${ot.leadTechName || user.name}`.toUpperCase(), 55, sigY + 10, { align: 'center' });
+    doc.text(`CLIENTE: ${formData.clientName} ${formData.clientLastName}`.toUpperCase(), pageWidth - 55, sigY + 10, { align: 'center' });
 
     // 7. Anexo Fotográfico
     if (formData.photos.length > 0) {

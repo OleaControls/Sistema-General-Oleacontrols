@@ -9,6 +9,8 @@ import { cn } from '@/lib/utils';
 import { useNavigate } from 'react-router-dom';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import NewExpenseForm from '../components/NewExpenseForm';
+import { useAuth } from '@/store/AuthContext';
 
 const CATEGORY_ICONS = {
     'COMBUSTIBLE': { icon: Fuel, color: 'text-orange-500', bg: 'bg-orange-50' },
@@ -19,11 +21,13 @@ const CATEGORY_ICONS = {
 };
 
 export default function OperationsExpenses() {
+  const { user } = useAuth();
   const [expenses, setExpenses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [showDashboard, setShowDashboard] = useState(true);
+  const [isExpenseFormOpen, setIsExpenseFormOpen] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -39,6 +43,19 @@ export default function OperationsExpenses() {
         console.error(error);
     } finally {
         setLoading(false);
+    }
+  };
+
+  const handleSaveExpense = async (formData) => {
+    try {
+        await expenseService.save({
+            ...formData,
+            userId: user.id
+        });
+        loadAllExpenses();
+        setIsExpenseFormOpen(false);
+    } catch (error) {
+        alert("Error al guardar gasto: " + error.message);
     }
   };
 
@@ -148,6 +165,12 @@ export default function OperationsExpenses() {
           <p className="text-sm text-gray-500 font-medium mt-2">Monitoreo de inversión operativa y cumplimiento presupuestal.</p>
         </div>
         <div className="flex gap-2">
+           <button 
+             onClick={() => setIsExpenseFormOpen(true)}
+             className="bg-primary text-white px-4 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 hover:bg-primary/90 transition-all shadow-lg shadow-primary/20"
+           >
+             <Receipt className="h-4 w-4" /> Nuevo Gasto
+           </button>
            <button 
              onClick={() => setShowDashboard(!showDashboard)}
              className={cn(
@@ -368,6 +391,12 @@ export default function OperationsExpenses() {
           </table>
         </div>
       </div>
+
+      <NewExpenseForm 
+        isOpen={isExpenseFormOpen}
+        onClose={() => setIsExpenseFormOpen(false)}
+        onSave={handleSaveExpense}
+      />
     </div>
   );
 }
