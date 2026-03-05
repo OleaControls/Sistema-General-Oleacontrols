@@ -82,12 +82,14 @@ export default function Login() {
           "lg:col-span-2 p-12 bg-gray-50 flex flex-col justify-between border-r border-gray-100 transition-all duration-500",
           step === 2 ? "hidden lg:flex" : "flex"
         )}>
-          <div className="space-y-2">
-            <div className="bg-primary text-white w-fit p-2 rounded-xl mb-4 shadow-lg shadow-primary/20">
-              <Sparkles className="h-6 w-6" />
+          <div className="space-y-10 flex flex-col items-center text-center">
+            <div className="transform hover:scale-110 transition-transform duration-700 ease-in-out">
+              <img src="/img/Insignia.png" className="h-48 w-48 object-contain" alt="Olea Insignia" />
             </div>
-            <h1 className="text-3xl font-black text-gray-900 tracking-tighter">OLEA CONTROLS</h1>
-            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Global Platform 2026</p>
+            <div className="space-y-3 flex flex-col items-center">
+              <img src="/img/OLEACONTROLS.png" className="h-12 object-contain" alt="Olea Controls" />
+              <p className="text-[13px] font-black text-gray-400 uppercase tracking-[0.6em]">Global Platform 2026</p>
+            </div>
           </div>
 
           <div className="space-y-6 my-12">
@@ -151,75 +153,104 @@ export default function Login() {
 
         {/* Right Side: Login Form */}
         <div className={cn(
-          "lg:col-span-3 p-12 flex flex-col h-full bg-white transition-all duration-500",
+          "lg:col-span-3 p-12 lg:p-20 flex flex-col h-full bg-white transition-all duration-500",
           step === 1 ? "hidden lg:flex" : "flex"
         )}>
-          <div className="space-y-2 mb-10">
-            {step === 2 && (
-              <button 
-                onClick={() => setStep(1)}
-                className="lg:hidden text-[10px] font-black text-primary uppercase tracking-widest mb-4 flex items-center gap-1"
-              >
-                <ArrowRight className="h-3 w-3 rotate-180" /> Volver a Portales
-              </button>
-            )}
-            <h2 className="text-4xl font-black text-gray-900 tracking-tight">Acceso Seguro</h2>
-            <p className="text-gray-500 font-medium">Ingresa tus credenciales autorizadas.</p>
-          </div>
-
-          <form onSubmit={handleCredentialLogin} className="space-y-6">
-            {error && (
-                <div className="bg-red-50 border border-red-100 p-4 rounded-2xl flex items-center gap-3 text-red-600 text-xs font-bold animate-in slide-in-from-top-2">
-                    <AlertCircle className="h-5 w-5 shrink-0" />
-                    {error}
-                </div>
-            )}
-
-            <div className="space-y-2">
-                <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">Correo Corporativo</label>
-                <div className="relative group">
-                    <Mail className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-300 group-focus-within:text-primary transition-colors" />
-                    <input 
-                        type="email" 
-                        required
-                        className="w-full pl-12 pr-4 py-4 bg-gray-50 border border-transparent rounded-[1.5rem] outline-none focus:bg-white focus:border-primary font-bold text-sm transition-all shadow-inner"
-                        placeholder="usuario@oleacontrols.com"
-                        value={email}
-                        onChange={e => setEmail(e.target.value)}
-                    />
-                </div>
-            </div>
-
-            <div className="space-y-2">
-                <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-1">Contraseña</label>
-                <div className="relative group">
-                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-300 group-focus-within:text-primary transition-colors" />
-                    <input 
-                        type={showPassword ? "text" : "password"} 
-                        required
-                        className="w-full pl-12 pr-12 py-4 bg-gray-50 border border-transparent rounded-[1.5rem] outline-none focus:bg-white focus:border-primary font-bold text-sm transition-all shadow-inner"
-                        placeholder="••••••••"
-                        value={password}
-                        onChange={e => setPassword(e.target.value)}
-                    />
-                    <button
-                        type="button"
-                        onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-4 top-1/2 -translate-y-1/2 p-1.5 text-gray-400 hover:text-primary transition-colors"
-                    >
-                        {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-                    </button>
-                </div>
-            </div>
-
-            <button
-                type="submit"
-                disabled={isLoggingIn}
-                className="w-full bg-primary text-white py-5 rounded-[1.5rem] font-black uppercase tracking-[0.2em] text-sm shadow-xl shadow-primary/20 hover:bg-primary/90 transition-all flex items-center justify-center gap-2 group disabled:opacity-50"
+          {/* Back button for mobile */}
+          {step === 2 && (
+            <button 
+              onClick={() => setStep(1)}
+              className="lg:hidden text-[11px] font-black text-primary uppercase tracking-[0.2em] mb-6 flex items-center gap-2 hover:translate-x-[-4px] transition-transform"
             >
-                {isLoggingIn ? 'Autenticando...' : 'Iniciar Sesión'} <ArrowRight className="h-5 w-5 group-hover:translate-x-1 transition-transform" />
+              <ArrowRight className="h-4 w-4 rotate-180" /> Volver a Portales
             </button>
-          </form>
+          )}
+
+          <div className="flex-1 flex flex-col justify-center max-w-xl mx-auto w-full">
+            <div className="space-y-3 mb-12">
+              <div className="flex items-center gap-3">
+                <div className="h-1.5 w-12 bg-primary rounded-full" />
+                <span className="text-[11px] font-black text-primary uppercase tracking-[0.4em]">Seguridad Biométrica</span>
+              </div>
+              <h2 className="text-5xl font-black text-gray-900 tracking-tight leading-none">Acceso Seguro</h2>
+              <p className="text-gray-400 font-medium text-lg">Bienvenido de nuevo. Por favor, identifícate.</p>
+            </div>
+
+            <form onSubmit={handleCredentialLogin} className="space-y-8">
+              {error && (
+                  <div className="bg-red-50 border-l-4 border-red-500 p-5 rounded-2xl flex items-center gap-4 text-red-700 text-sm font-bold animate-in fade-in slide-in-from-top-4 duration-500">
+                      <div className="bg-red-100 p-2 rounded-xl">
+                        <AlertCircle className="h-5 w-5" />
+                      </div>
+                      {error}
+                  </div>
+              )}
+
+              <div className="space-y-3">
+                  <label className="text-[11px] font-black uppercase text-gray-500 tracking-[0.2em] ml-2">ID de Usuario o Correo</label>
+                  <div className="relative group">
+                      <div className="absolute left-5 top-1/2 -translate-y-1/2 p-2 bg-gray-100 rounded-xl group-focus-within:bg-primary/10 group-focus-within:text-primary transition-all duration-300 text-gray-400">
+                        <Mail className="h-5 w-5" />
+                      </div>
+                      <input 
+                          type="email" 
+                          required
+                          className="w-full pl-16 pr-6 py-5 bg-gray-50/50 border-2 border-transparent rounded-[2rem] outline-none focus:bg-white focus:border-primary/20 focus:ring-4 focus:ring-primary/5 font-bold text-gray-700 transition-all shadow-sm"
+                          placeholder="usuario@oleacontrols.com"
+                          value={email}
+                          onChange={e => setEmail(e.target.value)}
+                      />
+                  </div>
+              </div>
+
+              <div className="space-y-3">
+                  <div className="flex items-center justify-between ml-2">
+                    <label className="text-[11px] font-black uppercase text-gray-500 tracking-[0.2em]">Contraseña Encriptada</label>
+                    <button type="button" className="text-[10px] font-black text-primary uppercase tracking-widest hover:underline">¿Olvidaste la clave?</button>
+                  </div>
+                  <div className="relative group">
+                      <div className="absolute left-5 top-1/2 -translate-y-1/2 p-2 bg-gray-100 rounded-xl group-focus-within:bg-primary/10 group-focus-within:text-primary transition-all duration-300 text-gray-400">
+                        <Lock className="h-5 w-5" />
+                      </div>
+                      <input 
+                          type={showPassword ? "text" : "password"} 
+                          required
+                          className="w-full pl-16 pr-16 py-5 bg-gray-50/50 border-2 border-transparent rounded-[2rem] outline-none focus:bg-white focus:border-primary/20 focus:ring-4 focus:ring-primary/5 font-bold text-gray-700 transition-all shadow-sm"
+                          placeholder="••••••••••••"
+                          value={password}
+                          onChange={e => setPassword(e.target.value)}
+                      />
+                      <button
+                          type="button"
+                          onClick={() => setShowPassword(!showPassword)}
+                          className="absolute right-5 top-1/2 -translate-y-1/2 p-2 text-gray-400 hover:text-primary hover:bg-primary/5 rounded-xl transition-all"
+                      >
+                          {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                      </button>
+                  </div>
+              </div>
+
+              <div className="flex items-center gap-3 ml-2">
+                <input type="checkbox" className="w-5 h-5 rounded-lg border-2 border-gray-200 text-primary focus:ring-primary" id="remember" />
+                <label htmlFor="remember" className="text-sm font-bold text-gray-500 cursor-pointer select-none">Mantener sesión activa</label>
+              </div>
+
+              <button
+                  type="submit"
+                  disabled={isLoggingIn}
+                  className="w-full bg-primary text-white py-6 rounded-[2rem] font-black uppercase tracking-[0.3em] text-sm shadow-2xl shadow-primary/30 hover:bg-primary/90 hover:-translate-y-1 active:translate-y-0 transition-all flex items-center justify-center gap-4 group disabled:opacity-50"
+              >
+                  {isLoggingIn ? (
+                    <div className="h-5 w-5 border-3 border-white/30 border-t-white rounded-full animate-spin" />
+                  ) : (
+                    <>
+                      Validar Credenciales
+                      <ArrowRight className="h-5 w-5 group-hover:translate-x-2 transition-transform" />
+                    </>
+                  )}
+              </button>
+            </form>
+          </div>
 
           {/* Welcome Overlay */}
           {isLoggingIn && welcomeMsg && (

@@ -121,7 +121,7 @@ export default function AppShell({ children }) {
           <button onClick={() => setSidebarOpen(true)}>
             <Menu className="h-6 w-6 text-gray-600" />
           </button>
-          <span className="font-bold text-primary text-sm uppercase tracking-tighter">Olea Controls</span>
+          <img src="/img/OLEACONTROLS.png" className="h-5 object-contain" alt="Olea Controls" />
         </div>
         <img src={user?.avatar} className="h-8 w-8 rounded-full border shadow-sm" alt="Profile" />
       </header>
@@ -132,8 +132,12 @@ export default function AppShell({ children }) {
         isCollapsed ? "w-20" : "w-64"
       )}>
         <div className="h-full flex flex-col">
-          <div className={cn("p-6 flex items-center justify-between", isCollapsed && "px-4")}>
-            {!isCollapsed && <span className="text-xl font-black text-primary tracking-tighter">OLEA PLATFORM</span>}
+          <div className={cn("p-6 flex items-center justify-between", isCollapsed && "px-4 justify-center")}>
+            {isCollapsed ? (
+              <img src="/img/Insignia.png" className="h-8 w-8 object-contain" alt="Insignia" />
+            ) : (
+              <img src="/img/OLEACONTROLS.png" className="h-6 object-contain" alt="Olea Controls" />
+            )}
             <button className="md:hidden" onClick={() => setSidebarOpen(false)}><X className="h-6 w-6" /></button>
           </div>
 

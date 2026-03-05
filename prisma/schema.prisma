@@ -84,6 +84,8 @@ model Employee {
   // Relaciones Operativas
   techOTs         WorkOrder[] @relation("TechOTs")
   supervisorOTs   WorkOrder[] @relation("SupervisorOTs")
+  createdOTs      WorkOrder[] @relation("CreatedOTs")
+  assignedOTs     WorkOrder[] @relation("AssignedOTs")
   expenses        Expense[]
 }
 
@@ -142,6 +144,12 @@ model WorkOrder {
   
   supervisorId      String
   supervisor        Employee  @relation("SupervisorOTs", fields: [supervisorId], references: [id])
+
+  creatorId         String?
+  creator           Employee? @relation("CreatedOTs", fields: [creatorId], references: [id])
+
+  assignedById      String?
+  assignedBy        Employee? @relation("AssignedOTs", fields: [assignedById], references: [id])
 
   // Resultados, Financiero y Cierre
   assignedFunds     Float     @default(0)

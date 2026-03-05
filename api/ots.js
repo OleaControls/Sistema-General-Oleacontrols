@@ -17,6 +17,7 @@ export default async function handler(req, res) {
         include: {
           technician: { select: { name: true, avatar: true, position: true } },
           supervisor: { select: { name: true } },
+          // Quitamos creator y assignedBy temporalmente para ver si esto causa el 500
           evidences: true,
           expenses: true
         },
@@ -51,7 +52,9 @@ export default async function handler(req, res) {
         otReference: ot.otReference,
         arrivalTime: ot.arrivalTime,
         scheduledDate: ot.scheduledDate,
-        assignedFunds: ot.assignedFunds
+        assignedFunds: ot.assignedFunds,
+        creatorName: 'Sistema', // Temporal
+        assignedByName: ot.technicianId ? (ot.supervisor?.name || 'Supervisor') : null // Fallback al supervisor si hay técnico
       }));
 
       return res.status(200).json(formattedOts);
@@ -101,6 +104,8 @@ export default async function handler(req, res) {
           
           supervisorId: data.supervisorId,
           technicianId: data.leadTechId,
+          creatorId: data.supervisorId,
+          assignedById: data.leadTechId ? data.supervisorId : null,
           
           assistantTechs: data.assistantTechs || [],
           supportTechs: data.supportTechs || [],

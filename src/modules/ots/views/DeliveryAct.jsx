@@ -78,103 +78,150 @@ export default function DeliveryAct() {
     });
   };
 
-  const generatePDF = (data) => {
+  const generatePDF = async (data) => {
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();
-    
-    // Header
-    doc.setFillColor(15, 23, 42);
-    doc.rect(0, 0, pageWidth, 45, 'F');
+    const pageHeight = doc.internal.pageSize.getHeight();
+
+    // Helper para cargar base64 desde archivos en public
+    const loadBase64 = async (url) => {
+      try {
+        const res = await fetch(url);
+        const text = await res.text();
+        return `data:image/png;base64,${text.trim()}`;
+      } catch (err) {
+        console.error("Error cargando logo:", url, err);
+        return null;
+      }
+    };
+
+    const insigniaB64 = await loadBase64('/img/base64 logo.txt');
+    const logoB64 = await loadBase64('/img/oleacontrols.txt');
+
+    // 1. Encabezado con Estilo Corporativo (Azul Navy/Royal)
+    doc.setFillColor(30, 58, 138); // Azul corporativo elegante
+    doc.rect(0, 0, pageWidth, 50, 'F');
+
+    if (insigniaB64) doc.addImage(insigniaB64, 'PNG', 15, 10, 30, 30);
+    if (logoB64) doc.addImage(logoB64, 'PNG', pageWidth - 75, 18, 60, 15);
+
     doc.setTextColor(255, 255, 255);
-    doc.setFontSize(22);
-    doc.setFont(undefined, 'bold');
-    doc.text("OLEA CONTROLS", pageWidth/2, 20, { align: 'center' });
-    doc.setFontSize(14);
-    doc.text("ACTA DE ENTREGA / RECEPCIÓN (A.E.R.)", pageWidth/2, 32, { align: 'center' });
-    
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(16);
+    doc.text("ACTA DE ENTREGA / RECEPCIÓN", pageWidth / 2, 28, { align: 'center' });
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "normal");
+    doc.text(`FOLIO OFICIAL: ${ot.otNumber}`, pageWidth / 2, 35, { align: 'center' });
+
     doc.setTextColor(0, 0, 0);
-    
-    // Info General
+
+    // 2. Información General (Tabla)
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "bold");
+    doc.text("DATOS GENERALES DEL SERVICIO", 15, 60);
+
     autoTable(doc, {
-        startY: 50,
-        head: [['FECHA Y HORA CIERRE', 'FOLIO DE ORDEN', 'CLIENTE / EMPRESA']],
+        startY: 65,
+        head: [['FECHA CIERRE', 'FOLIO OT', 'CLIENTE', 'SUCURSAL']],
         body: [[
             new Date().toLocaleString('es-MX'),
             ot.otNumber,
-            ot.clientName || ot.client
+            (ot.clientName || ot.client || 'N/A').toUpperCase(),
+            (ot.storeName || 'OFICINA CENTRAL').toUpperCase()
         ]],
         theme: 'grid',
-        headStyles: { fillColor: [241, 245, 249], textColor: [71, 85, 105] }
+        headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontStyle: 'bold' },
+        styles: { fontSize: 8, cellPadding: 4 }
     });
 
-    // Ubicación y Contacto
+    // 3. Detalles del Sistema y Ubicación
+    const currentY = doc.lastAutoTable.finalY + 15;
+    doc.setFont("helvetica", "bold");
+    doc.text("ALCANCE TÉCNICO Y UBICACIÓN", 15, currentY);
+
     autoTable(doc, {
-        startY: doc.lastAutoTable.finalY + 5,
-        head: [['SUCURSAL / TIENDA', 'UBICACIÓN DEL SITIO', 'CONTACTO EN SITIO']],
-        body: [[
-            `${ot.storeName || 'N/A'} (#${ot.storeNumber || 'S/N'})`,
-            ot.address,
-            `${formData.clientName} ${formData.clientLastName}\n${formData.clientEmail}`
-        ]],
-        theme: 'grid',
-        headStyles: { fillColor: [241, 245, 249], textColor: [71, 85, 105] }
+        startY: currentY + 5,
+        body: [
+            ['SISTEMA:', (formData.systemType || 'N/A').toUpperCase()],
+            ['DIRECCIÓN:', ot.address || 'N/A'],
+            ['CONTACTO CLIENTE:', `${formData.clientName} ${formData.clientLastName}`.toUpperCase()],
+            ['CORREO CLIENTE:', formData.clientEmail || 'N/A']
+        ],
+        theme: 'plain',
+        styles: { fontSize: 8, cellPadding: 2 },
+        columnStyles: { 0: { fontStyle: 'bold', cellWidth: 40 } }
     });
 
-    const nextY = doc.lastAutoTable.finalY + 15;
-    doc.setFontSize(11);
-    doc.setFont(undefined, 'bold');
-    doc.text(`TIPO DE SISTEMA: ${formData.systemType}`, 14, nextY);
+    // 4. Reporte Detallado
+    const descY = doc.lastAutoTable.finalY + 15;
+    doc.setFont("helvetica", "bold");
+    doc.text("DETALLES DE ENTREGA / RECEPCIÓN", 15, descY);
 
-    doc.text("DETALLES DE ENTREGA / RECEPCIÓN:", 14, nextY + 10);
-    doc.setFont(undefined, 'normal');
-    doc.setFontSize(10);
-    const splitDetails = doc.splitTextToSize(formData.deliveryDetails || 'N/A', pageWidth - 28);
-    doc.text(splitDetails, 14, nextY + 17);
+    doc.setFillColor(248, 250, 252);
+    doc.rect(15, descY + 5, pageWidth - 30, 40, 'F');
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    const splitDetails = doc.splitTextToSize(formData.deliveryDetails || "Sin detalles adicionales.", pageWidth - 40);
+    doc.text(splitDetails, 20, descY + 15);
 
-    // Tabla de Pendientes
-    const pendingY = nextY + 25 + (splitDetails.length * 5);
+    // 5. Tabla de Pendientes
+    const pendingY = descY + 55;
+    doc.setFont("helvetica", "bold");
+    doc.text("OBSERVACIONES / PENDIENTES EN SITIO", 15, pendingY);
+
     autoTable(doc, {
-        startY: pendingY,
-        head: [['#', 'OBSERVACIONES / PENDIENTES']],
-        body: formData.pendingTasks.map((p, i) => [i + 1, p.description]),
+        startY: pendingY + 5,
+        head: [['#', 'DESCRIPCIÓN DEL PENDIENTE / OBSERVACIÓN']],
+        body: formData.pendingTasks.length > 0 && formData.pendingTasks[0].description 
+            ? formData.pendingTasks.map((p, i) => [i + 1, p.description.toUpperCase()])
+            : [['-', 'SIN PENDIENTES REGISTRADOS']],
         theme: 'grid',
-        headStyles: { fillColor: [241, 245, 249], textColor: [71, 85, 105] }
+        headStyles: { fillColor: [71, 85, 105] },
+        styles: { fontSize: 8 }
     });
 
-    // Firmas
-    let sigY = doc.lastAutoTable.finalY + 20;
-    if (sigY > 240) { doc.addPage(); sigY = 20; }
+    // 6. Firmas
+    let sigY = doc.lastAutoTable.finalY + 25;
+    if (sigY > pageHeight - 70) { doc.addPage(); sigY = 30; }
 
+    // Cuadros de firma
     if (!tscSigPad.current.isEmpty()) {
-        doc.addImage(tscSigPad.current.toDataURL(), 'PNG', 20, sigY, 60, 30);
+        doc.addImage(tscSigPad.current.toDataURL(), 'PNG', 30, sigY, 50, 25);
     }
     if (!clientSigPad.current.isEmpty()) {
-        doc.addImage(clientSigPad.current.toDataURL(), 'PNG', pageWidth - 80, sigY, 60, 30);
+        doc.addImage(clientSigPad.current.toDataURL(), 'PNG', pageWidth - 80, sigY, 50, 25);
     }
 
-    doc.line(20, sigY + 30, 80, sigY + 30);
-    doc.line(pageWidth - 80, sigY + 30, pageWidth - 20, sigY + 30);
-    doc.setFontSize(8);
-    doc.text(`TSC: ${user.name}`, 20, sigY + 35);
-    doc.text(`CLIENTE: ${formData.clientName} ${formData.clientLastName}`, pageWidth - 80, sigY + 35);
+    doc.setDrawColor(200, 200, 200);
+    doc.line(20, sigY + 25, 90, sigY + 25);
+    doc.line(pageWidth - 90, sigY + 25, pageWidth - 20, sigY + 25);
 
-    // Anexo Fotográfico
+    doc.setFontSize(8);
+    doc.setFont("helvetica", "bold");
+    doc.text(`TSC: ${ot.leadTechName || user.name}`.toUpperCase(), 55, sigY + 30, { align: 'center' });
+    doc.text(`CLIENTE: ${formData.clientName} ${formData.clientLastName}`.toUpperCase(), pageWidth - 55, sigY + 30, { align: 'center' });
+
+    // 7. Anexo Fotográfico
     if (formData.photos.length > 0) {
         doc.addPage();
+        doc.setFillColor(15, 23, 42);
+        doc.rect(0, 0, pageWidth, 30, 'F');
+        doc.setTextColor(255, 255, 255);
         doc.setFontSize(14);
-        doc.setFont(undefined, 'bold');
-        doc.text("ANEXO FOTOGRÁFICO DE EVIDENCIA", pageWidth/2, 20, { align: 'center' });
+        doc.text("EVIDENCIA FOTOGRÁFICA", pageWidth / 2, 20, { align: 'center' });
         
-        let photoY = 30;
+        let photoY = 40;
         formData.photos.forEach((photo, index) => {
-            if (photoY > 230) { doc.addPage(); photoY = 20; }
-            // Ajustar tamaño para que quepan 2 por fila si es necesario
-            doc.addImage(photo, 'JPEG', 14, photoY, 90, 60);
-            photoY += 70;
+            if (photoY > pageHeight - 80) { doc.addPage(); photoY = 20; }
+            doc.addImage(photo, 'JPEG', 30, photoY, 150, 100);
+            doc.setTextColor(150, 150, 150);
+            doc.setFontSize(7);
+            doc.text(`EVIDENCIA #${index + 1} - OT: ${ot.otNumber}`, pageWidth / 2, photoY + 105, { align: 'center' });
+            photoY += 120;
         });
     }
 
-    doc.save(`Acta_Entrega_${ot.otNumber}.pdf`);
+    doc.save(`AER_${ot.otNumber}.pdf`);
   };
 
   const handleFinish = async () => {

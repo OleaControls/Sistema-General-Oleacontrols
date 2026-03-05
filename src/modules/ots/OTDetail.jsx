@@ -391,6 +391,28 @@ export default function OTDetail() {
                                 <p className="text-xs font-bold text-gray-700">{ot.id}</p>
                             </div>
                         </div>
+
+                        <div className="flex items-center gap-4 border-t pt-4 border-gray-50">
+                            <div className="h-10 w-10 rounded-xl bg-gray-50 flex items-center justify-center text-gray-400">
+                                <Plus className="h-5 w-5" />
+                            </div>
+                            <div>
+                                <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Creado por / Fecha</p>
+                                <p className="text-xs font-bold text-gray-700">{ot.creatorName || 'Sistema'} • {new Date(ot.createdAt).toLocaleDateString()}</p>
+                            </div>
+                        </div>
+
+                        {ot.assignedByName && (
+                            <div className="flex items-center gap-4">
+                                <div className="h-10 w-10 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600">
+                                    <Send className="h-4 w-4" />
+                                </div>
+                                <div>
+                                    <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Asignado por</p>
+                                    <p className="text-xs font-bold text-gray-700">{ot.assignedByName}</p>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
 

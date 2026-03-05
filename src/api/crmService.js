@@ -64,5 +64,21 @@ export const crmService = {
     const newQuote = { ...quote, id: `COT-2026-${Math.floor(100 + Math.random() * 900)}`, status: 'DRAFT' };
     localStorage.setItem(CRM_QUOTES_KEY, JSON.stringify([...quotes, newQuote]));
     return newQuote;
+  },
+
+  // Oportunidades / Pipeline
+  async getOpportunities() {
+    const quotes = await this.getQuotes();
+    // Transformar cotizaciones en formato de oportunidades para el pipeline
+    return quotes.map(q => ({
+      id: q.id,
+      name: `Proyecto ${q.clientName}`,
+      client: q.clientName,
+      value: q.total,
+      status: q.status === 'ACCEPTED' ? 'WON' : q.status === 'REJECTED' ? 'LOST' : 'PROPOSAL',
+      stage: q.status === 'ACCEPTED' ? 'negotiation' : 'proposal',
+      probability: q.status === 'ACCEPTED' ? 100 : 50,
+      expectedClose: q.date
+    }));
   }
 };
