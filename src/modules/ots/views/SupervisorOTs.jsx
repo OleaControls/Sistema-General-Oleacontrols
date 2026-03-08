@@ -54,6 +54,7 @@ export default function SupervisorOTs() {
   const [availableTechs, setAvailableTechs] = useState([]);
   const [techLocations, setTechLocations] = useState({});
   const [loading, setLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [editingId, setEditingId] = useState(null);
@@ -261,6 +262,7 @@ export default function SupervisorOTs() {
     doc.setTextColor(15, 23, 42);
 
     const reportText =
+      ot.deliveryDetails ||
       ot.report ||
       ot.description ||
       ot.workDescription ||
@@ -336,14 +338,26 @@ export default function SupervisorOTs() {
 
   const handleFormSubmit = async (e) => {
     e.preventDefault();
+    if (isSaving) return;
+    
+    setIsSaving(true);
     try {
       const data = { ...newOT };
       if (extraFunds > 0) data.assignedFunds = (parseFloat(newOT.assignedFunds) || 0) + parseFloat(extraFunds);
-      if (isEditMode) await otService.updateOT(editingId, data);
-      else await otService.saveOT({ ...data, supervisorId: currentUser.id });
+      
+      if (isEditMode) {
+        await otService.updateOT(editingId, data);
+      } else {
+        await otService.saveOT({ ...data, supervisorId: currentUser.id });
+      }
+      
       setIsModalOpen(false);
-      loadData();
-    } catch (err) { alert(err.message); }
+      await loadData();
+    } catch (err) { 
+      alert("Error al procesar la OT: " + err.message); 
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const openCreateModal = () => {
@@ -573,10 +587,16 @@ export default function SupervisorOTs() {
                     <div className="flex justify-end gap-2">
                       {ot.status === 'COMPLETED' && (
                         <button
-                          onClick={() => handleExportAER(ot)}
+                          onClick={() => {
+                            if (ot.deliveryActUrl) {
+                              window.open(ot.deliveryActUrl, '_blank');
+                            } else {
+                              handleExportAER(ot);
+                            }
+                          }}
                           className="flex items-center gap-2 bg-emerald-50 text-emerald-700 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-100 border border-emerald-100 transition-all shadow-sm"
                         >
-                          <FileText className="h-4 w-4" /> Acta
+                          <FileText className="h-4 w-4" /> {ot.deliveryActUrl ? 'Ver Acta' : 'Generar Acta'}
                         </button>
                       )}
                       <button onClick={() => navigate(`/ots/${ot.id}`)} className="p-2 text-gray-400 hover:text-primary transition-all">
@@ -822,9 +842,16 @@ export default function SupervisorOTs() {
                   </button>
                   <button
                     type="submit"
-                    className="bg-primary text-white px-12 py-4 rounded-2xl font-black text-xs uppercase shadow-xl hover:bg-primary/90 transition-all active:scale-95 min-w-[200px]"
+                    disabled={isSaving}
+                    className="bg-primary text-white px-12 py-4 rounded-2xl font-black text-xs uppercase shadow-xl hover:bg-primary/90 transition-all active:scale-95 min-w-[200px] flex items-center justify-center gap-2 disabled:opacity-50"
                   >
-                    {isEditMode ? 'Actualizar Orden' : 'Publicar y Notificar'}
+                    {isSaving ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" /> Procesando...
+                      </>
+                    ) : (
+                      isEditMode ? 'Actualizar Orden' : 'Publicar y Notificar'
+                    )}
                   </button>
                 </div>
               </form>
