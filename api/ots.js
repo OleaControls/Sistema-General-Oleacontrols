@@ -165,7 +165,8 @@ export default async function handler(req, res) {
       const { 
           id, status, report, signature, clientSignature, clientSignature2, 
           systemType, deliveryDetails, pendingTasks, clientContact2, photos,
-          startedAt, finishedAt, leadTechId, assignedFunds, isLocked 
+          startedAt, finishedAt, leadTechId, assignedFunds, isLocked,
+          deliveryActUrl
       } = data;
       
       // Buscar la OT real
@@ -193,6 +194,7 @@ export default async function handler(req, res) {
       if (leadTechId !== undefined) updateData.technicianId = leadTechId;
       if (assignedFunds !== undefined) updateData.assignedFunds = assignedFunds;
       if (isLocked !== undefined) updateData.isLocked = isLocked;
+      if (deliveryActUrl !== undefined) updateData.deliveryActUrl = deliveryActUrl;
       
       if (startedAt) updateData.startedAt = new Date(startedAt);
       if (finishedAt) updateData.finishedAt = new Date(finishedAt);

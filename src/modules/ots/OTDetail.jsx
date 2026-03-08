@@ -31,6 +31,7 @@ export default function OTDetail() {
   const [isFinishModalOpen, setIsFinishModalOpen] = useState(false);
   const [isFundsModalOpen, setIsFundsModalOpen] = useState(false);
   const [isExpenseFormOpen, setIsExpenseFormOpen] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [additionalFunds, setAdditionalFunds] = useState(0);
   const [elapsedTime, setElapsedTime] = useState('00:00:00');
   
@@ -96,6 +97,8 @@ export default function OTDetail() {
   const { totalAuthorized, spent, balance } = financialSummary();
 
   const handleStatusUpdate = async (newStatus) => {
+    if (isSaving) return;
+    setIsSaving(true);
     try {
         const update = { status: newStatus };
         if (newStatus === 'IN_PROGRESS') update.startedAt = new Date().toISOString();
@@ -105,35 +108,50 @@ export default function OTDetail() {
             update.signature = finishData.signature;
         }
         await otService.updateOT(id, update);
-        loadOT();
-        if (newStatus === 'COMPLETED') setIsFinishModalOpen(false);
+        
+        if (newStatus === 'COMPLETED') {
+            setIsFinishModalOpen(false);
+            // Redirigir al listado después de cerrar para evitar duplicados/confusión
+            navigate('/ots');
+        } else {
+            await loadOT();
+        }
     } catch (err) {
-        alert("Error al actualizar estado");
+        alert("Error al actualizar estado: " + err.message);
+    } finally {
+        setIsSaving(false);
     }
   };
 
   const handleAddFunds = async () => {
+      if (isSaving) return;
+      setIsSaving(true);
       try {
-          // El servicio addSupplementalFunds ya hace la suma internamente
           await otService.addSupplementalFunds(id, parseFloat(additionalFunds));
           setIsFundsModalOpen(false);
           setAdditionalFunds(0);
-          loadOT();
+          await loadOT();
       } catch (err) {
-          alert("Error al añadir fondos");
+          alert("Error al añadir fondos: " + err.message);
+      } finally {
+          setIsSaving(false);
       }
   };
 
   const handleSaveExpense = async (formData) => {
+    if (isSaving) return;
+    setIsSaving(true);
     try {
         await expenseService.save({
             ...formData,
             userId: user.id,
-            otId: ot.otNumber // Usamos el folio para el vínculo
+            otId: ot.otNumber 
         });
-        loadOT();
+        await loadOT();
     } catch (error) {
         alert("Error al guardar gasto: " + error.message);
+    } finally {
+        setIsSaving(false);
     }
   };
 
@@ -506,10 +524,21 @@ export default function OTDetail() {
                               </button>
                             )}
                             {ot.status === 'COMPLETED' && (
-                                <div className="bg-emerald-50 text-emerald-700 py-6 px-10 rounded-[2.5rem] border-2 border-emerald-100 flex flex-col items-center gap-3">
-                                    <p className="font-black text-xs uppercase tracking-[0.2em]">Estatus: Cerrada Exitosamente</p>
-                                    <div className="h-1 w-20 bg-emerald-200 rounded-full" />
-                                    <p className="text-[10px] font-bold opacity-70">Folio registrado el {new Date(ot.finishedAt || ot.updatedAt).toLocaleString()}</p>
+                                <div className="space-y-4 w-full">
+                                    <div className="bg-emerald-50 text-emerald-700 py-6 px-10 rounded-[2.5rem] border-2 border-emerald-100 flex flex-col items-center gap-3">
+                                        <p className="font-black text-xs uppercase tracking-[0.2em]">Estatus: Cerrada Exitosamente</p>
+                                        <div className="h-1 w-20 bg-emerald-200 rounded-full" />
+                                        <p className="text-[10px] font-bold opacity-70">Folio registrado el {new Date(ot.finishedAt || ot.updatedAt).toLocaleString()}</p>
+                                    </div>
+                                    
+                                    {ot.deliveryActUrl && (
+                                        <button 
+                                            onClick={() => window.open(ot.deliveryActUrl, '_blank')}
+                                            className="w-full bg-white border-2 border-emerald-500 text-emerald-600 py-5 rounded-[2rem] font-black text-sm uppercase tracking-[0.2em] flex items-center justify-center gap-4 hover:bg-emerald-50 transition-all shadow-lg shadow-emerald-100"
+                                        >
+                                            <FileText className="h-5 w-5" /> Ver Acta de Entrega (PDF)
+                                        </button>
+                                    )}
                                 </div>
                             )}
                         </div>

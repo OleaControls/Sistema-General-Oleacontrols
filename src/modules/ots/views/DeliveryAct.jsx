@@ -39,8 +39,32 @@ export default function DeliveryAct() {
     clientName: '',
     clientLastName: '',
     clientEmail: '',
-    photos: []
+    photos: [],
+    tscSignature: null,
+    clientSignature: null
   });
+
+  // Efecto para restaurar firmas si el canvas se limpia por re-render/resize
+  useEffect(() => {
+    if (formData.tscSignature && tscSigPad.current && tscSigPad.current.isEmpty()) {
+        tscSigPad.current.fromDataURL(formData.tscSignature);
+    }
+    if (formData.clientSignature && clientSigPad.current && clientSigPad.current.isEmpty()) {
+        clientSigPad.current.fromDataURL(formData.clientSignature);
+    }
+  }, [formData.tscSignature, formData.clientSignature]);
+
+  const saveTscSignature = () => {
+    if (tscSigPad.current) {
+        setFormData(prev => ({ ...prev, tscSignature: tscSigPad.current.toDataURL() }));
+    }
+  };
+
+  const saveClientSignature = () => {
+    if (clientSigPad.current) {
+        setFormData(prev => ({ ...prev, clientSignature: clientSigPad.current.toDataURL() }));
+    }
+  };
 
   useEffect(() => {
     loadData();
@@ -79,192 +103,275 @@ export default function DeliveryAct() {
   };
 
   const generatePDF = async (data) => {
-    const doc = new jsPDF();
-    const pageWidth = doc.internal.pageSize.getWidth();
-    const pageHeight = doc.internal.pageSize.getHeight();
+  const doc = new jsPDF();
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const margin = 15;
+  const contentWidth = pageWidth - (margin * 2);
 
-    // Helper para cargar base64 desde archivos en public
-    const loadBase64 = async (url) => {
+  // Helper para cargar base64 desde archivos en public
+  const loadBase64 = async (url) => {
       try {
-        const res = await fetch(url);
-        const text = await res.text();
-        return `data:image/png;base64,${text.trim()}`;
+          const res = await fetch(url);
+          const text = await res.text();
+          return `data:image/png;base64,${text.trim()}`;
       } catch (err) {
-        console.error("Error cargando logo:", url, err);
-        return null;
+          console.error("Error cargando logo:", url, err);
+          return null;
       }
-    };
-
-    const insigniaB64 = await loadBase64('/img/base64 logo.txt');
-    const logoB64 = await loadBase64('/img/oleacontrols.txt');
-
-    // 1. Encabezado con Estilo Corporativo (Azul Navy/Royal)
-    doc.setFillColor(30, 58, 138); // Azul corporativo elegante
-    doc.rect(0, 0, pageWidth, 50, 'F');
-
-    if (insigniaB64) doc.addImage(insigniaB64, 'PNG', 15, 10, 30, 30);
-    if (logoB64) doc.addImage(logoB64, 'PNG', pageWidth - 75, 18, 60, 15);
-
-    doc.setTextColor(255, 255, 255);
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(16);
-    doc.text("ACTA DE ENTREGA / RECEPCIÓN", pageWidth / 2, 28, { align: 'center' });
-    doc.setFontSize(9);
-    doc.setFont("helvetica", "normal");
-    doc.text(`FOLIO OFICIAL: ${ot.otNumber}`, pageWidth / 2, 35, { align: 'center' });
-
-    doc.setTextColor(0, 0, 0);
-
-    // 2. Información General (Tabla)
-    doc.setFontSize(10);
-    doc.setFont("helvetica", "bold");
-    doc.text("DATOS GENERALES DEL SERVICIO", 15, 60);
-
-    autoTable(doc, {
-        startY: 65,
-        head: [['FECHA CIERRE', 'FOLIO OT', 'CLIENTE', 'SUCURSAL']],
-        body: [[
-            new Date().toLocaleString('es-MX'),
-            ot.otNumber,
-            (ot.clientName || ot.client || 'N/A').toUpperCase(),
-            (ot.storeName || 'OFICINA CENTRAL').toUpperCase()
-        ]],
-        theme: 'grid',
-        headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontStyle: 'bold' },
-        styles: { fontSize: 8, cellPadding: 4 }
-    });
-
-    // 3. Detalles del Sistema y Ubicación
-    const currentY = doc.lastAutoTable.finalY + 15;
-    doc.setFont("helvetica", "bold");
-    doc.text("ALCANCE TÉCNICO Y UBICACIÓN", 15, currentY);
-
-    autoTable(doc, {
-        startY: currentY + 5,
-        body: [
-            ['SISTEMA:', (formData.systemType || 'N/A').toUpperCase()],
-            ['DIRECCIÓN:', ot.address || 'N/A'],
-            ['CONTACTO CLIENTE:', `${formData.clientName} ${formData.clientLastName}`.toUpperCase()],
-            ['CORREO CLIENTE:', formData.clientEmail || 'N/A']
-        ],
-        theme: 'plain',
-        styles: { fontSize: 8, cellPadding: 2 },
-        columnStyles: { 0: { fontStyle: 'bold', cellWidth: 40 } }
-    });
-
-    // 4. Reporte Detallado
-    const descY = doc.lastAutoTable.finalY + 15;
-    doc.setFont("helvetica", "bold");
-    doc.text("DETALLES DE ENTREGA / RECEPCIÓN", 15, descY);
-
-    doc.setFillColor(248, 250, 252);
-    doc.rect(15, descY + 5, pageWidth - 30, 40, 'F');
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(8);
-    const splitDetails = doc.splitTextToSize(formData.deliveryDetails || "Sin detalles adicionales.", pageWidth - 40);
-    doc.text(splitDetails, 20, descY + 15);
-
-    // 5. Tabla de Pendientes
-    const pendingY = descY + 55;
-    doc.setFont("helvetica", "bold");
-    doc.text("OBSERVACIONES / PENDIENTES EN SITIO", 15, pendingY);
-
-    // Corregido: Usar formData si data no tiene pendingTasks (caso de generación inmediata)
-    const tasksToPrint = (data.pendingTasks || formData.pendingTasks || [])
-        .filter(p => p.description && p.description.trim() !== '');
-
-    autoTable(doc, {
-        startY: pendingY + 5,
-        head: [['#', 'DESCRIPCIÓN DEL PENDIENTE / OBSERVACIÓN']],
-        body: tasksToPrint.length > 0 
-            ? tasksToPrint.map((p, i) => [i + 1, p.description.toUpperCase()])
-            : [['-', 'SIN PENDIENTES REGISTRADOS']],
-        theme: 'grid',
-        headStyles: { fillColor: [71, 85, 105] },
-        styles: { fontSize: 8 }
-    });
-
-    // 6. Firmas
-    let sigY = doc.lastAutoTable.finalY + 40;
-    if (sigY > pageHeight - 100) { doc.addPage(); sigY = 50; }
-
-    // Obtener imágenes de firma (priorizar canvas actual, sino usar data de la DB)
-    const tscSignature = !tscSigPad.current?.isEmpty() ? tscSigPad.current.toDataURL() : ot.signature;
-    const clientSignature = !clientSigPad.current?.isEmpty() ? clientSigPad.current.toDataURL() : ot.clientSignature;
-
-    if (tscSignature) {
-        try {
-            doc.addImage(tscSignature, 'PNG', 30, sigY - 30, 50, 25);
-        } catch (e) { console.error("Error firma TSC", e); }
-    }
-    if (clientSignature) {
-        try {
-            doc.addImage(clientSignature, 'PNG', pageWidth - 80, sigY - 30, 50, 25);
-        } catch (e) { console.error("Error firma Cliente", e); }
-    }
-
-    doc.setDrawColor(200, 200, 200);
-    doc.line(20, sigY, 90, sigY);
-    doc.line(pageWidth - 90, sigY, pageWidth - 20, sigY);
-
-    doc.setFontSize(8);
-    doc.setFont("helvetica", "bold");
-    doc.text(`TSC: ${ot.leadTechName || user.name}`.toUpperCase(), 55, sigY + 10, { align: 'center' });
-    doc.text(`CLIENTE: ${formData.clientName} ${formData.clientLastName}`.toUpperCase(), pageWidth - 55, sigY + 10, { align: 'center' });
-
-    // 7. Anexo Fotográfico
-    if (formData.photos.length > 0) {
-        doc.addPage();
-        doc.setFillColor(15, 23, 42);
-        doc.rect(0, 0, pageWidth, 30, 'F');
-        doc.setTextColor(255, 255, 255);
-        doc.setFontSize(14);
-        doc.text("EVIDENCIA FOTOGRÁFICA", pageWidth / 2, 20, { align: 'center' });
-        
-        let photoY = 40;
-        formData.photos.forEach((photo, index) => {
-            if (photoY > pageHeight - 80) { doc.addPage(); photoY = 20; }
-            doc.addImage(photo, 'JPEG', 30, photoY, 150, 100);
-            doc.setTextColor(150, 150, 150);
-            doc.setFontSize(7);
-            doc.text(`EVIDENCIA #${index + 1} - OT: ${ot.otNumber}`, pageWidth / 2, photoY + 105, { align: 'center' });
-            photoY += 120;
-        });
-    }
-
-    doc.save(`AER_${ot.otNumber}.pdf`);
-    return doc.output('datauristring'); // Devolver como base64
-    };
-
-    const handleFinish = async () => {
-    if (tscSigPad.current.isEmpty() || clientSigPad.current.isEmpty()) {
-        alert("Ambas firmas son obligatorias.");
-        return;
-    }
-    setIsSaving(true);
-    try {
-        // Generar PDF y obtener su base64
-        const pdfBase64 = await generatePDF(formData);
-
-        const updateData = {
-            status: 'COMPLETED',
-            systemType: formData.systemType,
-            deliveryDetails: formData.deliveryDetails,
-            pendingTasks: formData.pendingTasks,
-            signature: tscSigPad.current.toDataURL(),
-            clientSignature: clientSigPad.current.toDataURL(),
-            deliveryActUrl: pdfBase64, // Enviamos el PDF para que el backend lo suba a R2
-            finishedAt: new Date().toISOString()
-        };
-
-        await otService.updateOT(ot.id, updateData);
-        generatePDF(updateData);
-        navigate(`/ots/${ot.id}`);
-    } catch (err) {
-        alert("Error: " + err.message);
-    } finally { setIsSaving(false); }
   };
 
+  const insigniaB64 = await loadBase64('/img/base64 logo.txt');
+  const logoB64 = await loadBase64('/img/oleacontrols.txt');
+
+  // --- 1. ENCABEZADO MINIMALISTA Y ELEGANTE ---
+  doc.setFillColor(15, 23, 42); // Navy Dark
+  doc.rect(0, 0, pageWidth, 40, 'F');
+
+  // Logos más pequeños y balanceados
+  if (insigniaB64) doc.addImage(insigniaB64, 'PNG', margin, 8, 24, 24);
+  if (logoB64) doc.addImage(logoB64, 'PNG', pageWidth - margin - 45, 12, 45, 12);
+
+  doc.setTextColor(255, 255, 255);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(14);
+  doc.text("ACTA DE ENTREGA / RECEPCIÓN", pageWidth / 2, 22, { align: 'center' });
+  doc.setFontSize(8);
+  doc.setFont("helvetica", "normal");
+  doc.text(`COMPROBANTE OFICIAL DE SERVICIO TÉCNICO`, pageWidth / 2, 28, { align: 'center' });
+
+  // --- 2. INFORMACIÓN DE CONTROL (Cinta Gris) ---
+  doc.setFillColor(241, 245, 249);
+  doc.rect(0, 40, pageWidth, 12, 'F');
+  doc.setTextColor(51, 65, 85);
+  doc.setFontSize(8);
+  doc.setFont("helvetica", "bold");
+  doc.text(`FOLIO: ${ot.otNumber}`, margin, 48);
+  doc.text(`FECHA: ${new Date().toLocaleDateString('es-MX')} ${new Date().toLocaleTimeString('es-MX', {hour:'2-digit', minute:'2-digit'})}`, pageWidth - margin, 48, { align: 'right' });
+
+  // --- 3. DATOS DEL CLIENTE Y UBICACIÓN ---
+  let currentY = 60;
+  doc.setTextColor(15, 23, 42);
+  doc.setFontSize(10);
+  doc.text("INFORMACIÓN DEL CLIENTE Y SITIO", margin, currentY);
+  doc.setDrawColor(226, 232, 240);
+  doc.line(margin, currentY + 2, margin + 60, currentY + 2);
+
+  autoTable(doc, {
+      startY: currentY + 6,
+      margin: { left: margin, right: margin },
+      body: [
+          ['CLIENTE:', (ot.clientName || ot.client || 'N/A').toUpperCase(), 'SUCURSAL:', (ot.storeName || 'N/A').toUpperCase()],
+          ['DIRECCIÓN:', (ot.address || ot.otAddress || 'N/A').toUpperCase(), 'NÚM. TIENDA:', (ot.storeNumber || 'N/A')],
+          ['CONTACTO:', `${data.clientName || formData.clientName} ${data.clientLastName || formData.clientLastName}`.toUpperCase(), 'EMAIL:', (data.clientEmail || formData.clientEmail || 'N/A').toLowerCase()]
+      ],
+      theme: 'plain',
+      styles: { fontSize: 7, cellPadding: 2, textColor: [51, 65, 85] },
+      columnStyles: { 
+          0: { fontStyle: 'bold', cellWidth: 25 },
+          2: { fontStyle: 'bold', cellWidth: 25 }
+      }
+  });
+
+  // --- 4. DETALLES TÉCNICOS ---
+  currentY = doc.lastAutoTable.finalY + 12;
+  doc.setFontSize(10);
+  doc.text("ALCANCE DEL SERVICIO", margin, currentY);
+  doc.line(margin, currentY + 2, margin + 40, currentY + 2);
+
+  autoTable(doc, {
+      startY: currentY + 6,
+      margin: { left: margin, right: margin },
+      body: [
+          ['SISTEMA ATENDIDO:', (data.systemType || formData.systemType || 'N/A').toUpperCase()],
+          ['DESCRIPCIÓN ORIGINAL:', (ot.description || 'N/A').toUpperCase()],
+          ['PRIORIDAD:', (ot.priority || 'NORMAL').toUpperCase()]
+      ],
+      theme: 'grid',
+      styles: { fontSize: 7, cellPadding: 3 },
+      headStyles: { fillColor: [248, 250, 252], textColor: [15, 23, 42] },
+      columnStyles: { 0: { fontStyle: 'bold', cellWidth: 40, fillColor: [248, 250, 252] } }
+  });
+
+  // --- 5. REPORTE DE ACTIVIDADES ---
+  currentY = doc.lastAutoTable.finalY + 12;
+  doc.setFontSize(10);
+  doc.text("REPORTE DE TRABAJOS REALIZADOS", margin, currentY);
+  doc.line(margin, currentY + 2, margin + 60, currentY + 2);
+
+  const splitDetails = doc.splitTextToSize(data.deliveryDetails || formData.deliveryDetails || "Sin detalles adicionales.", contentWidth - 10);
+  const detailsHeight = (splitDetails.length * 4) + 10;
+
+  doc.setFillColor(254, 254, 254);
+  doc.setDrawColor(226, 232, 240);
+  doc.rect(margin, currentY + 6, contentWidth, Math.max(25, detailsHeight));
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8);
+  doc.setTextColor(30, 41, 59);
+  doc.text(splitDetails, margin + 5, currentY + 14);
+
+  // --- 6. OBSERVACIONES Y PENDIENTES ---
+  currentY += Math.max(25, detailsHeight) + 15;
+  const tasksToPrint = (data.pendingTasks || formData.pendingTasks || [])
+      .filter(p => p.description && p.description.trim() !== '');
+
+  if (tasksToPrint.length > 0) {
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "bold");
+      doc.text("PENDIENTES / OBSERVACIONES EN SITIO", margin, currentY);
+
+      autoTable(doc, {
+          startY: currentY + 5,
+          margin: { left: margin, right: margin },
+          head: [['ID', 'DESCRIPCIÓN DEL PENDIENTE']],
+          body: tasksToPrint.map((p, i) => [i + 1, p.description.toUpperCase()]),
+          theme: 'striped',
+          headStyles: { fillColor: [71, 85, 105], fontSize: 7 },
+          styles: { fontSize: 7, cellPadding: 2 }
+      });
+      currentY = doc.lastAutoTable.finalY + 20;
+  } else {
+      currentY += 10;
+  }
+
+  // --- 7. FIRMAS (Control de salto de página) ---
+  if (currentY > pageHeight - 60) {
+      doc.addPage();
+      currentY = 40;
+  }
+
+  const tscSignature = data.tscSignature || ot.signature;
+  const clientSignature = data.clientSignature || ot.clientSignature;
+
+  // Líneas de firma
+  doc.setDrawColor(148, 163, 184);
+  doc.line(margin + 10, currentY + 25, margin + 70, currentY + 25);
+  doc.line(pageWidth - margin - 70, currentY + 25, pageWidth - margin - 10, currentY + 25);
+
+  // Imágenes de firma
+  if (tscSignature) {
+      try { doc.addImage(tscSignature, 'PNG', margin + 20, currentY, 40, 20); } catch (e) {}
+  }
+  if (clientSignature) {
+      try { doc.addImage(clientSignature, 'PNG', pageWidth - margin - 60, currentY, 40, 20); } catch (e) {}
+  }
+
+  doc.setFontSize(7);
+  doc.setFont("helvetica", "bold");
+  doc.setTextColor(15, 23, 42);
+  doc.text("FIRMA TÉCNICO RESPONSABLE", margin + 40, currentY + 30, { align: 'center' });
+  doc.text("FIRMA DE CONFORMIDAD CLIENTE", pageWidth - margin - 40, currentY + 30, { align: 'center' });
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(6);
+  doc.text((ot.leadTechName || user.name || 'N/A').toUpperCase(), margin + 40, currentY + 34, { align: 'center' });
+  doc.text(`${data.clientName || formData.clientName} ${data.clientLastName || formData.clientLastName}`.toUpperCase(), pageWidth - margin - 40, currentY + 34, { align: 'center' });
+
+  // Pie de página en todas las páginas (excepto anexos)
+  const totalPages = doc.internal.getNumberOfPages();
+  for (let i = 1; i <= totalPages; i++) {
+      doc.setPage(i);
+      doc.setFontSize(6);
+      doc.setTextColor(148, 163, 184);
+      doc.text("Este documento es un comprobante digital de servicio generado por Olea Controls Platform. Prohibida su reproducción total o parcial sin autorización.", pageWidth / 2, pageHeight - 10, { align: 'center' });
+      doc.text(`Página ${i} de ${totalPages}`, pageWidth - margin, pageHeight - 10, { align: 'right' });
+  }
+
+  // --- 8. ANEXO FOTOGRÁFICO ---
+  const photosToPrint = data.photos || formData.photos || [];
+  if (photosToPrint.length > 0) {
+      doc.addPage();
+      doc.setFillColor(15, 23, 42);
+      doc.rect(0, 0, pageWidth, 25, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(12);
+      doc.text("ANEXO: EVIDENCIA FOTOGRÁFICA", pageWidth / 2, 16, { align: 'center' });
+
+      let photoY = 35;
+      const photoWidth = 80;
+      const photoHeight = 60;
+
+      photosToPrint.forEach((photo, index) => {
+          const isLeft = index % 2 === 0;
+          const xPos = isLeft ? margin : pageWidth - margin - photoWidth;
+
+          if (!isLeft && index > 0) {
+              // Ya procesamos la de la derecha, bajamos Y para la siguiente fila
+          } else if (index > 0 && isLeft) {
+              photoY += photoHeight + 15;
+          }
+
+          if (photoY > pageHeight - photoHeight - 20) {
+              doc.addPage();
+              photoY = 20;
+          }
+
+          try {
+              // Determinar el formato de la imagen desde el dataURI
+              const format = photo.includes('png') ? 'PNG' : 'JPEG';
+              doc.addImage(photo, format, xPos, photoY, photoWidth, photoHeight);
+              doc.setTextColor(100, 116, 139);
+              doc.setFontSize(6);
+              doc.text(`EVIDENCIA #${index + 1} - OT: ${ot.otNumber}`, xPos + (photoWidth/2), photoY + photoHeight + 5, { align: 'center' });
+          } catch (e) {
+              console.error("Error al añadir foto al PDF", e);
+          }
+
+          if (!isLeft) photoY += photoHeight + 15;
+      });
+  }
+
+  // Descargar el archivo localmente para el técnico
+  try { doc.save(`AER_${ot.otNumber}.pdf`); } catch (e) { console.error("Error al descargar PDF local:", e); }
+
+  // Devolver como base64 para subir a R2
+  return doc.output('datauristring'); 
+  };
+
+  const handleFinish = async () => {
+  if (tscSigPad.current.isEmpty() || clientSigPad.current.isEmpty()) {
+      alert("Ambas firmas son obligatorias.");
+      return;
+  }
+  setIsSaving(true);
+  try {
+      // 1. Obtener firmas actuales
+      const tscSig = tscSigPad.current.toDataURL();
+      const clientSig = clientSigPad.current.toDataURL();
+
+      // 2. Generar PDF con los datos actuales
+      const pdfBase64 = await generatePDF({
+          ...formData,
+          tscSignature: tscSig,
+          clientSignature: clientSig
+      });
+
+      // 3. Validar PDF (más flexible: a veces empieza con data:pdf; o data:application/pdf;)
+      if (!pdfBase64 || !pdfBase64.includes('base64,')) {
+          console.error("PDF generado inválido:", pdfBase64?.substring(0, 100));
+          throw new Error("El formato del PDF generado no es válido");
+      }
+
+      const updateData = {
+          status: 'COMPLETED',
+          systemType: formData.systemType,
+          deliveryDetails: formData.deliveryDetails,
+          pendingTasks: formData.pendingTasks,
+          signature: tscSig,
+          clientSignature: clientSig,
+          deliveryActUrl: pdfBase64, 
+          finishedAt: new Date().toISOString()
+      };
+
+      // 4. Actualizar en el servidor
+      await otService.updateOT(ot.id, updateData);
+
+      navigate('/ots');
+  } catch (err) {
+      console.error("Error crítico al finalizar acta:", err);
+      alert("Error al finalizar el acta: " + err.message);
+  } finally { setIsSaving(false); }
+  };
   if (loading) return <div className="p-20 text-center font-black animate-pulse">CARGANDO ACTA...</div>;
 
   return (
@@ -361,18 +468,18 @@ export default function DeliveryAct() {
                     <div className="space-y-4">
                         <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] text-center">Técnico Responsable (TSC)</p>
                         <div className="border-2 border-gray-100 rounded-[2rem] bg-gray-50/50 overflow-hidden shadow-inner">
-                            <SignatureCanvas ref={tscSigPad} penColor="black" canvasProps={{ className: "w-full h-48 cursor-crosshair" }} />
+                            <SignatureCanvas ref={tscSigPad} onEnd={saveTscSignature} penColor="black" canvasProps={{ className: "w-full h-48 cursor-crosshair" }} />
                         </div>
                         <div className="flex justify-between items-center px-4">
                             <p className="text-[10px] font-black text-primary uppercase">{user.name}</p>
-                            <button onClick={() => tscSigPad.current.clear()} className="text-[10px] font-black text-red-400 hover:text-red-600 uppercase tracking-widest">Borrar</button>
+                            <button onClick={() => { tscSigPad.current.clear(); setFormData(p=>({...p, tscSignature: null})) }} className="text-[10px] font-black text-red-400 hover:text-red-600 uppercase tracking-widest">Borrar</button>
                         </div>
                     </div>
 
                     <div className="space-y-4">
                         <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] text-center">Firma del Cliente</p>
                         <div className="border-2 border-gray-100 rounded-[2rem] bg-gray-50/50 overflow-hidden shadow-inner">
-                            <SignatureCanvas ref={clientSigPad} penColor="navy" canvasProps={{ className: "w-full h-48 cursor-crosshair" }} />
+                            <SignatureCanvas ref={clientSigPad} onEnd={saveClientSignature} penColor="navy" canvasProps={{ className: "w-full h-48 cursor-crosshair" }} />
                         </div>
                         <div className="space-y-2 mt-4 px-2">
                             <div className="grid grid-cols-2 gap-2">
@@ -382,7 +489,7 @@ export default function DeliveryAct() {
                             <input className="w-full px-4 py-2 bg-gray-50 border rounded-xl text-xs font-bold" placeholder="Email para envío de acta" value={formData.clientEmail} onChange={e => setFormData({...formData, clientEmail: e.target.value})} />
                         </div>
                         <div className="flex justify-end px-4">
-                            <button onClick={() => clientSigPad.current.clear()} className="text-[10px] font-black text-red-400 hover:text-red-600 uppercase tracking-widest">Borrar</button>
+                            <button onClick={() => { clientSigPad.current.clear(); setFormData(p=>({...p, clientSignature: null})) }} className="text-[10px] font-black text-red-400 hover:text-red-600 uppercase tracking-widest">Borrar</button>
                         </div>
                     </div>
                 </div>
