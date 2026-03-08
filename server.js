@@ -8,6 +8,7 @@ import employeesHandler from './api/employees.js';
 import categoriesHandler from './api/categories.js';
 import otsHandler from './api/ots.js';
 import expensesHandler from './api/expenses.js';
+import uploadHandler from './api/upload.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -33,6 +34,7 @@ const adaptHandler = (handler) => {
 
 // API Routes
 app.post('/api/login', adaptHandler(loginHandler));
+app.post('/api/upload', adaptHandler(uploadHandler));
 
 // Employees
 app.get('/api/employees', adaptHandler(employeesHandler));

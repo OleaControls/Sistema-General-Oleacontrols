@@ -40,31 +40,10 @@ export default function DeliveryAct() {
     clientLastName: '',
     clientEmail: '',
     photos: [],
-    tscSignature: null,
-    clientSignature: null
+    // Eliminamos tscSignature y clientSignature del state para evitar re-renders innecesarios
   });
 
-  // Efecto para restaurar firmas si el canvas se limpia por re-render/resize
-  useEffect(() => {
-    if (formData.tscSignature && tscSigPad.current && tscSigPad.current.isEmpty()) {
-        tscSigPad.current.fromDataURL(formData.tscSignature);
-    }
-    if (formData.clientSignature && clientSigPad.current && clientSigPad.current.isEmpty()) {
-        clientSigPad.current.fromDataURL(formData.clientSignature);
-    }
-  }, [formData.tscSignature, formData.clientSignature]);
-
-  const saveTscSignature = () => {
-    if (tscSigPad.current) {
-        setFormData(prev => ({ ...prev, tscSignature: tscSigPad.current.toDataURL() }));
-    }
-  };
-
-  const saveClientSignature = () => {
-    if (clientSigPad.current) {
-        setFormData(prev => ({ ...prev, clientSignature: clientSigPad.current.toDataURL() }));
-    }
-  };
+  // Quitamos el useEffect que restauraba firmas ya que causaba conflictos al scroll/resize en móviles
 
   useEffect(() => {
     loadData();
@@ -336,34 +315,43 @@ export default function DeliveryAct() {
   setIsSaving(true);
   try {
       // 1. Obtener firmas actuales
-      const tscSig = tscSigPad.current.toDataURL();
-      const clientSig = clientSigPad.current.toDataURL();
+      const tscSigBase64 = tscSigPad.current.toDataURL();
+      const clientSigBase64 = clientSigPad.current.toDataURL();
 
-      // 2. Generar PDF con los datos actuales
+      // 2. Subir firmas y fotos por separado para evitar Payload Too Large
+      const [tscSigUrl, clientSigUrl] = await Promise.all([
+          otService.uploadFile(tscSigBase64, 'signatures'),
+          otService.uploadFile(clientSigBase64, 'signatures')
+      ]);
+
+      const photoUrls = await Promise.all(
+          formData.photos.map(p => p.startsWith('data:') ? otService.uploadFile(p, 'evidences') : Promise.resolve(p))
+      );
+
+      // 3. Generar PDF con los datos actuales (usando URLs de las imágenes subidas o base64 para el PDF)
       const pdfBase64 = await generatePDF({
           ...formData,
-          tscSignature: tscSig,
-          clientSignature: clientSig
+          tscSignature: tscSigBase64,
+          clientSignature: clientSigBase64,
+          photos: formData.photos // El generador de PDF usa los base64 locales para mayor velocidad
       });
 
-      // 3. Validar PDF (más flexible: a veces empieza con data:pdf; o data:application/pdf;)
-      if (!pdfBase64 || !pdfBase64.includes('base64,')) {
-          console.error("PDF generado inválido:", pdfBase64?.substring(0, 100));
-          throw new Error("El formato del PDF generado no es válido");
-      }
+      // 4. Subir el PDF
+      const pdfUrl = await otService.uploadFile(pdfBase64, 'delivery-acts');
 
       const updateData = {
           status: 'COMPLETED',
           systemType: formData.systemType,
           deliveryDetails: formData.deliveryDetails,
           pendingTasks: formData.pendingTasks,
-          signature: tscSig,
-          clientSignature: clientSig,
-          deliveryActUrl: pdfBase64, 
+          signature: tscSigUrl,
+          clientSignature: clientSigUrl,
+          deliveryActUrl: pdfUrl, 
+          photos: photoUrls,
           finishedAt: new Date().toISOString()
       };
 
-      // 4. Actualizar en el servidor
+      // 5. Actualizar en el servidor con las URLs ya procesadas
       await otService.updateOT(ot.id, updateData);
 
       navigate('/ots');
@@ -468,18 +456,18 @@ export default function DeliveryAct() {
                     <div className="space-y-4">
                         <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] text-center">Técnico Responsable (TSC)</p>
                         <div className="border-2 border-gray-100 rounded-[2rem] bg-gray-50/50 overflow-hidden shadow-inner">
-                            <SignatureCanvas ref={tscSigPad} onEnd={saveTscSignature} penColor="black" canvasProps={{ className: "w-full h-48 cursor-crosshair" }} />
+                            <SignatureCanvas ref={tscSigPad} penColor="black" canvasProps={{ className: "w-full h-48 cursor-crosshair" }} />
                         </div>
                         <div className="flex justify-between items-center px-4">
                             <p className="text-[10px] font-black text-primary uppercase">{user.name}</p>
-                            <button onClick={() => { tscSigPad.current.clear(); setFormData(p=>({...p, tscSignature: null})) }} className="text-[10px] font-black text-red-400 hover:text-red-600 uppercase tracking-widest">Borrar</button>
+                            <button onClick={() => { tscSigPad.current.clear() }} className="text-[10px] font-black text-red-400 hover:text-red-600 uppercase tracking-widest">Borrar</button>
                         </div>
                     </div>
 
                     <div className="space-y-4">
                         <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] text-center">Firma del Cliente</p>
                         <div className="border-2 border-gray-100 rounded-[2rem] bg-gray-50/50 overflow-hidden shadow-inner">
-                            <SignatureCanvas ref={clientSigPad} onEnd={saveClientSignature} penColor="navy" canvasProps={{ className: "w-full h-48 cursor-crosshair" }} />
+                            <SignatureCanvas ref={clientSigPad} penColor="navy" canvasProps={{ className: "w-full h-48 cursor-crosshair" }} />
                         </div>
                         <div className="space-y-2 mt-4 px-2">
                             <div className="grid grid-cols-2 gap-2">
@@ -489,7 +477,7 @@ export default function DeliveryAct() {
                             <input className="w-full px-4 py-2 bg-gray-50 border rounded-xl text-xs font-bold" placeholder="Email para envío de acta" value={formData.clientEmail} onChange={e => setFormData({...formData, clientEmail: e.target.value})} />
                         </div>
                         <div className="flex justify-end px-4">
-                            <button onClick={() => { clientSigPad.current.clear(); setFormData(p=>({...p, clientSignature: null})) }} className="text-[10px] font-black text-red-400 hover:text-red-600 uppercase tracking-widest">Borrar</button>
+                            <button onClick={() => { clientSigPad.current.clear() }} className="text-[10px] font-black text-red-400 hover:text-red-600 uppercase tracking-widest">Borrar</button>
                         </div>
                     </div>
                 </div>

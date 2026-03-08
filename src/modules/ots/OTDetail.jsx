@@ -355,6 +355,30 @@ export default function OTDetail() {
                         "{ot.description || 'Sin descripción detallada por el supervisor.'}"
                     </p>
                 </div>
+
+                {/* Reporte de Cierre (Si está completada) */}
+                {ot.status === 'COMPLETED' && (
+                    <div className="bg-emerald-600 rounded-[2.5rem] p-10 text-white shadow-2xl relative overflow-hidden">
+                        <div className="absolute top-0 left-0 w-full h-1 bg-white/20" />
+                        <h3 className="text-[10px] font-black text-white uppercase tracking-[0.3em] mb-6 flex items-center gap-3">
+                            <CheckCircle2 className="h-5 w-5" /> Reporte de Finalización
+                        </h3>
+                        <div className="space-y-6">
+                            <p className="text-xl font-medium leading-relaxed italic text-emerald-50">
+                                "{ot.deliveryDetails || ot.report || 'El técnico no proporcionó comentarios adicionales al cierre.'}"
+                            </p>
+                            
+                            {ot.deliveryActUrl && (
+                                <button 
+                                    onClick={() => window.open(ot.deliveryActUrl, '_blank')}
+                                    className="w-full bg-white text-emerald-600 py-4 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-3 shadow-xl hover:scale-[1.02] transition-all"
+                                >
+                                    <FileText className="h-4 w-4" /> Descargar Acta Firmada (A.E.R.)
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* Sidebar Details Column */}

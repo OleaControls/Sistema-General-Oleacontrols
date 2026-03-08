@@ -20,6 +20,17 @@ export const otService = {
     return response.json();
   },
 
+  async uploadFile(base64Data, folder = 'uploads') {
+    const response = await fetch('/api/upload', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ file: base64Data, folder })
+    });
+    if (!response.ok) throw new Error('Error al subir archivo');
+    const { url } = await response.json();
+    return url;
+  },
+
   // Templates
   async getTemplates() {
     const data = localStorage.getItem(OT_TEMPLATES_KEY);
