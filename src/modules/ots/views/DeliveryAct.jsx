@@ -5,7 +5,7 @@ import {
   Camera, Trash2, Plus, Send, X, Signature as SignatureIcon,
   ShieldCheck, Smartphone, Info, Download, Loader2, Store, Phone, Hash
 } from 'lucide-react';
-import SignatureCanvas from 'react-signature-canvas';
+import SignaturePad from '@/components/shared/SignaturePad';
 import { otService } from '@/api/otService';
 import { useAuth } from '@/store/AuthContext';
 import { cn } from '@/lib/utils';
@@ -76,13 +76,44 @@ export default function DeliveryAct() {
         const reader = new FileReader();
         reader.readAsDataURL(file);
         reader.onload = () => {
-            setFormData(prev => ({ ...prev, photos: [...prev.photos, reader.result] }));
+            const img = new Image();
+            img.src = reader.result;
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                let width = img.width;
+                let height = img.height;
+
+                // Max resolution: 1280px (suficiente para evidencias claras)
+                const MAX_WIDTH = 1280;
+                const MAX_HEIGHT = 1280;
+
+                if (width > height) {
+                    if (width > MAX_WIDTH) {
+                        height *= MAX_WIDTH / width;
+                        width = MAX_WIDTH;
+                    }
+                } else {
+                    if (height > MAX_HEIGHT) {
+                        width *= MAX_HEIGHT / height;
+                        height = MAX_HEIGHT;
+                    }
+                }
+
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, width, height);
+
+                // Comprimir al 70% de calidad (JPEG)
+                const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.7);
+                setFormData(prev => ({ ...prev, photos: [...prev.photos, compressedDataUrl] }));
+            };
         };
     });
   };
 
   const generatePDF = async (data) => {
-  const doc = new jsPDF();
+  const doc = new jsPDF({ compress: true });
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
   const margin = 15;
@@ -104,14 +135,14 @@ export default function DeliveryAct() {
   const logoB64 = await loadBase64('/img/oleacontrols.txt');
 
   // --- 1. ENCABEZADO MINIMALISTA Y ELEGANTE ---
-  doc.setFillColor(15, 23, 42); // Navy Dark
+  doc.setFillColor(224, 242, 254); // Azul Cielo Claro (Sky 100)
   doc.rect(0, 0, pageWidth, 40, 'F');
 
   // Logos más pequeños y balanceados
   if (insigniaB64) doc.addImage(insigniaB64, 'PNG', margin, 8, 24, 24);
   if (logoB64) doc.addImage(logoB64, 'PNG', pageWidth - margin - 45, 12, 45, 12);
 
-  doc.setTextColor(255, 255, 255);
+  doc.setTextColor(7, 89, 133); // Azul Oceano Oscuro para el texto (Sky 800)
   doc.setFont("helvetica", "bold");
   doc.setFontSize(14);
   doc.text("ACTA DE ENTREGA / RECEPCIÓN", pageWidth / 2, 22, { align: 'center' });
@@ -119,10 +150,10 @@ export default function DeliveryAct() {
   doc.setFont("helvetica", "normal");
   doc.text(`COMPROBANTE OFICIAL DE SERVICIO TÉCNICO`, pageWidth / 2, 28, { align: 'center' });
 
-  // --- 2. INFORMACIÓN DE CONTROL (Cinta Gris) ---
-  doc.setFillColor(241, 245, 249);
+  // --- 2. INFORMACIÓN DE CONTROL (Cinta Gris azulada) ---
+  doc.setFillColor(240, 249, 255); // Azul aún más claro
   doc.rect(0, 40, pageWidth, 12, 'F');
-  doc.setTextColor(51, 65, 85);
+  doc.setTextColor(14, 165, 233); // Azul primario para acentos
   doc.setFontSize(8);
   doc.setFont("helvetica", "bold");
   doc.text(`FOLIO: ${ot.otNumber}`, margin, 48);
@@ -455,29 +486,33 @@ export default function DeliveryAct() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
                     <div className="space-y-4">
                         <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] text-center">Técnico Responsable (TSC)</p>
-                        <div className="border-2 border-gray-100 rounded-[2rem] bg-gray-50/50 overflow-hidden shadow-inner">
-                            <SignatureCanvas ref={tscSigPad} penColor="black" canvasProps={{ className: "w-full h-48 cursor-crosshair" }} />
+                        <div className="h-64 border-2 border-gray-100 rounded-[2.5rem] bg-gray-50/50 overflow-hidden shadow-inner relative group">
+                            <SignaturePad 
+                                ref={tscSigPad} 
+                                placeholder="Firma del Técnico"
+                                penColor="#0f172a"
+                            />
                         </div>
-                        <div className="flex justify-between items-center px-4">
-                            <p className="text-[10px] font-black text-primary uppercase">{user.name}</p>
-                            <button onClick={() => { tscSigPad.current.clear() }} className="text-[10px] font-black text-red-400 hover:text-red-600 uppercase tracking-widest">Borrar</button>
+                        <div className="px-4">
+                            <p className="text-[10px] font-black text-primary uppercase text-center">{user.name}</p>
                         </div>
                     </div>
 
                     <div className="space-y-4">
                         <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] text-center">Firma del Cliente</p>
-                        <div className="border-2 border-gray-100 rounded-[2rem] bg-gray-50/50 overflow-hidden shadow-inner">
-                            <SignatureCanvas ref={clientSigPad} penColor="navy" canvasProps={{ className: "w-full h-48 cursor-crosshair" }} />
+                        <div className="h-64 border-2 border-gray-100 rounded-[2.5rem] bg-gray-50/50 overflow-hidden shadow-inner relative group">
+                            <SignaturePad 
+                                ref={clientSigPad} 
+                                placeholder="Firma de Conformidad"
+                                penColor="#1e3a8a"
+                            />
                         </div>
                         <div className="space-y-2 mt-4 px-2">
                             <div className="grid grid-cols-2 gap-2">
-                                <input className="px-4 py-2 bg-gray-50 border rounded-xl text-xs font-bold" placeholder="Nombre" value={formData.clientName} onChange={e => setFormData({...formData, clientName: e.target.value})} />
-                                <input className="px-4 py-2 bg-gray-50 border rounded-xl text-xs font-bold" placeholder="Apellido" value={formData.clientLastName} onChange={e => setFormData({...formData, clientLastName: e.target.value})} />
+                                <input className="px-4 py-3 bg-gray-50 border rounded-xl text-xs font-bold outline-none focus:border-primary transition-all" placeholder="Nombre" value={formData.clientName} onChange={e => setFormData({...formData, clientName: e.target.value})} />
+                                <input className="px-4 py-3 bg-gray-50 border rounded-xl text-xs font-bold outline-none focus:border-primary transition-all" placeholder="Apellido" value={formData.clientLastName} onChange={e => setFormData({...formData, clientLastName: e.target.value})} />
                             </div>
-                            <input className="w-full px-4 py-2 bg-gray-50 border rounded-xl text-xs font-bold" placeholder="Email para envío de acta" value={formData.clientEmail} onChange={e => setFormData({...formData, clientEmail: e.target.value})} />
-                        </div>
-                        <div className="flex justify-end px-4">
-                            <button onClick={() => { clientSigPad.current.clear() }} className="text-[10px] font-black text-red-400 hover:text-red-600 uppercase tracking-widest">Borrar</button>
+                            <input className="w-full px-4 py-3 bg-gray-50 border rounded-xl text-xs font-bold outline-none focus:border-primary transition-all" placeholder="Email para envío de acta" value={formData.clientEmail} onChange={e => setFormData({...formData, clientEmail: e.target.value})} />
                         </div>
                     </div>
                 </div>

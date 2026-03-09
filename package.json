@@ -36,6 +36,7 @@
     "react-leaflet": "^5.0.0",
     "react-router-dom": "^7.13.1",
     "react-signature-canvas": "^1.1.0-alpha.2",
+    "signature_pad": "^5.1.3",
     "tailwind-merge": "^3.5.0",
     "tailwindcss-animate": "^1.0.7"
   },

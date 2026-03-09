@@ -21,14 +21,27 @@ export const otService = {
   },
 
   async uploadFile(base64Data, folder = 'uploads') {
-    const response = await fetch('/api/upload', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ file: base64Data, folder })
-    });
-    if (!response.ok) throw new Error('Error al subir archivo');
-    const { url } = await response.json();
-    return url;
+    try {
+        console.log(`[otService] Intentando subir archivo a /api/upload...`);
+        const response = await fetch('/api/upload', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ file: base64Data, folder })
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error(`[otService] Error en respuesta de subida:`, errorText);
+            throw new Error(`Error del servidor (${response.status}): ${errorText}`);
+        }
+
+        const { url } = await response.json();
+        console.log(`[otService] Archivo subido con éxito:`, url);
+        return url;
+    } catch (err) {
+        console.error(`[otService] Fallo crítico al subir archivo:`, err);
+        throw err;
+    }
   },
 
   // Templates
