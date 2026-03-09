@@ -1,5 +1,13 @@
 import prisma from './_lib/prisma.js'
-import { uploadToR2 } from './_lib/r2.js'
+import { uploadToR2, signUrlIfNeeded } from './_lib/r2.js'
+
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: '4.5mb',
+    },
+  },
+};
 
 export default async function handler(req, res) {
   const { method } = req;
@@ -46,9 +54,37 @@ export default async function handler(req, res) {
 
   if (method === 'GET') {
     try {
-      const { techId, supervisorId, status } = req.query;
-      const where = {};
+      const { techId, supervisorId, status, id: specificId } = req.query;
       
+      // Si piden una OT específica (detalle)
+      if (specificId || (req.url.includes('/api/ots/') && req.query.id)) {
+          const idToFind = specificId || req.query.id;
+          const ot = await prisma.workOrder.findFirst({
+              where: { OR: [ { id: idToFind }, { otNumber: idToFind } ] },
+              include: {
+                  technician: { select: { name: true, avatar: true, position: true } },
+                  supervisor: { select: { name: true } },
+                  evidences: true,
+                  expenses: true
+              }
+          });
+          
+          if (!ot) return res.status(404).json({ error: 'OT no encontrada' });
+          
+          // FIRMAR URLs para el detalle
+          ot.signature = await signUrlIfNeeded(ot.signature);
+          ot.clientSignature = await signUrlIfNeeded(ot.clientSignature);
+          ot.deliveryActUrl = await signUrlIfNeeded(ot.deliveryActUrl);
+          if (ot.evidences) {
+              for (let ev of ot.evidences) {
+                  ev.url = await signUrlIfNeeded(ev.url);
+              }
+          }
+
+          return res.status(200).json(ot);
+      }
+
+      const where = {};
       if (techId) where.technicianId = techId;
       if (supervisorId) where.supervisorId = supervisorId;
       if (status && status !== 'ALL') where.status = status;
@@ -58,44 +94,48 @@ export default async function handler(req, res) {
         include: {
           technician: { select: { name: true, avatar: true, position: true } },
           supervisor: { select: { name: true } },
-          // Quitamos creator y assignedBy temporalmente para ver si esto causa el 500
           evidences: true,
           expenses: true
         },
         orderBy: { createdAt: 'desc' }
       });
 
-      // Mapear TODOS los campos para que el frontend los vea completos
-      const formattedOts = ots.map(ot => ({
-        ...ot,
-        id: ot.otNumber, 
-        client: ot.clientName,
-        leadTechId: ot.technicianId,
-        leadTechName: ot.technician?.name || 'Sin asignar',
-        workDescription: ot.description,
-        lat: ot.latitude,
-        lng: ot.longitude,
-        location: ot.address,
-        expensesSubmitted: ot.expenses.length,
-        completionPhotos: ot.evidences.map(e => e.url),
-        assistantTechs: ot.assistantTechs ? (typeof ot.assistantTechs === 'string' ? JSON.parse(ot.assistantTechs) : ot.assistantTechs) : [],
-        supportTechs: ot.supportTechs ? (typeof ot.supportTechs === 'string' ? JSON.parse(ot.supportTechs) : ot.supportTechs) : [],
-        // Asegurar que estos campos lleguen al frontend con sus nombres originales
-        storeNumber: ot.storeNumber,
-        storeName: ot.storeName,
-        clientEmail: ot.clientEmail,
-        clientPhone: ot.clientPhone,
-        contactName: ot.contactName,
-        contactEmail: ot.contactEmail,
-        contactPhone: ot.contactPhone,
-        secondaryAddress: ot.secondaryAddress,
-        otAddress: ot.otAddress,
-        otReference: ot.otReference,
-        arrivalTime: ot.arrivalTime,
-        scheduledDate: ot.scheduledDate,
-        assignedFunds: ot.assignedFunds,
-        creatorName: 'Sistema', // Temporal
-        assignedByName: ot.technicianId ? (ot.supervisor?.name || 'Supervisor') : null // Fallback al supervisor si hay técnico
+      // Procesar cada OT para firmar su acta de entrega si existe
+      const formattedOts = await Promise.all(ots.map(async (ot) => {
+        // FIRMAR URL DEL ACTA para que el supervisor la vea fácil
+        const signedActUrl = await signUrlIfNeeded(ot.deliveryActUrl);
+
+        return {
+          ...ot,
+          id: ot.otNumber, 
+          client: ot.clientName,
+          leadTechId: ot.technicianId,
+          leadTechName: ot.technician?.name || 'Sin asignar',
+          workDescription: ot.description,
+          lat: ot.latitude,
+          lng: ot.longitude,
+          location: ot.address,
+          expensesSubmitted: ot.expenses.length,
+          completionPhotos: ot.evidences.map(e => e.url),
+          deliveryActUrl: signedActUrl, // URL FIRMADA (Corta y funcional)
+          assistantTechs: ot.assistantTechs ? (typeof ot.assistantTechs === 'string' ? JSON.parse(ot.assistantTechs) : ot.assistantTechs) : [],
+          supportTechs: ot.supportTechs ? (typeof ot.supportTechs === 'string' ? JSON.parse(ot.supportTechs) : ot.supportTechs) : [],
+          storeNumber: ot.storeNumber,
+          storeName: ot.storeName,
+          clientEmail: ot.clientEmail,
+          clientPhone: ot.clientPhone,
+          contactName: ot.contactName,
+          contactEmail: ot.contactEmail,
+          contactPhone: ot.contactPhone,
+          secondaryAddress: ot.secondaryAddress,
+          otAddress: ot.otAddress,
+          otReference: ot.otReference,
+          arrivalTime: ot.arrivalTime,
+          scheduledDate: ot.scheduledDate,
+          assignedFunds: ot.assignedFunds,
+          creatorName: 'Sistema',
+          assignedByName: ot.technicianId ? (ot.supervisor?.name || 'Supervisor') : null
+        };
       }));
 
       return res.status(200).json(formattedOts);

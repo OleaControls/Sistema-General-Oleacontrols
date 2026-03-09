@@ -36,6 +36,17 @@ const adaptHandler = (handler) => {
 app.post('/api/login', adaptHandler(loginHandler));
 app.post('/api/upload', adaptHandler(uploadHandler));
 
+// OTS
+app.get('/api/ots', adaptHandler(otsHandler));
+app.post('/api/ots', adaptHandler(otsHandler));
+app.put('/api/ots', adaptHandler(otsHandler));
+app.delete('/api/ots', adaptHandler(otsHandler));
+
+// OTs con ID
+app.get('/api/ots/:id', adaptHandler(otsHandler));
+app.put('/api/ots/:id', adaptHandler(otsHandler));
+app.delete('/api/ots/:id', adaptHandler(otsHandler));
+
 // Employees
 app.get('/api/employees', adaptHandler(employeesHandler));
 app.post('/api/employees', adaptHandler(employeesHandler));

@@ -109,12 +109,23 @@ export async function uploadToR2(fileData, folder = 'general', customName = null
       contentType = 'application/octet-stream'; 
       extension = 'bin';
     } else if (typeof fileData === 'string' && fileData.startsWith('data:')) {
-      const headerMatch = fileData.match(/^data:([^;]+);base64,(.+)$/);
+      // Expresión regular más flexible para soportar parámetros extra como filename=...
+      const headerMatch = fileData.match(/^data:([^;]+).*?;base64,(.+)$/);
       if (!headerMatch) throw new Error("Formato Data-URI inválido");
 
       contentType = headerMatch[1];
-      buffer = Buffer.from(headerMatch[2], 'base64');
-      extension = contentType.split('/')[1]?.split('+')[0] || 'bin';
+      // Limpiar posibles espacios o saltos de línea en el base64
+      const base64Data = headerMatch[2].replace(/\s/g, '');
+      buffer = Buffer.from(base64Data, 'base64');
+      
+      // Mapeo simple de extensiones
+      const mimeToExt = {
+        'application/pdf': 'pdf',
+        'image/jpeg': 'jpg',
+        'image/png': 'png',
+        'image/webp': 'webp'
+      };
+      extension = mimeToExt[contentType] || contentType.split('/')[1]?.split('+')[0] || 'bin';
     } else {
       // Si ya es una URL, no hacemos nada
       if (typeof fileData === 'string' && fileData.startsWith('http')) return fileData;
