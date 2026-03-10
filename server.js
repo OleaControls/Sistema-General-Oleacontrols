@@ -8,6 +8,11 @@ import employeesHandler from './api/employees.js';
 import categoriesHandler from './api/categories.js';
 import otsHandler from './api/ots.js';
 import expensesHandler from './api/expenses.js';
+import evaluationsHandler from './api/evaluations.js';
+import configHandler from './api/config.js';
+import gamificationHandler from './api/gamification.js';
+import crmHandler from './api/crm.js';
+import quotesHandler from './api/quotes.js';
 import uploadHandler from './api/upload.js';
 
 const app = express();
@@ -66,6 +71,30 @@ app.put('/api/expenses', adaptHandler(expensesHandler));
 // Categories
 app.get('/api/categories', adaptHandler(categoriesHandler));
 app.post('/api/categories', adaptHandler(categoriesHandler));
+
+// Evaluations
+app.get('/api/evaluations', adaptHandler(evaluationsHandler));
+app.post('/api/evaluations', adaptHandler(evaluationsHandler));
+
+// Config
+app.get('/api/config', adaptHandler(configHandler));
+app.post('/api/config', adaptHandler(configHandler));
+
+// Gamification
+app.get('/api/gamification', adaptHandler(gamificationHandler));
+
+// CRM
+app.all('/api/crm/:resource', async (req, res) => {
+  // Aseguramos que el handler de Vercel reciba el resource
+  req.query.resource = req.params.resource;
+  await adaptHandler(crmHandler)(req, res);
+});
+
+// Quotes
+app.get('/api/quotes', adaptHandler(quotesHandler));
+app.post('/api/quotes', adaptHandler(quotesHandler));
+app.put('/api/quotes', adaptHandler(quotesHandler));
+app.delete('/api/quotes', adaptHandler(quotesHandler));
 
 app.listen(PORT, () => {
   console.log(`🚀 Server running locally at http://localhost:${PORT}`);

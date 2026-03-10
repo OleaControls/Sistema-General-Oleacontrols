@@ -1,280 +1,200 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  Trophy, 
-  Target, 
-  Flame, 
-  Award, 
-  Star, 
-  TrendingUp, 
-  Medal, 
-  ChevronRight,
-  ShieldCheck,
-  Zap,
-  Crown,
-  Gift,
-  Clock
+  Trophy, Medal, Zap, Clock, CheckCircle2, 
+  ChevronRight, Star, Target, Timer, TrendingUp, 
+  ShieldAlert, Crown
 } from 'lucide-react';
-import { gamificationService } from '@/api/gamificationService';
-import { useAuth } from '@/store/AuthContext';
+import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 
+const RankBadge = ({ rank }) => {
+  const configs = {
+    'DIAMANTE': { color: 'from-blue-400 to-indigo-600', icon: Crown, label: 'Diamante' },
+    'ORO': { color: 'from-yellow-400 to-amber-600', icon: Trophy, label: 'Oro' },
+    'PLATA': { color: 'from-slate-300 to-slate-500', icon: Medal, label: 'Plata' },
+    'BRONCE': { color: 'from-orange-400 to-orange-700', icon: Medal, label: 'Bronce' }
+  };
+  const config = configs[rank] || configs['BRONCE'];
+  return (
+    <div className={cn("flex items-center gap-1.5 px-3 py-1 rounded-full text-[9px] font-black text-white uppercase tracking-widest shadow-lg bg-gradient-to-r", config.color)}>
+      <config.icon className="h-3 w-3" /> {config.label}
+    </div>
+  );
+};
+
 export default function TechGamification() {
-  const { user } = useAuth();
-  const [leaderboard, setLeaderboard] = useState([]);
-  const [rewards, setRewards] = useState([]);
-  const [player, setPlayer] = useState(null);
+  const [leaders, setLeaderboard] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    loadData();
+    const fetchGamification = async () => {
+      try {
+        const res = await fetch('/api/gamification');
+        const data = await res.json();
+        setLeaderboard(data);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchGamification();
   }, []);
 
-  const loadData = async () => {
-    try {
-      setLoading(true);
-      const [lb, p, r] = await Promise.all([
-        gamificationService.getLeaderboard(),
-        gamificationService.getPlayerStats(user.id),
-        gamificationService.getRewards()
-      ]);
-      setLeaderboard(lb);
-      setPlayer(p);
-      setRewards(r);
-    } catch (error) {
-      console.error("Error loading gamification data:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  if (loading) return <div className="p-20 text-center animate-pulse font-black text-gray-400">CARGANDO ARENA DE LÍDERES...</div>;
 
-  if (loading || !player) return <div className="p-10 text-center animate-pulse font-black text-gray-400">CARGANDO ARENA DE CAMPEONES...</div>;
+  const topThree = leaders.slice(0, 3);
+  const rest = leaders.slice(3);
 
   return (
-    <div className="max-w-2xl mx-auto space-y-8 pb-32 px-4 md:px-0">
-      {/* Player Profile Hero */}
-      <div className="relative overflow-hidden bg-gradient-to-br from-gray-900 via-gray-800 to-primary/20 rounded-[3rem] p-8 text-white shadow-2xl shadow-primary/10 animate-in fade-in zoom-in duration-700">
-        <div className="absolute top-0 right-0 p-12 opacity-5 scale-150 rotate-12">
-          <Trophy className="h-64 w-64" />
+    <div className="max-w-6xl mx-auto space-y-10 pb-20 animate-in fade-in duration-700">
+      {/* Header Arena */}
+      <div className="text-center space-y-4">
+        <div className="inline-flex p-4 bg-primary/10 rounded-[2rem] border border-primary/20 text-primary mb-2">
+          <Trophy className="h-10 w-10" />
         </div>
-        
-        <div className="relative z-10 flex flex-col md:flex-row items-center gap-6">
-          <div className="relative">
-            <div className="h-24 w-24 rounded-[2rem] border-4 border-primary/30 p-1 bg-gray-800 shadow-xl overflow-hidden">
-              <img src={player.avatar} className="h-full w-full object-cover rounded-[1.5rem]" />
-            </div>
-            <div className="absolute -bottom-2 -right-2 bg-primary text-white h-8 w-8 rounded-xl flex items-center justify-center font-black text-xs shadow-lg ring-4 ring-gray-900">
-              {player.level}
-            </div>
-          </div>
-          
-          <div className="text-center md:text-left space-y-1">
-            <p className="text-[10px] font-black text-primary uppercase tracking-[0.3em]">Rango de Cuadrilla</p>
-            <h2 className="text-3xl font-black tracking-tighter">{player.name}</h2>
-            <div className="flex items-center justify-center md:justify-start gap-4 mt-2">
-              <div className="flex items-center gap-1.5">
-                <Medal className="h-4 w-4 text-amber-400" />
-                <span className="text-xs font-black uppercase">Top {player.rank} Global</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <Star className="h-4 w-4 text-blue-400 fill-blue-400" />
-                <span className="text-xs font-black uppercase">{player.xp.toLocaleString()} XP</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Level Progress */}
-        <div className="mt-8 relative z-10 space-y-2">
-          <div className="flex justify-between items-end text-[10px] font-black uppercase tracking-widest text-gray-400">
-            <span>Progreso de Nivel</span>
-            <span className="text-primary">{player.xp % 100} / 100 XP</span>
-          </div>
-          <div className="h-3 w-full bg-white/5 rounded-full overflow-hidden border border-white/5 shadow-inner">
-            <div 
-              className="h-full bg-gradient-to-r from-primary to-blue-500 rounded-full transition-all duration-1000 shadow-[0_0_15px_rgba(var(--primary-rgb),0.5)]"
-              style={{ width: `${player.xp % 100}%` }}
-            />
-          </div>
-        </div>
+        <h1 className="text-5xl font-black text-gray-900 tracking-tighter uppercase italic">Arena de Líderes</h1>
+        <p className="text-gray-400 font-bold uppercase tracking-[0.3em] text-xs">Métricas de Élite • OleaControls México</p>
       </div>
 
-      {/* Achievement Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-white p-4 rounded-[2rem] border shadow-sm flex flex-col items-center justify-center text-center gap-1">
-          <div className="bg-emerald-50 h-10 w-10 rounded-xl flex items-center justify-center text-emerald-600 mb-1">
-            <ShieldCheck className="h-5 w-5" />
-          </div>
-          <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Perfectas</p>
-          <p className="text-xl font-black text-gray-900">{player.perfectServices}</p>
-        </div>
-        <div className="bg-white p-4 rounded-[2rem] border shadow-sm flex flex-col items-center justify-center text-center gap-1">
-          <div className="bg-blue-50 h-10 w-10 rounded-xl flex items-center justify-center text-blue-600 mb-1">
-            <Target className="h-5 w-5" />
-          </div>
-          <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Finalizadas</p>
-          <p className="text-xl font-black text-gray-900">{player.completedOTs}</p>
-        </div>
-        <div className="bg-white p-4 rounded-[2rem] border shadow-sm flex flex-col items-center justify-center text-center gap-1">
-          <div className="bg-amber-50 h-10 w-10 rounded-xl flex items-center justify-center text-amber-600 mb-1">
-            <Clock className="h-5 w-5" />
-          </div>
-          <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Eficiencia</p>
-          <p className="text-xl font-black text-gray-900">{player.avgCompletionTime || '0.0'}h</p>
-        </div>
-        <div className="bg-white p-4 rounded-[2rem] border shadow-sm flex flex-col items-center justify-center text-center gap-1">
-          <div className="bg-orange-50 h-10 w-10 rounded-xl flex items-center justify-center text-orange-600 mb-1">
-            <Flame className="h-5 w-5" />
-          </div>
-          <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Racha</p>
-          <p className="text-xl font-black text-gray-900">12 d</p>
-        </div>
+      {/* Podio Visual */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-end pt-10">
+        {/* Segundo Lugar */}
+        {topThree[1] && (
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
+            className="bg-white p-8 rounded-[3rem] border border-gray-100 shadow-xl text-center space-y-4 relative order-2 md:order-1 h-fit"
+          >
+            <div className="absolute -top-6 left-1/2 -translate-x-1/2 bg-slate-400 text-white w-12 h-12 rounded-full flex items-center justify-center font-black border-4 border-white shadow-lg">2</div>
+            <img src={topThree[1].avatar || `https://ui-avatars.com/api/?name=${topThree[1].name}`} className="w-24 h-24 rounded-[2rem] mx-auto object-cover border-4 border-slate-50 shadow-inner" alt="" />
+            <div>
+              <p className="text-lg font-black text-gray-900 leading-tight">{topThree[1].name}</p>
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">Especialista de Élite</p>
+            </div>
+            <div className="flex justify-center"><RankBadge rank={topThree[1].rank} /></div>
+            <p className="text-3xl font-black text-slate-500">{topThree[1].points.toLocaleString()} pts</p>
+          </motion.div>
+        )}
+
+        {/* Primero Lugar */}
+        {topThree[0] && (
+          <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}
+            className="bg-gray-900 p-10 rounded-[3.5rem] shadow-[0_30px_60px_rgba(0,0,0,0.2)] text-center space-y-6 relative order-1 md:order-2 z-10 scale-110"
+          >
+            <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-amber-400 text-gray-900 w-16 h-16 rounded-full flex items-center justify-center font-black border-4 border-gray-900 shadow-2xl animate-bounce">
+              <Crown className="h-8 w-8" />
+            </div>
+            <img src={topThree[0].avatar || `https://ui-avatars.com/api/?name=${topThree[0].name}`} className="w-32 h-32 rounded-[2.5rem] mx-auto object-cover border-4 border-amber-400 shadow-2xl" alt="" />
+            <div>
+              <p className="text-2xl font-black text-white leading-tight">{topThree[0].name}</p>
+              <p className="text-[10px] font-black text-amber-400 uppercase tracking-[0.3em] mt-2">Campeón de Campo</p>
+            </div>
+            <div className="flex justify-center"><RankBadge rank={topThree[0].rank} /></div>
+            <div className="space-y-1">
+              <p className="text-5xl font-black text-white tracking-tighter">{topThree[0].points.toLocaleString()}</p>
+              <p className="text-[9px] font-bold text-gray-500 uppercase tracking-widest">Puntos de Honor Acumulados</p>
+            </div>
+          </motion.div>
+        )}
+
+        {/* Tercer Lugar */}
+        {topThree[2] && (
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}
+            className="bg-white p-8 rounded-[3rem] border border-gray-100 shadow-xl text-center space-y-4 relative order-3 h-fit"
+          >
+            <div className="absolute -top-6 left-1/2 -translate-x-1/2 bg-orange-600 text-white w-12 h-12 rounded-full flex items-center justify-center font-black border-4 border-white shadow-lg">3</div>
+            <img src={topThree[2].avatar || `https://ui-avatars.com/api/?name=${topThree[2].name}`} className="w-24 h-24 rounded-[2rem] mx-auto object-cover border-4 border-orange-50 shadow-inner" alt="" />
+            <div>
+              <p className="text-lg font-black text-gray-900 leading-tight">{topThree[2].name}</p>
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">Especialista de Élite</p>
+            </div>
+            <div className="flex justify-center"><RankBadge rank={topThree[2].rank} /></div>
+            <p className="text-3xl font-black text-orange-700">{topThree[2].points.toLocaleString()} pts</p>
+          </motion.div>
+        )}
       </div>
 
-      {/* Performance Tips */}
-      <div className="bg-primary/5 border border-primary/10 rounded-[2.5rem] p-6 space-y-4">
-        <h3 className="text-sm font-black text-primary uppercase tracking-[0.2em] flex items-center gap-2">
-            <Zap className="h-4 w-4 fill-primary" /> Tips de Mejora (Más XP)
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {[
-                { tip: "Sube fotos de antes/después", xp: "+50 XP", detail: "Mejora tu score de perfección." },
-                { tip: "Cierra tu OT en sitio", xp: "+30 XP", detail: "Aumenta tu bono de eficiencia." },
-                { tip: "Completa cursos en Academy", xp: "+100 XP", detail: "Sube de nivel más rápido." },
-                { tip: "Evita gastos sin ticket", xp: "BONO", detail: "Mantén tu reputación impecable." }
-            ].map((t, i) => (
-                <div key={i} className="bg-white p-3 rounded-2xl border border-primary/5 flex items-center gap-3 group hover:border-primary/20 transition-all">
-                    <div className="h-8 w-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center text-[10px] font-black shrink-0">
-                        {t.xp}
-                    </div>
+      {/* Tabla Detallada de Métricas */}
+      <div className="bg-white border rounded-[3rem] overflow-hidden shadow-sm">
+        <div className="bg-gray-50/50 px-10 py-6 border-b">
+          <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest">Métricas de Rendimiento Técnico</h3>
+        </div>
+        <table className="w-full text-left">
+          <thead>
+            <tr className="border-b">
+              <th className="px-10 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">Rank</th>
+              <th className="px-10 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">Técnico</th>
+              <th className="px-10 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">OTs Éxito</th>
+              <th className="px-10 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">T. Reacción</th>
+              <th className="px-10 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">T. Resolución</th>
+              <th className="px-10 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Puntaje</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-50">
+            {leaders.map((tech, i) => (
+              <tr key={tech.id} className="hover:bg-gray-50/50 transition-colors group">
+                <td className="px-10 py-6 font-black text-gray-300 text-lg">#{i + 1}</td>
+                <td className="px-10 py-6">
+                  <div className="flex items-center gap-4">
+                    <img src={tech.avatar || `https://ui-avatars.com/api/?name=${tech.name}`} className="h-10 w-10 rounded-xl object-cover shadow-sm" alt="" />
                     <div>
-                        <p className="text-[10px] font-black text-gray-900 leading-tight">{t.tip}</p>
-                        <p className="text-[9px] text-gray-400 font-bold uppercase">{t.detail}</p>
+                      <p className="text-sm font-black text-gray-900 leading-none">{tech.name}</p>
+                      <div className="mt-1"><RankBadge rank={tech.rank} /></div>
                     </div>
-                </div>
-            ))}
-        </div>
-      </div>
-
-      {/* Global Leaderboard */}
-      <div className="bg-white border rounded-[3rem] overflow-hidden shadow-xl shadow-gray-200/50">
-        <div className="p-8 border-b flex justify-between items-center bg-gray-50/30">
-          <h3 className="text-xl font-black text-gray-900 tracking-tighter flex items-center gap-3">
-            <Crown className="h-6 w-6 text-amber-500" /> Ranking de Cuadrilla
-          </h3>
-          <span className="text-[10px] font-black text-primary uppercase tracking-[0.2em] bg-white border px-3 py-1.5 rounded-xl shadow-sm">Marzo 2026</span>
-        </div>
-        
-        <div className="divide-y divide-gray-50">
-          {leaderboard.map((p, i) => {
-            const isMostOTs = p.completedOTs === Math.max(...leaderboard.map(x => x.completedOTs));
-            const isFastest = p.avgCompletionTime > 0 && p.avgCompletionTime === Math.min(...leaderboard.filter(x => x.avgCompletionTime > 0).map(x => x.avgCompletionTime));
-
-            return (
-              <div key={p.id} className={cn(
-                "flex items-center gap-4 p-6 transition-all",
-                p.id === user.id ? "bg-primary/5 ring-inset ring-1 ring-primary/10" : "hover:bg-gray-50/50"
-              )}>
-                <div className="w-8 flex justify-center">
-                  {i === 0 ? <Medal className="h-6 w-6 text-amber-400" /> :
-                   i === 1 ? <Medal className="h-6 w-6 text-gray-400" /> :
-                   i === 2 ? <Medal className="h-6 w-6 text-amber-700" /> :
-                   <span className="text-xs font-black text-gray-300">#{i + 1}</span>}
-                </div>
-                
-                <div className="h-12 w-12 rounded-2xl bg-gray-100 overflow-hidden shrink-0 border border-gray-200 relative">
-                  <img src={p.avatar} className="h-full w-full object-cover" />
-                  {isFastest && (
-                    <div className="absolute -top-1 -right-1 bg-blue-500 text-white p-1 rounded-md shadow-lg ring-2 ring-white" title="El más veloz">
-                        <Zap className="h-2 w-2 fill-white" />
-                    </div>
-                  )}
-                </div>
-                
-                <div className="flex-1 min-w-0">
-                  <p className="font-black text-gray-900 text-sm truncate uppercase tracking-tight">{p.name}</p>
-                  <div className="flex items-center gap-2">
-                    <span className="text-[9px] font-black text-primary bg-primary/10 px-1.5 py-0.5 rounded uppercase">LVL {p.level}</span>
-                    <span className={cn(
-                        "text-[10px] font-bold uppercase tracking-widest flex items-center gap-1",
-                        isMostOTs ? "text-orange-600 font-black" : "text-gray-400"
-                    )}>
-                        {isMostOTs && <Flame className="h-3 w-3" />}
-                        {p.completedOTs} OTs
+                  </div>
+                </td>
+                <td className="px-10 py-6 text-center">
+                  <div className="flex flex-col items-center">
+                    <span className="text-sm font-black text-emerald-600">{tech.completedCount}</span>
+                    <span className="text-[8px] font-bold text-gray-400 uppercase">Finalizadas</span>
+                  </div>
+                </td>
+                <td className="px-10 py-6 text-center">
+                  <div className="flex flex-col items-center">
+                    <span className="text-sm font-black text-blue-600">{tech.avgReaction}m</span>
+                    <span className="text-[8px] font-bold text-gray-400 uppercase">Promedio</span>
+                  </div>
+                </td>
+                <td className="px-10 py-6 text-center">
+                  <div className="flex flex-col items-center">
+                    <span className="text-sm font-black text-indigo-600">{tech.avgResolution}h</span>
+                    <span className="text-[8px] font-bold text-gray-400 uppercase">Promedio</span>
+                  </div>
+                </td>
+                <td className="px-10 py-6 text-right">
+                  <div className="flex flex-col items-end">
+                    <span className="text-xl font-black text-gray-900">{tech.points.toLocaleString()}</span>
+                    <span className="text-[8px] font-bold text-primary uppercase flex items-center gap-1">
+                      <Zap className="h-2 w-2 fill-current" /> Honor Total
                     </span>
-                    {p.avgCompletionTime > 0 && (
-                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest border-l pl-2">
-                            {p.avgCompletionTime}h med.
-                        </span>
-                    )}
                   </div>
-                </div>
-                
-                <div className="text-right">
-                  <p className="text-sm font-black text-gray-900 leading-none">{p.xp.toLocaleString()}</p>
-                  <p className="text-[8px] font-bold text-gray-400 uppercase tracking-widest">PUNTOS</p>
-                </div>
-              </div>
-            );
-          })}
-        </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
 
-      {/* Rewards Section */}
-      <div className="space-y-6">
-        <h3 className="text-xl font-black text-gray-900 tracking-tighter flex items-center gap-3 px-2">
-          <Gift className="h-6 w-6 text-primary" /> Premios de Temporada
-        </h3>
-        
-        <div className="grid gap-4">
-          {rewards.map(reward => {
-            const isWinner = reward.winners?.some(w => w.id === user.id);
-            const progress = Math.min((player.xp / reward.xpRequired) * 100, 100);
-            
-            return (
-              <div key={reward.id} className={cn(
-                "bg-white border rounded-[2.5rem] overflow-hidden shadow-sm flex flex-col md:flex-row transition-all",
-                isWinner ? "border-emerald-200 ring-4 ring-emerald-50 shadow-emerald-100" : "border-gray-100"
-              )}>
-                <div className="w-full md:w-48 h-40 md:h-auto shrink-0 relative overflow-hidden">
-                  <img src={reward.image || 'https://images.unsplash.com/photo-1513151233558-d860c5398176?auto=format&fit=crop&q=80&w=400'} className="w-full h-full object-cover" />
-                  {isWinner && (
-                    <div className="absolute inset-0 bg-emerald-600/20 backdrop-blur-[2px] flex items-center justify-center">
-                      <div className="bg-white text-emerald-600 px-3 py-1.5 rounded-xl font-black text-[10px] uppercase shadow-lg animate-bounce">
-                        ¡PREMIO GANADO!
-                      </div>
-                    </div>
-                  )}
-                </div>
-                
-                <div className="p-6 md:p-8 flex-1 space-y-4">
-                  <div>
-                    <div className="flex justify-between items-start mb-1">
-                      <h4 className="text-lg font-black text-gray-900 leading-tight">{reward.title}</h4>
-                      <span className="text-[8px] font-black text-primary uppercase bg-primary/5 px-2 py-1 rounded-lg border border-primary/10">
-                        {reward.xpRequired} XP
-                      </span>
-                    </div>
-                    <p className="text-xs text-gray-500 font-medium leading-relaxed italic">"{reward.description}"</p>
-                  </div>
-
-                  <div className="space-y-2">
-                    <div className="flex justify-between items-end">
-                      <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Tu Progreso</span>
-                      <span className="text-[10px] font-black text-gray-900">{Math.round(progress)}%</span>
-                    </div>
-                    <div className="h-2 w-full bg-gray-50 rounded-full overflow-hidden border border-gray-100">
-                      <div 
-                        className={cn("h-full rounded-full transition-all duration-1000 shadow-sm", isWinner ? "bg-emerald-500" : "bg-primary")} 
-                        style={{ width: `${progress}%` }} 
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
+      {/* Reglas de la Arena */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <RuleCard icon={Star} title="Calidad" desc="Basado en el promedio de estrellas del cliente." color="amber" />
+        <RuleCard icon={Timer} title="Velocidad" desc="Menor tiempo entre asignación y aceptación." color="blue" />
+        <RuleCard icon={Target} title="Efectividad" desc="OTs cerradas sin reportes de falla posterior." color="emerald" />
       </div>
+    </div>
+  );
+}
+
+function RuleCard({ icon: Icon, title, desc, color }) {
+  const colors = {
+    amber: "bg-amber-50 text-amber-600 border-amber-100",
+    blue: "bg-blue-50 text-blue-600 border-blue-100",
+    emerald: "bg-emerald-50 text-emerald-600 border-emerald-100"
+  };
+  return (
+    <div className={cn("p-8 rounded-[2.5rem] border shadow-sm space-y-3", colors[color])}>
+      <Icon className="h-6 w-6" />
+      <h4 className="text-xs font-black uppercase tracking-widest">{title}</h4>
+      <p className="text-[10px] font-bold opacity-70 leading-relaxed">{desc}</p>
     </div>
   );
 }

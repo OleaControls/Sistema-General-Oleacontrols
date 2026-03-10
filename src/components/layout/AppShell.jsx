@@ -15,7 +15,8 @@ import {
   Trophy,
   User as UserIcon,
   BarChart3,
-  Wallet
+  Wallet,
+  Target
 } from 'lucide-react';
 import { useAuth, ROLES } from '@/store/AuthContext';
 import { useTenant } from '@/store/TenantContext';
@@ -85,6 +86,19 @@ const navItems = [
     path: '/crm', 
     icon: Briefcase, 
     roles: [ROLES.ADMIN, ROLES.SALES] 
+  },
+  {
+    name: 'Ventas Indirectas',
+    path: '/crm/indirect-sales',
+    icon: Target,
+    roles: [ROLES.ADMIN, ROLES.OPS, ROLES.TECH, ROLES.SALES]
+  },
+  {
+    name: 'Evaluaciones',
+    path: '/performance',
+    icon: BarChart3,
+    roles: [ROLES.ADMIN, ROLES.OPS, ROLES.TECH, ROLES.SALES],
+    getName: () => 'Desempeño y Evaluación'
   },
   {
     name: 'Mi Perfil',

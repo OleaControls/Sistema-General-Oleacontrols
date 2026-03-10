@@ -94,9 +94,10 @@ export async function signUrlIfNeeded(urlOrKey) {
  * @param {string|Buffer} fileData - String Base64 (data-uri) o Buffer binario.
  * @param {string} folder - Carpeta destino ('expenses', 'ots', etc).
  * @param {string} customName - (Opcional) Nombre específico del archivo.
- * @returns {string} URL pública del archivo (o key si preferimos persistir el key).
+ * @param {string} forcedContentType - (Opcional) Tipo MIME forzado (ej: 'application/pdf').
+ * @returns {string} URL pública del archivo.
  */
-export async function uploadToR2(fileData, folder = 'general', customName = null) {
+export async function uploadToR2(fileData, folder = 'general', customName = null, forcedContentType = null) {
   try {
     const client = getR2Client();
     let buffer;
@@ -106,8 +107,8 @@ export async function uploadToR2(fileData, folder = 'general', customName = null
     // 1. Procesar la entrada (Buffer o Base64)
     if (Buffer.isBuffer(fileData)) {
       buffer = fileData;
-      contentType = 'application/octet-stream'; 
-      extension = 'bin';
+      contentType = forcedContentType || 'application/octet-stream'; 
+      extension = customName?.split('.').pop() || 'bin';
     } else if (typeof fileData === 'string' && fileData.startsWith('data:')) {
       // Expresión regular más flexible para soportar parámetros extra como filename=...
       const headerMatch = fileData.match(/^data:([^;]+).*?;base64,(.+)$/);

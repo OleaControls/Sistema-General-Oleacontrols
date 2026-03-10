@@ -1,3 +1,4 @@
+
 // This is your Prisma schema file,
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
@@ -87,6 +88,11 @@ model Employee {
   createdOTs      WorkOrder[] @relation("CreatedOTs")
   assignedOTs     WorkOrder[] @relation("AssignedOTs")
   expenses        Expense[]
+
+  // --- RELACIONES CRM OPUESTAS ---
+  assignedLeads   Lead[]      // Leads asignados a este empleado
+  quotesCreated   Quote[]     @relation("QuoteCreator")
+  quotesSold      Quote[]     @relation("QuoteSeller")
 }
 
 model Credentials {
@@ -166,6 +172,9 @@ model WorkOrder {
   
   evidences         Evidence[]
   expenses          Expense[]
+  
+  // --- RELACIÓN OPUESTA EVALUATION ---
+  evaluations       Evaluation[]
 }
 
 model Evidence {
@@ -191,4 +200,115 @@ model Expense {
   employeeId  String
   employee    Employee  @relation(fields: [employeeId], references: [id])
   createdAt   DateTime  @default(now())
+}
+
+model Evaluation {
+  id              String   @id @default(cuid())
+  type            String   // CUSTOMER_TECH, OPS_TECH, CUSTOMER_EXEC
+  otId            String
+  workOrder       WorkOrder @relation(fields: [otId], references: [id])
+  
+  targetId        String   // ID del técnico o ejecutivo evaluado
+  evaluatorId     String?  // ID del supervisor (si aplica)
+  
+  // Métricas Genéricas (0-5 estrellas)
+  score1          Int?     // Satisfacción / Rapidez / Experiencia Ejecutivo
+  score2          Int?     // Puntualidad / Actitud Líder / Explicación Proceso
+  score3          Int?     // Nivel Técnico / - / - 
+  
+  // Respuestas específicas
+  materialUsage   String?  // MUCHO, POCO, NADA (Para Ops)
+  improvements    String?  // Texto (Para Experiencia)
+  comment         String?  // Comentarios generales
+  
+  createdAt       DateTime @default(now())
+
+  @@unique([otId, type]) // Evita que se evalúe la misma OT dos veces para el mismo fin
+}
+
+model SystemConfig {
+  id    String @id @default("GLOBAL_CONFIG")
+  key   String @unique
+  value Json
+}
+
+// --- NUEVOS MODELOS CRM ---
+
+model Client {
+  id            String   @id @default(cuid())
+  companyName   String
+  rfc           String?
+  contactName   String
+  email         String   @unique
+  phone         String?
+  address       String?
+  latitude      Float?
+  longitude     Float?
+  status        String   @default("ACTIVE") // ACTIVE, INACTIVE
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  quotes        Quote[]
+  deals         Deal[]
+}
+
+model Lead {
+  id            String   @id @default(cuid())
+  name          String
+  company       String?
+  email         String
+  phone         String?
+  source        String?  // Facebook, Web, Recomendación, etc.
+  stage         String   @default("PROSPECT") // PROSPECT, QUOTED, NEGOTIATION, WON, LOST
+  estimatedValue Float   @default(0)
+  assignedToId  String?
+  assignedTo    Employee? @relation(fields: [assignedToId], references: [id])
+  notes         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model Quote {
+  id            String   @id @default(cuid())
+  quoteNumber   String   @unique // COT-2026-001
+  clientId      String
+  client        Client   @relation(fields: [clientId], references: [id])
+  
+  projectName   String?
+  projectPhase  String?  @default("INICIAL")
+  contactName   String?
+  
+  items         Json     // [{serial, name, code, desc, qty, price, total}]
+  
+  subtotal      Float    @default(0)
+  tax           Float    @default(0) // IVA 16%
+  adjustment    Float    @default(0) // Descuentos o cargos extra
+  total         Float    @default(0)
+  
+  status        String   @default("PENDING") // PENDING, ACCEPTED, REJECTED, EXPIRED
+  validUntil    DateTime
+  terms         String?  @default("Pago 100% anticipado. Tiempo de entrega sujeto a existencias.")
+  
+  pdfUrl        String?  // Link a R2
+  
+  creatorId     String
+  creator       Employee @relation("QuoteCreator", fields: [creatorId], references: [id])
+  
+  sellerId      String?  // El colaborador que cerró la venta
+  seller        Employee? @relation("QuoteSeller", fields: [sellerId], references: [id])
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model Deal {
+  id            String   @id @default(cuid())
+  title         String
+  value         Float
+  clientId      String
+  client        Client   @relation(fields: [clientId], references: [id])
+  stage         String   @default("DISCOVERY")
+  probability   Int      @default(50)
+  expectedClose DateTime?
+  createdAt     DateTime @default(now())
 }

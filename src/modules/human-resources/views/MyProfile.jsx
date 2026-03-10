@@ -1,7 +1,88 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  Award, Briefcase, Calendar, ShieldCheck, FileText, Download, User, FileSignature, Palmtree, HardHat, MoreVertical, Mail, MapPin, Phone, Info, Clock, CheckCircle2, AlertTriangle, Sparkles
+  Award, Briefcase, Calendar, ShieldCheck, FileText, Download, User, FileSignature, Palmtree, HardHat, MoreVertical, Mail, MapPin, Phone, Info, Clock, CheckCircle2, AlertTriangle, Sparkles,
+  Star, TrendingUp, Users, DollarSign
 } from 'lucide-react';
+
+// --- NUEVO: Componente de Métricas y Bonos ---
+const MetricsSection = ({ targetId }) => {
+  const [metrics, setMetrics] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchMetrics = async () => {
+      try {
+        const res = await fetch(`/api/evaluations?targetId=${targetId}&days=15`);
+        if (!res.ok) return;
+        const data = await res.json();
+        setMetrics(data);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchMetrics();
+  }, [targetId]);
+
+  if (loading) return (
+    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8 animate-pulse">
+      {[1,2,3,4].map(i => <div key={i} className="h-28 bg-gray-100 rounded-3xl" />)}
+    </div>
+  );
+  
+  if (!metrics || metrics.total === 0) return (
+    <div className="bg-amber-50 border border-amber-100 p-6 rounded-3xl mb-8 flex items-center gap-4 text-amber-700">
+        <Star className="h-6 w-6" />
+        <div>
+            <p className="text-xs font-black uppercase tracking-widest">Sin Evaluaciones Recientes (15 días)</p>
+            <p className="text-[10px] font-bold opacity-70">Aún no hay datos suficientes para calcular tu bono de este periodo.</p>
+        </div>
+    </div>
+  );
+
+  const avgTotal = (metrics.avgScore1 + metrics.avgScore2 + (metrics.avgScore3 || 0)) / (metrics.avgScore3 ? 3 : 2);
+  
+  // Lógica de Bonos OleaControls (15 días):
+  let projectedBonus = 0;
+  if (avgTotal >= 4.8) projectedBonus = 1500;
+  else if (avgTotal >= 4.5) projectedBonus = 1000;
+  else if (avgTotal >= 4.0) projectedBonus = 500;
+
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+        <div className="bg-white p-6 rounded-3xl border shadow-sm space-y-2 border-amber-100">
+            <div className="flex justify-between items-center">
+                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Satisfacción</p>
+                <Star className="h-4 w-4 text-amber-400 fill-current" />
+            </div>
+            <p className="text-3xl font-black text-amber-500">{metrics.avgScore1.toFixed(1)}</p>
+        </div>
+        <div className="bg-white p-6 rounded-3xl border shadow-sm space-y-2 border-blue-100">
+            <div className="flex justify-between items-center">
+                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Liderazgo/Proc.</p>
+                <TrendingUp className="h-4 w-4 text-blue-400" />
+            </div>
+            <p className="text-3xl font-black text-blue-500">{metrics.avgScore2.toFixed(1)}</p>
+        </div>
+        <div className="bg-white p-6 rounded-3xl border shadow-sm space-y-2">
+            <div className="flex justify-between items-center">
+                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Total Feedback</p>
+                <Users className="h-4 w-4 text-gray-400" />
+            </div>
+            <p className="text-3xl font-black text-gray-900">{metrics.total}</p>
+        </div>
+        <div className="bg-gradient-to-br from-emerald-600 to-teal-700 p-6 rounded-3xl shadow-xl text-white space-y-2 relative overflow-hidden group">
+            <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-125 transition-transform">
+                <DollarSign className="h-12 w-12" />
+            </div>
+            <p className="text-[10px] font-black uppercase tracking-widest opacity-80">Mi Bono Proyectado</p>
+            <p className="text-3xl font-black">${projectedBonus.toLocaleString()}</p>
+            <p className="text-[8px] font-bold uppercase mt-1 opacity-60">Meta: {avgTotal.toFixed(1)} prome.</p>
+        </div>
+    </div>
+  );
+};
 import { hrService } from '@/api/hrService';
 import { useAuth, ROLES } from '@/store/AuthContext';
 import { cn } from '@/lib/utils';
@@ -132,18 +213,20 @@ export default function MyProfile() {
             </div>
 
             <div className="md:col-span-2 space-y-6">
-               <div className="bg-primary/5 rounded-[2.5rem] p-8 border border-primary/10 relative overflow-hidden group">
+               <div className="bg-primary/5 rounded-[2.5rem] p-8 border border-primary/10 relative overflow-hidden group mb-6">
                   <div className="relative z-10 flex flex-col md:flex-row justify-between items-center gap-6">
                     <div className="space-y-2">
                         <h3 className="text-2xl font-black text-primary">¡Hola, {employee.name.split(' ')[0]}!</h3>
                         <p className="text-primary/70 font-medium text-sm">Aquí puedes gestionar todas tus solicitudes de Capital Humano de forma directa.</p>
                     </div>
-                    <button className="bg-primary text-white px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-primary/20 hover:scale-105 transition-all">
-                        Solicitar Permiso
-                    </button>
                   </div>
                   <Sparkles className="absolute -right-4 -top-4 h-32 w-32 text-primary/10 group-hover:text-primary/20 transition-colors" />
                </div>
+
+               {/* Métricas Individuales (Solo para Técnicos/Ops/Ventas) */}
+               {(user.role === ROLES.TECH || user.role === ROLES.OPS || user.role === ROLES.SALES) && (
+                  <MetricsSection targetId={user.id} />
+               )}
 
                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <DashboardCard 

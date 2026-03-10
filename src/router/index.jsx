@@ -30,6 +30,7 @@ import Assets from '@/modules/human-resources/views/Assets';
 import Announcements from '@/modules/human-resources/views/Announcements';
 import HRReports from '@/modules/human-resources/views/HRReports';
 import HRSettings from '@/modules/human-resources/views/HRSettings';
+import PerformanceDashboard from '@/modules/human-resources/views/PerformanceDashboard';
 import AcademyManager from '@/modules/human-resources/views/AcademyManager';
 import RewardManager from '@/modules/human-resources/views/RewardManager';
 import SurveyManager from '@/modules/human-resources/views/SurveyManager';
@@ -37,9 +38,11 @@ import CRMLayout from '@/modules/crm/components/CRMLayout';
 import SalesPipeline from '@/modules/crm/views/SalesPipeline';
 import ClientsList from '@/modules/crm/views/ClientsList';
 import QuotesList from '@/modules/crm/views/QuotesList';
+import IndirectSales from '@/modules/crm/views/IndirectSales';
 import InvoicesOrders from '@/modules/crm/views/InvoicesOrders';
 import AcademyHome from '@/modules/lms/views/AcademyHome';
 import CoursePlayer from '@/modules/lms/views/CoursePlayer';
+import FeedbackForm from '@/modules/feedback/FeedbackForm';
 
 // Selector de Dashboard por Cargo
 const DashboardSelector = () => {
@@ -81,6 +84,7 @@ export default function AppRouter() {
         
         <Route path="/" element={<ProtectedRoute><DashboardSelector /></ProtectedRoute>} />
         <Route path="/profile" element={<ProtectedRoute><MyProfile /></ProtectedRoute>} />
+        <Route path="/performance" element={<ProtectedRoute><PerformanceDashboard /></ProtectedRoute>} />
         
         <Route path="/expenses" element={<ProtectedRoute><ExpensesList /></ProtectedRoute>} />
         <Route path="/expenses/dashboard" element={<ProtectedRoute><ExpensesDashboard /></ProtectedRoute>} />
@@ -119,6 +123,7 @@ export default function AppRouter() {
           <Route path="leads" element={<SalesPipeline />} />
           <Route path="clients" element={<ClientsList />} />
           <Route path="quotes" element={<QuotesList />} />
+          <Route path="indirect-sales" element={<IndirectSales />} />
           <Route path="orders" element={<InvoicesOrders />} />
           <Route path="invoices" element={<InvoicesOrders />} />
         </Route>
@@ -126,6 +131,9 @@ export default function AppRouter() {
         {/* Olea Academy */}
         <Route path="/academy" element={<ProtectedRoute noShell><AcademyHome /></ProtectedRoute>} />
         <Route path="/academy/course/:id" element={<ProtectedRoute noShell><CoursePlayer /></ProtectedRoute>} />
+        
+        {/* Rutas Públicas de Feedback */}
+        <Route path="/feedback/:type/:otId" element={<FeedbackForm />} />
         
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>

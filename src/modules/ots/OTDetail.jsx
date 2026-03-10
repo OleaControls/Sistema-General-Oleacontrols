@@ -3,7 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { 
   ClipboardList, MapPin, Clock, User, CheckCircle2, Receipt, FileText, ChevronLeft,
   X, Send, ArrowRight, Store, Map as MapIcon, AlertTriangle, Wallet, Plus, Coins,
-  Phone, Mail, Info, Users, Hash, Calendar, Zap, Activity, Timer, ArrowUpCircle, ArrowDownCircle
+  Phone, Mail, Info, Users, Hash, Calendar, Zap, Activity, Timer, ArrowUpCircle, ArrowDownCircle,
+  MessageCircle
 } from 'lucide-react';
 import { otService } from '@/api/otService';
 import { expenseService } from '@/api/expenseService';
@@ -95,6 +96,21 @@ export default function OTDetail() {
   };
 
   const { totalAuthorized, spent, balance } = financialSummary();
+
+  const generateFeedbackLink = (type) => {
+    const baseUrl = window.location.origin;
+    return `${baseUrl}/feedback/${type}/${id}`;
+  };
+
+  const copyToClipboard = (text, label) => {
+    navigator.clipboard.writeText(text);
+    alert(`${label} copiado`);
+  };
+
+  const shareByWhatsApp = (link, message) => {
+    const url = `https://wa.me/?text=${encodeURIComponent(message + ": " + link)}`;
+    window.open(url, '_blank');
+  };
 
   const handleStatusUpdate = async (newStatus) => {
     if (isSaving) return;
@@ -458,6 +474,63 @@ export default function OTDetail() {
                         )}
                     </div>
                 </div>
+
+                {/* --- NUEVO: Panel de Evaluaciones --- */}
+                {isSupervisor && (
+                    <div className="bg-white border rounded-[2.5rem] p-8 shadow-sm space-y-6">
+                        <h3 className="text-xs font-black text-gray-900 uppercase tracking-widest border-b pb-4">Evaluaciones y Métricas</h3>
+                        <div className="space-y-4">
+                            {/* Form 1: Cliente evalúa a Técnico */}
+                            <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100">
+                                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Satisfacción Cliente (Técnico)</p>
+                                <div className="flex gap-2">
+                                    <button 
+                                        onClick={() => copyToClipboard(generateFeedbackLink('CUSTOMER_TECH'), 'Link')}
+                                        className="flex-1 bg-white border border-gray-200 py-2 rounded-lg text-[10px] font-black uppercase hover:bg-gray-100 flex items-center justify-center gap-2"
+                                    >
+                                        <Hash className="h-3 w-3" /> Copiar
+                                    </button>
+                                    <button 
+                                        onClick={() => shareByWhatsApp(generateFeedbackLink('CUSTOMER_TECH'), `¡Hola! Favor de evaluar nuestro servicio técnico para la OT ${ot.otNumber}`)}
+                                        className="flex-1 bg-emerald-500 text-white py-2 rounded-lg text-[10px] font-black uppercase hover:bg-emerald-600 flex items-center justify-center gap-2"
+                                    >
+                                        <MessageCircle className="h-3 w-3" /> WhatsApp
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Form 2: Supervisor evalúa a Técnico */}
+                            <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100">
+                                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Eficiencia Operativa (Interno)</p>
+                                <button 
+                                    onClick={() => window.open(generateFeedbackLink('OPS_TECH'), '_blank')}
+                                    className="w-full bg-indigo-600 text-white py-3 rounded-lg text-[10px] font-black uppercase hover:bg-indigo-700 flex items-center justify-center gap-2 shadow-lg shadow-indigo-100"
+                                >
+                                    <Activity className="h-4 w-4" /> Evaluar Técnico Ahora
+                                </button>
+                            </div>
+
+                            {/* Form 3: Cliente evalúa a Ejecutivo */}
+                            <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100">
+                                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Experiencia Ejecutivo (Cliente)</p>
+                                <div className="flex gap-2">
+                                    <button 
+                                        onClick={() => copyToClipboard(generateFeedbackLink('CUSTOMER_EXEC'), 'Link')}
+                                        className="flex-1 bg-white border border-gray-200 py-2 rounded-lg text-[10px] font-black uppercase hover:bg-gray-100 flex items-center justify-center gap-2"
+                                    >
+                                        <Hash className="h-3 w-3" /> Copiar
+                                    </button>
+                                    <button 
+                                        onClick={() => shareByWhatsApp(generateFeedbackLink('CUSTOMER_EXEC'), `¡Hola! Favor de evaluar su experiencia con nuestro ejecutivo para la OT ${ot.otNumber}`)}
+                                        className="flex-1 bg-emerald-500 text-white py-2 rounded-lg text-[10px] font-black uppercase hover:bg-emerald-600 flex items-center justify-center gap-2"
+                                    >
+                                        <MessageCircle className="h-3 w-3" /> WhatsApp
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
 
                 <div className="bg-emerald-600 rounded-[2.5rem] p-8 text-white text-center space-y-4 shadow-lg shadow-emerald-100">
                     <Info className="h-8 w-8 mx-auto opacity-50" />

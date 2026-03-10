@@ -1,235 +1,211 @@
 import React, { useState, useEffect } from 'react';
-import { FileText, Plus, Search, Filter, Download, Send, CheckCircle, Clock, X } from 'lucide-react';
-import { crmService } from '@/api/crmService';
+import { 
+  Plus, FileText, Download, Search, 
+  Trash2, PlusCircle, Building2, User, 
+  Calendar, DollarSign, X, Save, ExternalLink,
+  ChevronRight, ArrowRight, Hash, Send,
+  CheckCircle2, AlertCircle, Clock, Users
+} from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { useAuth } from '@/store/AuthContext';
 import { cn } from '@/lib/utils';
 
 export default function QuotesList() {
+  const { user } = useAuth();
   const [quotes, setQuotes] = useState([]);
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [clients, setClients] = useState([]);
+  const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
 
-  useEffect(() => {
-    loadQuotes();
-  }, []);
-
-  const loadQuotes = async () => {
-    setLoading(true);
-    const data = await crmService.getQuotes();
-    setQuotes(data);
-    setLoading(false);
+  const initialQuote = {
+    quoteNumber: `COT-${new Date().getFullYear()}-${Math.floor(Math.random()*1000).toString().padStart(3, '0')}`,
+    clientId: '', sellerId: '', projectName: '', projectPhase: 'INICIAL',
+    contactName: '', validUntil: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    terms: 'Pago 100% anticipado. Tiempo de entrega sujeto a existencias.',
+    items: [{ serial: '', name: '', desc: '', qty: 1, price: 0, total: 0 }],
+    subtotal: 0, tax: 0, total: 0
   };
 
+  const [newQuote, setNewQuote] = useState(initialQuote);
+
+  useEffect(() => { fetchData(); }, []);
+
+  const fetchData = async () => {
+    try {
+      const [qRes, cRes, eRes] = await Promise.all([
+        fetch('/api/quotes'), fetch('/api/crm/clients'), fetch('/api/employees')
+      ]);
+      setQuotes(await qRes.json());
+      setClients(await cRes.json());
+      setEmployees(await eRes.json());
+    } catch (err) { console.error(err); }
+    finally { setLoading(false); }
+  };
+
+  useEffect(() => {
+    const sub = newQuote.items.reduce((acc, curr) => acc + (curr.qty * curr.price), 0);
+    const tax = sub * 0.16;
+    setNewQuote(prev => ({ ...prev, subtotal: sub, tax: tax, total: sub + tax }));
+  }, [newQuote.items]);
+
+  const addItem = () => setNewQuote({...newQuote, items: [...newQuote.items, { serial: '', name: '', desc: '', qty: 1, price: 0, total: 0 }]});
+  
+  const updateItem = (index, field, value) => {
+    const ni = [...newQuote.items];
+    ni[index][field] = value;
+    if (field === 'qty' || field === 'price') ni[index].total = ni[index].qty * ni[index].price;
+    setNewQuote({...newQuote, items: ni});
+  };
+
+  const handleCreateQuote = async (e) => {
+    e.preventDefault(); setIsGenerating(true);
+    try {
+      const res = await fetch('/api/quotes', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...newQuote, creatorId: user.id })
+      });
+      if (res.ok) { setShowAddModal(false); setNewQuote(initialQuote); fetchData(); }
+    } catch (err) { alert("Error"); }
+    finally { setIsGenerating(false); }
+  };
+
+  const handleDownloadPDF = async (quoteId, quoteNumber) => {
+    try {
+      const res = await fetch(`/api/quotes?id=${quoteId}`);
+      const data = await res.json();
+      window.open(data.pdfUrl, '_blank');
+    } catch (err) { console.error(err); }
+  };
+
+  const handleDeleteQuote = async (id, num) => {
+    if (!window.confirm(`¿Eliminar ${num}?`)) return;
+    try {
+      const res = await fetch('/api/quotes', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) });
+      if (res.ok) fetchData();
+    } catch (err) { console.error(err); }
+  };
+
+  const updateStatus = async (id, status) => {
+    try {
+      const res = await fetch('/api/quotes', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, status }) });
+      if (res.ok) fetchData();
+    } catch (err) { console.error(err); }
+  };
+
+  if (loading) return <div className="p-10 text-center animate-pulse font-black text-gray-400 text-xs tracking-widest uppercase">Cargando Presupuestos...</div>;
+
   return (
-    <div className="space-y-6 animate-in fade-in duration-500">
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+    <div className="max-w-full mx-auto space-y-6 md:space-y-8 animate-in fade-in duration-700 pb-20 px-2 md:px-0">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h2 className="text-3xl font-black text-gray-900 leading-tight">Presupuestos</h2>
-          <p className="text-sm text-gray-500 font-medium mt-1">Genera y da seguimiento a cotizaciones comerciales.</p>
+          <h2 className="text-3xl md:text-4xl font-black text-gray-900 tracking-tighter uppercase italic text-primary">Presupuestos</h2>
+          <p className="text-gray-500 font-bold text-[10px] mt-1 uppercase tracking-widest flex items-center gap-2"><DollarSign className="h-3 w-3 text-emerald-500" /> Cotizador OleaControls</p>
         </div>
-        <button 
-          onClick={() => setIsModalOpen(true)}
-          className="flex items-center gap-2 bg-primary text-white px-5 py-3 rounded-2xl font-bold text-sm shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all"
-        >
-          <Plus className="h-4 w-4" /> Nueva Cotización
+        <button onClick={() => setShowAddModal(true)} className="w-full sm:w-auto bg-gray-900 text-white px-6 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl flex items-center justify-center gap-3">
+          <PlusCircle className="h-4 w-4" /> Crear Cotización
         </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white p-6 rounded-3xl border shadow-sm">
-          <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Enviadas (Este Mes)</p>
-          <p className="text-2xl font-black text-gray-900 mt-1">24</p>
-        </div>
-        <div className="bg-white p-6 rounded-3xl border shadow-sm border-emerald-100">
-          <p className="text-[10px] font-black text-emerald-500 uppercase tracking-widest">Aceptadas (Conversión)</p>
-          <p className="text-2xl font-black text-gray-900 mt-1">68%</p>
-        </div>
-        <div className="bg-white p-6 rounded-3xl border shadow-sm">
-          <p className="text-[10px] font-black text-blue-500 uppercase tracking-widest">Monto en Propuestas</p>
-          <p className="text-2xl font-black text-gray-900 mt-1">$1.4M <span className="text-xs text-gray-400">MXN</span></p>
-        </div>
-      </div>
-
-      <div className="bg-white border rounded-3xl overflow-hidden shadow-sm">
-        <div className="p-4 border-b bg-gray-50/50 flex justify-between items-center">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-            <input type="text" placeholder="Buscar por cliente o folio..." className="pl-10 pr-4 py-2 border rounded-xl text-sm outline-none focus:border-primary w-64" />
-          </div>
-          <button className="p-2 border rounded-lg bg-white hover:bg-gray-50 transition-colors">
-            <Filter className="h-4 w-4 text-gray-600" />
-          </button>
-        </div>
-        
-        <table className="w-full text-left">
-          <thead className="bg-white border-b">
-            <tr className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
-              <th className="px-6 py-4">Folio / Fecha</th>
-              <th className="px-6 py-4">Cliente</th>
-              <th className="px-6 py-4">Total (MXN)</th>
-              <th className="px-6 py-4">Estado</th>
-              <th className="px-6 py-4 text-right">Acciones</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-50">
-            {quotes.map((quote) => (
-              <tr key={quote.id} className="hover:bg-gray-50 transition-colors group">
-                <td className="px-6 py-4">
-                  <p className="font-black text-sm text-gray-900">{quote.id}</p>
-                  <p className="text-[10px] font-bold text-gray-400 uppercase">{quote.date}</p>
-                </td>
-                <td className="px-6 py-4">
-                  <p className="font-bold text-sm text-gray-700">{quote.clientName}</p>
-                </td>
-                <td className="px-6 py-4 font-black text-sm text-gray-900">
-                  ${quote.total.toLocaleString()}
-                </td>
-                <td className="px-6 py-4">
-                  <span className={cn(
-                    "text-[10px] font-black px-2 py-1 rounded uppercase tracking-wider border",
-                    quote.status === 'ACCEPTED' ? "bg-green-50 text-green-700 border-green-100" :
-                    quote.status === 'SENT' ? "bg-blue-50 text-blue-700 border-blue-100" : "bg-gray-100 text-gray-600 border-gray-200"
-                  )}>
-                    {quote.status === 'ACCEPTED' ? <CheckCircle className="h-3 w-3 inline mr-1" /> : <Clock className="h-3 w-3 inline mr-1" />}
-                    {quote.status}
-                  </span>
-                </td>
-                <td className="px-6 py-4 text-right">
-                  <div className="flex justify-end gap-2">
-                    <button className="p-2 text-gray-400 hover:text-primary transition-colors border rounded-lg hover:bg-white">
-                      <Download className="h-4 w-4" />
-                    </button>
-                    <button className="p-2 text-gray-400 hover:text-blue-600 transition-colors border rounded-lg hover:bg-white">
-                      <Send className="h-4 w-4" />
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      {isModalOpen && <QuoteFormModal onClose={() => setIsModalOpen(false)} onSave={loadQuotes} />}
-    </div>
-  );
-}
-
-function QuoteFormModal({ onClose, onSave }) {
-  const [clients, setClients] = useState([]);
-  const [formData, setFormData] = useState({
-    clientId: '',
-    items: [{ desc: '', qty: 1, price: 0 }]
-  });
-
-  useEffect(() => {
-    crmService.getClients().then(setClients);
-  }, []);
-
-  const addItem = () => setFormData({...formData, items: [...formData.items, { desc: '', qty: 1, price: 0 }]});
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    const total = formData.items.reduce((acc, curr) => acc + (curr.qty * curr.price), 0);
-    const client = clients.find(c => c.id === formData.clientId);
-    await crmService.saveQuote({ 
-      clientId: formData.clientId, 
-      clientName: client?.name, 
-      date: new Date().toISOString().split('T')[0], 
-      total 
-    });
-    onSave();
-    onClose();
-  };
-
-  return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full max-w-2xl bg-white rounded-[2.5rem] shadow-2xl overflow-hidden animate-in zoom-in duration-300">
-        <div className="p-8 border-b flex justify-between items-center bg-gray-50/50">
-          <div>
-            <h3 className="text-xl font-black text-gray-900">Nueva Cotización</h3>
-            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mt-1">Detalla los conceptos para el cliente</p>
-          </div>
-          <button onClick={onClose} className="p-2 hover:bg-gray-200 rounded-full transition-colors"><X className="h-5 w-5" /></button>
-        </div>
-
-        <form onSubmit={handleSubmit} className="p-8 space-y-6 max-h-[70vh] overflow-y-auto">
-          <div className="space-y-2">
-            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Seleccionar Cliente</label>
-            <select 
-              required
-              className="w-full bg-gray-50 border px-4 py-3 rounded-xl font-bold text-gray-900 outline-none focus:border-primary"
-              value={formData.clientId}
-              onChange={(e) => setFormData({...formData, clientId: e.target.value})}
-            >
-              <option value="">-- Elige un cliente --</option>
-              {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
-          </div>
-
-          <div className="space-y-4">
-            <div className="flex justify-between items-center">
-              <h4 className="text-xs font-black text-gray-900 uppercase tracking-widest">Conceptos / Partidas</h4>
-              <button type="button" onClick={addItem} className="text-primary text-[10px] font-black uppercase hover:underline">+ Agregar Partida</button>
-            </div>
-            
-            {formData.items.map((item, idx) => (
-              <div key={idx} className="flex gap-3 items-end">
-                <div className="flex-[3] space-y-1">
-                  <input 
-                    placeholder="Descripción del servicio/producto"
-                    className="w-full bg-gray-50 border px-4 py-2 rounded-xl text-sm font-medium outline-none"
-                    value={item.desc}
-                    onChange={(e) => {
-                      const newItems = [...formData.items];
-                      newItems[idx].desc = e.target.value;
-                      setFormData({...formData, items: newItems});
-                    }}
-                  />
+      {/* Grid de Cotizaciones Responsive */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+        {quotes.map((q) => (
+          <motion.div key={q.id} whileHover={{ y: -5 }} className="bg-white rounded-[2rem] md:rounded-[2.5rem] p-6 md:p-8 border border-gray-100 shadow-sm hover:shadow-xl transition-all group relative overflow-hidden">
+            <div className="space-y-5 md:space-y-6">
+              <div className="flex justify-between items-start">
+                <div className={cn("px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest border", 
+                  q.status === 'ACCEPTED' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 
+                  q.status === 'REJECTED' ? 'bg-red-50 text-red-600 border-red-100' : 'bg-amber-50 text-amber-600 border-amber-100')}>
+                  {q.status === 'ACCEPTED' ? 'Aprobada' : q.status === 'REJECTED' ? 'No Concretada' : 'Pendiente'}
                 </div>
-                <div className="flex-1 space-y-1">
-                  <input 
-                    type="number" 
-                    placeholder="Cant"
-                    className="w-full bg-gray-50 border px-4 py-2 rounded-xl text-sm font-bold outline-none"
-                    value={item.qty}
-                    onChange={(e) => {
-                      const newItems = [...formData.items];
-                      newItems[idx].qty = e.target.value;
-                      setFormData({...formData, items: newItems});
-                    }}
-                  />
-                </div>
-                <div className="flex-[1.5] space-y-1">
-                  <input 
-                    type="number" 
-                    placeholder="Precio"
-                    className="w-full bg-gray-50 border px-4 py-2 rounded-xl text-sm font-bold outline-none"
-                    value={item.price}
-                    onChange={(e) => {
-                      const newItems = [...formData.items];
-                      newItems[idx].price = e.target.value;
-                      setFormData({...formData, items: newItems});
-                    }}
-                  />
+                <div className="flex gap-1.5">
+                    <button onClick={() => updateStatus(q.id, 'ACCEPTED')} className="p-1.5 rounded-lg bg-emerald-500 text-white"><CheckCircle2 className="h-3.5 w-3.5" /></button>
+                    <button onClick={() => updateStatus(q.id, 'REJECTED')} className="p-1.5 rounded-lg bg-red-500 text-white"><X className="h-3.5 w-3.5" /></button>
+                    <button onClick={() => handleDeleteQuote(q.id, q.quoteNumber)} className="p-1.5 rounded-lg bg-gray-100 text-gray-400 hover:text-red-500"><Trash2 className="h-3.5 w-3.5" /></button>
                 </div>
               </div>
-            ))}
-          </div>
 
-          <div className="pt-6 border-t flex justify-between items-center">
-            <div className="text-right">
-              <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Total Estimado</p>
-              <p className="text-3xl font-black text-gray-900">
-                ${formData.items.reduce((acc, curr) => acc + (curr.qty * curr.price), 0).toLocaleString()}
-              </p>
+              <div>
+                <p className="text-[8px] md:text-[9px] font-black text-gray-400 uppercase tracking-widest">{q.quoteNumber}</p>
+                <h3 className="text-lg md:text-xl font-black text-gray-900 group-hover:text-primary transition-colors truncate">{q.client.companyName}</h3>
+                <div className="flex items-center gap-2 mt-2">
+                    <div className="h-6 w-6 rounded-full bg-gray-100 flex items-center justify-center text-[10px] font-black">{q.seller?.name?.charAt(0) || '?'}</div>
+                    <p className="text-[9px] font-bold text-gray-500 uppercase tracking-widest truncate">Vendedor: {q.seller?.name || 'No asignado'}</p>
+                </div>
+              </div>
+
+              <div className="pt-4 border-t border-gray-50 flex justify-between items-end">
+                <div><p className="text-[8px] font-black text-gray-400 uppercase">Importe Total</p><p className="text-xl md:text-2xl font-black text-gray-900">${q.total.toLocaleString()}</p></div>
+                <button onClick={() => handleDownloadPDF(q.id, q.quoteNumber)} className="p-4 bg-blue-600 text-white rounded-2xl hover:bg-blue-700 transition-all shadow-lg"><Download className="h-5 w-5" /></button>
+              </div>
             </div>
-            <button type="submit" className="bg-primary text-white px-8 py-3 rounded-2xl font-black shadow-lg shadow-primary/20 hover:scale-105 transition-all">
-              Generar Cotización
-            </button>
-          </div>
-        </form>
+          </motion.div>
+        ))}
       </div>
+
+      {/* Modal Responsive Full-Screen */}
+      <AnimatePresence>
+        {showAddModal && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+            <motion.div initial={{ opacity: 0, y: 100 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 100 }} className="bg-white rounded-t-[2.5rem] sm:rounded-[3rem] shadow-2xl w-full max-w-5xl overflow-hidden max-h-[95vh] overflow-y-auto">
+              <form onSubmit={handleCreateQuote} className="p-6 md:p-10 space-y-8 md:space-y-10">
+                <div className="flex justify-between items-center border-b pb-4">
+                  <h3 className="text-xl md:text-2xl font-black text-gray-900 tracking-tighter uppercase italic">Nueva Cotización</h3>
+                  <button type="button" onClick={() => setShowAddModal(false)} className="p-2 hover:bg-gray-100 rounded-full"><X className="h-6 w-6 text-gray-400" /></button>
+                </div>
+
+                {/* Info General Responsive */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+                  <select required className="w-full bg-gray-50 border-none rounded-xl px-5 py-4 font-bold text-sm outline-none" value={newQuote.clientId} onChange={(e) => setNewQuote({...newQuote, clientId: e.target.value})}>
+                    <option value="">Seleccionar Cliente...</option>
+                    {clients.map(c => <option key={c.id} value={c.id}>{c.companyName}</option>)}
+                  </select>
+                  <select className="w-full bg-blue-50 border-none rounded-xl px-5 py-4 font-black text-sm outline-none text-blue-700" value={newQuote.sellerId} onChange={(e) => setNewQuote({...newQuote, sellerId: e.target.value})}>
+                    <option value="">¿Quién vendió?</option>
+                    {employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+                  </select>
+                  <input type="text" className="w-full bg-gray-50 border-none rounded-xl px-5 py-4 font-bold text-sm outline-none" placeholder="Nombre del Proyecto" value={newQuote.projectName} onChange={(e) => setNewQuote({...newQuote, projectName: e.target.value})} />
+                  <input type="date" className="w-full bg-gray-50 border-none rounded-xl px-5 py-4 font-bold text-sm outline-none" value={newQuote.validUntil} onChange={(e) => setNewQuote({...newQuote, validUntil: e.target.value})} />
+                </div>
+
+                {/* Conceptos Responsive (Table on desktop, Cards on mobile) */}
+                <div className="space-y-4">
+                    <div className="flex justify-between items-center"><h4 className="text-xs font-black uppercase tracking-widest">Conceptos</h4><button type="button" onClick={addItem} className="text-[10px] font-black text-blue-600 underline uppercase">Añadir Concepto</button></div>
+                    <div className="space-y-4">
+                        {newQuote.items.map((item, index) => (
+                            <div key={index} className="grid grid-cols-1 sm:grid-cols-12 gap-3 p-5 bg-gray-50 rounded-[1.5rem] md:rounded-2xl items-center relative">
+                                <input className="col-span-12 sm:col-span-2 bg-white rounded-lg p-2 text-[10px] font-black uppercase" placeholder="Nº Serie" value={item.serial} onChange={(e) => updateItem(index, 'serial', e.target.value)} />
+                                <input className="col-span-12 sm:col-span-4 bg-white rounded-lg p-2 text-[10px] font-bold" placeholder="Servicio / Producto" value={item.name} onChange={(e) => updateItem(index, 'name', e.target.value)} />
+                                <div className="col-span-12 sm:col-span-6 grid grid-cols-3 gap-2 items-center">
+                                    <input className="bg-white rounded-lg p-2 text-[10px] text-center font-bold" type="number" value={item.qty} onChange={(e) => updateItem(index, 'qty', parseInt(e.target.value))} />
+                                    <input className="bg-white rounded-lg p-2 text-[10px] font-bold" type="number" placeholder="Precio" value={item.price} onChange={(e) => updateItem(index, 'price', parseFloat(e.target.value))} />
+                                    <div className="text-right font-black text-xs text-gray-900">${(item.qty * item.price).toLocaleString()}</div>
+                                </div>
+                                <button type="button" className="absolute top-2 right-2 sm:static sm:col-span-1 text-red-400 p-1" onClick={() => setNewQuote({...newQuote, items: newQuote.items.filter((_, i) => i !== index)}) }><X className="h-4 w-4" /></button>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
+                {/* Footer Financiero Responsive */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-10 mt-6">
+                    <textarea className="w-full bg-gray-50 border-none rounded-2xl p-5 text-[10px] outline-none" rows="3" placeholder="Términos y condiciones..." value={newQuote.terms} onChange={(e) => setNewQuote({...newQuote, terms: e.target.value})} />
+                    <div className="bg-gray-900 rounded-[2rem] p-6 md:p-8 text-white space-y-3 md:space-y-4 shadow-xl">
+                        <div className="flex justify-between text-[10px] font-black uppercase opacity-50"><span>Subtotal</span><span>${newQuote.subtotal.toLocaleString()}</span></div>
+                        <div className="flex justify-between text-[10px] font-black uppercase opacity-50"><span>IVA (16%)</span><span>${newQuote.tax.toLocaleString()}</span></div>
+                        <div className="pt-4 border-t border-white/10 flex justify-between items-center"><span className="text-sm font-black uppercase text-primary">Total General</span><span className="text-2xl md:text-3xl font-black">${newQuote.total.toLocaleString()}</span></div>
+                    </div>
+                </div>
+
+                <button disabled={isGenerating || !newQuote.clientId} type="submit" className="w-full bg-blue-600 text-white py-5 md:py-6 rounded-2xl md:rounded-3xl font-black text-xs uppercase tracking-widest shadow-xl hover:bg-blue-700 transition-all">
+                  {isGenerating ? 'Sincronizando...' : 'Generar y Acreditar Venta'}
+                </button>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
