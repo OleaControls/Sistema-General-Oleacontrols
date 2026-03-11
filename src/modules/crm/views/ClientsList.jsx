@@ -5,6 +5,7 @@ import {
   Hash, ShieldCheck, X, Save, Map, Globe, CreditCard, Trash2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { cn } from '@/lib/utils';
 
 export default function ClientsList() {
   const [clients, setClients] = useState([]);
@@ -40,8 +41,13 @@ export default function ClientsList() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id })
       });
-      if (res.ok) fetchClients();
-    } catch (err) { console.error(err); }
+      if (res.ok) {
+        fetchClients();
+      } else {
+        const errorData = await res.json();
+        alert(errorData.error || "Error al eliminar");
+      }
+    } catch (err) { console.error(err); alert("Error de conexión"); }
   };
 
   const handleOpenEdit = (client) => {

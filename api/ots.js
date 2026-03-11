@@ -266,14 +266,29 @@ export default async function handler(req, res) {
   if (method === 'DELETE') {
       try {
           const { id } = req.query; // id puede ser folio
+          console.log(`[OT DELETE] Attempting to delete OT: ${id}`);
+
           const targetOT = await prisma.workOrder.findFirst({
               where: { OR: [ { id: id }, { otNumber: id } ] }
           });
+
           if (!targetOT) return res.status(404).json({ error: 'OT no encontrada' });
 
+          // ELIMINAR DEPENDENCIAS (Integridad Referencial manual)
+          // 1. Evidencias
+          await prisma.evidence.deleteMany({ where: { workOrderId: targetOT.id } });
+          // 2. Gastos
+          await prisma.expense.deleteMany({ where: { workOrderId: targetOT.id } });
+          // 3. Evaluaciones vinculadas a esta OT
+          await prisma.evaluation.deleteMany({ where: { otId: targetOT.id } });
+
+          // Finalmente eliminar la OT
           await prisma.workOrder.delete({ where: { id: targetOT.id } });
+          
+          console.log(`[OT DELETE] Successfully deleted OT: ${targetOT.otNumber}`);
           return res.status(200).json({ success: true });
       } catch (error) {
+          console.error("DELETE OT Error:", error);
           return res.status(500).json({ error: error.message });
       }
   }

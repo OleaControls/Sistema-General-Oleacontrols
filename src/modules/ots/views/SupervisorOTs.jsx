@@ -62,6 +62,7 @@ export default function SupervisorOTs() {
   const [searchLoading, setSearchLoading] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [otToDelete, setOtToDelete] = useState(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [extraFunds, setExtraFunds] = useState(0);
   const [searchTerm, setSearchTerm] = useState('');
   const [filters, setFilters] = useState({ status: 'ALL', priority: 'ALL' });
@@ -381,9 +382,18 @@ export default function SupervisorOTs() {
   };
 
   const handleDelete = async () => {
-    await otService.deleteOT(otToDelete.id);
-    setIsDeleteModalOpen(false);
-    loadData();
+    if (!otToDelete || isDeleting) return;
+    setIsDeleting(true);
+    try {
+      await otService.deleteOT(otToDelete.id);
+      setIsDeleteModalOpen(false);
+      setOtToDelete(null);
+      await loadData();
+    } catch (err) {
+      alert("Error al eliminar OT: " + err.message);
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   const handleLocationSearch = async () => {
@@ -873,10 +883,18 @@ export default function SupervisorOTs() {
               <p className="text-base font-bold text-gray-400 mt-3 leading-relaxed">Esta acción es irreversible.</p>
             </div>
             <div className="flex flex-col gap-4">
-              <button onClick={handleDelete} className="w-full bg-red-600 text-white py-5 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl">
-                Eliminar Permanente
+              <button 
+                onClick={handleDelete} 
+                disabled={isDeleting}
+                className="w-full bg-red-600 text-white py-5 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                {isDeleting ? <><Loader2 className="h-4 w-4 animate-spin" /> Eliminando...</> : 'Eliminar Permanente'}
               </button>
-              <button onClick={() => setIsDeleteModalOpen(false)} className="w-full bg-gray-50 text-gray-400 py-5 rounded-2xl font-black text-xs uppercase">
+              <button 
+                onClick={() => setIsDeleteModalOpen(false)} 
+                disabled={isDeleting}
+                className="w-full bg-gray-50 text-gray-400 py-5 rounded-2xl font-black text-xs uppercase disabled:opacity-30"
+              >
                 Cancelar
               </button>
             </div>

@@ -3,22 +3,22 @@ import prisma from './_lib/prisma.js'
 const getQuincenaRange = (date, offset = 0) => {
   let d = new Date(date);
   if (offset !== 0) {
-    // Si hay offset, retrocedemos o avanzamos quincenas
     for(let i=0; i < Math.abs(offset); i++) {
         if (offset < 0) {
-            if (d.getDate() > 15) d.setDate(1);
-            else { d.setMonth(d.getMonth() - 1); d.setDate(16); }
+            if (d.getUTCDate() > 15) d.setUTCDate(1);
+            else { d.setUTCMonth(d.getUTCMonth() - 1); d.setUTCDate(16); }
         } else {
-            if (d.getDate() <= 15) d.setDate(16);
-            else { d.setMonth(d.getMonth() + 1); d.setDate(1); }
+            if (d.getUTCDate() <= 15) d.setUTCDate(16);
+            else { d.setUTCMonth(d.getUTCMonth() + 1); d.setUTCDate(1); }
         }
     }
   }
 
-  const start = new Date(d.getFullYear(), d.getMonth(), d.getDate() <= 15 ? 1 : 16);
-  const end = d.getDate() <= 15 
-    ? new Date(d.getFullYear(), d.getMonth(), 15, 23, 59, 59) 
-    : new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59);
+  // Usar UTC para evitar desfases con Prisma
+  const start = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() <= 15 ? 1 : 16, 0, 0, 0));
+  const end = d.getUTCDate() <= 15 
+    ? new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 15, 23, 59, 59, 999)) 
+    : new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0, 23, 59, 59, 999));
   
   return { start, end };
 };
@@ -45,12 +45,29 @@ export default async function handler(req, res) {
 
   if (method === 'GET') {
     try {
-      const { targetId, ranking } = req.query;
+      const { targetId, ranking, otId, type } = req.query;
 
-      // 1. Ranking Global Quincenal con Comparativa
+      // 1. Buscar evaluación específica (para evitar duplicados en el form de feedback)
+      if (otId && type) {
+        // Resolver el otId (que puede ser Folio) al ID real (CUID)
+        const targetOT = await prisma.workOrder.findFirst({
+          where: { OR: [ { id: otId }, { otNumber: otId } ] },
+          select: { id: true }
+        });
+
+        if (targetOT) {
+          const evaluation = await prisma.evaluation.findUnique({
+            where: { otId_type: { otId: targetOT.id, type } }
+          });
+          return res.status(200).json(evaluation || {});
+        }
+        return res.status(200).json({});
+      }
+
+      // 2. Ranking Global Quincenal con Comparativa
       if (ranking === 'true') {
         const technicians = await prisma.employee.findMany({
-          where: { roles: { has: 'TECH' } },
+          where: { roles: { has: 'TECHNICIAN' } },
           select: { id: true, name: true, roles: true }
         });
 
@@ -133,23 +150,46 @@ export default async function handler(req, res) {
     try {
       const { otId, type, targetId, evaluatorId, score1, score2, score3, materialUsage, improvements, comment } = req.body;
       
+      console.log('--- EVALUATION POST ATTEMPT ---');
+      console.log('Payload:', { otId, type, targetId, evaluatorId, score1, score2, score3 });
+
+      // Buscar la OT real por ID o Folio para obtener su ID de base de datos (CUID)
+      const targetOT = await prisma.workOrder.findFirst({
+        where: { OR: [ { id: otId }, { otNumber: otId } ] }
+      });
+
+      if (!targetOT) {
+        console.error(`Error: WorkOrder not found for otId: ${otId}`);
+        return res.status(404).json({ error: `Orden de Trabajo ${otId} no encontrada` });
+      }
+
+      if (!targetId) {
+        console.error(`Error: Missing targetId (evaluated technician/exec)`);
+        return res.status(400).json({ error: 'Falta el ID del técnico o ejecutivo a evaluar' });
+      }
+
       const evaluation = await prisma.evaluation.create({
         data: { 
           type, 
-          otId, 
+          otId: targetOT.id, // Usamos el ID real (CUID) para la relación
           targetId, 
           evaluatorId, 
           score1: score1 ? parseInt(score1) : 0, 
           score2: score2 ? parseInt(score2) : 0, 
-          score3: score3 ? parseInt(score3) : null, 
+          score3: score3 && !isNaN(parseInt(score3)) ? parseInt(score3) : null, 
           materialUsage, 
           improvements, 
           comment 
         }
       });
+      
+      console.log('Evaluation created successfully:', evaluation.id);
       return res.status(201).json(evaluation);
     } catch (error) {
-      console.error('API evaluations POST error:', error);
+      console.error('API evaluations POST error details:', error);
+      if (error.code === 'P2002') {
+        return res.status(409).json({ error: 'Esta orden de trabajo ya ha sido evaluada para este fin.' });
+      }
       return res.status(500).json({ error: error.message });
     }
   }
