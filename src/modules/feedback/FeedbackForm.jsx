@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 const EVALUATION_TYPES = {
   CUSTOMER_TECH: {
     title: 'Evaluación de Servicio Técnico',
-    subtitle: 'Tu opinión impulsa nuestra excelencia',
+    subtitle: 'Gracias por responder, así mejoramos tu experiencia',
     icon: <Zap className="w-8 h-8 text-blue-600" />,
     q1: '¿Cómo calificaría nuestro servicio técnico?',
     q2: '¿El técnico llegó puntualmente a la cita?',
