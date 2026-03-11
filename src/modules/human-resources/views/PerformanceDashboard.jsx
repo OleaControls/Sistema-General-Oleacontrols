@@ -105,8 +105,12 @@ export default function PerformanceDashboard() {
   const prevStats = myMetrics?.previous || { avg1: 0, avg2: 0, totalAvg: 0 };
 
   const calculateBonus = (score) => {
-    const tier = [...bonusConfig].sort((a, b) => b.min - a.min).find(b => score >= b.min);
-    return tier ? tier.amount : 0;
+    if (!Array.isArray(bonusConfig)) return 0;
+    const tier = [...bonusConfig]
+      .filter(b => b && typeof b.min === 'number')
+      .sort((a, b) => b.min - a.min)
+      .find(b => score >= b.min);
+    return (tier && typeof tier.amount === 'number') ? tier.amount : 0;
   };
 
   return (
@@ -115,7 +119,7 @@ export default function PerformanceDashboard() {
         <div>
           <h2 className="text-4xl font-black text-gray-900 tracking-tighter uppercase italic">Control Quincenal</h2>
           <p className="text-gray-500 font-bold text-xs mt-1 uppercase tracking-widest flex items-center gap-2">
-            Periodo Activo: <span className="text-primary">{myMetrics?.period || data.period}</span>
+            Periodo Activo: <span className="text-primary">{myMetrics?.period || data?.period || '---'}</span>
           </p>
         </div>
         {isSupervisor && (
@@ -138,7 +142,7 @@ export default function PerformanceDashboard() {
           <div className="bg-gray-900 p-8 rounded-[2.5rem] text-white shadow-2xl relative overflow-hidden group">
              <div className="relative z-10 space-y-4">
                 <p className="text-[10px] font-black text-primary uppercase tracking-widest">Bono Quincenal</p>
-                <p className="text-5xl font-black tracking-tighter">${calculateBonus(currentStats.totalAvg).toLocaleString()}</p>
+                <p className="text-5xl font-black tracking-tighter">${(calculateBonus(currentStats.totalAvg) || 0).toLocaleString()}</p>
                 <div className="pt-4 border-t border-white/10 flex justify-between items-center">
                    <p className="text-[9px] font-bold text-gray-400 uppercase">Tendencia: {currentStats.totalAvg >= prevStats.totalAvg ? 'MEJORANDO' : 'BAJANDO'}</p>
                    {currentStats.totalAvg >= prevStats.totalAvg ? <TrendingUp className="h-3 w-3 text-emerald-500" /> : <TrendingDown className="h-3 w-3 text-red-500" />}
@@ -167,20 +171,20 @@ export default function PerformanceDashboard() {
                  </tr>
                </thead>
                <tbody className="divide-y divide-gray-50">
-                 {data.ranking.map((tech) => (
+                 {(data?.ranking || []).map((tech) => (
                    <tr key={tech.id} className="hover:bg-gray-50/50 transition-colors">
                      <td className="px-8 py-6 font-black text-sm text-gray-900 uppercase tracking-tight">{tech.name}</td>
                      <td className="px-8 py-6 text-center">
-                        <span className="bg-blue-50 text-blue-600 px-4 py-1.5 rounded-full font-black text-sm">{tech.score.toFixed(1)}</span>
+                        <span className="bg-blue-50 text-blue-600 px-4 py-1.5 rounded-full font-black text-sm">{(tech.score || 0).toFixed(1)}</span>
                      </td>
                      <td className="px-8 py-6 text-center">
                         <div className={cn("flex items-center justify-center gap-1 font-black text-xs", tech.trend === 'UP' ? 'text-emerald-500' : 'text-red-500')}>
                            {tech.trend === 'UP' ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
-                           {tech.prevScore.toFixed(1)}
+                           {(tech.prevScore || 0).toFixed(1)}
                         </div>
                      </td>
-                     <td className="px-8 py-6 text-center font-bold text-gray-400">{tech.total}</td>
-                     <td className="px-8 py-6 text-center font-black text-emerald-600">${tech.bonus.toLocaleString()}</td>
+                     <td className="px-8 py-6 text-center font-bold text-gray-400">{tech.total || 0}</td>
+                     <td className="px-8 py-6 text-center font-black text-emerald-600">${(tech.bonus || 0).toLocaleString()}</td>
                    </tr>
                  ))}
                </tbody>

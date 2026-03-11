@@ -24,11 +24,16 @@ const getQuincenaRange = (date, offset = 0) => {
 };
 
 const calculateStats = (evaluations) => {
-  if (evaluations.length === 0) return { total: 0, avg1: 0, avg2: 0, avg3: 0, totalAvg: 0 };
+  if (!evaluations || evaluations.length === 0) return { total: 0, avg1: 0, avg2: 0, avg3: 0, totalAvg: 0 };
+  
   const avg1 = evaluations.reduce((acc, curr) => acc + (curr.score1 || 0), 0) / evaluations.length;
   const avg2 = evaluations.reduce((acc, curr) => acc + (curr.score2 || 0), 0) / evaluations.length;
   const avg3 = evaluations.reduce((acc, curr) => acc + (curr.score3 || 0), 0) / evaluations.length;
-  const totalAvg = (avg1 + avg2 + (avg3 || 0)) / (evaluations[0].score3 ? 3 : 2);
+  
+  // Si al menos una evaluación tiene score3 (Nivel Técnico), dividimos entre 3
+  const hasScore3 = evaluations.some(e => e.score3 !== null && e.score3 !== undefined);
+  const totalAvg = (avg1 + avg2 + (avg3 || 0)) / (hasScore3 ? 3 : 2);
+  
   return { total: evaluations.length, avg1, avg2, avg3, totalAvg };
 };
 
@@ -46,38 +51,53 @@ export default async function handler(req, res) {
       if (ranking === 'true') {
         const technicians = await prisma.employee.findMany({
           where: { roles: { has: 'TECH' } },
-          select: { id: true, name: true, role: true }
+          select: { id: true, name: true, roles: true }
         });
 
+        // Obtener config una sola vez
+        const configRes = await prisma.systemConfig.findUnique({ where: { key: 'BONUS_THRESHOLDS' } });
+        const bonusConfig = Array.isArray(configRes?.value) ? configRes.value : [];
+        const sortedBonusConfig = [...bonusConfig].sort((a, b) => (b.min || 0) - (a.min || 0));
+
         const results = await Promise.all(technicians.map(async (tech) => {
-          const currEvals = await prisma.evaluation.findMany({
-            where: { targetId: tech.id, createdAt: { gte: currentQ.start, lte: currentQ.end } }
-          });
-          const prevEvals = await prisma.evaluation.findMany({
-            where: { targetId: tech.id, createdAt: { gte: prevQ.start, lte: prevQ.end } }
-          });
+          try {
+            const currEvals = await prisma.evaluation.findMany({
+              where: { targetId: tech.id, createdAt: { gte: currentQ.start, lte: currentQ.end } }
+            });
+            const prevEvals = await prisma.evaluation.findMany({
+              where: { targetId: tech.id, createdAt: { gte: prevQ.start, lte: prevQ.end } }
+            });
 
-          const current = calculateStats(currEvals);
-          const previous = calculateStats(prevEvals);
+            const current = calculateStats(currEvals);
+            const previous = calculateStats(prevEvals);
 
-          // Cálculo de Bono dinámico
-          const configRes = await prisma.systemConfig.findUnique({ where: { key: 'BONUS_THRESHOLDS' } });
-          const bonusConfig = configRes?.value || [];
-          const tier = [...bonusConfig].sort((a, b) => b.min - a.min).find(b => current.totalAvg >= b.min);
+            const tier = sortedBonusConfig.find(b => current.totalAvg >= b.min);
 
-          return {
-            id: tech.id,
-            name: tech.name,
-            score: current.totalAvg,
-            prevScore: previous.totalAvg,
-            trend: current.totalAvg >= previous.totalAvg ? 'UP' : 'DOWN',
-            total: current.total,
-            bonus: tier ? tier.amount : 0
-          };
+            return {
+              id: tech.id,
+              name: tech.name,
+              score: current.totalAvg,
+              prevScore: previous.totalAvg,
+              trend: current.totalAvg >= previous.totalAvg ? 'UP' : 'DOWN',
+              total: current.total,
+              bonus: (tier && typeof tier.amount === 'number') ? tier.amount : 0
+            };
+          } catch (e) {
+            console.error(`Error calculating metrics for tech ${tech.id}:`, e);
+            return {
+              id: tech.id,
+              name: tech.name,
+              score: 0,
+              prevScore: 0,
+              trend: 'DOWN',
+              total: 0,
+              bonus: 0
+            };
+          }
         }));
 
         return res.status(200).json({
-          period: `${currentQ.start.toLocaleDateString()} - ${currentQ.end.toLocaleDateString()}`,
+          period: `${currentQ.start.toISOString().split('T')[0]} - ${currentQ.end.toISOString().split('T')[0]}`,
           ranking: results.sort((a, b) => b.score - a.score)
         });
       }
@@ -97,25 +117,39 @@ export default async function handler(req, res) {
         return res.status(200).json({
           current,
           previous,
-          period: `${currentQ.start.toLocaleDateString()} - ${currentQ.end.toLocaleDateString()}`
+          period: `${currentQ.start.toISOString().split('T')[0]} - ${currentQ.end.toISOString().split('T')[0]}`
         });
       }
 
       return res.status(400).json({ error: 'Faltan parámetros' });
     } catch (error) {
+      console.error('API evaluations error:', error);
       return res.status(500).json({ error: error.message });
     }
   }
 
-  // POST (Mantener igual...)
+  // POST
   if (method === 'POST') {
     try {
       const { otId, type, targetId, evaluatorId, score1, score2, score3, materialUsage, improvements, comment } = req.body;
+      
       const evaluation = await prisma.evaluation.create({
-        data: { type, otId, targetId, evaluatorId, score1: parseInt(score1), score2: parseInt(score2), score3: score3 ? parseInt(score3) : null, materialUsage, improvements, comment }
+        data: { 
+          type, 
+          otId, 
+          targetId, 
+          evaluatorId, 
+          score1: score1 ? parseInt(score1) : 0, 
+          score2: score2 ? parseInt(score2) : 0, 
+          score3: score3 ? parseInt(score3) : null, 
+          materialUsage, 
+          improvements, 
+          comment 
+        }
       });
       return res.status(201).json(evaluation);
     } catch (error) {
+      console.error('API evaluations POST error:', error);
       return res.status(500).json({ error: error.message });
     }
   }
