@@ -42,9 +42,11 @@ export default function IndirectSales() {
       {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h2 className="text-3xl md:text-4xl font-black text-gray-900 tracking-tighter uppercase italic">Ventas Indirectas</h2>
+          <h2 className="text-3xl md:text-4xl font-black text-gray-900 tracking-tighter uppercase italic">
+            {user?.role === 'TECHNICIAN' || user?.role === 'COLLABORATOR' ? 'Mis Ventas Directas' : 'Ventas Indirectas'}
+          </h2>
           <p className="text-gray-500 font-bold text-[10px] md:text-xs mt-1 uppercase tracking-widest flex items-center gap-2">
-            <Briefcase className="h-3 w-3 md:h-4 md:w-4 text-primary" /> Mi historial comercial
+            <Briefcase className="h-3 w-3 md:h-4 md:w-4 text-primary" /> Mi historial de comisiones y cierres
           </p>
         </div>
       </div>

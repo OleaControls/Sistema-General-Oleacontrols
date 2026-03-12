@@ -88,10 +88,14 @@ const navItems = [
     roles: [ROLES.ADMIN, ROLES.SALES] 
   },
   {
-    name: 'Ventas Indirectas',
+    name: 'Mis Ventas / CRM',
     path: '/crm/indirect-sales',
     icon: Target,
-    roles: [ROLES.ADMIN, ROLES.OPS, ROLES.TECH, ROLES.SALES]
+    roles: [ROLES.ADMIN, ROLES.OPS, ROLES.TECH, ROLES.SALES, ROLES.COLLABORATOR],
+    getName: (user) => {
+      if (user?.role === ROLES.TECH || user?.role === ROLES.COLLABORATOR) return 'Mis Ventas Directas';
+      return 'Ventas Indirectas';
+    }
   },
   {
     name: 'Evaluaciones',
