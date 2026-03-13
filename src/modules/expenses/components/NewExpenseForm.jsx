@@ -19,6 +19,8 @@ export default function NewExpenseForm({ isOpen, onClose, onSave, prefilledOtId,
   const [step, setStep] = useState(1);
   const [userOts, setUserOts] = useState([]);
   const [loadingOts, setLoadingOts] = useState(false);
+  const [otSearch, setOtSearch] = useState('');
+  const [showOtResults, setShowOtResults] = useState(false);
   
   const [isManualOt, setIsManualOt] = useState(false);
   
@@ -64,13 +66,19 @@ export default function NewExpenseForm({ isOpen, onClose, onSave, prefilledOtId,
     }
   }, [initialData, isOpen, prefilledOtId]);
 
-  const loadUserOts = async () => {
+  const loadUserOts = async (search = '') => {
       setLoadingOts(true);
       try {
-          const data = await otService.getOTs({ techId: user.id });
-          setUserOts(data); // Cargar todas las OTs, no solo activas
+          // Si es ADMIN o SUPERVISOR, no filtramos por techId para que salgan todas
+          const isAdmin = user.role === 'ADMIN' || user.role === 'SUPERVISOR';
+          const filters = {};
+          if (!isAdmin) filters.techId = user.id;
+          if (search) filters.search = search;
           
-          if (data.length === 1 && !formData.otId && !prefilledOtId) {
+          const data = await otService.getOTs(filters);
+          setUserOts(data);
+          
+          if (data.length === 1 && !formData.otId && !prefilledOtId && !search) {
               setFormData(prev => ({ ...prev, otId: data[0].id }));
           }
       } catch (error) {
@@ -78,6 +86,23 @@ export default function NewExpenseForm({ isOpen, onClose, onSave, prefilledOtId,
       } finally {
           setLoadingOts(false);
       }
+  };
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+        if (otSearch.length >= 2) {
+            loadUserOts(otSearch);
+        } else if (otSearch.length === 0 && isOpen) {
+            loadUserOts();
+        }
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [otSearch]);
+
+  const handleSelectOt = (ot) => {
+    setFormData({ ...formData, otId: ot.id, isExternal: false });
+    setOtSearch(ot.id);
+    setShowOtResults(false);
   };
 
   const handleFileChange = (e) => {
@@ -190,27 +215,72 @@ export default function NewExpenseForm({ isOpen, onClose, onSave, prefilledOtId,
                         />
                     </div>
                 ) : (
-                    <div className="space-y-3">
-                        {loadingOts ? (
-                            <div className="flex items-center gap-2 p-4 bg-gray-50 rounded-2xl animate-pulse">
-                                <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
-                                <span className="text-xs font-bold text-gray-400">Cargando órdenes...</span>
+                    <div className="space-y-3 relative">
+                        <div className="relative group">
+                            <ClipboardList className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-300 group-focus-within:text-primary transition-colors" />
+                            <input 
+                                type="text"
+                                placeholder="Buscar por Folio, Cliente o Tienda..."
+                                className="w-full pl-12 pr-10 py-4 bg-gray-50 border-2 border-gray-100 rounded-2xl focus:border-primary outline-none font-black text-sm uppercase transition-all"
+                                value={otSearch}
+                                onChange={(e) => {
+                                    setOtSearch(e.target.value.toUpperCase());
+                                    setShowOtResults(true);
+                                }}
+                                onFocus={() => setShowOtResults(true)}
+                            />
+                            {loadingOts && (
+                                <Loader2 className="absolute right-4 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-primary" />
+                            )}
+                        </div>
+
+                        {showOtResults && (otSearch.length >= 2 || userOts.length > 0) && (
+                            <div className="absolute z-[110] left-0 right-0 mt-2 bg-white border-2 border-gray-100 rounded-2xl shadow-2xl max-h-60 overflow-y-auto overflow-x-hidden custom-scrollbar animate-in slide-in-from-top-2">
+                                {userOts.length > 0 ? (
+                                    userOts.map(ot => (
+                                        <button
+                                            key={ot.id}
+                                            type="button"
+                                            onClick={() => handleSelectOt(ot)}
+                                            className={cn(
+                                                "w-full text-left p-4 hover:bg-primary/5 transition-colors border-b last:border-0 group",
+                                                formData.otId === ot.id ? "bg-primary/5 border-primary/20" : "border-gray-50"
+                                            )}
+                                        >
+                                            <div className="flex justify-between items-start">
+                                                <div>
+                                                    <p className="text-xs font-black text-gray-900 leading-none group-hover:text-primary transition-colors">{ot.id}</p>
+                                                    <p className="text-[10px] font-bold text-gray-500 mt-1 line-clamp-1">{ot.clientName} - {ot.storeName}</p>
+                                                </div>
+                                                <span className={cn(
+                                                    "text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-tighter",
+                                                    ot.status === 'COMPLETED' ? "bg-gray-100 text-gray-400" : "bg-emerald-100 text-emerald-600"
+                                                )}>
+                                                    {ot.status}
+                                                </span>
+                                            </div>
+                                        </button>
+                                    ))
+                                ) : (
+                                    <div className="p-8 text-center">
+                                        <AlertTriangle className="h-8 w-8 text-amber-400 mx-auto mb-2" />
+                                        <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none">Sin resultados</p>
+                                        <button 
+                                            type="button" 
+                                            onClick={() => setIsManualOt(true)}
+                                            className="text-[9px] font-black text-primary underline uppercase mt-2"
+                                        >
+                                            Usar Folio Manual
+                                        </button>
+                                    </div>
+                                )}
                             </div>
-                        ) : userOts.length > 0 ? (
-                            <select 
-                                className="w-full px-4 py-4 bg-gray-50 border-2 border-gray-100 rounded-2xl focus:border-primary outline-none font-black text-sm transition-all"
-                                value={formData.otId}
-                                onChange={(e) => setFormData({...formData, otId: e.target.value, isExternal: false})}
-                            >
-                                <option value="">Seleccionar Orden (OT)...</option>
-                                {userOts.map(ot => (
-                                    <option key={ot.id} value={ot.id}>{ot.id} - {ot.title}</option>
-                                ))}
-                            </select>
-                        ) : (
-                            <div className="p-4 bg-amber-50 border-2 border-amber-100 rounded-2xl flex items-center justify-between gap-3">
-                                <p className="text-[10px] font-bold text-amber-800 leading-tight">No tienes órdenes activas en lista.</p>
-                                <button type="button" onClick={() => setIsManualOt(true)} className="text-[9px] font-black text-amber-600 underline uppercase whitespace-nowrap">Ingresar Manual</button>
+                        )}
+                        
+                        {formData.otId && !showOtResults && (
+                            <div className="flex items-center gap-2 px-4 py-2 bg-emerald-50 border border-emerald-100 rounded-xl">
+                                <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                                <p className="text-[10px] font-black text-emerald-700 uppercase tracking-widest">Vinculado a {formData.otId}</p>
                             </div>
                         )}
                     </div>
