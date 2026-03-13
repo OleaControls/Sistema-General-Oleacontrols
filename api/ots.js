@@ -54,7 +54,7 @@ export default async function handler(req, res) {
 
   if (method === 'GET') {
     try {
-      const { techId, supervisorId, status, id: specificId } = req.query;
+      const { techId, supervisorId, status, id: specificId, search } = req.query;
       
       // Si piden una OT específica (detalle)
       if (specificId || (req.url.includes('/api/ots/') && req.query.id)) {
@@ -85,13 +85,38 @@ export default async function handler(req, res) {
       }
 
       const where = {};
-      if (techId) {
-          where.OR = [
-              { technicianId: techId },
-              { assistantTechs: { array_contains: [{ id: techId }] } },
-              { supportTechs: { array_contains: [{ id: techId }] } }
-          ];
+      
+      if (search) {
+        where.OR = [
+          { otNumber: { contains: search } },
+          { clientName: { contains: search } },
+          { storeName: { contains: search } },
+          { storeNumber: { contains: search } },
+        ];
       }
+
+      if (techId) {
+          const techFilter = {
+              OR: [
+                  { technicianId: techId },
+                  { assistantTechs: { array_contains: [{ id: techId }] } },
+                  { supportTechs: { array_contains: [{ id: techId }] } }
+              ]
+          };
+          
+          if (where.OR) {
+              // Si ya hay una búsqueda por texto, combinamos con el filtro de técnico
+              const originalOR = where.OR;
+              delete where.OR;
+              where.AND = [
+                  { OR: originalOR },
+                  techFilter
+              ];
+          } else {
+              where.OR = techFilter.OR;
+          }
+      }
+      
       if (supervisorId) where.supervisorId = supervisorId;
       if (status && status !== 'ALL') where.status = status;
 
