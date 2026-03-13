@@ -108,8 +108,8 @@ export default function NewExpenseForm({ isOpen, onClose, onSave, prefilledOtId,
   const handleFileChange = (e) => {
     const file = e.target.files[0];
     if (file) {
-        if (file.size > 5 * 1024 * 1024) {
-            alert('El archivo es demasiado grande (máx 5MB)');
+        if (file.size > 10 * 1024 * 1024) {
+            alert('El archivo es demasiado grande (máx 10MB)');
             return;
         }
         
@@ -409,7 +409,7 @@ export default function NewExpenseForm({ isOpen, onClose, onSave, prefilledOtId,
                       <>
                         <Camera className="h-12 w-12 text-gray-300 mb-2 group-hover:scale-110 transition-transform group-hover:text-primary" />
                         <p className="text-[11px] font-black text-gray-400 uppercase tracking-widest group-hover:text-primary transition-colors">Capturar Ticket / PDF</p>
-                        <p className="text-[9px] text-gray-300 font-bold mt-1">Formatos: JPG, PNG, PDF • Máx 5MB</p>
+                        <p className="text-[9px] text-gray-300 font-bold mt-1">Formatos: JPG, PNG, PDF • Máx 10MB</p>
                       </>
                   )}
                 </label>

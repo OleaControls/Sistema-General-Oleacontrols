@@ -1,6 +1,14 @@
 import prisma from './_lib/prisma.js'
 import { uploadToR2 } from './_lib/r2.js'
 
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: '10mb',
+    },
+  },
+};
+
 export default async function handler(req, res) {
   const { method } = req;
 // ... (GET permanece igual)

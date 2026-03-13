@@ -4,7 +4,7 @@ import { uploadToR2, signUrlIfNeeded } from './_lib/r2.js'
 export const config = {
   api: {
     bodyParser: {
-      sizeLimit: '4.5mb',
+      sizeLimit: '10mb',
     },
   },
 };
