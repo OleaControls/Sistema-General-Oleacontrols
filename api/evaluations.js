@@ -26,15 +26,32 @@ const getQuincenaRange = (date, offset = 0) => {
 const calculateStats = (evaluations) => {
   if (!evaluations || evaluations.length === 0) return { total: 0, avg1: 0, avg2: 0, avg3: 0, totalAvg: 0 };
   
-  const avg1 = evaluations.reduce((acc, curr) => acc + (curr.score1 || 0), 0) / evaluations.length;
-  const avg2 = evaluations.reduce((acc, curr) => acc + (curr.score2 || 0), 0) / evaluations.length;
-  const avg3 = evaluations.reduce((acc, curr) => acc + (curr.score3 || 0), 0) / evaluations.length;
-  
-  // Si al menos una evaluación tiene score3 (Nivel Técnico), dividimos entre 3
-  const hasScore3 = evaluations.some(e => e.score3 !== null && e.score3 !== undefined);
-  const totalAvg = (avg1 + avg2 + (avg3 || 0)) / (hasScore3 ? 3 : 2);
-  
-  return { total: evaluations.length, avg1, avg2, avg3, totalAvg };
+  let sum1 = 0, sum2 = 0, sum3 = 0, count3 = 0;
+  let sumOfAvgs = 0;
+
+  evaluations.forEach(e => {
+    const s1 = e.score1 || 0;
+    const s2 = e.score2 || 0;
+    sum1 += s1;
+    sum2 += s2;
+    
+    if (e.score3 !== null && e.score3 !== undefined) {
+      const s3 = e.score3 || 0;
+      sum3 += s3;
+      count3++;
+      sumOfAvgs += (s1 + s2 + s3) / 3;
+    } else {
+      sumOfAvgs += (s1 + s2) / 2;
+    }
+  });
+
+  return { 
+    total: evaluations.length, 
+    avg1: sum1 / evaluations.length, 
+    avg2: sum2 / evaluations.length, 
+    avg3: count3 > 0 ? sum3 / count3 : 0, 
+    totalAvg: sumOfAvgs / evaluations.length 
+  };
 };
 
 export default async function handler(req, res) {
@@ -79,10 +96,18 @@ export default async function handler(req, res) {
         const results = await Promise.all(technicians.map(async (tech) => {
           try {
             const currEvals = await prisma.evaluation.findMany({
-              where: { targetId: tech.id, createdAt: { gte: currentQ.start, lte: currentQ.end } }
+              where: { 
+                targetId: tech.id, 
+                type: { in: ['OPS_TECH', 'CUSTOMER_TECH'] },
+                createdAt: { gte: currentQ.start, lte: currentQ.end } 
+              }
             });
             const prevEvals = await prisma.evaluation.findMany({
-              where: { targetId: tech.id, createdAt: { gte: prevQ.start, lte: prevQ.end } }
+              where: { 
+                targetId: tech.id, 
+                type: { in: ['OPS_TECH', 'CUSTOMER_TECH'] },
+                createdAt: { gte: prevQ.start, lte: prevQ.end } 
+              }
             });
 
             const current = calculateStats(currEvals);
@@ -141,10 +166,18 @@ export default async function handler(req, res) {
       // 2. Métricas Individuales con Comparativa Quincenal
       if (targetId) {
         const currEvals = await prisma.evaluation.findMany({
-          where: { targetId, createdAt: { gte: currentQ.start, lte: currentQ.end } }
+          where: { 
+            targetId, 
+            type: { in: ['OPS_TECH', 'CUSTOMER_TECH'] },
+            createdAt: { gte: currentQ.start, lte: currentQ.end } 
+          }
         });
         const prevEvals = await prisma.evaluation.findMany({
-          where: { targetId, createdAt: { gte: prevQ.start, lte: prevQ.end } }
+          where: { 
+            targetId, 
+            type: { in: ['OPS_TECH', 'CUSTOMER_TECH'] },
+            createdAt: { gte: prevQ.start, lte: prevQ.end } 
+          }
         });
 
         const current = calculateStats(currEvals);
