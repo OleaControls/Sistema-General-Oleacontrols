@@ -1,5 +1,6 @@
 import prisma from './_lib/prisma.js'
 import { uploadToR2, signUrlIfNeeded } from './_lib/r2.js'
+import { authMiddleware } from './_lib/auth.js'
 
 export const config = {
   api: {
@@ -10,6 +11,10 @@ export const config = {
 };
 
 export default async function handler(req, res) {
+  // Proteger la ruta
+  const user = authMiddleware(req, res);
+  if (!user) return; // authMiddleware ya envió la respuesta 401
+
   const { method } = req;
 
   // Helper para procesar imágenes de OT a R2

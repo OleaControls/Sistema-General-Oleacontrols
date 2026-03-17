@@ -1,4 +1,5 @@
 import prisma from './_lib/prisma.js'
+import { signToken, comparePassword } from './_lib/auth.js'
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end()
@@ -13,15 +14,29 @@ export default async function handler(req, res) {
       }
     })
 
-    if (credentials && credentials.password === password) {
-      const user = {
-        id: credentials.employee.id,
-        name: credentials.employee.name,
-        email: credentials.email,
-        roles: credentials.roles, // Ahora es un array
-        avatar: credentials.employee.avatar
+    if (credentials) {
+      // Intentar comparar con bcrypt. Si la contraseña en DB no es un hash, fallará.
+      // Puedes migrar tus contraseñas a hashes usando hashPassword de _lib/auth.js
+      const isMatch = await comparePassword(password, credentials.password)
+        .catch(() => credentials.password === password) // Fallback temporal para texto plano
+
+      if (isMatch) {
+        const user = {
+          id: credentials.employee.id,
+          name: credentials.employee.name,
+          email: credentials.email,
+          roles: credentials.roles,
+          avatar: credentials.employee.avatar
+        }
+
+        // Generar el token
+        const token = signToken(user)
+
+        return res.status(200).json({
+          ...user,
+          token
+        })
       }
-      return res.status(200).json(user)
     }
 
     return res.status(401).json({ error: 'Credenciales inválidas' })

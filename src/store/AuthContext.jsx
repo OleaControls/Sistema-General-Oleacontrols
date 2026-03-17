@@ -43,25 +43,30 @@ export function AuthProvider({ children }) {
             body: JSON.stringify({ email, password })
         });
 
-        if (response.ok) {
-            const userData = await response.json();
-            
-            // Determinar el rol principal del array de roles
-            let primaryRole = ROLES.COLLABORATOR;
-            if (userData.roles && Array.isArray(userData.roles)) {
-                // Priorizar cualquier rol que no sea COLLABORATOR
-                primaryRole = userData.roles.find(r => r !== ROLES.COLLABORATOR) || ROLES.COLLABORATOR;
-            }
+            if (response.ok) {
+                const userData = await response.json();
+                
+                // El token ya viene incluido si el login fue exitoso en el backend
+                const token = userData.token;
+                
+                // Determinar el rol principal del array de roles
+                let primaryRole = ROLES.COLLABORATOR;
+                if (userData.roles && Array.isArray(userData.roles)) {
+                    // Priorizar cualquier rol que no sea COLLABORATOR
+                    primaryRole = userData.roles.find(r => r !== ROLES.COLLABORATOR) || ROLES.COLLABORATOR;
+                }
 
-            const fullUser = {
-                ...userData,
-                // Si entra por el portal colaborador, forzamos ese rol, si no, usamos su rol principal
-                role: portal === 'COLLABORATOR' ? ROLES.COLLABORATOR : primaryRole
-            };
-            setUser(fullUser);
-            localStorage.setItem('olea_user', JSON.stringify(fullUser));
-            return true;
-        }
+                const fullUser = {
+                    ...userData,
+                    // Si entra por el portal colaborador, forzamos ese rol, si no, usamos su rol principal
+                    role: portal === 'COLLABORATOR' ? ROLES.COLLABORATOR : primaryRole
+                };
+                setUser(fullUser);
+                localStorage.setItem('olea_user', JSON.stringify(fullUser));
+                // Opcional: guardar el token por separado para mayor facilidad si se prefiere
+                if (token) localStorage.setItem('olea_token', token);
+                return true;
+            }
         return false;
     } catch (error) {
         console.error('Login error:', error);
@@ -72,6 +77,7 @@ export function AuthProvider({ children }) {
   const logout = () => {
     setUser(null);
     localStorage.removeItem('olea_user');
+    localStorage.removeItem('olea_token');
   };
 
   const updateUser = (newData) => {

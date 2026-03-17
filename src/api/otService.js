@@ -1,3 +1,5 @@
+import { apiFetch } from '../lib/api';
+
 const OT_TEMPLATES_KEY = 'olea_ot_templates_db';
 const TECH_LOCATIONS_KEY = 'olea_tech_locations_db';
 
@@ -15,7 +17,7 @@ const initialTemplates = [
 export const otService = {
   async getOTs(filters = {}) {
     const params = new URLSearchParams(filters).toString();
-    const response = await fetch(`/api/ots?${params}`);
+    const response = await apiFetch(`/api/ots?${params}`);
     if (!response.ok) throw new Error('Error al obtener OTs');
     return response.json();
   },
@@ -23,9 +25,8 @@ export const otService = {
   async uploadFile(base64Data, folder = 'uploads') {
     try {
         console.log(`[otService] Intentando subir archivo a /api/upload...`);
-        const response = await fetch('/api/upload', {
+        const response = await apiFetch('/api/upload', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ file: base64Data, folder })
         });
 
@@ -66,9 +67,8 @@ export const otService = {
   },
 
   async saveOT(otData) {
-    const response = await fetch('/api/ots', {
+    const response = await apiFetch('/api/ots', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(otData)
     });
     if (!response.ok) throw new Error('Error al crear OT');
@@ -91,9 +91,8 @@ export const otService = {
   },
 
   async updateOT(otId, updatedData) {
-    const response = await fetch('/api/ots', {
+    const response = await apiFetch('/api/ots', {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: otId, ...updatedData })
     });
     if (!response.ok) throw new Error('Error al actualizar OT');
@@ -101,7 +100,7 @@ export const otService = {
   },
 
   async deleteOT(otId) {
-    const response = await fetch(`/api/ots?id=${otId}`, {
+    const response = await apiFetch(`/api/ots?id=${otId}`, {
       method: 'DELETE'
     });
     if (!response.ok) throw new Error('Error al eliminar OT');
@@ -128,7 +127,7 @@ export const otService = {
     if (!ot) return null;
 
     // Obtener gastos reales de la API
-    const response = await fetch(`/api/expenses?otId=${otId}`);
+    const response = await apiFetch(`/api/expenses?otId=${otId}`);
     const allExpenses = response.ok ? await response.json() : [];
     
     const otExpenses = allExpenses.filter(e => e.status !== 'REJECTED');
