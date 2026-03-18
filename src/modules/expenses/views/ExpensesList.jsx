@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Filter, Search, Receipt, ChevronRight, MapPin, Calendar, CreditCard, CloudOff, Check, AlertTriangle } from 'lucide-react';
+import { Plus, Filter, Search, Receipt, ChevronRight, MapPin, Calendar, CreditCard, CloudOff, Check, AlertTriangle, X, Download } from 'lucide-react';
 import { expenseService } from '@/api/expenseService';
 import { otService } from '@/api/otService';
 import { cn } from '@/lib/utils';
@@ -23,6 +23,7 @@ export default function ExpensesList({ otId = null, hideHeader = false, refreshT
   const [filter, setFilter] = useState('ALL');
   const [isFormOpen, setFormOpen] = useState(false);
   const [editingExpense, setEditingExpense] = useState(null);
+  const [selectedImage, setSelectedImage] = useState(null);
 
   useEffect(() => {
     loadExpenses();
@@ -63,8 +64,9 @@ export default function ExpensesList({ otId = null, hideHeader = false, refreshT
   };
 
   const handleEditClick = (exp) => {
-    // Only allow editing if not approved or reimbursed
-    if (['DRAFT', 'SUBMITTED', 'REJECTED'].includes(exp.status)) {
+    // Si tiene ticket, lo abrimos directamente al dar click en el icono (manejado en el JSX)
+    // Pero si da click en el cuerpo de la card, intentamos editar
+    if (['DRAFT', 'SUBMITTED', 'REJECTED', 'PENDING'].includes(exp.status)) {
       setEditingExpense(exp);
       setFormOpen(true);
     } else {
@@ -146,14 +148,25 @@ export default function ExpensesList({ otId = null, hideHeader = false, refreshT
                 )}
               >
                 <div className="flex items-center gap-4">
-                  <div className={cn(
-                    "h-12 w-12 rounded-xl flex items-center justify-center transition-colors",
-                    isOverLimit ? "bg-red-100 text-red-600" : "bg-gray-50 text-gray-400 group-hover:bg-primary/10 group-hover:text-primary"
-                  )}>
+                  <div 
+                    onClick={(e) => {
+                        if (exp.receipt) {
+                            e.stopPropagation();
+                            setSelectedImage(exp.receipt);
+                        }
+                    }}
+                    className={cn(
+                        "h-12 w-12 rounded-xl flex items-center justify-center transition-colors",
+                        exp.receipt 
+                            ? "bg-primary/10 text-primary shadow-inner cursor-pointer" 
+                            : isOverLimit ? "bg-red-100 text-red-600" : "bg-gray-50 text-gray-400 group-hover:bg-primary/10 group-hover:text-primary"
+                    )}
+                    title={exp.receipt ? "Ver Ticket" : "Sin Ticket"}
+                  >
                     {isOverLimit ? <AlertTriangle className="h-6 w-6" /> : <Receipt className="h-6 w-6" />}
                   </div>
                   
-                  <div className="flex-1 min-w-0">
+                  <div className="flex-1 min-w-0" onClick={() => handleEditClick(exp)}>
                     <div className="flex items-center gap-2 mb-1">
                       <span className={cn("text-[10px] font-black px-2 py-0.5 rounded-md uppercase", statusStyles[exp.status])}>
                         {exp.status}
@@ -174,7 +187,7 @@ export default function ExpensesList({ otId = null, hideHeader = false, refreshT
                     <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1 text-[11px] font-medium text-gray-500">
                       <div className="flex items-center gap-1">
                         <Calendar className="h-3 w-3" />
-                        {exp.date}
+                        {new Date(exp.createdAt).toLocaleDateString()}
                       </div>
                       <div className="flex items-center gap-1">
                         <CreditCard className="h-3 w-3" />
@@ -183,12 +196,12 @@ export default function ExpensesList({ otId = null, hideHeader = false, refreshT
                     </div>
                   </div>
 
-                  <div className="text-right flex items-center gap-3">
+                  <div className="text-right flex items-center gap-3" onClick={() => handleEditClick(exp)}>
                     <div>
                       <p className={cn("text-lg font-black", isOverLimit ? "text-red-600" : "text-gray-900")}>
                         ${exp.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                       </p>
-                      <p className="text-[10px] font-bold text-gray-400 uppercase">{exp.currency}</p>
+                      <p className="text-[10px] font-bold text-gray-400 uppercase">MXN</p>
                     </div>
                     <ChevronRight className="h-5 w-5 text-gray-300 group-hover:text-primary transition-colors" />
                   </div>
@@ -202,6 +215,34 @@ export default function ExpensesList({ otId = null, hideHeader = false, refreshT
           </div>
         )}
       </div>
+
+      {/* Modal de Previsualización de Imagen */}
+      {selectedImage && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4 md:p-10 animate-in fade-in duration-300">
+            <button 
+                onClick={() => setSelectedImage(null)}
+                className="absolute top-6 right-6 p-3 bg-white/10 hover:bg-white/20 text-white rounded-full transition-all"
+            >
+                <X className="h-6 w-6" />
+            </button>
+            <div className="max-w-4xl w-full max-h-[90vh] flex flex-col items-center gap-4">
+                {selectedImage.toLowerCase().endsWith('.pdf') || selectedImage.startsWith('data:application/pdf') ? (
+                    <iframe src={selectedImage} className="w-full h-[80vh] rounded-3xl bg-white" title="PDF Evidence" />
+                ) : (
+                    <img src={selectedImage} className="max-w-full max-h-[80vh] rounded-3xl shadow-2xl object-contain border-4 border-white/10" alt="Evidencia de Gasto" />
+                )}
+                <div className="flex gap-4">
+                    <a 
+                        href={selectedImage} 
+                        download={`Evidencia_Gasto_${new Date().getTime()}`}
+                        className="bg-white text-gray-900 px-8 py-3 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-gray-100 transition-all flex items-center gap-2 shadow-xl"
+                    >
+                        <Download className="h-4 w-4" /> Descargar Archivo
+                    </a>
+                </div>
+            </div>
+        </div>
+      )}
     </div>
   );
 }

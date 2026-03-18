@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   Receipt, Search, Filter, Download, ArrowUpDown, CheckCircle2, XCircle, Clock, 
   ChevronRight, MapPin, Calendar, DollarSign, TrendingUp, FileText, MessageSquare,
-  PieChart, BarChart3, Users, Wallet, AlertCircle, Fuel, Utensils, Home, Settings, Package, MoreHorizontal
+  PieChart, BarChart3, Users, Wallet, AlertCircle, Fuel, Utensils, Home, Settings, Package, MoreHorizontal, X, ImageIcon
 } from 'lucide-react';
 import { expenseService } from '@/api/expenseService';
 import { cn } from '@/lib/utils';
@@ -28,6 +28,7 @@ export default function OperationsExpenses() {
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [showDashboard, setShowDashboard] = useState(true);
   const [isExpenseFormOpen, setIsExpenseFormOpen] = useState(false);
+  const [selectedImage, setSelectedImage] = useState(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -378,8 +379,14 @@ export default function OperationsExpenses() {
                         <FileText className="h-4 w-4" />
                       </button>
                       <button 
-                        className="p-2 text-gray-400 hover:text-primary hover:bg-primary/5 rounded-xl transition-all"
-                        title="Ver Evidencia"
+                        onClick={() => exp.receipt ? setSelectedImage(exp.receipt) : alert("Este gasto no tiene evidencia digital cargada.")}
+                        className={cn(
+                            "p-2 rounded-xl transition-all",
+                            exp.receipt 
+                                ? "text-primary bg-primary/5 hover:bg-primary/10 shadow-sm" 
+                                : "text-gray-300 cursor-not-allowed"
+                        )}
+                        title={exp.receipt ? "Ver Evidencia" : "Sin Evidencia"}
                       >
                         <Receipt className="h-4 w-4" />
                       </button>
@@ -391,6 +398,34 @@ export default function OperationsExpenses() {
           </table>
         </div>
       </div>
+
+      {/* Modal de Previsualización de Imagen */}
+      {selectedImage && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4 md:p-10 animate-in fade-in duration-300">
+            <button 
+                onClick={() => setSelectedImage(null)}
+                className="absolute top-6 right-6 p-3 bg-white/10 hover:bg-white/20 text-white rounded-full transition-all"
+            >
+                <X className="h-6 w-6" />
+            </button>
+            <div className="max-w-4xl w-full max-h-[90vh] flex flex-col items-center gap-4">
+                {selectedImage.toLowerCase().endsWith('.pdf') || selectedImage.startsWith('data:application/pdf') ? (
+                    <iframe src={selectedImage} className="w-full h-[80vh] rounded-3xl bg-white" title="PDF Evidence" />
+                ) : (
+                    <img src={selectedImage} className="max-w-full max-h-[80vh] rounded-3xl shadow-2xl object-contain border-4 border-white/10" alt="Evidencia de Gasto" />
+                )}
+                <div className="flex gap-4">
+                    <a 
+                        href={selectedImage} 
+                        download={`Evidencia_Gasto_${new Date().getTime()}`}
+                        className="bg-white text-gray-900 px-8 py-3 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-gray-100 transition-all flex items-center gap-2 shadow-xl"
+                    >
+                        <Download className="h-4 w-4" /> Descargar Archivo
+                    </a>
+                </div>
+            </div>
+        </div>
+      )}
 
       <NewExpenseForm 
         isOpen={isExpenseFormOpen}
