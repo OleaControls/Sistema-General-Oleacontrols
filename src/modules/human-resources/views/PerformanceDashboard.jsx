@@ -5,6 +5,8 @@ import {
   ChevronRight, MessageSquare, Settings, X, Save, TrendingDown
 } from 'lucide-react';
 import { apiFetch } from '@/lib/api';
+import { useAuth, ROLES } from '@/store/AuthContext';
+import { cn } from '@/lib/utils';
 
 const MetricsCard = ({ label, value, prevValue, icon: Icon, color }) => {
   const valNum = typeof value === 'number' ? value : 0;

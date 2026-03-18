@@ -1,7 +1,7 @@
 import { apiFetch } from '../lib/api';
 
 export const expenseService = {
-  async getExpenses(filters = {}) {
+  async getAll(filters = {}) {
     const params = new URLSearchParams(filters).toString();
     const response = await apiFetch(`/api/expenses?${params}`);
     if (!response.ok) throw new Error('Error al obtener gastos');

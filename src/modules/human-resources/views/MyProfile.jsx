@@ -85,6 +85,9 @@ const MetricsSection = ({ targetId }) => {
   );
 };
 import { apiFetch } from '@/lib/api';
+import { useAuth, ROLES } from '@/store/AuthContext';
+import { hrService } from '@/api/hrService';
+import { cn } from '@/lib/utils';
 
 const PROFILE_TABS = [
   { id: 'OVERVIEW', label: 'Mi Perfil', icon: User },
