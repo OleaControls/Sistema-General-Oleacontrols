@@ -93,6 +93,10 @@ model Employee {
   assignedLeads   Lead[]      // Leads asignados a este empleado
   quotesCreated   Quote[]     @relation("QuoteCreator")
   quotesSold      Quote[]     @relation("QuoteSeller")
+
+  // --- EVALUACIONES ---
+  evaluationsReceived Evaluation[] @relation("EvaluationTarget")
+  evaluationsGiven    Evaluation[] @relation("EvaluationEvaluator")
 }
 
 model Credentials {
@@ -209,7 +213,10 @@ model Evaluation {
   workOrder       WorkOrder @relation(fields: [otId], references: [id])
   
   targetId        String   // ID del técnico o ejecutivo evaluado
+  target          Employee @relation("EvaluationTarget", fields: [targetId], references: [id])
+  
   evaluatorId     String?  // ID del supervisor (si aplica)
+  evaluator       Employee? @relation("EvaluationEvaluator", fields: [evaluatorId], references: [id])
   
   // Métricas Genéricas (0-5 estrellas)
   score1          Int?     // Satisfacción / Rapidez / Experiencia Ejecutivo
