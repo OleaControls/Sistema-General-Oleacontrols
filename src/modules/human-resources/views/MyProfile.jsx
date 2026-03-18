@@ -95,10 +95,11 @@ const PROFILE_TABS = [
 ];
 
 export default function MyProfile() {
-  const { user } = useAuth();
+  const { user, updateUser } = useAuth();
   const [employee, setEmployee] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('OVERVIEW');
+  const [isUploading, setIsUploading] = useState(false);
 
   useEffect(() => {
     const fetch = async () => {
@@ -125,6 +126,52 @@ export default function MyProfile() {
     fetch();
   }, [user]);
 
+  const handleAvatarChange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    // 1. Validar tamaño (máx 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      alert("La imagen es demasiado grande. Máximo 5MB.");
+      return;
+    }
+
+    try {
+      setIsUploading(true);
+      
+      // 2. Convertir a Base64 para el backend (processDocs lo subirá a R2)
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = async () => {
+        const base64 = reader.result;
+        
+        // 3. Enviar al endpoint de empleados (PUT)
+        const res = await fetch('/api/employees', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: employee.id,
+            avatar: base64
+          })
+        });
+
+        if (!res.ok) throw new Error("Error al actualizar avatar");
+        
+        const updated = await res.json();
+        
+        // 4. Actualizar estado local y contexto global
+        setEmployee(prev => ({ ...prev, avatar: updated.avatar }));
+        updateUser({ id: employee.id, avatar: updated.avatar });
+        
+        setIsUploading(false);
+      };
+    } catch (err) {
+      console.error(err);
+      alert("No se pudo actualizar la imagen de perfil.");
+      setIsUploading(false);
+    }
+  };
+
   if (loading) return <div className="p-10 text-center animate-pulse text-gray-400 font-bold uppercase tracking-widest">Cargando tu perfil...</div>;
 
   const isCollaborator = user.role === ROLES.COLLABORATOR;
@@ -135,7 +182,28 @@ export default function MyProfile() {
       <div className="bg-white rounded-[2.5rem] p-8 border border-gray-100 shadow-sm flex flex-col md:flex-row gap-8 items-center md:items-start text-center md:text-left relative overflow-hidden">
         <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-primary/10 to-transparent blur-[80px]" />
         
-        <img src={employee.avatar} className="h-32 w-32 rounded-[2rem] object-cover border-4 border-white shadow-2xl relative z-10" />
+        <div className="relative group cursor-pointer z-10" onClick={() => document.getElementById('avatar-input').click()}>
+          <img src={employee.avatar} className={cn(
+            "h-32 w-32 rounded-[2rem] object-cover border-4 border-white shadow-2xl transition-all duration-300",
+            isUploading ? "opacity-50 blur-sm" : "group-hover:scale-105 group-hover:brightness-90"
+          )} />
+          <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+            <User className="h-8 w-8 text-white" />
+          </div>
+          {isUploading && (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-4 border-primary border-t-transparent" />
+            </div>
+          )}
+          <input 
+            id="avatar-input" 
+            type="file" 
+            accept="image/*" 
+            className="hidden" 
+            onChange={handleAvatarChange}
+            disabled={isUploading}
+          />
+        </div>
         
         <div className="flex-1 space-y-4 relative z-10">
           <div className="space-y-1">

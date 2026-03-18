@@ -211,6 +211,7 @@ export default async function handler(req, res) {
         name: name || undefined,
         email: email || undefined,
         roles: roles || undefined,
+        avatar: body.avatar || undefined,
         position: position || null,
         department: department || null,
         location: location || null,
