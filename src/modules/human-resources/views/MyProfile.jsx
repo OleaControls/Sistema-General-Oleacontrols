@@ -12,7 +12,7 @@ const MetricsSection = ({ targetId }) => {
   useEffect(() => {
     const fetchMetrics = async () => {
       try {
-        const res = await fetch(`/api/evaluations?targetId=${targetId}&days=15`);
+        const res = await apiFetch(`/api/evaluations?targetId=${targetId}&days=15`);
         if (!res.ok) return;
         const data = await res.json();
         setMetrics(data);
@@ -84,9 +84,7 @@ const MetricsSection = ({ targetId }) => {
     </div>
   );
 };
-import { hrService } from '@/api/hrService';
-import { useAuth, ROLES } from '@/store/AuthContext';
-import { cn } from '@/lib/utils';
+import { apiFetch } from '@/lib/api';
 
 const PROFILE_TABS = [
   { id: 'OVERVIEW', label: 'Mi Perfil', icon: User },
@@ -146,9 +144,8 @@ export default function MyProfile() {
         const base64 = reader.result;
         
         // 3. Enviar al endpoint de empleados (PUT)
-        const res = await fetch('/api/employees', {
+        const res = await apiFetch('/api/employees', {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             id: employee.id,
             avatar: base64

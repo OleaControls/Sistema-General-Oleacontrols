@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
+import { apiFetch } from '@/lib/api';
 
 const RankBadge = ({ rank }) => {
   const configs = {
@@ -29,7 +30,7 @@ export default function TechGamification() {
   useEffect(() => {
     const fetchGamification = async () => {
       try {
-        const res = await fetch('/api/gamification');
+        const res = await apiFetch('/api/gamification');
         const data = await res.json();
         setLeaderboard(data);
       } catch (err) {

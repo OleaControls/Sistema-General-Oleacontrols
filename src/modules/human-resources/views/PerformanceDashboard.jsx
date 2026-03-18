@@ -4,11 +4,12 @@ import {
   BarChart3, User, ArrowUpRight, ArrowDownRight, 
   ChevronRight, MessageSquare, Settings, X, Save, TrendingDown
 } from 'lucide-react';
-import { useAuth, ROLES } from '@/store/AuthContext';
-import { cn } from '@/lib/utils';
+import { apiFetch } from '@/lib/api';
 
 const MetricsCard = ({ label, value, prevValue, icon: Icon, color }) => {
-  const diff = value - prevValue;
+  const valNum = typeof value === 'number' ? value : 0;
+  const prevValNum = typeof prevValue === 'number' ? prevValue : 0;
+  const diff = valNum - prevValNum;
   const isUp = diff >= 0;
 
   return (
@@ -19,7 +20,7 @@ const MetricsCard = ({ label, value, prevValue, icon: Icon, color }) => {
         </div>
         <div className="text-right">
             <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest block">{label}</span>
-            {prevValue > 0 && (
+            {prevValNum > 0 && (
                 <div className={cn("flex items-center gap-0.5 text-[10px] font-bold justify-end", isUp ? "text-emerald-500" : "text-red-500")}>
                     {isUp ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
                     {Math.abs(diff).toFixed(1)} vs ant.
@@ -28,7 +29,7 @@ const MetricsCard = ({ label, value, prevValue, icon: Icon, color }) => {
         </div>
       </div>
       <div>
-        <p className="text-4xl font-black text-gray-900 tracking-tighter">{typeof value === 'number' ? value.toFixed(1) : value}</p>
+        <p className="text-4xl font-black text-gray-900 tracking-tighter">{valNum.toFixed(1)}</p>
       </div>
     </div>
   );
@@ -62,7 +63,7 @@ export default function PerformanceDashboard() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const configRes = await fetch('/api/config?key=BONUS_THRESHOLDS');
+      const configRes = await apiFetch('/api/config?key=BONUS_THRESHOLDS');
       const configData = await configRes.json();
       
       if (Array.isArray(configData) && configData.length > 0) {
@@ -70,14 +71,14 @@ export default function PerformanceDashboard() {
         setTempConfig(configData);
       }
 
-      const myRes = await fetch(`/api/evaluations?targetId=${user.id}`);
+      const myRes = await apiFetch(`/api/evaluations?targetId=${user.id}`);
       if (myRes.ok) setMyMetrics(await myRes.json());
 
       if (isSupervisor) {
-         const rankRes = await fetch(`/api/evaluations?ranking=true`);
+         const rankRes = await apiFetch(`/api/evaluations?ranking=true`);
          if (rankRes.ok) setData(await rankRes.json());
 
-         const recRes = await fetch(`/api/evaluations?getRecommendations=true`);
+         const recRes = await apiFetch(`/api/evaluations?getRecommendations=true`);
          if (recRes.ok) setRecommendations(await recRes.json());
       }
     } catch (err) {
@@ -89,7 +90,7 @@ export default function PerformanceDashboard() {
 
   const handleSaveConfig = async () => {
     try {
-      const res = await fetch('/api/config', {
+      const res = await apiFetch('/api/config', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ key: 'BONUS_THRESHOLDS', value: tempConfig })

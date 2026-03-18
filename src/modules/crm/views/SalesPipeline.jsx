@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
+import { apiFetch } from '@/lib/api';
 
 const STAGES = [
   { id: 'PROSPECT', label: 'Prospección', color: 'bg-blue-500', bg: 'bg-blue-50/30' },
@@ -28,7 +29,7 @@ export default function SalesPipeline() {
 
   const fetchLeads = async () => {
     try {
-      const res = await fetch('/api/crm/leads');
+      const res = await apiFetch('/api/crm/leads');
       const data = await res.json();
       setLeads(Array.isArray(data) ? data : []);
     } catch (err) { console.error(err); setLeads([]); }
@@ -38,9 +39,8 @@ export default function SalesPipeline() {
   const handleAddLead = async (e) => {
     e.preventDefault();
     try {
-      const res = await fetch('/api/crm/leads', {
+      const res = await apiFetch('/api/crm/leads', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...newLead, estimatedValue: parseFloat(newLead.estimatedValue) || 0 })
       });
       if (res.ok) { setShowAddModal(false); setNewLead({ name: '', company: '', email: '', phone: '', estimatedValue: '', source: 'Web' }); fetchLeads(); }
@@ -51,9 +51,8 @@ export default function SalesPipeline() {
     const originalLeads = [...leads];
     setLeads(leads.map(l => l.id === leadId ? { ...l, stage: newStage } : l));
     try {
-      const res = await fetch('/api/crm/leads', {
+      const res = await apiFetch('/api/crm/leads', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: leadId, stage: newStage })
       });
       if (!res.ok) throw new Error();
@@ -63,9 +62,8 @@ export default function SalesPipeline() {
   const handleDeleteLead = async (id, name) => {
     if (!window.confirm(`¿Eliminar "${name}"?`)) return;
     try {
-      const res = await fetch('/api/crm/leads', {
+      const res = await apiFetch('/api/crm/leads', {
         method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id })
       });
       if (res.ok) fetchLeads();

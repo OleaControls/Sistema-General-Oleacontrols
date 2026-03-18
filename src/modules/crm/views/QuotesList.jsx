@@ -9,6 +9,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/store/AuthContext';
 import { cn } from '@/lib/utils';
+import { apiFetch } from '@/lib/api';
 
 export default function QuotesList() {
   const { user } = useAuth();
@@ -35,7 +36,7 @@ export default function QuotesList() {
   const fetchData = async () => {
     try {
       const [qRes, cRes, eRes] = await Promise.all([
-        fetch('/api/quotes'), fetch('/api/crm/clients'), fetch('/api/employees')
+        apiFetch('/api/quotes'), apiFetch('/api/crm/clients'), apiFetch('/api/employees')
       ]);
       setQuotes(await qRes.json());
       setClients(await cRes.json());
@@ -62,8 +63,8 @@ export default function QuotesList() {
   const handleCreateQuote = async (e) => {
     e.preventDefault(); setIsGenerating(true);
     try {
-      const res = await fetch('/api/quotes', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...newQuote, creatorId: user.id })
+      const res = await apiFetch('/api/quotes', {
+        method: 'POST', body: JSON.stringify({ ...newQuote, creatorId: user.id })
       });
       if (res.ok) { setShowAddModal(false); setNewQuote(initialQuote); fetchData(); }
     } catch (err) { alert("Error"); }
@@ -72,7 +73,7 @@ export default function QuotesList() {
 
   const handleDownloadPDF = async (quoteId, quoteNumber) => {
     try {
-      const res = await fetch(`/api/quotes?id=${quoteId}`);
+      const res = await apiFetch(`/api/quotes?id=${quoteId}`);
       const data = await res.json();
       window.open(data.pdfUrl, '_blank');
     } catch (err) { console.error(err); }
@@ -81,14 +82,14 @@ export default function QuotesList() {
   const handleDeleteQuote = async (id, num) => {
     if (!window.confirm(`¿Eliminar ${num}?`)) return;
     try {
-      const res = await fetch('/api/quotes', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) });
+      const res = await apiFetch('/api/quotes', { method: 'DELETE', body: JSON.stringify({ id }) });
       if (res.ok) fetchData();
     } catch (err) { console.error(err); }
   };
 
   const updateStatus = async (id, status) => {
     try {
-      const res = await fetch('/api/quotes', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, status }) });
+      const res = await apiFetch('/api/quotes', { method: 'PUT', body: JSON.stringify({ id, status }) });
       if (res.ok) fetchData();
     } catch (err) { console.error(err); }
   };

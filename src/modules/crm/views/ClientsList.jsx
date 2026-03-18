@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
+import { apiFetch } from '@/lib/api';
 
 export default function ClientsList() {
   const [clients, setClients] = useState([]);
@@ -26,7 +27,7 @@ export default function ClientsList() {
 
   const fetchClients = async () => {
     try {
-      const res = await fetch('/api/crm/clients');
+      const res = await apiFetch('/api/crm/clients');
       const data = await res.json();
       setClients(Array.isArray(data) ? data : []);
     } catch (err) { console.error(err); setClients([]); }
@@ -36,9 +37,8 @@ export default function ClientsList() {
   const handleDeleteClient = async (id, name) => {
     if (!window.confirm(`¿Eliminar "${name}"?`)) return;
     try {
-      const res = await fetch('/api/crm/clients', {
+      const res = await apiFetch('/api/crm/clients', {
         method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id })
       });
       if (res.ok) {
@@ -66,8 +66,8 @@ export default function ClientsList() {
     const method = isEditing ? 'PUT' : 'POST';
     const payload = isEditing ? { ...newClient, id: currentClientId } : newClient;
     try {
-      const res = await fetch('/api/crm/clients', {
-        method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+      const res = await apiFetch('/api/crm/clients', {
+        method, body: JSON.stringify(payload)
       });
       if (res.ok) { setShowAddModal(false); setNewClient(initialClientState); fetchClients(); }
     } catch (err) { alert("Error"); }

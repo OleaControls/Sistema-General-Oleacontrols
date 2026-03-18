@@ -5,6 +5,8 @@ import {
   Zap, Star, CheckCircle, Target, TrendingUp, Users, DollarSign
 } from 'lucide-react';
 
+import { apiFetch } from '@/lib/api';
+
 // --- NUEVO: Componente de Métricas y Bonos ---
 const MetricsSection = ({ targetId }) => {
   const [metrics, setMetrics] = useState(null);
@@ -13,7 +15,7 @@ const MetricsSection = ({ targetId }) => {
   useEffect(() => {
     const fetchMetrics = async () => {
       try {
-        const res = await fetch(`/api/evaluations?targetId=${targetId}&days=15`);
+        const res = await apiFetch(`/api/evaluations?targetId=${targetId}&days=15`);
         if (!res.ok) return;
         const data = await res.json();
         setMetrics(data);
@@ -42,7 +44,7 @@ const MetricsSection = ({ targetId }) => {
     </div>
   );
 
-  const avgTotal = (metrics.avgScore1 + metrics.avgScore2 + (metrics.avgScore3 || 0)) / (metrics.avgScore3 ? 3 : 2);
+  const avgTotal = ((metrics.avgScore1 || 0) + (metrics.avgScore2 || 0) + (metrics.avgScore3 || 0)) / (metrics.avgScore3 ? 3 : 2);
   
   // Lógica de Bonos OleaControls (15 días):
   let projectedBonus = 0;
@@ -57,29 +59,29 @@ const MetricsSection = ({ targetId }) => {
                 <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Satisfacción</p>
                 <Star className="h-4 w-4 text-amber-400 fill-current" />
             </div>
-            <p className="text-3xl font-black text-amber-500">{metrics.avgScore1.toFixed(1)}</p>
+            <p className="text-3xl font-black text-amber-500">{(metrics.avgScore1 || 0).toFixed(1)}</p>
         </div>
         <div className="bg-white p-6 rounded-3xl border shadow-sm space-y-2 border-blue-100">
             <div className="flex justify-between items-center">
                 <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Liderazgo/Proc.</p>
                 <TrendingUp className="h-4 w-4 text-blue-400" />
             </div>
-            <p className="text-3xl font-black text-blue-500">{metrics.avgScore2.toFixed(1)}</p>
+            <p className="text-3xl font-black text-blue-500">{(metrics.avgScore2 || 0).toFixed(1)}</p>
         </div>
         <div className="bg-white p-6 rounded-3xl border shadow-sm space-y-2">
             <div className="flex justify-between items-center">
                 <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Total Feedback</p>
                 <Users className="h-4 w-4 text-gray-400" />
             </div>
-            <p className="text-3xl font-black text-gray-900">{metrics.total}</p>
+            <p className="text-3xl font-black text-gray-900">{metrics.total || 0}</p>
         </div>
         <div className="bg-gradient-to-br from-emerald-600 to-teal-700 p-6 rounded-3xl shadow-xl text-white space-y-2 relative overflow-hidden group">
             <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-125 transition-transform">
                 <DollarSign className="h-12 w-12" />
             </div>
             <p className="text-[10px] font-black uppercase tracking-widest opacity-80">Bono Proyectado</p>
-            <p className="text-3xl font-black">${projectedBonus.toLocaleString()}</p>
-            <p className="text-[8px] font-bold uppercase mt-1 opacity-60">Meta: {avgTotal.toFixed(1)} prome.</p>
+            <p className="text-3xl font-black">${(projectedBonus || 0).toLocaleString()}</p>
+            <p className="text-[8px] font-bold uppercase mt-1 opacity-60">Meta: {(avgTotal || 0).toFixed(1)} prome.</p>
         </div>
     </div>
   );

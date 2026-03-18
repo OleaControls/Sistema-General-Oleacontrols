@@ -1,6 +1,8 @@
+import { apiFetch } from '../lib/api';
+
 export const hrService = {
   async getEmployees() {
-    const response = await fetch('/api/employees');
+    const response = await apiFetch('/api/employees');
     if (!response.ok) throw new Error('Error al obtener empleados');
     return response.json();
   },
@@ -11,9 +13,8 @@ export const hrService = {
   },
 
   async saveEmployee(employeeData) {
-    const response = await fetch('/api/employees', {
+    const response = await apiFetch('/api/employees', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(employeeData)
     });
     if (!response.ok) {
@@ -24,9 +25,8 @@ export const hrService = {
   },
 
   async updateEmployee(id, updatedData) {
-    const response = await fetch('/api/employees', {
+    const response = await apiFetch('/api/employees', {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id, ...updatedData })
     });
     if (!response.ok) {
@@ -38,7 +38,7 @@ export const hrService = {
   },
 
   async deleteEmployee(id) {
-    const response = await fetch(`/api/employees?id=${id}`, {
+    const response = await apiFetch(`/api/employees?id=${id}`, {
       method: 'DELETE'
     });
     if (!response.ok) {
@@ -49,15 +49,14 @@ export const hrService = {
   },
 
   async getCategories() {
-    const response = await fetch('/api/categories');
+    const response = await apiFetch('/api/categories');
     if (!response.ok) throw new Error('Error al obtener categorías');
     return response.json();
   },
 
   async saveCategory(categoryName) {
-    const response = await fetch('/api/categories', {
+    const response = await apiFetch('/api/categories', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: categoryName })
     });
     if (!response.ok) throw new Error('Error al guardar categoría');
