@@ -102,6 +102,15 @@ export default function MyProfile() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('OVERVIEW');
   const [isUploading, setIsUploading] = useState(false);
+  const [showRequestModal, setShowRequestModal] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formData, setFormData] = useState({
+    startDate: '',
+    endDate: '',
+    days: '',
+    reason: '',
+    type: 'ANNUAL'
+  });
 
   useEffect(() => {
     const fetch = async () => {
@@ -136,10 +145,50 @@ export default function MyProfile() {
     fetch();
   }, [user]);
 
-  const handleVacationRequest = async () => {
-    // Simple alert for now, can be improved with a modal
-    alert("Función de nueva solicitud disponible pronto en este panel.");
+  // Auto-calculate days when dates change
+  useEffect(() => {
+    if (formData.startDate && formData.endDate) {
+      const start = new Date(formData.startDate);
+      const end = new Date(formData.endDate);
+      const diffTime = Math.abs(end - start);
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+      if (!isNaN(diffDays) && diffDays > 0) {
+        setFormData(prev => ({ ...prev, days: diffDays.toString() }));
+      }
+    }
+  }, [formData.startDate, formData.endDate]);
+
+  const handleVacationRequest = async (e) => {
+    e.preventDefault();
+    if (!employee?.id || isSubmitting) return;
+
+    // Check balance again on submit
+    const requestedDays = parseInt(formData.days);
+    if (requestedDays > (vacationInfo?.vacationBalance || 0)) {
+        alert(`No puedes solicitar ${requestedDays} días. Tu saldo actual es de ${vacationInfo?.vacationBalance} días.`);
+        return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      await hrService.requestVacation({
+        ...formData,
+        employeeId: employee.id
+      });
+      setShowRequestModal(false);
+      setFormData({ startDate: '', endDate: '', days: '', reason: '', type: 'ANNUAL' });
+      alert("Solicitud enviada exitosamente a la bandeja de aprobaciones.");
+
+      // Refresh info
+      const vInfo = await hrService.getVacationStatus(employee.id);
+      setVacationInfo(vInfo);
+    } catch (err) {
+      alert("Error al enviar solicitud: " + err.message);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
+
 
   const handleAvatarChange = async (e) => {
     const file = e.target.files[0];
@@ -337,12 +386,106 @@ export default function MyProfile() {
                     <p className="text-sm text-gray-500 font-medium mt-1">Consulta tus saldos y solicita nuevas vacaciones o permisos.</p>
                 </div>
                 <button 
-                  onClick={handleVacationRequest}
+                  onClick={() => setShowRequestModal(true)}
                   className="bg-gray-900 text-white px-6 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-primary transition-all shadow-xl"
                 >
                     Nueva Solicitud
                 </button>
             </div>
+
+            {/* MODAL: NUEVA SOLICITUD DE VACACIONES (COLABORADOR) */}
+            {showRequestModal && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+                <div className="bg-white rounded-[2.5rem] w-full max-w-lg overflow-hidden shadow-2xl border border-gray-100 animate-in zoom-in-95 duration-300">
+                  <div className="bg-gray-900 p-8 text-white relative">
+                    <div className="absolute top-0 right-0 p-8 opacity-10">
+                      <Palmtree className="h-20 w-20" />
+                    </div>
+                    <h3 className="text-2xl font-black uppercase tracking-tighter">Nueva Solicitud</h3>
+                    <p className="text-white/60 font-bold text-sm mt-1">Completa los datos para enviar tu solicitud a RH.</p>
+                  </div>
+                  <form onSubmit={handleVacationRequest} className="p-8 space-y-5">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">Fecha Inicio</label>
+                        <input 
+                          type="date" 
+                          required
+                          value={formData.startDate}
+                          onChange={(e) => setFormData({...formData, startDate: e.target.value})}
+                          className="w-full bg-gray-50 border-gray-200 rounded-2xl px-5 py-4 font-bold text-sm focus:ring-4 focus:ring-primary/10 focus:border-primary outline-none transition-all"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">Fecha Fin</label>
+                        <input 
+                          type="date" 
+                          required
+                          value={formData.endDate}
+                          onChange={(e) => setFormData({...formData, endDate: e.target.value})}
+                          className="w-full bg-gray-50 border-gray-200 rounded-2xl px-5 py-4 font-bold text-sm focus:ring-4 focus:ring-primary/10 focus:border-primary outline-none transition-all"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">Días Solicitados</label>
+                        <input 
+                          type="number" 
+                          readOnly
+                          value={formData.days}
+                          className="w-full bg-gray-100 border-gray-200 rounded-2xl px-5 py-4 font-black text-sm outline-none cursor-not-allowed"
+                          placeholder="0"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">Tipo de Permiso</label>
+                        <select 
+                          value={formData.type}
+                          onChange={(e) => setFormData({...formData, type: e.target.value})}
+                          className="w-full bg-gray-50 border-gray-200 rounded-2xl px-5 py-4 font-bold text-sm focus:ring-4 focus:ring-primary/10 focus:border-primary outline-none transition-all"
+                        >
+                          <option value="ANNUAL">Vacaciones Anuales</option>
+                          <option value="PERSONAL">Permiso Personal</option>
+                          <option value="SICK">Incapacidad (Con Receta)</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">Motivo / Notas adicionales</label>
+                      <textarea 
+                        value={formData.reason}
+                        onChange={(e) => setFormData({...formData, reason: e.target.value})}
+                        className="w-full bg-gray-50 border-gray-200 rounded-2xl px-5 py-4 font-bold text-sm focus:ring-4 focus:ring-primary/10 focus:border-primary outline-none transition-all h-24 resize-none"
+                        placeholder="Ej: Viaje familiar, Trámite personal, etc."
+                      />
+                    </div>
+
+                    <div className="flex gap-3 pt-2">
+                      <button 
+                        type="button"
+                        onClick={() => setShowRequestModal(false)}
+                        className="flex-1 bg-gray-100 text-gray-600 py-4 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-gray-200 transition-all"
+                      >
+                        Cancelar
+                      </button>
+                      <button 
+                        type="submit"
+                        disabled={isSubmitting}
+                        className={cn(
+                          "flex-1 bg-primary text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-lg shadow-primary/20",
+                          isSubmitting ? "opacity-50 cursor-not-allowed" : "hover:bg-primary/90"
+                        )}
+                      >
+                        {isSubmitting ? "Enviando..." : "Enviar Solicitud"}
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div className="bg-white rounded-3xl p-6 border shadow-sm">

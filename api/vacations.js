@@ -82,6 +82,14 @@ export default async function handler(req, res) {
       const parsedDays = parseInt(days)
       if (isNaN(parsedDays)) return res.status(400).json({ error: 'Días debe ser un número entero' })
 
+      // VALIDACIÓN DE SALDO DISPONIBLE
+      const employee = await prisma.employee.findUnique({ where: { id: employeeId } })
+      if (!employee) return res.status(404).json({ error: 'Empleado no encontrado' })
+      
+      if (parsedDays > employee.vacationBalance) {
+        return res.status(400).json({ error: `Saldo insuficiente. Tienes ${employee.vacationBalance} días disponibles.` })
+      }
+
       const request = await prisma.vacationRequest.create({
         data: {
           employeeId,

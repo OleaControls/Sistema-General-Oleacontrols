@@ -44,8 +44,13 @@ const navItems = [
     name: 'Operaciones', 
     path: '/ots', 
     icon: ClipboardList, 
-    roles: [ROLES.ADMIN, ROLES.TECH],
-    getName: (user) => user?.role === ROLES.ADMIN ? 'Gestión Global OTs' : 'Mis Órdenes'
+    roles: [ROLES.ADMIN, ROLES.OPS, ROLES.TECH],
+    getName: (user) => {
+      const userRoles = user?.roles || [user?.role];
+      if (userRoles.includes(ROLES.ADMIN)) return 'Gestión Global OTs';
+      if (userRoles.includes(ROLES.OPS)) return 'Control OTs';
+      return 'Mis Órdenes';
+    }
   },
   { 
     name: 'Ranking', 

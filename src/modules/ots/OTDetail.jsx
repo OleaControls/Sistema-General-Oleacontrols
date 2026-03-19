@@ -40,7 +40,8 @@ export default function OTDetail() {
   const isSupport = (ot?.supportTechs && ot.supportTechs.some(st => st.id === user?.id)) ||
                     (ot?.assistantTechs && ot.assistantTechs.some(at => at.id === user?.id));
   const isInvolved = isLead || isSupport;
-  const isSupervisor = user?.role === ROLES.OPS || user?.role === ROLES.ADMIN;
+  const userRoles = user?.roles || [user?.role];
+  const isSupervisor = userRoles.includes(ROLES.OPS) || userRoles.includes(ROLES.ADMIN);
   const isCompleted = ot?.status === 'COMPLETED';
 
   const [finishData, setFinishData] = useState({

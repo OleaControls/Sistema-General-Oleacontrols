@@ -32,10 +32,10 @@ export default async function handler(req, res) {
   };
 
   if (req.method === 'GET') {
-// ...
     try {
       const employees = await prisma.employee.findMany({
-        orderBy: { employeeId: 'asc' }
+        orderBy: { employeeId: 'asc' },
+        include: { vacationRequests: true }
       })
       return res.status(200).json(employees)
     } catch (error) {

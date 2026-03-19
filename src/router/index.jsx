@@ -44,6 +44,15 @@ import AcademyHome from '@/modules/lms/views/AcademyHome';
 import CoursePlayer from '@/modules/lms/views/CoursePlayer';
 import FeedbackForm from '@/modules/feedback/FeedbackForm';
 
+// Selector de Vista de OTs (Técnicos vs Supervisores)
+const OTSelector = () => {
+  const { user } = useAuth();
+  const userRoles = user?.roles || [user?.role];
+  const isSupervisor = userRoles.includes(ROLES.ADMIN) || userRoles.includes(ROLES.OPS);
+  
+  return isSupervisor ? <SupervisorOTs /> : <TechnicianOTs />;
+};
+
 // Selector de Dashboard por Cargo
 const DashboardSelector = () => {
   const { user } = useAuth();
@@ -90,7 +99,7 @@ export default function AppRouter() {
         <Route path="/expenses/dashboard" element={<ProtectedRoute><ExpensesDashboard /></ProtectedRoute>} />
         <Route path="/ops/approvals/expenses" element={<ProtectedRoute><ApprovalsList /></ProtectedRoute>} />
         <Route path="/ops/expenses/control" element={<ProtectedRoute><OperationsExpenses /></ProtectedRoute>} />
-        <Route path="/ots" element={<ProtectedRoute><TechnicianOTs /></ProtectedRoute>} />
+        <Route path="/ots" element={<ProtectedRoute><OTSelector /></ProtectedRoute>} />
         <Route path="/ots/leaderboard" element={<ProtectedRoute><TechGamification /></ProtectedRoute>} />
         <Route path="/ots/:id" element={<ProtectedRoute><OTDetail /></ProtectedRoute>} />
         <Route path="/ops/ots/validate/:id" element={<ProtectedRoute><OTValidation /></ProtectedRoute>} />
