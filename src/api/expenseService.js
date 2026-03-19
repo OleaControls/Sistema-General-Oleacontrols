@@ -8,7 +8,7 @@ export const expenseService = {
     return response.json();
   },
 
-  async saveExpense(expenseData) {
+  async save(expenseData) {
     const response = await apiFetch('/api/expenses', {
       method: 'POST',
       body: JSON.stringify(expenseData)
@@ -17,22 +17,36 @@ export const expenseService = {
     return response.json();
   },
 
-  async updateStatus(id, status, comment) {
+  async saveExpense(expenseData) {
+    return this.save(expenseData);
+  },
+
+  async update(id, data) {
+    // Si data contiene status/comment lo usamos, si no, es un update genérico
+    const body = typeof data === 'string' ? { id, status: data } : { id, ...data };
     const response = await apiFetch('/api/expenses', {
       method: 'PUT',
-      body: JSON.stringify({ id, status, comment })
+      body: JSON.stringify(body)
     });
-    if (!response.ok) throw new Error('Error al actualizar estado de gasto');
+    if (!response.ok) throw new Error('Error al actualizar gasto');
     return response.json();
   },
 
-  async deleteExpense(id) {
+  async updateStatus(id, status, comment) {
+    return this.update(id, { status, comment });
+  },
+
+  async delete(id) {
     const response = await apiFetch('/api/expenses', {
       method: 'DELETE',
       body: JSON.stringify({ id })
     });
     if (!response.ok) throw new Error('Error al eliminar gasto');
     return response.json();
+  },
+
+  async deleteExpense(id) {
+    return this.delete(id);
   },
 
   async syncPending() {
