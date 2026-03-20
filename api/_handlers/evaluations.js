@@ -1,4 +1,4 @@
-import prisma from './_lib/prisma.js'
+import prisma from '../_lib/prisma.js'
 
 const getQuincenaRange = (date, offset = 0) => {
   let d = new Date(date);

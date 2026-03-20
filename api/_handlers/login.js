@@ -1,5 +1,5 @@
-import prisma from './_lib/prisma.js'
-import { signToken, comparePassword } from './_lib/auth.js'
+import prisma from '../_lib/prisma.js'
+import { signToken, comparePassword } from '../_lib/auth.js'
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end()

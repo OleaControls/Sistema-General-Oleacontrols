@@ -1,5 +1,5 @@
-import prisma from './_lib/prisma.js'
-import { uploadToR2, signUrlIfNeeded } from './_lib/r2.js'
+import prisma from '../_lib/prisma.js'
+import { uploadToR2, signUrlIfNeeded } from '../_lib/r2.js'
 
 export default async function handler(req, res) {
   // Helper para procesar múltiples documentos a R2

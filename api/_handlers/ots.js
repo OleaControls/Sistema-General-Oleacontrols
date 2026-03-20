@@ -1,6 +1,6 @@
-import prisma from './_lib/prisma.js'
-import { uploadToR2, signUrlIfNeeded } from './_lib/r2.js'
-import { authMiddleware } from './_lib/auth.js'
+import prisma from '../_lib/prisma.js'
+import { uploadToR2, signUrlIfNeeded } from '../_lib/r2.js'
+import { authMiddleware } from '../_lib/auth.js'
 
 export const config = {
   api: {

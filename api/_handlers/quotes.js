@@ -1,5 +1,5 @@
-import prisma from './_lib/prisma.js'
-import { uploadToR2 } from './_lib/r2.js'
+import prisma from '../_lib/prisma.js'
+import { uploadToR2 } from '../_lib/r2.js'
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import fs from 'fs';

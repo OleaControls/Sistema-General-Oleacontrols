@@ -1,5 +1,5 @@
-import prisma from './_lib/prisma.js'
-import { uploadToR2 } from './_lib/r2.js'
+import prisma from '../_lib/prisma.js'
+import { uploadToR2 } from '../_lib/r2.js'
 
 export const config = {
   api: {

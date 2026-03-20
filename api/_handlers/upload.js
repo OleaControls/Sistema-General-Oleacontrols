@@ -1,4 +1,4 @@
-import { uploadToR2 } from './_lib/r2.js'
+import { uploadToR2 } from '../_lib/r2.js'
 
 export const config = {
   api: {
