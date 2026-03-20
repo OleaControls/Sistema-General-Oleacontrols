@@ -95,5 +95,73 @@ export const hrService = {
     });
     if (!response.ok) throw new Error('Error al actualizar balance manualmente');
     return response.json();
+  },
+
+  // --- RECLUTAMIENTO (ATS) ---
+  async getCandidates() {
+    const response = await apiFetch('/api/recruitment');
+    if (!response.ok) throw new Error('Error al obtener candidatos');
+    return response.json();
+  },
+
+  async saveCandidate(data) {
+    const response = await apiFetch('/api/recruitment', {
+      method: 'POST',
+      body: JSON.stringify(data)
+    });
+    if (!response.ok) throw new Error('Error al guardar candidato');
+    return response.json();
+  },
+
+  async updateCandidate(id, data) {
+    const response = await apiFetch('/api/recruitment', {
+      method: 'PUT',
+      body: JSON.stringify({ id, ...data })
+    });
+    if (!response.ok) throw new Error('Error al actualizar candidato');
+    return response.json();
+  },
+
+  async deleteCandidate(id) {
+    const response = await apiFetch('/api/recruitment', {
+      method: 'DELETE',
+      body: JSON.stringify({ id })
+    });
+    if (!response.ok) throw new Error('Error al eliminar candidato');
+    return response.json();
+  },
+
+  // --- ACTIVOS Y EPP ---
+  async getAssets(employeeId = null) {
+    const url = employeeId ? `/api/assets?employeeId=${employeeId}` : '/api/assets';
+    const response = await apiFetch(url);
+    if (!response.ok) throw new Error('Error al obtener activos');
+    return response.json();
+  },
+
+  async saveAsset(data) {
+    const response = await apiFetch('/api/assets', {
+      method: 'POST',
+      body: JSON.stringify(data)
+    });
+    if (!response.ok) throw new Error('Error al registrar activo');
+    return response.json();
+  },
+
+  async updateAsset(id, data) {
+    const response = await apiFetch('/api/assets', {
+      method: 'PUT',
+      body: JSON.stringify({ id, ...data })
+    });
+    if (!response.ok) throw new Error('Error al actualizar activo');
+    return response.json();
+  },
+
+  async deleteAsset(id) {
+    const response = await apiFetch(`/api/assets?id=${id}`, {
+      method: 'DELETE'
+    });
+    if (!response.ok) throw new Error('Error al eliminar activo');
+    return response.json();
   }
 };

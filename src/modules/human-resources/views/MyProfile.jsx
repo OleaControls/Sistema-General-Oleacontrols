@@ -92,6 +92,7 @@ import { cn } from '@/lib/utils';
 const PROFILE_TABS = [
   { id: 'OVERVIEW', label: 'Mi Perfil', icon: User },
   { id: 'TIMEOFF', label: 'Vacaciones y Permisos', icon: Palmtree },
+  { id: 'ASSETS', label: 'Activos y EPP', icon: HardHat },
   { id: 'DOCUMENTS', label: 'Mis Documentos', icon: FileSignature },
 ];
 
@@ -99,6 +100,7 @@ export default function MyProfile() {
   const { user, updateUser } = useAuth();
   const [employee, setEmployee] = useState(null);
   const [vacationInfo, setVacationInfo] = useState(null);
+  const [assets, setAssets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('OVERVIEW');
   const [isUploading, setIsUploading] = useState(false);
@@ -119,26 +121,18 @@ export default function MyProfile() {
       const emp = allEmployees.find(e => e.email === user.email || e.id === user.id);
       
       if (emp) {
-        const details = await hrService.getEmployeeDetail(emp.id);
-        setEmployee(details);
+        const [details, vInfo, assetList] = await Promise.all([
+          hrService.getEmployeeDetail(emp.id),
+          hrService.getVacationStatus(emp.id).catch(() => null),
+          hrService.getAssets(emp.id).catch(() => [])
+        ]);
         
-        // Fetch vacation status
-        try {
-          const vInfo = await hrService.getVacationStatus(emp.id);
-          setVacationInfo(vInfo);
-        } catch (err) {
-          console.error("Error fetching vacations:", err);
-        }
+        setEmployee(details);
+        setVacationInfo(vInfo);
+        setAssets(assetList);
       } else {
-        // Fallback for mock users or if not found in DB yet
-        setEmployee({
-          ...user,
-          department: user.role === ROLES.COLLABORATOR ? 'Colaboradores' : 'General',
-          joinDate: '2024-01-01',
-          location: 'Remoto / Oficina Central',
-          phone: 'No registrado',
-          certifications: []
-        });
+        // Fallback
+        setEmployee({ ...user });
       }
       setLoading(false);
     };
@@ -578,6 +572,45 @@ export default function MyProfile() {
                 </div>
               ))}
             </div>
+          </div>
+        )}
+
+        {activeTab === 'ASSETS' && (
+          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div>
+                <h3 className="text-2xl font-black text-gray-900">Equipamiento y Herramientas</h3>
+                <p className="text-sm text-gray-500 font-medium mt-1">Lista de activos y EPP bajo tu resguardo.</p>
+            </div>
+
+            {assets.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {assets.map((asset) => (
+                  <div key={asset.id} className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm flex items-center justify-between group hover:border-emerald-500/30 transition-all">
+                    <div className="flex items-center gap-4">
+                      <div className="h-12 w-12 rounded-2xl bg-gray-50 flex items-center justify-center text-gray-400 group-hover:bg-emerald-50 group-hover:text-emerald-600 transition-colors">
+                        {asset.category === 'EPP' ? <HardHat className="h-6 w-6" /> : <Briefcase className="h-6 w-6" />}
+                      </div>
+                      <div>
+                        <p className="text-sm font-black text-gray-900">{asset.name}</p>
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{asset.category} • S/N: {asset.serialNumber || 'N/A'}</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-[9px] font-black px-2 py-1 bg-emerald-50 text-emerald-600 rounded-lg uppercase tracking-tighter border border-emerald-100">Asignado</span>
+                      <p className="text-[8px] font-bold text-gray-400 uppercase mt-1">Desde: {new Date(asset.assignedDate).toLocaleDateString()}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="bg-white border rounded-[2.5rem] p-12 text-center border-dashed flex flex-col items-center justify-center text-gray-400 gap-4">
+                <div className="h-16 w-16 bg-gray-50 rounded-2xl flex items-center justify-center text-gray-200">
+                  <Briefcase className="h-8 w-8" />
+                </div>
+                <p className="font-black text-sm uppercase tracking-widest text-gray-900">Sin activos asignados</p>
+                <p className="text-xs font-medium max-w-xs mx-auto">No tienes herramientas o equipos registrados bajo tu responsabilidad en este momento.</p>
+              </div>
+            )}
           </div>
         )}
       </div>

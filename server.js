@@ -15,6 +15,8 @@ import crmHandler from './api/crm.js';
 import quotesHandler from './api/quotes.js';
 import uploadHandler from './api/upload.js';
 import vacationsHandler from './api/vacations.js';
+import recruitmentHandler from './api/recruitment.js';
+import assetsHandler from './api/assets.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -101,6 +103,16 @@ app.delete('/api/quotes', adaptHandler(quotesHandler));
 app.get('/api/vacations', adaptHandler(vacationsHandler));
 app.post('/api/vacations', adaptHandler(vacationsHandler));
 app.put('/api/vacations', adaptHandler(vacationsHandler));
+
+// Recruitment
+console.log('Initializing Recruitment Routes...');
+app.all(['/api/recruitment', '/api/recruitment/'], adaptHandler(recruitmentHandler));
+
+// Assets
+app.get('/api/assets', adaptHandler(assetsHandler));
+app.post('/api/assets', adaptHandler(assetsHandler));
+app.put('/api/assets', adaptHandler(assetsHandler));
+app.delete('/api/assets', adaptHandler(assetsHandler));
 
 app.listen(PORT, () => {
   console.log(`🚀 Server running locally at http://localhost:${PORT}`);

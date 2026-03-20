@@ -1,5 +1,5 @@
 import prisma from './_lib/prisma.js'
-import { uploadToR2 } from './_lib/r2.js'
+import { uploadToR2, signUrlIfNeeded } from './_lib/r2.js'
 
 export default async function handler(req, res) {
   // Helper para procesar múltiples documentos a R2
@@ -36,10 +36,32 @@ export default async function handler(req, res) {
       const employees = await prisma.employee.findMany({
         orderBy: { employeeId: 'asc' },
         include: { vacationRequests: true }
-      })
-      return res.status(200).json(employees)
+      });
+
+      // Campos de documentos que necesitan firma de R2
+      const docFields = [
+        'avatar', 'ine', 'curp', 'rfc', 'nss', 'birthCertificate', 'proofOfResidency', 'cv', 'ineDoc',
+        'contractSigned', 'privacyPolicySigned', 'internalRulesSigned', 'imssHigh',
+        'studyCertificate', 'degreeOrProfessionalId', 'diplomasOrCourses', 'laborCertifications', 'recommendationLetter',
+        'performanceEvaluations', 'receivedTraining', 'administrativeActs', 'disciplinaryReports', 'permitsOrLicenses',
+        'resignationLetter', 'settlementOrLiquidation', 'imssLow', 'laborConstancy'
+      ];
+
+      // Firmar URLs de documentos para acceso privado
+      const signedEmployees = await Promise.all(employees.map(async (emp) => {
+        const signedEmp = { ...emp };
+        for (const field of docFields) {
+          if (signedEmp[field] && typeof signedEmp[field] === 'string' && signedEmp[field].includes('r2.dev')) {
+            signedEmp[field] = await signUrlIfNeeded(signedEmp[field]);
+          }
+        }
+        return signedEmp;
+      }));
+
+      return res.status(200).json(signedEmployees);
     } catch (error) {
-      return res.status(500).json({ error: error.message })
+      console.error('❌ GET EMPLOYEES ERROR:', error);
+      return res.status(500).json({ error: error.message });
     }
   }
 

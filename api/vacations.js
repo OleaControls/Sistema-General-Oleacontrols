@@ -120,12 +120,14 @@ export default async function handler(req, res) {
 
       if (!request) return res.status(404).json({ error: 'Solicitud no encontrada' })
 
-      if (status === 'APPROVED' && request.status !== 'APPROVED') {
+      // Solo descontar si es tipo VACACIONES ANUALES (ANNUAL)
+      if (status === 'APPROVED' && request.status !== 'APPROVED' && request.type === 'ANNUAL') {
+        console.log(`[Vacations] Descontando ${request.days} días a empleado ${request.employeeId}`)
         await prisma.employee.update({
           where: { id: request.employeeId },
           data: {
             vacationBalance: {
-              decrement: request.days
+              decrement: parseFloat(request.days)
             }
           }
         })
@@ -138,6 +140,7 @@ export default async function handler(req, res) {
 
       return res.status(200).json(updatedRequest)
     } catch (error) {
+      console.error('❌ PUT /api/vacations error:', error)
       return res.status(500).json({ error: error.message })
     }
   }

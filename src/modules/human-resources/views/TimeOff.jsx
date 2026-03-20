@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Palmtree, 
   Calendar as CalendarIcon, 
@@ -6,10 +6,181 @@ import {
   XCircle,
   Clock,
   Filter,
-  Edit2
+  Edit2,
+  ChevronLeft,
+  ChevronRight,
+  User as UserIcon
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { hrService } from '@/api/hrService';
+
+// --- SUB-COMPONENTE: CALENDARIO DE AUSENCIAS ---
+function CalendarView({ employees }) {
+  const [currentDate, setCurrentDate] = useState(new Date());
+
+  const allRequests = useMemo(() => {
+    return employees.flatMap(emp => 
+      (emp.vacationRequests || []).map(req => ({ 
+        ...req, 
+        employeeName: emp.name,
+        employeeId: emp.id
+      }))
+    ).filter(req => req.status === 'APPROVED' || req.status === 'PENDING'); 
+  }, [employees]);
+
+  const daysInMonth = (year, month) => new Date(year, month + 1, 0).getDate();
+  const firstDayOfMonth = (year, month) => new Date(year, month, 1).getDay();
+
+  const year = currentDate.getFullYear();
+  const month = currentDate.getMonth();
+
+  const days = [];
+  const totalDays = daysInMonth(year, month);
+  const startingDay = firstDayOfMonth(year, month);
+
+  // Padding for previous month
+  for (let i = 0; i < startingDay; i++) {
+    days.push({ day: null });
+  }
+
+  // Days of current month
+  for (let i = 1; i <= totalDays; i++) {
+    const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
+    const dayDate = new Date(year, month, i);
+    
+    // Find requests that overlap with this day
+    const dayRequests = allRequests.filter(req => {
+      const start = new Date(req.startDate);
+      const end = new Date(req.endDate);
+      // Reset hours for accurate comparison
+      start.setHours(0,0,0,0);
+      end.setHours(0,0,0,0);
+      dayDate.setHours(0,0,0,0);
+      return dayDate >= start && dayDate <= end;
+    });
+
+    days.push({ day: i, date: dayDate, requests: dayRequests });
+  }
+
+  const nextMonth = () => setCurrentDate(new Date(year, month + 1, 1));
+  const prevMonth = () => setCurrentDate(new Date(year, month - 1, 1));
+
+  const monthNames = [
+    "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+    "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
+  ];
+
+  const getTypeStyles = (type) => {
+    switch (type) {
+      case 'ANNUAL': return 'bg-emerald-500 text-white';
+      case 'PERSONAL': return 'bg-amber-500 text-white';
+      case 'SICK': return 'bg-rose-500 text-white';
+      default: return 'bg-blue-500 text-white';
+    }
+  };
+
+  const getTypeName = (type) => {
+    switch (type) {
+      case 'ANNUAL': return 'Vacaciones';
+      case 'PERSONAL': return 'Permiso';
+      case 'SICK': return 'Incapacidad';
+      default: return type;
+    }
+  };
+
+  return (
+    <div className="bg-white border rounded-[2rem] overflow-hidden shadow-sm animate-in fade-in zoom-in-95 duration-500">
+      {/* Header del Calendario */}
+      <div className="p-6 border-b flex items-center justify-between bg-gray-50/50">
+        <div className="flex items-center gap-4">
+            <div className="bg-primary/10 p-2.5 rounded-2xl">
+                <CalendarIcon className="h-6 w-6 text-primary" />
+            </div>
+            <div>
+                <h3 className="text-xl font-black text-gray-900 leading-none">{monthNames[month]} {year}</h3>
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">Calendario de Ausencias del Equipo</p>
+            </div>
+        </div>
+        <div className="flex gap-2">
+          <button onClick={prevMonth} className="p-2 hover:bg-white hover:shadow-md rounded-xl transition-all border border-transparent hover:border-gray-100">
+            <ChevronLeft className="h-5 w-5 text-gray-600" />
+          </button>
+          <button onClick={() => setCurrentDate(new Date())} className="px-4 py-2 text-xs font-black uppercase tracking-widest text-gray-500 hover:text-primary transition-colors">Hoy</button>
+          <button onClick={nextMonth} className="p-2 hover:bg-white hover:shadow-md rounded-xl transition-all border border-transparent hover:border-gray-100">
+            <ChevronRight className="h-5 w-5 text-gray-600" />
+          </button>
+        </div>
+      </div>
+
+      {/* Grid del Calendario */}
+      <div className="grid grid-cols-7 border-b bg-white">
+        {['Dom', 'Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab'].map(d => (
+          <div key={d} className="py-4 text-center text-[10px] font-black text-gray-400 uppercase tracking-widest border-r last:border-r-0">
+            {d}
+          </div>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-7 auto-rows-[120px]">
+        {days.map((d, i) => (
+          <div 
+            key={i} 
+            className={cn(
+              "border-r border-b p-2 overflow-y-auto scrollbar-hide flex flex-col gap-1 transition-colors",
+              !d.day ? "bg-gray-50/30" : "bg-white hover:bg-gray-50/50"
+            )}
+          >
+            {d.day && (
+              <>
+                <div className="flex justify-between items-start mb-1">
+                  <span className={cn(
+                    "text-xs font-black w-6 h-6 flex items-center justify-center rounded-lg",
+                    d.date?.toDateString() === new Date().toDateString() 
+                      ? "bg-primary text-white shadow-lg shadow-primary/20" 
+                      : "text-gray-400"
+                  )}>
+                    {d.day}
+                  </span>
+                </div>
+                <div className="space-y-1">
+                  {d.requests.map((req, idx) => (
+                    <div 
+                      key={idx} 
+                      className={cn(
+                        "text-[9px] font-black px-1.5 py-1 rounded-md truncate shadow-sm",
+                        getTypeStyles(req.type),
+                        req.status === 'PENDING' && "opacity-40 border border-white/50 border-dashed"
+                      )}
+                      title={`${req.employeeName}: ${getTypeName(req.type)} (${req.status === 'PENDING' ? 'Pendiente' : 'Aprobado'}) - ${req.reason || 'Sin motivo'}`}
+                    >
+                      {req.employeeName.split(' ')[0]}
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* Leyenda */}
+      <div className="p-4 bg-gray-50/50 border-t flex flex-wrap gap-6 justify-center">
+        <div className="flex items-center gap-2">
+            <div className="w-3 h-3 rounded-full bg-emerald-500"></div>
+            <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Vacaciones</span>
+        </div>
+        <div className="flex items-center gap-2">
+            <div className="w-3 h-3 rounded-full bg-amber-500"></div>
+            <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Permisos</span>
+        </div>
+        <div className="flex items-center gap-2">
+            <div className="w-3 h-3 rounded-full bg-rose-500"></div>
+            <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Incapacidades</span>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function TimeOff() {
   const [activeTab, setActiveTab] = useState('REQUESTS');
@@ -302,10 +473,7 @@ export default function TimeOff() {
         )}
 
         {activeTab === 'CALENDAR' && (
-          <div className="bg-white border rounded-3xl p-12 text-center border-dashed flex flex-col items-center justify-center text-gray-400 gap-4">
-            <CalendarIcon className="h-12 w-12 opacity-50" />
-            <p className="font-bold italic">Vista de calendario mensual con barras de colores (Próximamente)</p>
-          </div>
+          <CalendarView employees={employees} />
         )}
       </div>
 

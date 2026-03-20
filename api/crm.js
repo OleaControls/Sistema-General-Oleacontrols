@@ -2,10 +2,13 @@ import prisma from './_lib/prisma.js'
 
 export default async function handler(req, res) {
   const method = req.method.toUpperCase();
-  // Buscamos 'resource' en params (Express) o en query (Vercel/Vite)
-  const resource = (req.params?.resource || req.query?.resource || '').toLowerCase();
+  // Intentar obtener el recurso desde la URL si viene como path (/api/crm/leads) o desde el query
+  const urlParts = req.url.split('?')[0].split('/');
+  const lastPart = urlParts[urlParts.length - 1];
+  
+  const resource = (req.query?.resource || lastPart || '').toLowerCase();
 
-  console.log(`[CRM API] ${method} request for resource: "${resource}"`);
+  console.log(`[CRM API] ${method} request for resource: "${resource}" from URL: ${req.url}`);
 
   try {
     // --- LÓGICA DE GET ---

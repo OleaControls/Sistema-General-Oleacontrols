@@ -103,6 +103,9 @@ model Employee {
   // --- EVALUACIONES ---
   evaluationsReceived Evaluation[] @relation("EvaluationTarget")
   evaluationsGiven    Evaluation[] @relation("EvaluationEvaluator")
+
+  // --- ACTIVOS Y EPP ---
+  assets          Asset[]      @relation("EmployeeAssets")
 }
 
 model Credentials {
@@ -338,4 +341,34 @@ model VacationRequest {
   type        String   @default("ANNUAL") // ANNUAL, PERSONAL, etc.
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+}
+
+model Candidate {
+  id          String   @id @default(cuid())
+  name        String
+  email       String   @unique
+  phone       String?
+  position    String?
+  stage       String   @default("APPLIED") // APPLIED, SCREENING, TECHNICAL, OFFER
+  source      String?  @default("Web")
+  resumeUrl   String?  // R2 Link
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Asset {
+  id            String   @id @default(cuid())
+  name          String
+  category      String   // Herramienta, Vehículo, Cómputo, EPP, etc.
+  serialNumber  String?  @unique
+  status        String   @default("AVAILABLE") // AVAILABLE, ASSIGNED, MAINTENANCE, REPIRED
+  condition     String   @default("NEW") // NEW, GOOD, FAIR, POOR
+  assignedToId  String?
+  assignedTo    Employee? @relation("EmployeeAssets", fields: [assignedToId], references: [id])
+  assignedDate  DateTime?
+  notes         String?
+  imageUrl      String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 }
