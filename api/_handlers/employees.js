@@ -33,32 +33,54 @@ export default async function handler(req, res) {
 
   if (req.method === 'GET') {
     try {
+      const { id } = req.query;
+
+      // SI SE PIDE UN EMPLEADO ESPECÍFICO (Detalle completo)
+      if (id) {
+          const employee = await prisma.employee.findUnique({
+              where: { id },
+              include: { vacationRequests: true }
+          });
+
+          if (!employee) return res.status(404).json({ error: 'Empleado no encontrado' });
+
+          // Campos de documentos que necesitan firma de R2
+          const docFields = [
+            'avatar', 'ine', 'curp', 'rfc', 'nss', 'birthCertificate', 'proofOfResidency', 'cv', 'ineDoc',
+            'contractSigned', 'privacyPolicySigned', 'internalRulesSigned', 'imssHigh',
+            'studyCertificate', 'degreeOrProfessionalId', 'diplomasOrCourses', 'laborCertifications', 'recommendationLetter',
+            'performanceEvaluations', 'receivedTraining', 'administrativeActs', 'disciplinaryReports', 'permitsOrLicenses',
+            'resignationLetter', 'settlementOrLiquidation', 'imssLow', 'laborConstancy'
+          ];
+
+          for (const field of docFields) {
+            if (employee[field] && typeof employee[field] === 'string' && employee[field].includes('r2.dev')) {
+                employee[field] = await signUrlIfNeeded(employee[field]);
+            }
+          }
+
+          return res.status(200).json(employee);
+      }
+
+      // LISTADO GENERAL (Ligero para ahorrar Egress)
       const employees = await prisma.employee.findMany({
         orderBy: { employeeId: 'asc' },
-        include: { vacationRequests: true }
+        select: {
+            id: true,
+            employeeId: true,
+            name: true,
+            email: true,
+            roles: true,
+            avatar: true,
+            position: true,
+            department: true,
+            status: true,
+            location: true,
+            phone: true
+        }
       });
 
-      // Campos de documentos que necesitan firma de R2
-      const docFields = [
-        'avatar', 'ine', 'curp', 'rfc', 'nss', 'birthCertificate', 'proofOfResidency', 'cv', 'ineDoc',
-        'contractSigned', 'privacyPolicySigned', 'internalRulesSigned', 'imssHigh',
-        'studyCertificate', 'degreeOrProfessionalId', 'diplomasOrCourses', 'laborCertifications', 'recommendationLetter',
-        'performanceEvaluations', 'receivedTraining', 'administrativeActs', 'disciplinaryReports', 'permitsOrLicenses',
-        'resignationLetter', 'settlementOrLiquidation', 'imssLow', 'laborConstancy'
-      ];
-
-      // Firmar URLs de documentos para acceso privado
-      const signedEmployees = await Promise.all(employees.map(async (emp) => {
-        const signedEmp = { ...emp };
-        for (const field of docFields) {
-          if (signedEmp[field] && typeof signedEmp[field] === 'string' && signedEmp[field].includes('r2.dev')) {
-            signedEmp[field] = await signUrlIfNeeded(signedEmp[field]);
-          }
-        }
-        return signedEmp;
-      }));
-
-      return res.status(200).json(signedEmployees);
+      return res.status(200).json(employees);
     } catch (error) {
       console.error('❌ GET EMPLOYEES ERROR:', error);
       return res.status(500).json({ error: error.message });

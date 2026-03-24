@@ -8,8 +8,9 @@ export const hrService = {
   },
 
   async getEmployeeDetail(id) {
-    const employees = await this.getEmployees();
-    return employees.find(e => e.id === id) || null;
+    const response = await apiFetch(`/api/employees?id=${id}`);
+    if (!response.ok) throw new Error('Error al obtener detalle del empleado');
+    return response.json();
   },
 
   async saveEmployee(employeeData) {

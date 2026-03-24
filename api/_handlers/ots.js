@@ -133,11 +133,36 @@ export default async function handler(req, res) {
 
       const ots = await prisma.workOrder.findMany({
         where,
-        include: {
+        select: {
+          id: true,
+          otNumber: true,
+          title: true,
+          status: true,
+          priority: true,
+          clientName: true,
+          storeName: true,
+          storeNumber: true,
+          address: true,
+          latitude: true,
+          longitude: true,
+          scheduledDate: true,
+          arrivalTime: true,
+          technicianId: true,
+          supervisorId: true,
+          description: true,
+          assignedFunds: true,
+          deliveryActUrl: true,
+          assistantTechs: true,
+          supportTechs: true,
+          createdAt: true,
           technician: { select: { name: true, avatar: true, position: true } },
           supervisor: { select: { name: true } },
-          evidences: true,
-          expenses: true
+          _count: {
+              select: { 
+                  expenses: true,
+                  evidences: true
+              }
+          }
         },
         orderBy: { createdAt: 'desc' }
       });
@@ -157,24 +182,12 @@ export default async function handler(req, res) {
           lat: ot.latitude,
           lng: ot.longitude,
           location: ot.address,
-          expensesSubmitted: ot.expenses.length,
-          completionPhotos: ot.evidences.map(e => e.url),
+          expensesSubmitted: ot._count.expenses,
+          completionPhotos: [], // No enviar fotos en el listado para ahorrar ancho de banda
+          evidenceCount: ot._count.evidences,
           deliveryActUrl: signedActUrl, // URL FIRMADA (Corta y funcional)
           assistantTechs: ot.assistantTechs ? (typeof ot.assistantTechs === 'string' ? JSON.parse(ot.assistantTechs) : ot.assistantTechs) : [],
           supportTechs: ot.supportTechs ? (typeof ot.supportTechs === 'string' ? JSON.parse(ot.supportTechs) : ot.supportTechs) : [],
-          storeNumber: ot.storeNumber,
-          storeName: ot.storeName,
-          clientEmail: ot.clientEmail,
-          clientPhone: ot.clientPhone,
-          contactName: ot.contactName,
-          contactEmail: ot.contactEmail,
-          contactPhone: ot.contactPhone,
-          secondaryAddress: ot.secondaryAddress,
-          otAddress: ot.otAddress,
-          otReference: ot.otReference,
-          arrivalTime: ot.arrivalTime,
-          scheduledDate: ot.scheduledDate,
-          assignedFunds: ot.assignedFunds,
           creatorName: 'Sistema',
           assignedByName: ot.technicianId ? (ot.supervisor?.name || 'Supervisor') : null
         };

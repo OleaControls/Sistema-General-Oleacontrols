@@ -30,7 +30,17 @@ export default async function handler(req, res) {
 
       const expenses = await prisma.expense.findMany({
         where,
-        include: {
+        select: {
+          id: true,
+          amount: true,
+          category: true,
+          description: true,
+          paymentMethod: true,
+          status: true,
+          comment: true,
+          workOrderId: true,
+          employeeId: true,
+          createdAt: true,
           employee: { select: { name: true } },
           workOrder: { select: { otNumber: true, title: true } }
         },

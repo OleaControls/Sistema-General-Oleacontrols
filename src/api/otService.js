@@ -114,8 +114,9 @@ export const otService = {
   },
 
   async getById(id) {
-    const ots = await this.getOTs();
-    return ots.find(o => o.id === id);
+    const response = await apiFetch(`/api/ots?id=${id}`);
+    if (!response.ok) throw new Error('Error al obtener detalle de OT');
+    return response.json();
   },
 
   async getOTDetail(id) {
