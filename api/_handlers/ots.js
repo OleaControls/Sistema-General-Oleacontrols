@@ -157,10 +157,10 @@ export default async function handler(req, res) {
           createdAt: true,
           technician: { select: { name: true, avatar: true, position: true } },
           supervisor: { select: { name: true } },
+          evidences: { select: { url: true } }, // Traemos solo las URLs
           _count: {
               select: { 
-                  expenses: true,
-                  evidences: true
+                  expenses: true
               }
           }
         },
@@ -183,8 +183,7 @@ export default async function handler(req, res) {
           lng: ot.longitude,
           location: ot.address,
           expensesSubmitted: ot._count.expenses,
-          completionPhotos: [], // No enviar fotos en el listado para ahorrar ancho de banda
-          evidenceCount: ot._count.evidences,
+          completionPhotos: ot.evidences.map(e => e.url), // Restauramos las fotos
           deliveryActUrl: signedActUrl, // URL FIRMADA (Corta y funcional)
           assistantTechs: ot.assistantTechs ? (typeof ot.assistantTechs === 'string' ? JSON.parse(ot.assistantTechs) : ot.assistantTechs) : [],
           supportTechs: ot.supportTechs ? (typeof ot.supportTechs === 'string' ? JSON.parse(ot.supportTechs) : ot.supportTechs) : [],

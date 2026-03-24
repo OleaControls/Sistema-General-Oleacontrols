@@ -36,6 +36,7 @@ export default async function handler(req, res) {
           category: true,
           description: true,
           paymentMethod: true,
+          receipt: true, // Restauramos el recibo para que el frontend pueda mostrarlo
           status: true,
           comment: true,
           workOrderId: true,
