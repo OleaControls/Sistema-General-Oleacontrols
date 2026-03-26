@@ -64,24 +64,27 @@ export default async function handler(req, res) {
   }
 
   if (method === 'POST') {
-    const { amount, category, description, receipt, evidence, otId, userId, paymentMethod, isExternal } = req.body;
+    const { amount, category, description, receipt, evidence, otId, userId, paymentMethod, isExternal, date } = req.body;
     
     try {
       // 1. Validaciones iniciales
       const finalReceipt = receipt || evidence || null;
       const parsedAmount = parseFloat(amount);
 
-      if (isNaN(parsedAmount) || !category || !userId) {
-          return res.status(400).json({ 
-              error: 'Datos incompletos', 
-              message: 'El monto, categoría y usuario son requeridos.' 
-          });
+      if (isNaN(parsedAmount)) {
+          return res.status(400).json({ error: 'Monto inválido', message: 'El monto debe ser un número válido.' });
+      }
+      if (!category) {
+          return res.status(400).json({ error: 'Categoría requerida', message: 'Debe seleccionar una categoría.' });
+      }
+      if (!userId) {
+          return res.status(400).json({ error: 'Usuario no identificado', message: 'No se encontró el ID del usuario en la petición.' });
       }
 
       let workOrderId = null;
 
       // 2. Solo buscar OT si no es externo y tiene un ID
-      if (!isExternal && otId) {
+      if (!isExternal && otId && otId.trim() !== "") {
           const targetOT = await prisma.workOrder.findFirst({
             where: {
               OR: [ { id: otId }, { otNumber: otId } ]
@@ -89,7 +92,10 @@ export default async function handler(req, res) {
           });
 
           if (!targetOT) {
-              return res.status(404).json({ error: `No se encontró la Orden ${otId}. Verifique el folio o márquelo como gasto externo.` });
+              return res.status(404).json({ 
+                  error: 'Orden no encontrada', 
+                  message: `No se encontró la Orden ${otId}. Verifique el folio o márquelo como gasto externo.` 
+              });
           }
           workOrderId = targetOT.id;
       }
@@ -97,7 +103,12 @@ export default async function handler(req, res) {
       // 3. Subir evidencia a R2 si existe
       let r2Url = null;
       if (finalReceipt) {
-          r2Url = await uploadToR2(finalReceipt, 'expenses');
+          try {
+              r2Url = await uploadToR2(finalReceipt, 'expenses');
+          } catch (uploadError) {
+              console.error('⚠️ Error subiendo a R2, guardando base64 como fallback:', uploadError.message);
+              r2Url = finalReceipt; // Fallback a base64 si falla R2
+          }
       }
 
       // 4. Crear el gasto
@@ -110,7 +121,8 @@ export default async function handler(req, res) {
           receipt: r2Url,
           status: 'PENDING',
           workOrderId: workOrderId,
-          employeeId: userId
+          employeeId: userId,
+          createdAt: date ? new Date(date) : new Date()
         }
       });
       
@@ -119,7 +131,8 @@ export default async function handler(req, res) {
       console.error('❌ POST EXPENSE FATAL ERROR:', error);
       return res.status(500).json({ 
           error: 'Error en el servidor al guardar el gasto',
-          details: error.message
+          message: error.message,
+          details: error.stack
       });
     }
   }

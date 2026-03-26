@@ -131,7 +131,7 @@ export default function NewExpenseForm({ isOpen, onClose, onSave, prefilledOtId,
     onClose();
   };
 
-  const isStep1Valid = formData.date && formData.category && formData.otId;
+  const isStep1Valid = formData.date && formData.category && (formData.otId || formData.isExternal);
   const isStep2Valid = formData.amount > 0 && formData.description;
 
   return (

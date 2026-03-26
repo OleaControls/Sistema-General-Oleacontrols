@@ -13,7 +13,12 @@ export const expenseService = {
       method: 'POST',
       body: JSON.stringify(expenseData)
     });
-    if (!response.ok) throw new Error('Error al guardar gasto');
+    
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || errorData.error || 'Error al guardar gasto');
+    }
+    
     return response.json();
   },
 
