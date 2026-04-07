@@ -5,10 +5,11 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end()
 
   const { email, password } = req.body
+  const normalizedEmail = email?.toLowerCase()
 
   try {
     const credentials = await prisma.credentials.findUnique({
-      where: { email },
+      where: { email: normalizedEmail },
       include: {
         employee: true
       }
@@ -35,6 +36,10 @@ export default async function handler(req, res) {
       }
 
       if (isMatch) {
+        if (!credentials.employee) {
+          throw new Error('Employee record missing for these credentials')
+        }
+
         const user = {
           id: credentials.employee.id,
           name: credentials.employee.name,
