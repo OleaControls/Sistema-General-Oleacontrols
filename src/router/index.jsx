@@ -42,6 +42,7 @@ import QuotesList from '@/modules/crm/views/QuotesList';
 import IndirectSales from '@/modules/crm/views/IndirectSales';
 import InvoicesOrders from '@/modules/crm/views/InvoicesOrders';
 import PipelineSettings from '@/modules/crm/views/PipelineSettings';
+import SalesMetrics from '@/modules/crm/views/SalesMetrics';
 import AcademyHome from '@/modules/lms/views/AcademyHome';
 import CoursePlayer from '@/modules/lms/views/CoursePlayer';
 import FeedbackForm from '@/modules/feedback/FeedbackForm';
@@ -140,6 +141,10 @@ export default function AppRouter() {
           <Route path="invoices" element={<InvoicesOrders />} />
           <Route path="settings" element={<PipelineSettings />} />
         </Route>
+
+        {/* Ventas – Métricas y Gestión de Datos (acceso directo para rol SALES) */}
+        <Route path="/sales/metricas" element={<ProtectedRoute><SalesMetrics /></ProtectedRoute>} />
+        <Route path="/sales/datos"    element={<ProtectedRoute><HRDashboard defaultTab="datos"  onlyTabs={['datos']}  /></ProtectedRoute>} />
 
         {/* Olea Academy */}
         <Route path="/academy" element={<ProtectedRoute noShell><AcademyHome /></ProtectedRoute>} />

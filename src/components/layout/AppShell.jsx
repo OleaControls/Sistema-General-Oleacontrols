@@ -19,7 +19,9 @@ import {
   Target,
   Users2,
   FileText,
-  Sliders
+  Sliders,
+  TrendingUp,
+  Database
 } from 'lucide-react';
 import { useAuth, ROLES } from '@/store/AuthContext';
 import { useTenant } from '@/store/TenantContext';
@@ -125,6 +127,20 @@ const navItems = [
       if (user?.role === ROLES.TECH || user?.role === ROLES.COLLABORATOR) return 'Mis Ventas Directas';
       return 'Ventas Indirectas';
     }
+  },
+  {
+    name: 'Métricas Ventas',
+    path: '/sales/metricas',
+    icon: TrendingUp,
+    roles: [ROLES.ADMIN, ROLES.SALES],
+    getName: () => 'Métricas Ventas'
+  },
+  {
+    name: 'Gestión de Datos',
+    path: '/sales/datos',
+    icon: Database,
+    roles: [ROLES.ADMIN, ROLES.SALES],
+    getName: () => 'Gestión de Datos'
   },
   {
     name: 'Evaluaciones',

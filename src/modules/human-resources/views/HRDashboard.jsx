@@ -133,8 +133,10 @@ const emptyRep = () => ({ejecutivo:'',semana:'',dia:'Lunes',llamadas:0,efec:0,vi
 const emptyCar = () => ({empresa:'',mes:'',tipo:'Prospecto',fechaUltContacto:'',decisor:false,resultado:'',proxContacto:'',motivo:''});
 
 // ═══════════════════════════════════════════════════════════════════════════════
-export default function HRDashboard() {
-  const [tab, setTab] = useState('rh');
+export default function HRDashboard({ defaultTab = 'rh', onlyTabs = null }) {
+  const [tab, setTab] = useState(defaultTab);
+  const ALL_TABS = [['rh','Recursos Humanos'],['ventas','Ventas & CRM'],['datos','Gestionar Datos']];
+  const visibleTabs = onlyTabs ? ALL_TABS.filter(([k]) => onlyTabs.includes(k)) : ALL_TABS;
 
   const [bitacora, setBitacora] = useState([]);
   const [reporte,  setReporte]  = useState([]);
@@ -228,22 +230,32 @@ export default function HRDashboard() {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
-          <h2 className="text-3xl font-black text-gray-900 leading-tight">Métricas RH</h2>
-          <p className="text-sm text-gray-500 font-medium mt-1">Fuerza laboral · Ventas · CRM · Gestión de datos</p>
+          <h2 className="text-3xl font-black text-gray-900 leading-tight">
+            {onlyTabs?.includes('ventas') && !onlyTabs?.includes('rh') ? 'Métricas Ventas'
+              : onlyTabs?.includes('datos') && !onlyTabs?.includes('rh') ? 'Gestión de Datos'
+              : 'Métricas RH'}
+          </h2>
+          <p className="text-sm text-gray-500 font-medium mt-1">
+            {onlyTabs?.includes('ventas') && !onlyTabs?.includes('rh') ? 'KPIs · Actividad comercial · Análisis visual'
+              : onlyTabs?.includes('datos') && !onlyTabs?.includes('rh') ? 'Bitácora · Reporte diario · Cartera de clientes'
+              : 'Fuerza laboral · Ventas · CRM · Gestión de datos'}
+          </p>
         </div>
-        <div className="flex bg-white p-1 rounded-xl border shadow-sm">
-          {[['rh','Recursos Humanos'],['ventas','Ventas & CRM'],['datos','Gestionar Datos']].map(([k,l])=>(
-            <button key={k} onClick={()=>setTab(k)}
-              className={cn('px-4 py-2 text-xs font-black rounded-lg transition-all whitespace-nowrap',
-                tab===k?'bg-primary text-white shadow-sm':'text-gray-500 hover:text-gray-700')}>
-              {k==='datos'&&<Database className="h-3 w-3 inline mr-1"/>}{l}
-            </button>
-          ))}
-        </div>
+        {visibleTabs.length > 1 && (
+          <div className="flex bg-white p-1 rounded-xl border shadow-sm">
+            {visibleTabs.map(([k,l])=>(
+              <button key={k} onClick={()=>setTab(k)}
+                className={cn('px-4 py-2 text-xs font-black rounded-lg transition-all whitespace-nowrap',
+                  tab===k?'bg-primary text-white shadow-sm':'text-gray-500 hover:text-gray-700')}>
+                {k==='datos'&&<Database className="h-3 w-3 inline mr-1"/>}{l}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
-      {/* Quick Actions */}
-      <div className="flex flex-wrap gap-3">
+      {/* Quick Actions (solo en contexto RH) */}
+      {(!onlyTabs || onlyTabs.includes('rh')) && <div className="flex flex-wrap gap-3">
         <button className="flex items-center gap-2 bg-primary text-white px-5 py-2.5 rounded-2xl font-bold text-sm shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all">
           <UserPlus className="h-4 w-4"/> Alta de Empleado
         </button>
@@ -253,7 +265,7 @@ export default function HRDashboard() {
         <button className="flex items-center gap-2 bg-white text-gray-700 border px-5 py-2.5 rounded-2xl font-bold text-sm hover:shadow-sm transition-all">
           <Palmtree className="h-4 w-4 text-emerald-500"/> Registrar Solicitud
         </button>
-      </div>
+      </div>}
 
       {/* ══ TAB RH ══════════════════════════════════════════════════════════════ */}
       {tab==='rh'&&(
