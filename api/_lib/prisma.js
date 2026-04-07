@@ -9,14 +9,18 @@ if (!process.env.DATABASE_URL) {
   throw new Error('DATABASE_URL is not defined in environment variables')
 }
 
-const pool = new pg.Pool({ 
-  connectionString: process.env.DATABASE_URL,
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
-})
-const adapter = new PrismaPg(pool)
+// En serverless cada invocación puede crear una conexión nueva.
+// Reutilizamos la instancia global para no agotar el pool de la DB.
+if (!global.__prisma) {
+  const pool = new pg.Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: { rejectUnauthorized: false },
+    max: 1,                      // máximo 1 conexión por instancia serverless
+    idleTimeoutMillis: 10_000,   // cierra conexiones ociosas en 10 s
+    connectionTimeoutMillis: 10_000,
+  })
+  const adapter = new PrismaPg(pool)
+  global.__prisma = new PrismaClient({ adapter })
+}
 
-const prisma = global.prisma || new PrismaClient({ adapter })
-
-if (process.env.NODE_ENV !== 'production') global.prisma = prisma
-
-export default prisma
+export default global.__prisma
