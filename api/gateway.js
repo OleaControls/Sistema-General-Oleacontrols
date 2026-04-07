@@ -1,51 +1,39 @@
-import employees from './_handlers/employees.js';
-import vacations from './_handlers/vacations.js';
-import recruitment from './_handlers/recruitment.js';
-import assets from './_handlers/assets.js';
-import evaluations from './_handlers/evaluations.js';
-import categories from './_handlers/categories.js';
-import config from './_handlers/config.js';
-import crm from './_handlers/crm.js';
-import expenses from './_handlers/expenses.js';
-import gamification from './_handlers/gamification.js';
-import login from './_handlers/login.js';
-import ots from './_handlers/ots.js';
-import quotes from './_handlers/quotes.js';
-import upload from './_handlers/upload.js';
-import lms from './_handlers/lms.js';
-
 const handlers = {
-  employees,
-  vacations,
-  recruitment,
-  assets,
-  evaluations,
-  categories,
-  config,
-  crm,
-  expenses,
-  gamification,
-  login,
-  ots,
-  quotes,
-  upload,
-  lms
+  employees: () => import('./_handlers/employees.js'),
+  vacations: () => import('./_handlers/vacations.js'),
+  recruitment: () => import('./_handlers/recruitment.js'),
+  assets: () => import('./_handlers/assets.js'),
+  evaluations: () => import('./_handlers/evaluations.js'),
+  categories: () => import('./_handlers/categories.js'),
+  config: () => import('./_handlers/config.js'),
+  crm: () => import('./_handlers/crm.js'),
+  expenses: () => import('./_handlers/expenses.js'),
+  gamification: () => import('./_handlers/gamification.js'),
+  login: () => import('./_handlers/login.js'),
+  ots: () => import('./_handlers/ots.js'),
+  quotes: () => import('./_handlers/quotes.js'),
+  upload: () => import('./_handlers/upload.js'),
+  lms: () => import('./_handlers/lms.js')
 };
 
 export default async function handler(req, res) {
-  // Extraer el recurso de la URL (ej: /api/employees -> employees)
   const urlParts = req.url.split('?')[0].split('/');
-  const resource = urlParts.find(part => handlers[part.toLowerCase()]);
+  const resourceName = urlParts.find(part => handlers[part.toLowerCase()]);
 
-  if (resource && handlers[resource.toLowerCase()]) {
+  if (resourceName && handlers[resourceName.toLowerCase()]) {
     try {
-      console.log(`[Gateway] Routing request to: ${resource}`);
-      return await handlers[resource.toLowerCase()](req, res);
+      console.log(`[Gateway] Loading handler for: ${resourceName}`);
+      const module = await handlers[resourceName.toLowerCase()]();
+      return await module.default(req, res);
     } catch (error) {
-      console.error(`[Gateway Error] ${resource}:`, error);
-      return res.status(500).json({ error: 'Internal Server Error', details: error.message });
+      console.error(`[Gateway Error] ${resourceName}:`, error);
+      return res.status(500).json({ 
+        error: 'Error interno en el servidor', 
+        message: error.message,
+        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      });
     }
   }
 
-  return res.status(404).json({ error: 'Recurso no encontrado en el Gateway', path: req.url });
+  return res.status(404).json({ error: 'Recurso no encontrado', path: req.url });
 }
