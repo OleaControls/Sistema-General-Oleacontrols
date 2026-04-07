@@ -12,6 +12,7 @@ import login from './_handlers/login.js';
 import ots from './_handlers/ots.js';
 import quotes from './_handlers/quotes.js';
 import upload from './_handlers/upload.js';
+import lms from './_handlers/lms.js';
 
 const handlers = {
   employees,
@@ -27,7 +28,8 @@ const handlers = {
   login,
   ots,
   quotes,
-  upload
+  upload,
+  lms
 };
 
 export default async function handler(req, res) {

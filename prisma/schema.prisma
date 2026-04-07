@@ -96,10 +96,15 @@ model Employee {
   expenses        Expense[]
 
   // --- RELACIONES CRM OPUESTAS ---
-  assignedLeads   Lead[]      // Leads asignados a este empleado
-  assignedDeals   Deal[]      @relation("DealAssignee")
-  quotesCreated   Quote[]     @relation("QuoteCreator")
-  quotesSold      Quote[]     @relation("QuoteSeller")
+  assignedLeads     Lead[]           // Leads asignados a este empleado
+  assignedDeals     Deal[]           @relation("DealAssignee")
+  quotesCreated     Quote[]          @relation("QuoteCreator")
+  quotesSold        Quote[]          @relation("QuoteSeller")
+
+  // --- RELACIONES LMS ---
+  lmsEnrollments    LMSEnrollment[]  @relation("LMSEnrollments")
+  lmsCertificates   LMSCertificate[] @relation("LMSCertificates")
+  lmsCoursesCreated LMSCourse[]      @relation("LMSCourseCreator")
 
   // --- EVALUACIONES ---
   evaluationsReceived Evaluation[] @relation("EvaluationTarget")
@@ -406,3 +411,123 @@ model Asset {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 }
+
+// --- GESTIÓN DE CURSOS (LMS) ---
+model LMSCourse {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  thumbnail   String?
+  status      String   @default("DRAFT") // DRAFT, PUBLISHED, ARCHIVED
+  isMandatory Boolean  @default(false)
+  level       String   @default("BEGINNER")
+  
+  creatorId   String
+  creator     Employee @relation("LMSCourseCreator", fields: [creatorId], references: [id])
+  
+  modules     LMSModule[]
+  enrollments LMSEnrollment[]
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model LMSModule {
+  id          String   @id @default(cuid())
+  title       String
+  order       Int
+  courseId    String
+  course      LMSCourse @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  
+  lessons     LMSLesson[]
+}
+
+model LMSLesson {
+  id          String   @id @default(cuid())
+  title       String
+  type        String   // VIDEO, PDF, TEXT, QUIZ
+  content     String?  // Rich text o URL (Ej: Enlace de YouTube o PDF)
+  duration    Int?     // Duración estimada en minutos
+  order       Int
+  moduleId    String
+  module      LMSModule @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  
+  quiz        LMSQuiz?
+  progress    LMSProgress[]
+}
+
+// --- EVALUACIONES (QUIZZES) ---
+model LMSQuiz {
+  id          String   @id @default(cuid())
+  lessonId    String   @unique
+  lesson      LMSLesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  passingScore Int     @default(80)
+  maxAttempts Int      @default(3)
+  
+  questions   LMSQuestion[]
+  results     LMSQuizResult[]
+}
+
+model LMSQuestion {
+  id          String   @id @default(cuid())
+  quizId      String
+  quiz        LMSQuiz  @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  type        String   @default("MULTIPLE_CHOICE")
+  text        String
+  options     Json     // [{id: 1, text: "A", isCorrect: true}, ...]
+  points      Int      @default(10)
+}
+
+// --- SEGUIMIENTO DE USUARIOS ---
+model LMSEnrollment {
+  id          String   @id @default(cuid())
+  employeeId  String
+  employee    Employee @relation("LMSEnrollments", fields: [employeeId], references: [id])
+  courseId    String
+  course      LMSCourse @relation(fields: [courseId], references: [id])
+  
+  status      String   @default("ENROLLED") // ENROLLED, IN_PROGRESS, COMPLETED
+  progressPct Float    @default(0)
+  enrolledAt  DateTime @default(now())
+  completedAt DateTime?
+
+  @@unique([employeeId, courseId])
+}
+
+model LMSProgress {
+  id          String   @id @default(cuid())
+  employeeId  String
+  lessonId    String
+  lesson      LMSLesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  
+  status      String   @default("STARTED") // STARTED, COMPLETED
+  watchTime   Int      @default(0)
+  updatedAt   DateTime @updatedAt
+
+  @@unique([employeeId, lessonId])
+}
+
+model LMSQuizResult {
+  id          String   @id @default(cuid())
+  employeeId  String
+  quizId      String
+  quiz        LMSQuiz  @relation(fields: [quizId], references: [id])
+  
+  score       Float
+  passed      Boolean
+  attemptNum  Int      @default(1)
+  answers     Json
+  
+  createdAt   DateTime @default(now())
+}
+
+model LMSCertificate {
+  id          String   @id @default(cuid())
+  employeeId  String
+  employee    Employee @relation("LMSCertificates", fields: [employeeId], references: [id])
+  courseName  String
+  pdfUrl      String
+  issueDate   DateTime @default(now())
+  validationId String  @unique @default(uuid())
+}
+
