@@ -52,8 +52,9 @@ const ClientsList     = lazy(() => import('@/modules/crm/views/ClientsList'));
 const QuotesList      = lazy(() => import('@/modules/crm/views/QuotesList'));
 const IndirectSales   = lazy(() => import('@/modules/crm/views/IndirectSales'));
 const InvoicesOrders  = lazy(() => import('@/modules/crm/views/InvoicesOrders'));
-const PipelineSettings = lazy(() => import('@/modules/crm/views/PipelineSettings'));
-const SalesMetrics    = lazy(() => import('@/modules/crm/views/SalesMetrics'));
+const PipelineSettings  = lazy(() => import('@/modules/crm/views/PipelineSettings'));
+const SalesMetrics      = lazy(() => import('@/modules/crm/views/SalesMetrics'));
+const CRMActivityFeed   = lazy(() => import('@/modules/crm/views/CRMActivityFeed'));
 
 // Academy / LMS
 const AcademyHome  = lazy(() => import('@/modules/lms/views/AcademyHome'));
@@ -160,6 +161,7 @@ export default function AppRouter() {
             <Route path="orders"        element={<InvoicesOrders />} />
             <Route path="invoices"      element={<InvoicesOrders />} />
             <Route path="settings"      element={<PipelineSettings />} />
+            <Route path="activity"      element={<CRMActivityFeed />} />
           </Route>
 
           {/* Ventas – acceso directo SALES */}

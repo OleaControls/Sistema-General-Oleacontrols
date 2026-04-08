@@ -143,10 +143,12 @@ export default function HRDashboard({ defaultTab = 'rh', onlyTabs = null }) {
   const [cartera,  setCartera]  = useState([]);
   const [K, setK] = useState({});
 
-  const loadAll = useCallback(() => {
-    const b = getBitacora(), r = getReporte(), c = getCartera();
-    setBitacora(b); setReporte(r); setCartera(c);
-    setK(calcKPIs(b, r, c));
+  const loadAll = useCallback(async () => {
+    try {
+      const [b, r, c] = await Promise.all([getBitacora(), getReporte(), getCartera()]);
+      setBitacora(b); setReporte(r); setCartera(c);
+      setK(calcKPIs(b, r, c));
+    } catch (err) { console.error('[HRDashboard] Error cargando datos de ventas:', err); }
   }, []);
   useEffect(()=>{ loadAll(); },[loadAll]);
 
@@ -156,16 +158,16 @@ export default function HRDashboard({ defaultTab = 'rh', onlyTabs = null }) {
   const [mCar, setMCar] = useState(false); const [fCar, setFCar] = useState(emptyCar());
 
   const openBit = (e=null) => { setFBit(e?{...e}:emptyBit()); setMBit(true); };
-  const saveBit = () => { saveBitacoraEntry(fBit); loadAll(); setMBit(false); };
-  const delBit  = (e) => { if(window.confirm(`¿Eliminar "${e.empresaVisitada}"?`)) { deleteBitacoraEntry(e.id); loadAll(); } };
+  const saveBit = async () => { await saveBitacoraEntry(fBit); await loadAll(); setMBit(false); };
+  const delBit  = async (e) => { if(window.confirm(`¿Eliminar "${e.empresaVisitada}"?`)) { await deleteBitacoraEntry(e.id); await loadAll(); } };
 
   const openRep = (e=null) => { setFRep(e?{...e}:emptyRep()); setMRep(true); };
-  const saveRep = () => { saveReporteEntry(fRep); loadAll(); setMRep(false); };
-  const delRep  = (e) => { if(window.confirm(`¿Eliminar "${e.dia} ${e.semana}"?`)) { deleteReporteEntry(e.id); loadAll(); } };
+  const saveRep = async () => { await saveReporteEntry(fRep); await loadAll(); setMRep(false); };
+  const delRep  = async (e) => { if(window.confirm(`¿Eliminar "${e.dia} ${e.semana}"?`)) { await deleteReporteEntry(e.id); await loadAll(); } };
 
   const openCar = (e=null) => { setFCar(e?{...e}:emptyCar()); setMCar(true); };
-  const saveCar = () => { saveCarteraEntry(fCar); loadAll(); setMCar(false); };
-  const delCar  = (e) => { if(window.confirm(`¿Eliminar "${e.empresa}"?`)) { deleteCarteraEntry(e.id); loadAll(); } };
+  const saveCar = async () => { await saveCarteraEntry(fCar); await loadAll(); setMCar(false); };
+  const delCar  = async (e) => { if(window.confirm(`¿Eliminar "${e.empresa}"?`)) { await deleteCarteraEntry(e.id); await loadAll(); } };
 
   // ── Datos para gráficas ────────────────────────────────────────────────────
   const funnelAbs = [

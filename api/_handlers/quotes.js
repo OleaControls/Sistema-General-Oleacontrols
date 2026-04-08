@@ -1,5 +1,6 @@
 import prisma from '../_lib/prisma.js'
 import { uploadToR2 } from '../_lib/r2.js'
+import { authMiddleware } from '../_lib/auth.js'
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import fs from 'fs';
@@ -322,6 +323,17 @@ async function generateQuotePDF(quote) {
 export default async function handler(req, res) {
   const { method } = req;
 
+  // Verificar token
+  const caller = authMiddleware(req, res);
+  if (!caller) return;
+  const userId = caller.id;
+
+  // Roles desde la BD (siempre actualizados, no del JWT que puede estar desactualizado)
+  const emp     = await prisma.employee.findUnique({ where: { id: userId }, select: { roles: true } });
+  const roles   = emp?.roles || [];
+  const isAdmin = roles.includes('ADMIN');
+  const isSales = roles.includes('SALES') && !isAdmin;
+
   if (method === 'GET') {
     try {
       const { id } = req.query;
@@ -331,7 +343,15 @@ export default async function handler(req, res) {
         if (url) await prisma.quote.update({ where: { id }, data: { pdfUrl: url } });
         return res.status(200).json({ ...quote, pdfUrl: url || quote.pdfUrl });
       }
-      const quotes = await prisma.quote.findMany({ include: { client: true, creator: true, seller: true }, orderBy: { createdAt: 'desc' } });
+      // Si es SALES, solo ve sus propias cotizaciones (como creador o vendedor)
+      const where = isSales
+        ? { OR: [{ creatorId: userId }, { sellerId: userId }] }
+        : {};
+      const quotes = await prisma.quote.findMany({
+        where,
+        include: { client: true, creator: true, seller: true },
+        orderBy: { createdAt: 'desc' }
+      });
       return res.status(200).json(quotes);
     } catch (error) {
       return res.status(500).json({ error: error.message });
@@ -354,8 +374,8 @@ export default async function handler(req, res) {
           total: parseFloat(data.total) || 0,
           validUntil: new Date(data.validUntil),
           terms: data.terms || '',
-          creatorId: data.creatorId,
-          sellerId: data.sellerId || null, // Colaborador en la venta
+          creatorId: data.creatorId || userId,
+          sellerId: data.sellerId || (isSales ? userId : null),
           status: 'PENDING'
         },
         include: { client: true, creator: true, seller: true }

@@ -9,7 +9,8 @@ import {
   Receipt,
   TrendingUp,
   Sliders,
-  Briefcase
+  Briefcase,
+  Activity
 } from 'lucide-react';
 import { useAuth, ROLES } from '@/store/AuthContext';
 import { cn } from '@/lib/utils';
@@ -21,6 +22,7 @@ const crmNavItems = [
   { name: 'Presupuestos', path: '/crm/quotes', icon: FileText },
   { name: 'Órdenes de Compra', path: '/crm/orders', icon: ShoppingCart },
   { name: 'Facturación', path: '/crm/invoices', icon: Receipt },
+  { name: 'Registro de Actividad', path: '/crm/activity', icon: Activity, adminOnly: true },
   { name: 'Config. Pipeline', path: '/crm/settings', icon: Sliders },
 ];
 
@@ -40,7 +42,7 @@ export default function CRMLayout() {
             <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">Pipeline Manager</p>
           </div>
           <nav className="flex-1 p-4 space-y-1">
-            {crmNavItems.map((item) => {
+            {crmNavItems.filter(item => !item.adminOnly || user?.roles?.includes('ADMIN') || user?.role === 'ADMIN').map((item) => {
               const isActive = location.pathname === item.path || (location.pathname.startsWith(item.path) && item.path !== '/crm');
               return (
                 <Link

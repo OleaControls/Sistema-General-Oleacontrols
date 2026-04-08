@@ -100,6 +100,12 @@ model Employee {
   assignedDeals     Deal[]           @relation("DealAssignee")
   quotesCreated     Quote[]          @relation("QuoteCreator")
   quotesSold        Quote[]          @relation("QuoteSeller")
+  ownedClients      Client[]         @relation("ClientOwner")
+
+  // --- GESTIÓN DE DATOS DE VENTAS ---
+  salesBitacora     SalesBitacora[]  @relation("SellerBitacora")
+  salesReports      SalesDailyReport[] @relation("SellerReports")
+  salesPortfolio    SalesPortfolio[] @relation("SellerPortfolio")
 
   // --- RELACIONES LMS ---
   lmsEnrollments    LMSEnrollment[]  @relation("LMSEnrollments")
@@ -269,7 +275,11 @@ model Client {
   status        String   @default("ACTIVE") // ACTIVE, INACTIVE
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
-  
+
+  // Vendedor propietario de la cartera
+  ownerId       String?
+  owner         Employee? @relation("ClientOwner", fields: [ownerId], references: [id])
+
   quotes        Quote[]
   deals         Deal[]
 }
@@ -280,6 +290,8 @@ model Lead {
   company       String?
   email         String
   phone         String?
+  rfc           String?
+  address       String?
   source        String?  // Facebook, Web, Recomendación, etc.
   stage         String   @default("PROSPECT") // PROSPECT, QUOTED, NEGOTIATION, WON, LOST
   estimatedValue Float   @default(0)
@@ -352,6 +364,9 @@ model Deal {
   description   String?
   notes         String?
 
+  // Razón de cierre (ganado o perdido)
+  closeReason   String?
+
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -359,13 +374,15 @@ model Deal {
 }
 
 model DealActivity {
-  id         String   @id @default(cuid())
+  id         String    @id @default(cuid())
   dealId     String
-  deal       Deal     @relation(fields: [dealId], references: [id], onDelete: Cascade)
-  type       String   @default("NOTE") // NOTE, CALL, EMAIL, MEETING, TASK
+  deal       Deal      @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  type       String    @default("NOTE") // NOTE, CALL, EMAIL, MEETING, TASK, STAGE_CHANGE
   content    String
   authorName String?
-  createdAt  DateTime @default(now())
+  status     String    @default("PENDING") // PENDING, COMPLETED, FAILED
+  dueDate    DateTime?
+  createdAt  DateTime  @default(now())
 }
 
 model VacationRequest {
@@ -531,3 +548,55 @@ model LMSCertificate {
   validationId String  @unique @default(uuid())
 }
 
+
+// --- GESTIÓN DE DATOS DE VENTAS (por vendedor, en BD) ---
+
+model SalesBitacora {
+  id              String   @id @default(cuid())
+  sellerId        String
+  seller          Employee @relation("SellerBitacora", fields: [sellerId], references: [id])
+  dia             String?
+  empresaVisitada String?
+  nombre          String?
+  potencial       Boolean  @default(false)
+  decisor         Boolean  @default(false)
+  resultado       String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model SalesDailyReport {
+  id           String   @id @default(cuid())
+  sellerId     String
+  seller       Employee @relation("SellerReports", fields: [sellerId], references: [id])
+  semana       String?
+  dia          String?
+  llamadas     Int      @default(0)
+  efec         Int      @default(0)
+  visitas      Int      @default(0)
+  correos      Int      @default(0)
+  mensajes     Int      @default(0)
+  decisorR     Int      @default(0)
+  decisorFinal Int      @default(0)
+  cotizaciones Int      @default(0)
+  cierres      Int      @default(0)
+  venta        Float    @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model SalesPortfolio {
+  id               String   @id @default(cuid())
+  sellerId         String
+  seller           Employee @relation("SellerPortfolio", fields: [sellerId], references: [id])
+  empresa          String?
+  mes              String?
+  tipo             String   @default("Prospecto")
+  fechaUltContacto String?
+  decisor          Boolean  @default(false)
+  resultado        String?
+  proxContacto     String?
+  motivo           String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}

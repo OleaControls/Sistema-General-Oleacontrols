@@ -17,6 +17,7 @@ import uploadHandler from './api/_handlers/upload.js';
 import vacationsHandler from './api/_handlers/vacations.js';
 import recruitmentHandler from './api/_handlers/recruitment.js';
 import assetsHandler from './api/_handlers/assets.js';
+import salesDataHandler from './api/_handlers/sales-data.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -113,6 +114,12 @@ app.get('/api/assets', adaptHandler(assetsHandler));
 app.post('/api/assets', adaptHandler(assetsHandler));
 app.put('/api/assets', adaptHandler(assetsHandler));
 app.delete('/api/assets', adaptHandler(assetsHandler));
+
+// Sales Data (bitácora, reporte diario, cartera — por vendedor en BD)
+app.get('/api/sales-data', adaptHandler(salesDataHandler));
+app.post('/api/sales-data', adaptHandler(salesDataHandler));
+app.put('/api/sales-data', adaptHandler(salesDataHandler));
+app.delete('/api/sales-data', adaptHandler(salesDataHandler));
 
 app.listen(PORT, () => {
   console.log(`🚀 Server running locally at http://localhost:${PORT}`);

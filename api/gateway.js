@@ -7,6 +7,7 @@ const handlers = {
   categories: () => import('./_handlers/categories.js'),
   config: () => import('./_handlers/config.js'),
   crm: () => import('./_handlers/crm.js'),
+  'sales-data': () => import('./_handlers/sales-data.js'),
   expenses: () => import('./_handlers/expenses.js'),
   gamification: () => import('./_handlers/gamification.js'),
   login: () => import('./_handlers/login.js'),

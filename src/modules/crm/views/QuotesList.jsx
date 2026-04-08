@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/store/AuthContext';
+import { useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { apiFetch } from '@/lib/api';
 
@@ -27,6 +28,7 @@ const emptyItem = () => ({ serial: '', name: '', desc: '', qty: 1, price: 0, tot
 
 export default function QuotesList() {
   const { user } = useAuth();
+  const location = useLocation();
   const [quotes,    setQuotes]    = useState([]);
   const [clients,   setClients]   = useState([]);
   const [employees, setEmployees] = useState([]);
@@ -44,6 +46,7 @@ export default function QuotesList() {
   // Modal: crear cotización
   const [showAddModal,  setShowAddModal]  = useState(false);
   const [isGenerating,  setIsGenerating]  = useState(false);
+  const [fromDealMeta,  setFromDealMeta]  = useState(null); // deal del que proviene la cotización
 
   const initialNewQuote = () => ({
     quoteNumber:  generateQuoteNumber(),
@@ -72,6 +75,25 @@ export default function QuotesList() {
   };
 
   useEffect(() => { fetchData(); }, []);
+
+  // Auto-abrir modal de nueva cotización si viene de un deal del pipeline
+  useEffect(() => {
+    const fromDeal = location.state?.fromDeal;
+    const fromClientId = location.state?.clientId;
+    if (!fromDeal) return;
+    const isRecotizacion = fromDeal.stage === 'RECOTIZACION';
+    setFromDealMeta(fromDeal);
+    setNewQuote(prev => ({
+      ...prev,
+      clientId:     fromClientId || '',
+      projectName:  fromDeal.title        || '',
+      contactName:  fromDeal.contactName  || '',
+      sellerId:     fromDeal.assignedToId || '',
+      projectPhase: isRecotizacion ? 'RECOTIZACION' : 'INICIAL',
+    }));
+    setShowAddModal(true);
+    window.history.replaceState({}, '');
+  }, [location.state]);
 
   // Recalcular totales al cambiar ítems (nuevo modal)
   useEffect(() => {
@@ -169,6 +191,7 @@ export default function QuotesList() {
       if (res.ok) {
         setShowAddModal(false);
         setNewQuote(initialNewQuote());
+        setFromDealMeta(null);
         fetchData();
       }
     } catch (err) { alert('Error al crear cotización'); }
@@ -493,15 +516,40 @@ export default function QuotesList() {
               <form onSubmit={handleCreateQuote} className="p-6 md:p-10 space-y-8">
                 <div className="flex justify-between items-center border-b pb-5">
                   <div>
-                    <h3 className="text-2xl font-black text-gray-900 tracking-tighter uppercase italic">Nueva Cotización</h3>
+                    <h3 className="text-2xl font-black text-gray-900 tracking-tighter uppercase italic">
+                      {fromDealMeta?.stage === 'RECOTIZACION' ? 'Recotización' : 'Nueva Cotización'}
+                    </h3>
                     <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest mt-1">
                       Folio: {newQuote.quoteNumber}
                     </p>
                   </div>
-                  <button type="button" onClick={() => setShowAddModal(false)} className="p-2 hover:bg-gray-100 rounded-full">
+                  <button type="button" onClick={() => { setShowAddModal(false); setFromDealMeta(null); }} className="p-2 hover:bg-gray-100 rounded-full">
                     <X className="h-6 w-6 text-gray-400" />
                   </button>
                 </div>
+
+                {/* Banner: vinculado a deal del pipeline */}
+                {fromDealMeta && (
+                  <div className="flex items-start gap-3 p-4 bg-emerald-50 rounded-2xl border border-emerald-100">
+                    <FileText className="h-4 w-4 text-emerald-600 mt-0.5 flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[8px] font-black text-emerald-700 uppercase tracking-widest mb-1">
+                        Generando desde Pipeline CRM
+                      </p>
+                      <p className="text-xs font-black text-gray-900 truncate">{fromDealMeta.title}</p>
+                      <div className="flex flex-wrap gap-x-4 gap-y-0.5 mt-1">
+                        {fromDealMeta.company && <span className="text-[9px] font-bold text-gray-500">{fromDealMeta.company}</span>}
+                        {fromDealMeta.email   && <span className="text-[9px] font-bold text-gray-400">{fromDealMeta.email}</span>}
+                        {fromDealMeta.phone   && <span className="text-[9px] font-bold text-gray-400">{fromDealMeta.phone}</span>}
+                      </div>
+                    </div>
+                    {fromDealMeta.value > 0 && (
+                      <span className="text-xs font-black text-emerald-700 flex-shrink-0">
+                        ${Number(fromDealMeta.value).toLocaleString('es-MX', { maximumFractionDigits: 0 })}
+                      </span>
+                    )}
+                  </div>
+                )}
 
                 {/* Info general */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
