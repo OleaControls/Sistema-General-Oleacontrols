@@ -7,65 +7,95 @@ export default async function handler(req, res) {
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
-    const technicians = await prisma.employee.findMany({
-      where: { roles: { has: 'TECH' } },
-      include: {
-        techOTs: true,
-      }
-    });
+    // Traer técnicos y todas las OTs cerradas en paralelo
+    const [technicians, allOTs] = await Promise.all([
+      prisma.employee.findMany({
+        where: { roles: { has: 'TECH' } },
+        select: { id: true, name: true, avatar: true }
+      }),
+      prisma.workOrder.findMany({
+        where: { status: { in: ['COMPLETED', 'VALIDATED'] } },
+        select: {
+          id: true,
+          technicianId: true,
+          assistantTechs: true,
+          supportTechs: true,
+          status: true,
+          priority: true,
+          createdAt: true,
+          startedAt: true,
+          finishedAt: true,
+        }
+      })
+    ]);
+
+    // Helper: obtener los IDs de técnicos de apoyo de una OT
+    const getSupportIds = (ot) => {
+      const parse = (field) => {
+        if (!field) return [];
+        const arr = typeof field === 'string' ? JSON.parse(field) : field;
+        return Array.isArray(arr) ? arr.map(t => (typeof t === 'string' ? t : t?.id)).filter(Boolean) : [];
+      };
+      return [...parse(ot.assistantTechs), ...parse(ot.supportTechs)];
+    };
+
+    // Para cada técnico: filtrar OTs donde participó (líder O apoyo)
+    const techParticipated = (ot, techId) =>
+      ot.technicianId === techId || getSupportIds(ot).includes(techId);
 
     const leaderboard = technicians.map(tech => {
-      // 1. OTs de Toda la Vida (Para el Nivel/Rango)
-      const allCompleted = tech.techOTs.filter(ot => ot.status === 'COMPLETED' || ot.status === 'VALIDATED');
-      
-      // 2. OTs del Mes en Curso (Para el Ranking Mensual)
+      const myOTs = allOTs.filter(ot => techParticipated(ot, tech.id));
+
+      // 1. Todas las completadas (para rango/nivel)
+      const allCompleted = myOTs; // ya filtramos COMPLETED/VALIDATED arriba
+
+      // 2. Del mes en curso (ranking mensual)
       const monthlyCompleted = allCompleted.filter(ot => {
         const finishedDate = ot.finishedAt ? new Date(ot.finishedAt) : null;
         return finishedDate && finishedDate >= startOfMonth;
       });
-      
-      // --- CÁLCULO DE PUNTOS MENSUALES (Se resetean cada mes) ---
+
+      // Puntos mensuales (ranking)
       const monthlyPoints = monthlyCompleted.reduce((acc, ot) => {
-        const priorityMult = ot.priority === 'HIGH' ? 150 : ot.priority === 'MEDIUM' ? 100 : 50;
-        return acc + priorityMult;
+        const mult = ot.priority === 'HIGH' ? 150 : ot.priority === 'MEDIUM' ? 100 : 50;
+        return acc + mult;
       }, 0);
 
-      // --- CÁLCULO DE PUNTOS HISTÓRICOS (Para mantener el Nivel) ---
+      // Puntos históricos (nivel/rango)
       const lifetimePoints = allCompleted.reduce((acc, ot) => {
-        const priorityMult = ot.priority === 'HIGH' ? 150 : ot.priority === 'MEDIUM' ? 100 : 50;
-        return acc + priorityMult;
+        const mult = ot.priority === 'HIGH' ? 150 : ot.priority === 'MEDIUM' ? 100 : 50;
+        return acc + mult;
       }, 0);
 
-      // --- MÉTRICAS DE TIEMPO (Solo del mes para mayor relevancia) ---
-      const monthlyReactionTimes = monthlyCompleted
+      // Tiempos promedio (del mes)
+      const reactionTimes = monthlyCompleted
         .filter(ot => ot.createdAt && ot.startedAt)
         .map(ot => new Date(ot.startedAt) - new Date(ot.createdAt));
-      
-      const avgReaction = monthlyReactionTimes.length > 0 
-        ? monthlyReactionTimes.reduce((a, b) => a + b, 0) / monthlyReactionTimes.length / 60000 
+
+      const avgReaction = reactionTimes.length > 0
+        ? reactionTimes.reduce((a, b) => a + b, 0) / reactionTimes.length / 60000
         : 0;
 
-      const monthlyResolutionTimes = monthlyCompleted
+      const resolutionTimes = monthlyCompleted
         .filter(ot => ot.startedAt && ot.finishedAt)
         .map(ot => new Date(ot.finishedAt) - new Date(ot.startedAt));
-      
-      const avgResolution = monthlyResolutionTimes.length > 0 
-        ? monthlyResolutionTimes.reduce((a, b) => a + b, 0) / monthlyResolutionTimes.length / 3600000 
+
+      const avgResolution = resolutionTimes.length > 0
+        ? resolutionTimes.reduce((a, b) => a + b, 0) / resolutionTimes.length / 3600000
         : 0;
 
       return {
         id: tech.id,
         name: tech.name,
         avatar: tech.avatar,
-        points: monthlyPoints, // Mostramos puntos mensuales en el Ranking
-        lifetimePoints,        // Usamos históricos para el Rango
+        points: monthlyPoints,
+        lifetimePoints,
         completedCount: monthlyCompleted.length,
         avgReaction: avgReaction.toFixed(0),
         avgResolution: avgResolution.toFixed(1),
-        // El rango se basa en el esfuerzo de toda la vida (Persistent Level)
         rank: lifetimePoints > 10000 ? 'DIAMANTE' : lifetimePoints > 5000 ? 'ORO' : lifetimePoints > 1000 ? 'PLATA' : 'BRONCE'
       };
-    }).sort((a, b) => b.points - a.points); // Ordenamos por quién va ganando EL MES
+    }).sort((a, b) => b.points - a.points);
 
     return res.status(200).json(leaderboard);
   } catch (error) {

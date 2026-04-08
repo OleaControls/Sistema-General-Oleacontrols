@@ -1,17 +1,16 @@
 import React from 'react';
 import { Link, useLocation, Outlet } from 'react-router-dom';
-import { 
-  LayoutDashboard, 
-  Users, 
-  FileSignature, 
-  CalendarClock, 
-  Palmtree, 
-  Network, 
-  UserPlus, 
-  Target, 
-  HardHat, 
-  Megaphone, 
-  BarChart4, 
+import {
+  Users,
+  FileSignature,
+  CalendarClock,
+  Palmtree,
+  Network,
+  UserPlus,
+  Target,
+  HardHat,
+  Megaphone,
+  BarChart4,
   Settings,
   GraduationCap,
   ClipboardCheck,
@@ -20,7 +19,6 @@ import {
 import { cn } from '@/lib/utils';
 
 const hrNavItems = [
-  { name: 'Dashboard', path: '/hr', icon: LayoutDashboard },
   { name: 'Empleados', path: '/hr/directory', icon: Users },
   { name: 'Asistencia y Faltas', path: '/hr/attendance', icon: CalendarClock },
   { name: 'Vacaciones y Permisos', path: '/hr/time-off', icon: Palmtree },

@@ -5,11 +5,12 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end()
 
   const { email, password } = req.body
-  const normalizedEmail = email?.toLowerCase()
+  const normalizedEmail = email?.toLowerCase().trim()
 
   try {
-    const credentials = await prisma.credentials.findUnique({
-      where: { email: normalizedEmail },
+    // Búsqueda case-insensitive para tolerar emails guardados con mayúsculas
+    const credentials = await prisma.credentials.findFirst({
+      where: { email: { equals: normalizedEmail, mode: 'insensitive' } },
       include: {
         employee: true
       }

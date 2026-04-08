@@ -60,6 +60,10 @@ const CRMActivityFeed   = lazy(() => import('@/modules/crm/views/CRMActivityFeed
 const AcademyHome  = lazy(() => import('@/modules/lms/views/AcademyHome'));
 const CoursePlayer = lazy(() => import('@/modules/lms/views/CoursePlayer'));
 
+// Métricas por rol
+const OpsMetrics  = lazy(() => import('@/modules/ops/views/OpsMetrics'));
+const TechMetrics = lazy(() => import('@/modules/ots/views/TechMetrics'));
+
 // Misc
 const FeedbackForm = lazy(() => import('@/modules/feedback/FeedbackForm'));
 
@@ -86,9 +90,9 @@ const OTSelector = () => {
 const DashboardSelector = () => {
   const { user } = useAuth();
   switch (user?.role) {
-    case ROLES.ADMIN:
-    case ROLES.OPS:    return <SupervisorOTs />;
-    case ROLES.TECH:   return <TechnicianOTs />;
+    case ROLES.ADMIN:  return <SalesMetrics />;
+    case ROLES.OPS:    return <OpsMetrics />;
+    case ROLES.TECH:   return <TechMetrics />;
     case ROLES.HR:     return <HRDashboard />;
     case ROLES.SALES:  return <DealsKanban />;
     default:           return <MyProfile />;
@@ -167,6 +171,10 @@ export default function AppRouter() {
           {/* Ventas – acceso directo SALES */}
           <Route path="/sales/metricas" element={<ProtectedRoute><SalesMetrics /></ProtectedRoute>} />
           <Route path="/sales/datos"    element={<ProtectedRoute><HRDashboard defaultTab="datos" onlyTabs={['datos']} /></ProtectedRoute>} />
+
+          {/* Métricas por rol */}
+          <Route path="/ops/metricas"  element={<ProtectedRoute><OpsMetrics /></ProtectedRoute>} />
+          <Route path="/tech/metricas" element={<ProtectedRoute><TechMetrics /></ProtectedRoute>} />
 
           {/* Olea Academy */}
           <Route path="/academy"             element={<ProtectedRoute noShell><AcademyHome /></ProtectedRoute>} />

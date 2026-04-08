@@ -1,13 +1,9 @@
 import React from 'react';
 import { Link, useLocation, Outlet } from 'react-router-dom';
 import {
-  LayoutDashboard,
   Target,
   Users2,
   FileText,
-  ShoppingCart,
-  Receipt,
-  TrendingUp,
   Sliders,
   Briefcase,
   Activity
@@ -16,14 +12,12 @@ import { useAuth, ROLES } from '@/store/AuthContext';
 import { cn } from '@/lib/utils';
 
 const crmNavItems = [
-  { name: 'Pipeline / Tratos', path: '/crm/deals', icon: Briefcase },
-  { name: 'Prospectos (Leads)', path: '/crm/leads', icon: Target },
-  { name: 'Clientes (Cuentas)', path: '/crm/clients', icon: Users2 },
-  { name: 'Presupuestos', path: '/crm/quotes', icon: FileText },
-  { name: 'Órdenes de Compra', path: '/crm/orders', icon: ShoppingCart },
-  { name: 'Facturación', path: '/crm/invoices', icon: Receipt },
+  { name: 'Pipeline / Tratos',     path: '/crm/deals',    icon: Briefcase },
+  { name: 'Prospectos (Leads)',    path: '/crm/leads',    icon: Target },
+  { name: 'Clientes (Cuentas)',    path: '/crm/clients',  icon: Users2 },
+  { name: 'Presupuestos',          path: '/crm/quotes',   icon: FileText },
   { name: 'Registro de Actividad', path: '/crm/activity', icon: Activity, adminOnly: true },
-  { name: 'Config. Pipeline', path: '/crm/settings', icon: Sliders },
+  { name: 'Config. Pipeline',      path: '/crm/settings', icon: Sliders },
 ];
 
 export default function CRMLayout() {

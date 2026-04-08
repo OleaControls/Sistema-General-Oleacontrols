@@ -105,14 +105,16 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'Nombre y Email son obligatorios' });
       }
 
+      const normalizedEmail = email.trim().toLowerCase();
+
       // 1. Limpieza preventiva de duplicados huérfanos en Credenciales
       // (A veces quedan correos registrados sin empleado asociado por errores previos)
       await prisma.credentials.deleteMany({
-          where: { email: email.trim() }
+          where: { email: { equals: normalizedEmail, mode: 'insensitive' } }
       });
 
       // 2. Verificar si el email ya existe en empleados
-      const existingEmail = await prisma.employee.findUnique({ where: { email: email.trim() } });
+      const existingEmail = await prisma.employee.findUnique({ where: { email: normalizedEmail } });
       if (existingEmail) {
           return res.status(400).json({ error: `El correo ${email} ya pertenece a otro empleado (${existingEmail.name}).` });
       }
@@ -159,7 +161,7 @@ export default async function handler(req, res) {
         data: {
           employeeId: finalEmployeeId,
           name,
-          email: email.trim(),
+          email: normalizedEmail,
           roles: finalRoles,
           position: position || null,
           department: department || null,
@@ -213,7 +215,7 @@ export default async function handler(req, res) {
       // 6. Crear Credenciales por separado
       await prisma.credentials.create({
           data: {
-              email: email.trim(),
+              email: normalizedEmail,
               password: password || 'olea2026',
               roles: finalRoles,
               employeeId: employee.id
@@ -336,16 +338,17 @@ export default async function handler(req, res) {
 
       // 2. Actualizar o crear credenciales de forma independiente
       if (email) {
+          const normalizedUpdEmail = email.trim().toLowerCase();
           await prisma.credentials.upsert({
             where: { employeeId: id },
             create: {
-              email: email,
+              email: normalizedUpdEmail,
               password: password || 'olea2026',
               roles: roles || ['COLLABORATOR'],
               employeeId: id
             },
             update: {
-              email: email,
+              email: normalizedUpdEmail,
               roles: roles || undefined,
               ...(password && password.trim() !== "" ? { password } : {})
             }
