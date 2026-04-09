@@ -1025,7 +1025,7 @@ export default function SupervisorOTs() {
 
               {/* Stepper vertical */}
               <div className="p-6 flex-1">
-                <p className="text-[8px] font-mono font-bold uppercase tracking-[0.2em] text-gray-600 mb-5">Progreso</p>
+                <p className="text-[8px] font-mono font-bold uppercase tracking-[0.2em] text-gray-300 mb-5">Progreso</p>
                 <div className="space-y-1">
                   {[
                     { n: 1, label: 'Identificación', sub: 'Cliente, sucursal, prioridad' },
@@ -1050,7 +1050,7 @@ export default function SupervisorOTs() {
                         <p className={cn("text-[11px] font-bold leading-none transition-colors",
                           formStep === n ? "text-white" : formStep > n ? "text-emerald-400" : "text-gray-500 group-hover:text-gray-400"
                         )}>{label}</p>
-                        <p className="text-[9px] text-gray-700 mt-1 font-mono leading-tight">{sub}</p>
+                        <p className="text-[9px] text-gray-400 mt-1 font-mono leading-tight">{sub}</p>
                       </div>
                     </button>
                   ))}
@@ -1059,8 +1059,8 @@ export default function SupervisorOTs() {
                 {/* Línea de progreso */}
                 <div className="mt-8">
                   <div className="flex justify-between mb-2">
-                    <p className="text-[8px] font-mono text-gray-700 uppercase tracking-widest">Completado</p>
-                    <p className="text-[8px] font-mono text-gray-500">{Math.round(((formStep - 1) / 3) * 100)}%</p>
+                    <p className="text-[8px] font-mono text-gray-400 uppercase tracking-widest">Completado</p>
+                    <p className="text-[8px] font-mono text-gray-300">{Math.round(((formStep - 1) / 3) * 100)}%</p>
                   </div>
                   <div className="h-1 bg-white/5 rounded-full overflow-hidden">
                     <div
