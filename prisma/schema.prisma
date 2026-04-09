@@ -188,6 +188,7 @@ model WorkOrder {
   deliveryDetails   String?   // "Por este conducto se hace la entrega..."
   report            String?   // Resumen técnico
   pendingTasks      Json?     // Lista de observaciones/pendientes [{id, desc}]
+  jornadas          Json?     // Historial de jornadas [{id, startedAt, endedAt, techId, status, pauseReason}]
   signature         String?   // Firma Técnico (Base64)
   clientSignature   String?   // Firma Cliente (Base64)
   clientSignature2  String?   // Firma Cliente 2 (Opcional)

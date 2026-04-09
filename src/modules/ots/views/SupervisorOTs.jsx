@@ -492,7 +492,8 @@ export default function SupervisorOTs() {
 
   const kpis = {
     total:       ots.length,
-    pending:     ots.filter(o => o.status === 'PENDING').length,
+    pending:     ots.filter(o => o.status === 'PENDING' || o.status === 'UNASSIGNED').length,
+    accepted:    ots.filter(o => o.status === 'ACCEPTED').length,
     inProgress:  ots.filter(o => o.status === 'IN_PROGRESS').length,
     completed:   ots.filter(o => o.status === 'COMPLETED' || o.status === 'VALIDATED').length,
     urgent:      ots.filter(o => (o.priority === 'URGENT' || o.priority === 'HIGH') && o.status !== 'COMPLETED' && o.status !== 'VALIDATED').length,
@@ -501,8 +502,9 @@ export default function SupervisorOTs() {
   const STATUS_META = {
     ALL:         { label: 'Todas',        color: 'text-gray-600',   dot: 'bg-gray-400',   badge: 'bg-gray-100 text-gray-600 border-gray-200' },
     PENDING:     { label: 'Sin Asignar',  color: 'text-gray-500',   dot: 'bg-gray-300',   badge: 'bg-gray-50 text-gray-500 border-gray-100' },
-    ASSIGNED:    { label: 'Asignada',     color: 'text-indigo-600', dot: 'bg-indigo-400', badge: 'bg-indigo-50 text-indigo-600 border-indigo-100' },
-    IN_PROGRESS: { label: 'En Proceso',   color: 'text-amber-700',  dot: 'bg-amber-400',  badge: 'bg-amber-50 text-amber-700 border-amber-100' },
+    ASSIGNED:    { label: 'Asignada',        color: 'text-indigo-600', dot: 'bg-indigo-400', badge: 'bg-indigo-50 text-indigo-600 border-indigo-100' },
+    ACCEPTED:    { label: 'Orden Aceptada', color: 'text-sky-700',    dot: 'bg-sky-500',    badge: 'bg-sky-50 text-sky-700 border-sky-100' },
+    IN_PROGRESS: { label: 'En Proceso',     color: 'text-amber-700',  dot: 'bg-amber-400',  badge: 'bg-amber-50 text-amber-700 border-amber-100' },
     COMPLETED:   { label: 'Completada',   color: 'text-emerald-700',dot: 'bg-emerald-500',badge: 'bg-emerald-50 text-emerald-700 border-emerald-100' },
     VALIDATED:   { label: 'Validada',     color: 'text-blue-700',   dot: 'bg-blue-500',   badge: 'bg-blue-50 text-blue-700 border-blue-100' },
   };
@@ -700,7 +702,7 @@ export default function SupervisorOTs() {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-0">
             {/* Tabs estilo underline */}
             <div className="flex items-end gap-0 overflow-x-auto">
-              {['ALL', 'PENDING', 'ASSIGNED', 'IN_PROGRESS', 'COMPLETED'].map(s => {
+              {['ALL', 'PENDING', 'ASSIGNED', 'ACCEPTED', 'IN_PROGRESS', 'COMPLETED'].map(s => {
                 const meta = STATUS_META[s];
                 const isActive = filters.status === s;
                 const count = s === 'ALL' ? ots.length : ots.filter(o => o.status === s).length;

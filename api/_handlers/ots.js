@@ -173,6 +173,8 @@ export default async function handler(req, res) {
           deliveryActUrl: true,
           assistantTechs: true,
           supportTechs: true,
+          jornadas: true,
+          startedAt: true,
           createdAt: true,
           technician: { select: { name: true, avatar: true, position: true } },
           supervisor: { select: { name: true } },
@@ -312,6 +314,7 @@ export default async function handler(req, res) {
       // Añadir soporte para técnicos auxiliares
       if (data.assistantTechs !== undefined) updateData.assistantTechs = data.assistantTechs;
       if (data.supportTechs !== undefined) updateData.supportTechs = data.supportTechs;
+      if (data.jornadas !== undefined) updateData.jornadas = data.jornadas;
       
       if (startedAt) updateData.startedAt = new Date(startedAt);
       if (finishedAt) updateData.finishedAt = new Date(finishedAt);
