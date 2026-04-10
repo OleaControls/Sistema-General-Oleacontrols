@@ -1,18 +1,6 @@
 import { apiFetch } from '../lib/api';
 
-const OT_TEMPLATES_KEY = 'olea_ot_templates_db';
 const TECH_LOCATIONS_KEY = 'olea_tech_locations_db';
-
-const initialTemplates = [
-  {
-    id: "TMP-001",
-    name: "Mantenimiento Preventivo Estándar",
-    title: "Mantenimiento Preventivo de Sensores",
-    workDescription: "Limpieza, calibración y prueba de comunicación de sensores de presión y temperatura.",
-    priority: "MEDIUM",
-    arrivalTime: "09:00"
-  }
-];
 
 export const otService = {
   async getOTs(filters = {}) {
@@ -45,25 +33,76 @@ export const otService = {
     }
   },
 
-  // Templates
+  // Plantillas OT (guardadas en BD vía /api/ot-templates)
   async getTemplates() {
-    const data = localStorage.getItem(OT_TEMPLATES_KEY);
-    if (!data) {
-        localStorage.setItem(OT_TEMPLATES_KEY, JSON.stringify(initialTemplates));
-        return initialTemplates;
-    }
-    return JSON.parse(data);
+    const response = await apiFetch('/api/ot-templates');
+    if (!response.ok) return [];
+    return response.json();
   },
 
   async saveTemplate(templateData) {
-    const templates = await this.getTemplates();
-    const newTemplate = {
-      ...templateData,
-      id: `TMP-${Math.floor(100 + Math.random() * 900)}`
+    const response = await apiFetch('/api/ot-templates', {
+      method: 'POST',
+      body: JSON.stringify({
+        name:            templateData.name,
+        title:           templateData.title,
+        workDescription: templateData.workDescription,
+        priority:        templateData.priority    || 'MEDIUM',
+        arrivalTime:     templateData.arrivalTime || '09:00',
+      })
+    });
+    if (!response.ok) throw new Error('Error al guardar plantilla');
+    return response.json();
+  },
+
+  async deleteTemplate(templateId) {
+    const response = await apiFetch(`/api/ot-templates?id=${templateId}`, {
+      method: 'DELETE'
+    });
+    if (!response.ok) throw new Error('Error al eliminar plantilla');
+  },
+
+  // Clientes OT (guardados en BD vía /api/ot-clients)
+  async getOTClients(search = '') {
+    const params = search ? `?search=${encodeURIComponent(search)}` : '';
+    const response = await apiFetch(`/api/ot-clients${params}`);
+    if (!response.ok) return [];
+    const data = await response.json();
+    // Normalizar lat/lng desde latitude/longitude que devuelve Prisma
+    return data.map(c => ({
+      ...c,
+      lat: c.latitude  ?? c.lat,
+      lng: c.longitude ?? c.lng,
+    }));
+  },
+
+  async saveOTClient(clientData) {
+    const body = {
+      name:        clientData.name,
+      storeNumber: clientData.storeNumber || null,
+      storeName:   clientData.storeName   || null,
+      contact:     clientData.contact,
+      phone:       clientData.phone,
+      email:       clientData.email       || null,
+      address:     clientData.address,
+      otAddress:   clientData.otAddress   || null,
+      otReference: clientData.otReference || null,
+      latitude:    clientData.lat         || clientData.latitude  || null,
+      longitude:   clientData.lng         || clientData.longitude || null,
     };
-    const updated = [newTemplate, ...templates];
-    localStorage.setItem(OT_TEMPLATES_KEY, JSON.stringify(updated));
-    return newTemplate;
+    const response = await apiFetch('/api/ot-clients', {
+      method: 'POST',
+      body: JSON.stringify(body)
+    });
+    if (!response.ok) throw new Error('Error al guardar cliente OT');
+    return response.json();
+  },
+
+  async deleteOTClient(clientId) {
+    const response = await apiFetch(`/api/ot-clients?id=${clientId}`, {
+      method: 'DELETE'
+    });
+    if (!response.ok) throw new Error('Error al eliminar cliente OT');
   },
 
   async saveOT(otData) {

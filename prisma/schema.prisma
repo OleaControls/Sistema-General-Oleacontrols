@@ -601,3 +601,35 @@ model SalesPortfolio {
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 }
+
+// --- PLANTILLAS OT (Catálogo de tipos de servicio para agilizar la creación de OTs) ---
+model OTTemplate {
+  id              String   @id @default(cuid())
+  name            String   // Nombre interno de referencia
+  title           String   // Título que se copia a la OT
+  workDescription String   // Descripción del trabajo
+  priority        String   @default("MEDIUM") // LOW, MEDIUM, HIGH, URGENT
+  arrivalTime     String   @default("09:00")
+  status          String   @default("ACTIVE") // ACTIVE, INACTIVE
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// --- CLIENTES OT (Catálogo operativo de sucursales/clientes para OTs) ---
+model OTClient {
+  id          String   @id @default(cuid())
+  name        String   // Razón social / empresa
+  storeNumber String?  // Número de sucursal
+  storeName   String?  // Nombre de sucursal
+  contact     String   // Contacto en sitio
+  phone       String
+  email       String?
+  address     String
+  otAddress   String?  // Dirección específica para OT (si difiere)
+  otReference String?  // Referencias de acceso
+  latitude    Float?
+  longitude   Float?
+  status      String   @default("ACTIVE") // ACTIVE, INACTIVE
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}

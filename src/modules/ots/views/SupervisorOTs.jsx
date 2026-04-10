@@ -55,6 +55,9 @@ export default function SupervisorOTs() {
   const [otFinancials, setOtFinancials] = useState({});
   const [loadingFinancials, setLoadingFinancials] = useState({});
   const [clients, setClients] = useState([]);
+  const [otClients, setOtClients] = useState([]);
+  const [otClientSearch, setOtClientSearch] = useState('');
+  const [showOtClientDropdown, setShowOtClientDropdown] = useState(false);
   const [templates, setTemplates] = useState([]);
   const [availableTechs, setAvailableTechs] = useState([]);
   const [techLocations, setTechLocations] = useState({});
@@ -99,14 +102,16 @@ export default function SupervisorOTs() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [o, c, t, allEmployees] = await Promise.all([
+      const [o, c, oc, t, allEmployees] = await Promise.all([
         otService.getOTs(),
         crmService.getClients(),
+        otService.getOTClients(),
         otService.getTemplates(),
         hrService.getEmployees()
       ]);
       setOts(o);
       setClients(c);
+      setOtClients(oc);
       setTemplates(t);
       const techs = allEmployees.filter(emp => emp.roles.includes(ROLES.TECH) || emp.roles.includes('Tech'));
       setAvailableTechs(techs);
@@ -391,6 +396,8 @@ export default function SupervisorOTs() {
     setNewOT(initialNewOT);
     setIsEditMode(false);
     setFormStep(1);
+    setOtClientSearch('');
+    setShowOtClientDropdown(false);
     setIsModalOpen(true);
   };
 
@@ -455,6 +462,33 @@ export default function SupervisorOTs() {
       if (client.lat && client.lng) setMapCenter([client.lat, client.lng]);
     }
   };
+
+  const handleOTClientSelect = (otClient) => {
+    setNewOT(prev => ({
+      ...prev,
+      client: otClient.name,
+      storeNumber: otClient.storeNumber || prev.storeNumber,
+      storeName: otClient.storeName || prev.storeName,
+      address: otClient.address || prev.address,
+      otReference: otClient.otReference || prev.otReference,
+      clientEmail: otClient.email || prev.clientEmail,
+      clientPhone: otClient.phone || prev.clientPhone,
+      contactName: otClient.contact || prev.contactName,
+      contactPhone: otClient.phone || prev.contactPhone,
+      lat: otClient.lat || prev.lat,
+      lng: otClient.lng || prev.lng
+    }));
+    if (otClient.lat && otClient.lng) setMapCenter([otClient.lat, otClient.lng]);
+    setOtClientSearch(otClient.storeName ? `${otClient.name} — ${otClient.storeName}` : otClient.name);
+    setShowOtClientDropdown(false);
+  };
+
+  const filteredOtClientSuggestions = otClientSearch.length > 0
+    ? otClients.filter(c => {
+        const q = otClientSearch.toLowerCase();
+        return [c.name, c.storeName, c.storeNumber, c.contact].some(v => v?.toLowerCase().includes(q));
+      }).slice(0, 8)
+    : otClients.slice(0, 8);
 
   const handleTemplateSelect = (templateId) => {
     if (!templateId) return;
@@ -1140,17 +1174,40 @@ export default function SupervisorOTs() {
 
                       {/* Quick imports */}
                       <div className="grid grid-cols-2 gap-4">
+                        {/* Autocompletado Clientes OT */}
                         <div>
-                          <label className="text-[9px] font-mono font-bold uppercase tracking-[0.15em] text-gray-400 block mb-2">Importar Cliente CRM</label>
+                          <label className="text-[9px] font-mono font-bold uppercase tracking-[0.15em] text-gray-400 block mb-2">Autocompletar Cliente OT</label>
                           <div className="relative">
-                            <Building2 className="absolute left-3.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-300 pointer-events-none" />
-                            <select
-                              className="cursor-pointer w-full pl-9 pr-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-sm font-medium text-gray-700 outline-none focus:border-gray-400 focus:bg-white transition-colors"
-                              onChange={e => handleClientSelect(e.target.value)}
-                            >
-                              <option value="">Seleccionar cliente...</option>
-                              {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                            </select>
+                            <Building2 className="absolute left-3.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-300 pointer-events-none z-10" />
+                            <input
+                              type="text"
+                              className="cursor-text w-full pl-9 pr-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-sm font-medium text-gray-700 outline-none focus:border-gray-400 focus:bg-white transition-colors"
+                              placeholder="Buscar empresa o sucursal..."
+                              value={otClientSearch}
+                              onChange={e => { setOtClientSearch(e.target.value); setShowOtClientDropdown(true); }}
+                              onFocus={() => setShowOtClientDropdown(true)}
+                              onBlur={() => setTimeout(() => setShowOtClientDropdown(false), 150)}
+                            />
+                            {showOtClientDropdown && filteredOtClientSuggestions.length > 0 && (
+                              <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-100 rounded-xl shadow-xl z-50 overflow-hidden max-h-52 overflow-y-auto">
+                                {filteredOtClientSuggestions.map(c => (
+                                  <button
+                                    key={c.id}
+                                    type="button"
+                                    onMouseDown={() => handleOTClientSelect(c)}
+                                    className="w-full text-left px-3 py-2.5 hover:bg-gray-50 transition-colors border-b border-gray-50 last:border-0"
+                                  >
+                                    <p className="text-xs font-bold text-gray-800 leading-none">{c.name}</p>
+                                    {(c.storeNumber || c.storeName) && (
+                                      <p className="text-[9px] font-mono text-gray-400 mt-0.5">
+                                        {c.storeNumber && `#${c.storeNumber}`}{c.storeNumber && c.storeName && ' · '}{c.storeName}
+                                      </p>
+                                    )}
+                                    {c.address && <p className="text-[9px] text-gray-300 truncate mt-0.5">{c.address}</p>}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
                           </div>
                         </div>
                         <div>
