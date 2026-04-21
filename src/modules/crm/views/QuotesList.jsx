@@ -47,6 +47,9 @@ export default function QuotesList() {
   const [showAddModal,  setShowAddModal]  = useState(false);
   const [isGenerating,  setIsGenerating]  = useState(false);
   const [fromDealMeta,  setFromDealMeta]  = useState(null); // deal del que proviene la cotización
+  const [clientMode,    setClientMode]    = useState('existing'); // 'existing' | 'new'
+  const initialNewClientData = () => ({ companyName: '', contactName: '', email: '', phone: '', rfc: '', address: '' });
+  const [newClientData, setNewClientData] = useState(initialNewClientData());
 
   const initialNewQuote = () => ({
     quoteNumber:  generateQuoteNumber(),
@@ -185,12 +188,29 @@ export default function QuotesList() {
   const handleCreateQuote = async (e) => {
     e.preventDefault(); setIsGenerating(true);
     try {
+      let clientId = newQuote.clientId;
+
+      if (clientMode === 'new') {
+        const clientRes = await apiFetch('/api/crm/clients', {
+          method: 'POST', body: JSON.stringify(newClientData)
+        });
+        if (!clientRes.ok) {
+          const err = await clientRes.json().catch(() => ({}));
+          alert(`Error al crear cliente: ${err.error || clientRes.status}`);
+          return;
+        }
+        const createdClient = await clientRes.json();
+        clientId = createdClient.id;
+      }
+
       const res = await apiFetch('/api/quotes', {
-        method: 'POST', body: JSON.stringify({ ...newQuote, creatorId: user.id })
+        method: 'POST', body: JSON.stringify({ ...newQuote, clientId, creatorId: user.id })
       });
       if (res.ok) {
         setShowAddModal(false);
         setNewQuote(initialNewQuote());
+        setNewClientData(initialNewClientData());
+        setClientMode('existing');
         setFromDealMeta(null);
         fetchData();
       } else {
@@ -253,7 +273,7 @@ export default function QuotesList() {
           </p>
         </div>
         <button
-          onClick={() => { setNewQuote(initialNewQuote()); setShowAddModal(true); }}
+          onClick={() => { setNewQuote(initialNewQuote()); setNewClientData(initialNewClientData()); setClientMode('existing'); setShowAddModal(true); }}
           className="w-full sm:w-auto bg-gray-900 text-white px-6 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl flex items-center justify-center gap-3 hover:bg-primary transition-all"
         >
           <PlusCircle className="h-4 w-4" /> Crear Cotización
@@ -554,15 +574,124 @@ export default function QuotesList() {
                   </div>
                 )}
 
-                {/* Info general */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                  <div>
-                    <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest block mb-1.5">Cliente *</label>
-                    <select required className="w-full bg-gray-50 rounded-xl px-4 py-4 font-bold text-sm outline-none cursor-pointer" value={newQuote.clientId} onChange={e => setNewQuote(f => ({ ...f, clientId: e.target.value }))}>
-                      <option value="">Seleccionar...</option>
-                      {clients.map(c => <option key={c.id} value={c.id}>{c.companyName}</option>)}
-                    </select>
+                {/* Selector de modo cliente */}
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2">
+                    <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Cliente *</p>
                   </div>
+                  <div className="flex gap-2 p-1 bg-gray-100 rounded-2xl">
+                    <button
+                      type="button"
+                      onClick={() => setClientMode('existing')}
+                      className={cn(
+                        "flex-1 py-3 px-4 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2",
+                        clientMode === 'existing' ? "bg-white text-gray-900 shadow-sm" : "text-gray-400 hover:text-gray-600"
+                      )}
+                    >
+                      <Building2 className="h-3 w-3" /> Cliente existente
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setClientMode('new')}
+                      className={cn(
+                        "flex-1 py-3 px-4 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2",
+                        clientMode === 'new' ? "bg-white text-gray-900 shadow-sm" : "text-gray-400 hover:text-gray-600"
+                      )}
+                    >
+                      <Plus className="h-3 w-3" /> Nuevo cliente
+                    </button>
+                  </div>
+
+                  {/* Cliente existente */}
+                  {clientMode === 'existing' && (
+                    <div>
+                      <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest block mb-1.5">Seleccionar cliente *</label>
+                      <select
+                        required={clientMode === 'existing'}
+                        className="w-full bg-gray-50 rounded-xl px-4 py-4 font-bold text-sm outline-none cursor-pointer"
+                        value={newQuote.clientId}
+                        onChange={e => setNewQuote(f => ({ ...f, clientId: e.target.value }))}
+                      >
+                        <option value="">Seleccionar cliente...</option>
+                        {clients.map(c => <option key={c.id} value={c.id}>{c.companyName}</option>)}
+                      </select>
+                    </div>
+                  )}
+
+                  {/* Nuevo cliente */}
+                  {clientMode === 'new' && (
+                    <div className="p-5 bg-blue-50 rounded-2xl border border-blue-100 space-y-4">
+                      <p className="text-[8px] font-black text-blue-600 uppercase tracking-widest flex items-center gap-1.5">
+                        <User className="h-3 w-3" /> Datos del nuevo cliente
+                      </p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest block mb-1">Empresa / Nombre *</label>
+                          <input
+                            type="text" required={clientMode === 'new'}
+                            className="w-full bg-white rounded-xl px-4 py-3 font-bold text-sm outline-none"
+                            placeholder="Ej: ACME Industrias S.A."
+                            value={newClientData.companyName}
+                            onChange={e => setNewClientData(f => ({ ...f, companyName: e.target.value }))}
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest block mb-1">Correo electrónico *</label>
+                          <input
+                            type="email" required={clientMode === 'new'}
+                            className="w-full bg-white rounded-xl px-4 py-3 font-bold text-sm outline-none"
+                            placeholder="contacto@empresa.com"
+                            value={newClientData.email}
+                            onChange={e => setNewClientData(f => ({ ...f, email: e.target.value }))}
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest block mb-1">Nombre de contacto</label>
+                          <input
+                            type="text"
+                            className="w-full bg-white rounded-xl px-4 py-3 font-bold text-sm outline-none"
+                            placeholder="Nombre del contacto"
+                            value={newClientData.contactName}
+                            onChange={e => setNewClientData(f => ({ ...f, contactName: e.target.value }))}
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest block mb-1">Teléfono</label>
+                          <input
+                            type="tel"
+                            className="w-full bg-white rounded-xl px-4 py-3 font-bold text-sm outline-none"
+                            placeholder="+52 55 0000 0000"
+                            value={newClientData.phone}
+                            onChange={e => setNewClientData(f => ({ ...f, phone: e.target.value }))}
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest block mb-1">RFC</label>
+                          <input
+                            type="text"
+                            className="w-full bg-white rounded-xl px-4 py-3 font-bold text-sm outline-none uppercase"
+                            placeholder="RFC del cliente"
+                            value={newClientData.rfc}
+                            onChange={e => setNewClientData(f => ({ ...f, rfc: e.target.value.toUpperCase() }))}
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest block mb-1">Dirección</label>
+                          <input
+                            type="text"
+                            className="w-full bg-white rounded-xl px-4 py-3 font-bold text-sm outline-none"
+                            placeholder="Dirección fiscal o de envío"
+                            value={newClientData.address}
+                            onChange={e => setNewClientData(f => ({ ...f, address: e.target.value }))}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Info general */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   <div>
                     <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest block mb-1.5">Vendedor</label>
                     <select className="w-full bg-blue-50 rounded-xl px-4 py-4 font-black text-sm outline-none text-blue-700 cursor-pointer" value={newQuote.sellerId} onChange={e => setNewQuote(f => ({ ...f, sellerId: e.target.value }))}>
@@ -608,8 +737,8 @@ export default function QuotesList() {
                         <input className="w-full bg-white rounded-lg p-2.5 text-[10px] font-bold outline-none" placeholder="Nombre del producto / servicio" value={item.name} onChange={e => updateItem(index, 'name', e.target.value)} />
                         <input className="w-full bg-white/60 rounded-lg p-2 text-[9px] text-gray-500 outline-none" placeholder="Descripción adicional" value={item.desc} onChange={e => updateItem(index, 'desc', e.target.value)} />
                       </div>
-                      <input className="col-span-12 sm:col-span-2 bg-white rounded-lg p-2.5 text-[10px] text-center font-bold outline-none" type="number" min="1" value={item.qty} onChange={e => updateItem(index, 'qty', parseInt(e.target.value) || 1)} />
-                      <input className="col-span-12 sm:col-span-2 bg-white rounded-lg p-2.5 text-[10px] font-bold outline-none" type="number" min="0" step="0.01" placeholder="0.00" value={item.price} onChange={e => updateItem(index, 'price', parseFloat(e.target.value) || 0)} />
+                      <input className="col-span-12 sm:col-span-2 bg-white rounded-lg p-2.5 text-[10px] text-center font-bold outline-none" type="number" min="1" value={item.qty} onChange={e => updateItem(index, 'qty', parseInt(e.target.value) || 1)} onFocus={e => e.target.select()} />
+                      <input className="col-span-12 sm:col-span-2 bg-white rounded-lg p-2.5 text-[10px] font-bold outline-none" type="number" min="0" step="0.01" placeholder="0.00" value={item.price} onChange={e => updateItem(index, 'price', parseFloat(e.target.value) || 0)} onFocus={e => e.target.select()} />
                       <div className="col-span-12 sm:col-span-1 text-right font-black text-xs text-gray-900">{fmt(item.qty * item.price)}</div>
                       <button type="button" className="col-span-12 sm:col-span-1 flex justify-end" onClick={() => removeItem(index)}>
                         <X className="h-4 w-4 text-red-400 hover:text-red-600" />
@@ -642,7 +771,7 @@ export default function QuotesList() {
                 </div>
 
                 <button
-                  disabled={isGenerating || !newQuote.clientId}
+                  disabled={isGenerating || (clientMode === 'existing' ? !newQuote.clientId : (!newClientData.companyName || !newClientData.email))}
                   type="submit"
                   className="w-full bg-blue-600 text-white py-5 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl hover:bg-blue-700 transition-all disabled:opacity-60"
                 >
@@ -860,8 +989,8 @@ function QuoteEditForm({ editQuote, setEditQuote, employees, onAddItem, onRemove
               <input className="w-full bg-white rounded-lg p-2 text-[9px] font-bold outline-none" placeholder="Producto / Servicio" value={item.name || ''} onChange={e => onUpdateItem(i, 'name', e.target.value)} />
               <input className="w-full bg-white/60 rounded-lg p-1.5 text-[8px] text-gray-500 outline-none" placeholder="Descripción" value={item.desc || ''} onChange={e => onUpdateItem(i, 'desc', e.target.value)} />
             </div>
-            <input className="col-span-1 bg-white rounded-lg p-2 text-[9px] text-center font-bold outline-none" type="number" min="1" value={item.qty} onChange={e => onUpdateItem(i, 'qty', parseInt(e.target.value) || 1)} />
-            <input className="col-span-2 bg-white rounded-lg p-2 text-[9px] font-bold outline-none" type="number" min="0" step="0.01" placeholder="Precio" value={item.price} onChange={e => onUpdateItem(i, 'price', parseFloat(e.target.value) || 0)} />
+            <input className="col-span-1 bg-white rounded-lg p-2 text-[9px] text-center font-bold outline-none" type="number" min="1" value={item.qty} onChange={e => onUpdateItem(i, 'qty', parseInt(e.target.value) || 1)} onFocus={e => e.target.select()} />
+            <input className="col-span-2 bg-white rounded-lg p-2 text-[9px] font-bold outline-none" type="number" min="0" step="0.01" placeholder="Precio" value={item.price} onChange={e => onUpdateItem(i, 'price', parseFloat(e.target.value) || 0)} onFocus={e => e.target.select()} />
             <div className="col-span-2 text-right font-black text-xs text-gray-900">{fmt(Number(item.qty) * Number(item.price))}</div>
             <button type="button" onClick={() => onRemoveItem(i)} className="col-span-1 flex justify-center">
               <X className="h-3.5 w-3.5 text-red-400" />

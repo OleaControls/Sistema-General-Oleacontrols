@@ -4,12 +4,14 @@ import {
   BarChart2, Activity, Calendar, ChevronRight, RefreshCw,
   CheckCircle2, XCircle, Clock, Briefcase, Star,
   MessageSquare, PhoneCall, Send, Coffee, ArrowRight, User, Building2,
-  FileText, MapPin, BookOpen, Layers
+  FileText, MapPin, BookOpen, Layers, UserPlus, UserCheck,
+  Package, AlertTriangle, LayoutGrid, Eye, TrendingDown, ShoppingBag
 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   Legend, ResponsiveContainer, Cell, RadarChart, PolarGrid,
   PolarAngleAxis, PolarRadiusAxis, Radar, LineChart, Line,
+  PieChart, Pie,
 } from 'recharts';
 import { apiFetch } from '@/lib/api';
 import { useAuth, ROLES } from '@/store/AuthContext';
@@ -17,8 +19,8 @@ import { cn } from '@/lib/utils';
 
 // ── Paleta de colores para vendedores ─────────────────────────────────────────
 const SELLER_COLORS = [
-  '#3b82f6', '#10b981', '#8b5cf6', '#f59e0b',
-  '#f43f5e', '#0ea5e9', '#14b8a6', '#ef4444',
+  '#1d4ed8', '#059669', '#7c3aed', '#b45309',
+  '#dc2626', '#0284c7', '#0d9488', '#9333ea',
 ];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -87,74 +89,121 @@ function timeAgo(d) {
   return `${Math.floor(h / 24)}d`;
 }
 
+// ── Sistema de diseño ─────────────────────────────────────────────────────────
+const D = {
+  card:  'bg-white rounded-2xl border border-slate-200 shadow-[0_1px_3px_rgba(0,0,0,0.06),0_4px_20px_rgba(0,0,0,0.04)] overflow-hidden',
+  cardHover: 'hover:shadow-[0_4px_24px_rgba(0,0,0,0.10)] hover:-translate-y-0.5 transition-all duration-200',
+  ink:   '#0a0f1e',
+  muted: '#64748b',
+  faint: '#94a3b8',
+  border:'#e2e8f0',
+};
+
+function SectionHeader({ icon: Icon, title, subtitle, accent = '#1d4ed8', extra }) {
+  return (
+    <div className="flex items-center gap-4">
+      <div style={{
+        width: 40, height: 40, borderRadius: 12, flexShrink: 0,
+        background: `${accent}12`, border: `1.5px solid ${accent}22`,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+      }}>
+        <Icon style={{ width: 17, height: 17, color: accent }} />
+      </div>
+      <div className="flex-1 min-w-0">
+        <h3 style={{ fontSize: 13, fontWeight: 800, color: D.ink, letterSpacing: '-0.01em', margin: 0 }}>{title}</h3>
+        {subtitle && <p style={{ fontSize: 10, fontWeight: 600, color: D.faint, textTransform: 'uppercase', letterSpacing: '0.07em', marginTop: 2 }}>{subtitle}</p>}
+      </div>
+      {extra && <div className="flex-shrink-0">{extra}</div>}
+      <div style={{ width: 1, height: 32, background: 'linear-gradient(180deg, transparent, #e2e8f0, transparent)', marginLeft: 4 }} />
+    </div>
+  );
+}
+
+function CardAccent({ color }) {
+  return <div style={{ height: 3, background: `linear-gradient(90deg, ${color}, ${color}55)` }} />;
+}
+
 // ── Tarjeta de KPI del vendedor ───────────────────────────────────────────────
 function SellerCard({ data, color, rank }) {
   const { seller, wonDeals, activeDeals, lostDeals, deals, wonValue, pipelineValue, quotes, acceptedQuotes, leads, closeRate, activities } = data;
   const initial = (seller.name || '?').charAt(0).toUpperCase();
+  const isTop = rank === 1;
 
   return (
-    <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden hover:shadow-lg hover:-translate-y-1 transition-all duration-200">
-      {/* Banda de color */}
-      <div style={{ height: 4, background: `linear-gradient(90deg, ${color}, ${color}88)` }} />
-
-      <div className="p-5 space-y-4">
+    <div className={`${D.card} ${D.cardHover}`} style={{ borderTop: `3px solid ${color}` }}>
+      <div className="p-5">
         {/* Header vendedor */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 mb-5">
           {seller.avatar ? (
-            <img src={seller.avatar} alt={seller.name} className="w-10 h-10 rounded-2xl object-cover flex-shrink-0" />
+            <img src={seller.avatar} alt={seller.name} className="w-11 h-11 rounded-xl object-cover flex-shrink-0 ring-2" style={{ ringColor: `${color}30` }} />
           ) : (
             <div style={{
-              width: 40, height: 40, borderRadius: 14, flexShrink: 0,
-              background: `${color}18`, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              width: 44, height: 44, borderRadius: 14, flexShrink: 0,
+              background: `${color}15`, border: `1.5px solid ${color}30`,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}>
-              <span style={{ fontSize: 16, fontWeight: 900, color }}>{initial}</span>
+              <span style={{ fontSize: 17, fontWeight: 900, color, letterSpacing: '-0.02em' }}>{initial}</span>
             </div>
           )}
           <div className="flex-1 min-w-0">
-            <p className="font-black text-gray-900 text-sm truncate">{seller.name}</p>
-            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Vendedor #{rank}</p>
+            <p style={{ fontSize: 14, fontWeight: 800, color: D.ink, letterSpacing: '-0.01em', marginBottom: 2 }} className="truncate">{seller.name}</p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <div style={{ width: 6, height: 6, borderRadius: '50%', background: color, flexShrink: 0 }} />
+              <span style={{ fontSize: 9, fontWeight: 700, color: D.faint, textTransform: 'uppercase', letterSpacing: '0.07em' }}>Ejecutivo de ventas</span>
+            </div>
           </div>
           <div style={{
-            width: 28, height: 28, borderRadius: 10,
-            background: rank === 1 ? '#fef3c7' : '#f1f5f9',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            width: 32, height: 32, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            background: isTop ? '#fef3c7' : `${color}10`, border: isTop ? '1px solid #fde68a' : `1px solid ${color}20`,
           }}>
-            {rank === 1
-              ? <Star style={{ width: 14, height: 14, color: '#f59e0b' }} />
-              : <span style={{ fontSize: 11, fontWeight: 900, color: '#64748b' }}>#{rank}</span>
+            {isTop
+              ? <Star style={{ width: 14, height: 14, color: '#d97706' }} />
+              : <span style={{ fontSize: 11, fontWeight: 900, color }}>{rank}</span>
             }
           </div>
         </div>
 
-        {/* KPIs principales */}
-        <div className="grid grid-cols-2 gap-2">
-          <MiniKPI label="Deals Ganados" value={wonDeals} icon={CheckCircle2} hex="#10b981" bg="#ecfdf5" />
-          <MiniKPI label="Valor ganado"  value={fmt(wonValue)} icon={DollarSign} hex="#3b82f6" bg="#eff6ff" />
-          <MiniKPI label="En Pipeline"   value={activeDeals}   icon={Activity}    hex="#8b5cf6" bg="#f5f3ff" />
-          <MiniKPI label="Tasa de Cierre" value={`${closeRate}%`} icon={Target} hex="#f59e0b" bg="#fffbeb" />
-        </div>
-
-        {/* Barra de progreso cierre */}
-        <div className="space-y-1">
-          <div className="flex justify-between items-center">
-            <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Tasa de cierre</span>
-            <span style={{ fontSize: 11, fontWeight: 900, color }}>{closeRate}%</span>
+        {/* Valor ganado - highlight principal */}
+        <div style={{ background: `${color}08`, border: `1px solid ${color}18`, borderRadius: 14, padding: '14px 16px', marginBottom: 14 }}>
+          <p style={{ fontSize: 9, fontWeight: 700, color: D.faint, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 4 }}>Valor Ganado</p>
+          <p style={{ fontSize: 26, fontWeight: 900, color, letterSpacing: '-0.03em', lineHeight: 1 }}>{fmt(wonValue)}</p>
+          <div style={{ marginTop: 8, height: 3, background: `${color}20`, borderRadius: 999, overflow: 'hidden' }}>
+            <div style={{ height: '100%', width: `${Math.min(closeRate, 100)}%`, background: color, borderRadius: 999, transition: 'width 1s cubic-bezier(0.34,1.56,0.64,1)' }} />
           </div>
-          <div style={{ height: 5, background: '#f1f5f9', borderRadius: 999, overflow: 'hidden' }}>
-            <div style={{
-              height: '100%', width: `${Math.min(closeRate, 100)}%`,
-              background: `linear-gradient(90deg, ${color}, ${color}bb)`,
-              borderRadius: 999, transition: 'width 0.8s ease',
-            }} />
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
+            <span style={{ fontSize: 9, fontWeight: 600, color: D.faint }}>Tasa de cierre</span>
+            <span style={{ fontSize: 9, fontWeight: 800, color }}>{closeRate}%</span>
           </div>
         </div>
 
-        {/* Stats rápidos */}
-        <div className="grid grid-cols-4 gap-1 pt-1 border-t border-gray-50">
-          <QuickStat label="Deals"       value={deals} />
-          <QuickStat label="Cotiz."      value={quotes} />
-          <QuickStat label="Leads"       value={leads} />
-          <QuickStat label="Actividades" value={activities ?? 0} />
+        {/* Grid de KPIs */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 14 }}>
+          {[
+            { label: 'Deals Ganados',  value: wonDeals,              col: '#059669', bg: '#f0fdf4' },
+            { label: 'En Pipeline',    value: activeDeals,           col: '#7c3aed', bg: '#faf5ff' },
+            { label: 'Cotizaciones',   value: quotes,                col: '#0284c7', bg: '#f0f9ff' },
+            { label: 'Actividades',    value: activities ?? 0,       col: '#b45309', bg: '#fffbeb' },
+          ].map(({ label, value, col, bg }) => (
+            <div key={label} style={{ background: bg, borderRadius: 12, padding: '10px 12px', border: `1px solid ${col}15` }}>
+              <p style={{ fontSize: 20, fontWeight: 900, color: col, letterSpacing: '-0.03em', lineHeight: 1 }}>{value}</p>
+              <p style={{ fontSize: 8, fontWeight: 700, color: D.faint, textTransform: 'uppercase', letterSpacing: '0.07em', marginTop: 4 }}>{label}</p>
+            </div>
+          ))}
+        </div>
+
+        {/* Stats footer */}
+        <div style={{ borderTop: `1px solid ${D.border}`, paddingTop: 12, display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)' }}>
+          {[
+            { label: 'Deals',  value: deals },
+            { label: 'Leads',  value: leads },
+            { label: 'Cotiz.', value: quotes },
+            { label: 'Perdid.', value: lostDeals },
+          ].map(({ label, value }, i, arr) => (
+            <div key={label} style={{ textAlign: 'center', borderRight: i < arr.length - 1 ? `1px solid ${D.border}` : 'none' }}>
+              <p style={{ fontSize: 15, fontWeight: 900, color: D.ink, letterSpacing: '-0.02em' }}>{value}</p>
+              <p style={{ fontSize: 8, fontWeight: 700, color: D.faint, textTransform: 'uppercase', letterSpacing: '0.06em', marginTop: 2 }}>{label}</p>
+            </div>
+          ))}
         </div>
       </div>
     </div>
@@ -163,19 +212,21 @@ function SellerCard({ data, color, rank }) {
 
 function MiniKPI({ label, value, icon: Icon, hex, bg }) {
   return (
-    <div style={{ background: bg, borderRadius: 12, padding: '10px 12px' }}>
-      <Icon style={{ width: 12, height: 12, color: hex, marginBottom: 4 }} />
-      <p style={{ fontSize: 15, fontWeight: 900, color: '#0f172a', lineHeight: 1 }}>{value}</p>
-      <p style={{ fontSize: 8, fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.06em', marginTop: 3 }}>{label}</p>
+    <div style={{ background: bg, borderRadius: 12, padding: '12px 14px', border: `1px solid ${hex}18` }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 8 }}>
+        <Icon style={{ width: 11, height: 11, color: hex }} />
+        <span style={{ fontSize: 8, fontWeight: 700, color: hex, textTransform: 'uppercase', letterSpacing: '0.07em' }}>{label}</span>
+      </div>
+      <p style={{ fontSize: 22, fontWeight: 900, color: '#0a0f1e', letterSpacing: '-0.03em', lineHeight: 1 }}>{value}</p>
     </div>
   );
 }
 
 function QuickStat({ label, value }) {
   return (
-    <div className="text-center py-1">
-      <p className="text-base font-black text-gray-800">{value}</p>
-      <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest">{label}</p>
+    <div style={{ textAlign: 'center', padding: '6px 4px' }}>
+      <p style={{ fontSize: 17, fontWeight: 900, color: '#0a0f1e', letterSpacing: '-0.03em', lineHeight: 1 }}>{value}</p>
+      <p style={{ fontSize: 8, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.07em', marginTop: 3 }}>{label}</p>
     </div>
   );
 }
@@ -187,68 +238,67 @@ function ComparisonTable({ metrics, colors }) {
 
   return (
     <div className="overflow-x-auto">
-      <table className="w-full text-sm">
+      <table className="w-full">
         <thead>
-          <tr className="border-b border-gray-100">
+          <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
             {['#', 'Vendedor', 'Deals', 'Ganados', 'Perdidos', 'Pipeline', 'Cotiz.', 'Aceptadas', 'Valor Ganado', 'Cierre %'].map(h => (
-              <th key={h} className="text-left pb-3 pr-4 text-[9px] font-black text-gray-400 uppercase tracking-widest whitespace-nowrap">
+              <th key={h} style={{ padding: '10px 16px 10px 0', textAlign: 'left', fontSize: 9, fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.08em', whiteSpace: 'nowrap' }}>
                 {h}
               </th>
             ))}
           </tr>
         </thead>
-        <tbody className="divide-y divide-gray-50">
+        <tbody>
           {sorted.map((m, i) => {
             const color = colors[i % colors.length];
             return (
-              <tr key={m.seller.id} className="hover:bg-gray-50/60 transition-colors">
-                <td className="py-3 pr-4">
-                  <span style={{
-                    width: 22, height: 22, borderRadius: 8, fontSize: 10, fontWeight: 900,
+              <tr key={m.seller.id} style={{ borderBottom: '1px solid #f1f5f9', transition: 'background 0.15s' }}
+                onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'}
+                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                <td style={{ padding: '12px 16px 12px 0' }}>
+                  <div style={{
+                    width: 24, height: 24, borderRadius: 8, fontSize: 10, fontWeight: 900,
                     background: i === 0 ? '#fef3c7' : '#f1f5f9',
                     color: i === 0 ? '#d97706' : '#475569',
                     display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                  }}>{i + 1}</span>
+                    border: i === 0 ? '1px solid #fde68a' : '1px solid #e2e8f0',
+                  }}>{i + 1}</div>
                 </td>
-                <td className="py-3 pr-4">
-                  <div className="flex items-center gap-2">
+                <td style={{ padding: '12px 16px 12px 0', whiteSpace: 'nowrap' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                     <div style={{
-                      width: 28, height: 28, borderRadius: 9,
-                      background: `${color}18`, flexShrink: 0,
+                      width: 32, height: 32, borderRadius: 10,
+                      background: `${color}15`, flexShrink: 0, border: `1.5px solid ${color}25`,
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
                     }}>
-                      <span style={{ fontSize: 11, fontWeight: 900, color }}>{m.seller.name.charAt(0)}</span>
+                      <span style={{ fontSize: 12, fontWeight: 900, color }}>{m.seller.name.charAt(0)}</span>
                     </div>
-                    <span className="font-black text-gray-900 text-xs whitespace-nowrap">{m.seller.name}</span>
+                    <span style={{ fontSize: 12, fontWeight: 800, color: '#0a0f1e' }}>{m.seller.name}</span>
                   </div>
                 </td>
-                <td className="py-3 pr-4 font-black text-gray-700 text-sm">{m.deals}</td>
-                <td className="py-3 pr-4">
-                  <span className="font-black text-emerald-600 text-sm">{m.wonDeals}</span>
+                <td style={{ padding: '12px 16px 12px 0', fontSize: 13, fontWeight: 800, color: '#334155' }}>{m.deals}</td>
+                <td style={{ padding: '12px 16px 12px 0' }}>
+                  <span style={{ fontSize: 13, fontWeight: 800, color: '#059669' }}>{m.wonDeals}</span>
                 </td>
-                <td className="py-3 pr-4">
-                  <span className="font-black text-red-400 text-sm">{m.lostDeals}</span>
+                <td style={{ padding: '12px 16px 12px 0' }}>
+                  <span style={{ fontSize: 13, fontWeight: 800, color: '#dc2626' }}>{m.lostDeals}</span>
                 </td>
-                <td className="py-3 pr-4 font-black text-violet-500 text-sm">{m.activeDeals}</td>
-                <td className="py-3 pr-4 font-black text-gray-700 text-sm">{m.quotes}</td>
-                <td className="py-3 pr-4 font-black text-blue-500 text-sm">{m.acceptedQuotes}</td>
-                <td className="py-3 pr-4">
-                  <div className="space-y-1">
-                    <span className="font-black text-gray-900 text-xs whitespace-nowrap">{fmt(m.wonValue)}</span>
-                    <div style={{ height: 3, background: '#f1f5f9', borderRadius: 999, width: 80, overflow: 'hidden' }}>
-                      <div style={{
-                        height: '100%',
-                        width: `${Math.min((m.wonValue / maxVal) * 100, 100)}%`,
-                        background: color, borderRadius: 999,
-                      }} />
+                <td style={{ padding: '12px 16px 12px 0', fontSize: 13, fontWeight: 800, color: '#7c3aed' }}>{m.activeDeals}</td>
+                <td style={{ padding: '12px 16px 12px 0', fontSize: 13, fontWeight: 800, color: '#334155' }}>{m.quotes}</td>
+                <td style={{ padding: '12px 16px 12px 0', fontSize: 13, fontWeight: 800, color: '#0284c7' }}>{m.acceptedQuotes}</td>
+                <td style={{ padding: '12px 16px 12px 0' }}>
+                  <div>
+                    <span style={{ fontSize: 12, fontWeight: 900, color: '#0a0f1e', display: 'block' }}>{fmt(m.wonValue)}</span>
+                    <div style={{ height: 3, background: '#f1f5f9', borderRadius: 999, width: 72, overflow: 'hidden', marginTop: 4 }}>
+                      <div style={{ height: '100%', width: `${Math.min((m.wonValue / maxVal) * 100, 100)}%`, background: color, borderRadius: 999 }} />
                     </div>
                   </div>
                 </td>
-                <td className="py-3">
+                <td style={{ padding: '12px 0 12px 0' }}>
                   <span style={{
-                    fontSize: 11, fontWeight: 900, color,
-                    background: `${color}15`, borderRadius: 8,
-                    padding: '3px 8px', display: 'inline-block',
+                    fontSize: 11, fontWeight: 800, color,
+                    background: `${color}12`, borderRadius: 8, border: `1px solid ${color}25`,
+                    padding: '4px 10px', display: 'inline-block', letterSpacing: '-0.01em',
                   }}>{m.closeRate}%</span>
                 </td>
               </tr>
@@ -295,19 +345,10 @@ function ActivityTable({ activities, deals, metrics }) {
 
   return (
     <section className="space-y-4">
-      <div className="flex items-center gap-3">
-        <div style={{ width:36, height:36, borderRadius:12, background:'#fef3c7', display:'flex', alignItems:'center', justifyContent:'center' }}>
-          <Activity style={{ width:16, height:16, color:'#f59e0b' }} />
-        </div>
-        <div>
-          <h3 className="font-black text-gray-900 text-sm uppercase tracking-wider">Seguimiento de Pipeline y Actividad</h3>
-          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-0.5">{count} registros</p>
-        </div>
-        <div className="flex-1 h-px ml-2" style={{ background:'linear-gradient(90deg, #f59e0b30, transparent)' }} />
-      </div>
+      <SectionHeader icon={Activity} title="Seguimiento de Pipeline y Actividad" subtitle={`${count} registros`} accent="#b45309" />
 
-      <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
-        <div style={{ height:3, background:'linear-gradient(90deg, #f59e0b, #f59e0b44)' }} />
+      <div className={D.card}>
+        <CardAccent color="#b45309" />
 
         {/* Tabs + filtros */}
         <div className="flex flex-wrap items-center gap-3 px-5 py-4 border-b border-gray-50">
@@ -539,14 +580,22 @@ export default function SalesMetrics() {
   // Razones de cierre
   const [closedDeals, setClosedDeals] = useState([]);
 
+  // Nuevas secciones admin
+  const [allQuotes,  setAllQuotes]  = useState([]);
+  const [allClients, setAllClients] = useState([]);
+  const [allLeads,   setAllLeads]   = useState([]);
+
   const fetchMetrics = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const [metricsRes, dealsRes, actsRes] = await Promise.all([
+      const [metricsRes, dealsRes, actsRes, quotesRes, clientsRes, leadsRes] = await Promise.all([
         apiFetch(`/api/crm/sales-metrics?period=${period}`),
         apiFetch('/api/crm/deals'),
         isAdmin ? apiFetch('/api/crm/activity-feed?limit=200') : Promise.resolve(null),
+        isAdmin ? apiFetch('/api/quotes') : Promise.resolve(null),
+        isAdmin ? apiFetch('/api/crm/clients') : Promise.resolve(null),
+        isAdmin ? apiFetch('/api/crm/leads') : Promise.resolve(null),
       ]);
 
       const [metricsData, dealsData] = await Promise.all([
@@ -562,6 +611,9 @@ export default function SalesMetrics() {
         const actsData = await actsRes.json();
         setActivities(Array.isArray(actsData) ? actsData : []);
       }
+      if (quotesRes)  { const d = await quotesRes.json();  setAllQuotes(Array.isArray(d) ? d : []); }
+      if (clientsRes) { const d = await clientsRes.json(); setAllClients(Array.isArray(d) ? d : []); }
+      if (leadsRes)   { const d = await leadsRes.json();   setAllLeads(Array.isArray(d) ? d : []); }
 
       // Razones de cierre — filtramos del array de deals ya cargado
       const closed = (Array.isArray(dealsData) ? dealsData : [])
@@ -628,6 +680,7 @@ export default function SalesMetrics() {
     : 0;
 
   const currentPeriod = PERIODS.find(p => p.key === period);
+  const sinceDate = new Date(Date.now() - (currentPeriod?.days || 30) * 24 * 60 * 60 * 1000);
 
   if (loading) return (
     <div className="flex flex-col items-center justify-center h-64 gap-4">
@@ -651,49 +704,55 @@ export default function SalesMetrics() {
 
       {/* ── HERO HEADER ──────────────────────────────────────────────────────── */}
       <div style={{
-        background: 'linear-gradient(135deg, #0f172a 0%, #1e3a5f 60%, #0c1a35 100%)',
-        borderRadius: 28, padding: '28px 28px 32px', position: 'relative', overflow: 'hidden',
+        background: 'linear-gradient(145deg, #050d1a 0%, #0d1f3c 45%, #0a1628 100%)',
+        borderRadius: 24, padding: '32px 32px 36px', position: 'relative', overflow: 'hidden',
+        boxShadow: '0 20px 60px rgba(0,0,0,0.25), 0 1px 0 rgba(255,255,255,0.04) inset',
       }}>
-        <div style={{ position:'absolute', top:-60, right:-40, width:220, height:220, borderRadius:'50%', background:'radial-gradient(circle, #3b82f640, transparent 70%)', pointerEvents:'none' }} />
-        <div style={{ position:'absolute', bottom:-60, left:'35%', width:180, height:180, borderRadius:'50%', background:'radial-gradient(circle, #8b5cf620, transparent 70%)', pointerEvents:'none' }} />
+        {/* Fondo con grid sutil */}
+        <div style={{ position:'absolute', inset:0, backgroundImage:'linear-gradient(rgba(255,255,255,0.018) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.018) 1px, transparent 1px)', backgroundSize:'48px 48px', pointerEvents:'none' }} />
+        {/* Orbes de luz */}
+        <div style={{ position:'absolute', top:-80, right:-40, width:280, height:280, borderRadius:'50%', background:'radial-gradient(circle, #1d4ed825, transparent 65%)', pointerEvents:'none' }} />
+        <div style={{ position:'absolute', bottom:-80, left:'30%', width:200, height:200, borderRadius:'50%', background:'radial-gradient(circle, #7c3aed18, transparent 65%)', pointerEvents:'none' }} />
+        <div style={{ position:'absolute', top:'20%', left:-30, width:160, height:160, borderRadius:'50%', background:'radial-gradient(circle, #059669 10, transparent 65%)', pointerEvents:'none' }} />
 
         <div className="relative">
-          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-5 mb-7">
+          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-5 mb-8">
             <div>
-              <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:8 }}>
-                <div style={{ height:2, width:24, background:'#3b82f6', borderRadius:999 }} />
-                <span style={{ fontSize:10, fontWeight:800, color:'#60a5fa', textTransform:'uppercase', letterSpacing:'0.1em' }}>
-                  Panel Comercial
-                </span>
+              {/* Eyebrow */}
+              <div style={{ display:'inline-flex', alignItems:'center', gap:8, marginBottom:12, background:'rgba(29,78,216,0.2)', border:'1px solid rgba(59,130,246,0.25)', borderRadius:999, padding:'4px 12px 4px 8px' }}>
+                <div style={{ width:6, height:6, borderRadius:'50%', background:'#60a5fa', boxShadow:'0 0 8px #60a5fa' }} />
+                <span style={{ fontSize:10, fontWeight:700, color:'#93c5fd', textTransform:'uppercase', letterSpacing:'0.12em' }}>Panel Comercial · Oleacontrols</span>
               </div>
-              <h2 style={{ fontSize:32, fontWeight:900, color:'#f8fafc', lineHeight:1.05, letterSpacing:'-0.025em', margin:0 }}>
-                Métricas <span style={{ color:'#60a5fa' }}>de Ventas</span>
+              <h2 style={{ fontSize:36, fontWeight:900, color:'#f0f6ff', lineHeight:1, letterSpacing:'-0.04em', margin:0, marginBottom:10 }}>
+                Métricas <span style={{ background:'linear-gradient(135deg, #60a5fa, #818cf8)', WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent' }}>de Ventas</span>
               </h2>
-              <p style={{ fontSize:12, color:'#94a3b8', fontWeight:600, marginTop:8 }}>
-                {metrics.length} vendedor{metrics.length !== 1 ? 'es' : ''} · Últimos {currentPeriod?.days} días
+              <p style={{ fontSize:12, color:'rgba(148,163,184,0.8)', fontWeight:500, letterSpacing:'0.02em' }}>
+                {metrics.length} vendedor{metrics.length !== 1 ? 'es' : ''} activos&ensp;·&ensp;Últimos {currentPeriod?.days} días
               </p>
             </div>
 
-            {/* Selector de período */}
-            <div className="flex gap-2 flex-shrink-0">
-              {PERIODS.map(p => (
-                <button key={p.key} onClick={() => setPeriod(p.key)}
-                  style={{
-                    padding: '8px 16px', borderRadius: 12, fontSize: 11, fontWeight: 800,
-                    transition: 'all 0.2s',
-                    background: period === p.key ? '#3b82f6' : 'rgba(255,255,255,0.08)',
-                    color: period === p.key ? '#fff' : '#94a3b8',
-                    border: period === p.key ? 'none' : '1px solid rgba(255,255,255,0.1)',
+            {/* Controles */}
+            <div style={{ display:'flex', flexDirection:'column', gap:8, alignItems:'flex-end' }}>
+              <div style={{ display:'flex', gap:4, background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:14, padding:4 }}>
+                {PERIODS.map(p => (
+                  <button key={p.key} onClick={() => setPeriod(p.key)} style={{
+                    padding: '7px 18px', borderRadius: 10, fontSize: 11, fontWeight: 700,
+                    transition: 'all 0.18s ease', letterSpacing:'0.04em',
+                    background: period === p.key ? 'rgba(29,78,216,0.9)' : 'transparent',
+                    color: period === p.key ? '#fff' : 'rgba(148,163,184,0.7)',
+                    boxShadow: period === p.key ? '0 2px 12px rgba(29,78,216,0.4)' : 'none',
+                    border: 'none',
                   }}>
-                  {p.label}
-                </button>
-              ))}
+                    {p.label}
+                  </button>
+                ))}
+              </div>
               <button onClick={fetchMetrics} style={{
-                width: 36, height: 36, borderRadius: 10, display:'flex', alignItems:'center', justifyContent:'center',
-                background:'rgba(255,255,255,0.08)', border:'1px solid rgba(255,255,255,0.1)',
-                color:'#94a3b8', cursor:'pointer',
+                width: 34, height: 34, borderRadius: 10, display:'flex', alignItems:'center', justifyContent:'center',
+                background:'rgba(255,255,255,0.06)', border:'1px solid rgba(255,255,255,0.1)',
+                color:'rgba(148,163,184,0.6)', cursor:'pointer', transition:'all 0.15s',
               }}>
-                <RefreshCw style={{ width: 14, height: 14 }} />
+                <RefreshCw style={{ width: 13, height: 13 }} />
               </button>
             </div>
           </div>
@@ -702,17 +761,26 @@ export default function SalesMetrics() {
           {isAdmin && (
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
               {[
-                { label: 'Deals totales',    value: totals.deals,              icon: Briefcase,   color: '#60a5fa' },
-                { label: 'Ganados',          value: totals.wonDeals,           icon: CheckCircle2,color: '#34d399' },
-                { label: 'Valor ganado',     value: fmt(totals.wonValue),      icon: DollarSign,  color: '#34d399' },
-                { label: 'Pipeline',         value: fmt(totals.pipelineValue), icon: Activity,    color: '#a78bfa' },
-                { label: 'Cotizaciones',     value: totals.quotes,             icon: BarChart2,   color: '#fbbf24' },
-                { label: 'Actividades',      value: totals.activities,         icon: MessageSquare,color:'#f472b6' },
-              ].map(({ label, value, icon: Icon, color }) => (
-                <div key={label} style={{ background:'rgba(255,255,255,0.06)', borderRadius:16, padding:'14px 16px', backdropFilter:'blur(8px)' }}>
-                  <Icon style={{ width:13, height:13, color, marginBottom:8 }} />
-                  <p style={{ fontSize:20, fontWeight:900, color:'#f8fafc', lineHeight:1 }}>{value}</p>
-                  <p style={{ fontSize:9, fontWeight:800, color:'rgba(255,255,255,0.4)', textTransform:'uppercase', letterSpacing:'0.06em', marginTop:5 }}>{label}</p>
+                { label: 'Deals totales',    value: totals.deals,              icon: Briefcase,    color: '#60a5fa', glow:'#1d4ed8' },
+                { label: 'Ganados',          value: totals.wonDeals,           icon: CheckCircle2, color: '#34d399', glow:'#059669' },
+                { label: 'Valor ganado',     value: fmt(totals.wonValue),      icon: DollarSign,   color: '#34d399', glow:'#059669' },
+                { label: 'Pipeline activo',  value: fmt(totals.pipelineValue), icon: Activity,     color: '#a78bfa', glow:'#7c3aed' },
+                { label: 'Cotizaciones',     value: totals.quotes,             icon: FileText,     color: '#fbbf24', glow:'#b45309' },
+                { label: 'Actividades',      value: totals.activities,         icon: MessageSquare,color: '#f9a8d4', glow:'#be185d' },
+              ].map(({ label, value, icon: Icon, color, glow }) => (
+                <div key={label} style={{
+                  background: 'rgba(255,255,255,0.05)', borderRadius: 16, padding: '18px 18px 16px',
+                  backdropFilter: 'blur(16px)', border: '1px solid rgba(255,255,255,0.09)',
+                  boxShadow: `0 0 0 0 transparent, inset 0 1px 0 rgba(255,255,255,0.07)`,
+                  transition: 'all 0.2s',
+                }}>
+                  <div style={{ display:'flex', alignItems:'center', gap:7, marginBottom:12 }}>
+                    <div style={{ width:26, height:26, borderRadius:8, background:`${glow}30`, border:`1px solid ${color}25`, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                      <Icon style={{ width:12, height:12, color }} />
+                    </div>
+                    <span style={{ fontSize:9, fontWeight:700, color:'rgba(148,163,184,0.6)', textTransform:'uppercase', letterSpacing:'0.1em', lineHeight:1.2 }}>{label}</span>
+                  </div>
+                  <p style={{ fontSize:24, fontWeight:900, color:'#f0f6ff', lineHeight:1, letterSpacing:'-0.04em' }}>{value}</p>
                 </div>
               ))}
             </div>
@@ -732,16 +800,7 @@ export default function SalesMetrics() {
       {/* ── TARJETAS POR VENDEDOR ─────────────────────────────────────────────── */}
       {metrics.length > 0 && (
         <section className="space-y-4">
-          <div className="flex items-center gap-3">
-            <div style={{ width:36, height:36, borderRadius:12, background:'#eff6ff', display:'flex', alignItems:'center', justifyContent:'center' }}>
-              <Users style={{ width:16, height:16, color:'#3b82f6' }} />
-            </div>
-            <div>
-              <h3 className="font-black text-gray-900 text-sm uppercase tracking-wider">Desempeño por Vendedor</h3>
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-0.5">Últimos {currentPeriod?.days} días</p>
-            </div>
-            <div className="flex-1 h-px ml-2" style={{ background:'linear-gradient(90deg, #3b82f630, transparent)' }} />
-          </div>
+          <SectionHeader icon={Users} title="Desempeño por Vendedor" subtitle={`Últimos ${currentPeriod?.days} días`} accent="#1d4ed8" />
 
           <div className={cn(
             'grid gap-4',
@@ -766,28 +825,19 @@ export default function SalesMetrics() {
       {/* ── GRÁFICAS COMPARATIVAS (solo si hay 2+ vendedores) ────────────────── */}
       {metrics.length >= 2 && (
         <section className="space-y-4">
-          <div className="flex items-center gap-3">
-            <div style={{ width:36, height:36, borderRadius:12, background:'#f5f3ff', display:'flex', alignItems:'center', justifyContent:'center' }}>
-              <BarChart2 style={{ width:16, height:16, color:'#8b5cf6' }} />
-            </div>
-            <div>
-              <h3 className="font-black text-gray-900 text-sm uppercase tracking-wider">Comparativa entre Vendedores</h3>
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-0.5">Período: {currentPeriod?.label}</p>
-            </div>
-            <div className="flex-1 h-px ml-2" style={{ background:'linear-gradient(90deg, #8b5cf630, transparent)' }} />
-          </div>
+          <SectionHeader icon={BarChart2} title="Comparativa entre Vendedores" subtitle={`Período: ${currentPeriod?.label}`} accent="#7c3aed" />
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
 
             {/* Gráfica: Valor Ganado vs Pipeline */}
-            <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
-              <div style={{ height:3, background:'linear-gradient(90deg, #3b82f6, #3b82f644)' }} />
+            <div className={D.card}>
+              <CardAccent color="#1d4ed8" />
               <div className="p-5 space-y-4">
                 <div className="flex items-center gap-2">
-                  <DollarSign style={{ width:13, height:13, color:'#3b82f6' }} />
+                  <DollarSign style={{ width:13, height:13, color:'#1d4ed8' }} />
                   <div>
-                    <h4 className="font-black text-gray-900 text-[11px] uppercase tracking-widest">Valor por Vendedor</h4>
-                    <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mt-0.5">Ganado vs Pipeline</p>
+                    <h4 style={{ fontSize:11, fontWeight:800, color:'#0a0f1e', letterSpacing:'-0.01em' }}>Valor por Vendedor</h4>
+                    <p style={{ fontSize:9, fontWeight:600, color:'#94a3b8', textTransform:'uppercase', letterSpacing:'0.06em', marginTop:2 }}>Ganado vs Pipeline</p>
                   </div>
                 </div>
                 <ResponsiveContainer width="100%" height={220}>
@@ -805,14 +855,14 @@ export default function SalesMetrics() {
             </div>
 
             {/* Gráfica: Deals totales y tasa de cierre */}
-            <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
-              <div style={{ height:3, background:'linear-gradient(90deg, #10b981, #10b98144)' }} />
+            <div className={D.card}>
+              <CardAccent color="#059669" />
               <div className="p-5 space-y-4">
                 <div className="flex items-center gap-2">
-                  <Target style={{ width:13, height:13, color:'#10b981' }} />
+                  <Target style={{ width:13, height:13, color:'#059669' }} />
                   <div>
-                    <h4 className="font-black text-gray-900 text-[11px] uppercase tracking-widest">Deals y Efectividad</h4>
-                    <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mt-0.5">Deals totales vs Tasa de cierre</p>
+                    <h4 style={{ fontSize:11, fontWeight:800, color:'#0a0f1e', letterSpacing:'-0.01em' }}>Deals y Efectividad</h4>
+                    <p style={{ fontSize:9, fontWeight:600, color:'#94a3b8', textTransform:'uppercase', letterSpacing:'0.06em', marginTop:2 }}>Deals totales vs Tasa de cierre</p>
                   </div>
                 </div>
                 <ResponsiveContainer width="100%" height={220}>
@@ -832,14 +882,14 @@ export default function SalesMetrics() {
 
             {/* Radar comparativo (si hay 2-6 vendedores) */}
             {metrics.length <= 6 && (
-              <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden lg:col-span-2">
-                <div style={{ height:3, background:'linear-gradient(90deg, #f59e0b, #f59e0b44)' }} />
+              <div className={`${D.card} lg:col-span-2`}>
+                <CardAccent color="#b45309" />
                 <div className="p-5 space-y-4">
                   <div className="flex items-center gap-2">
-                    <Star style={{ width:13, height:13, color:'#f59e0b' }} />
+                    <Star style={{ width:13, height:13, color:'#b45309' }} />
                     <div>
-                      <h4 className="font-black text-gray-900 text-[11px] uppercase tracking-widest">Radar de Desempeño</h4>
-                      <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mt-0.5">Comparativa multidimensional</p>
+                      <h4 style={{ fontSize:11, fontWeight:800, color:'#0a0f1e', letterSpacing:'-0.01em' }}>Radar de Desempeño</h4>
+                      <p style={{ fontSize:9, fontWeight:600, color:'#94a3b8', textTransform:'uppercase', letterSpacing:'0.06em', marginTop:2 }}>Comparativa multidimensional</p>
                     </div>
                   </div>
                   <ResponsiveContainer width="100%" height={280}>
@@ -877,19 +927,10 @@ export default function SalesMetrics() {
       {/* ── TABLA COMPARATIVA ────────────────────────────────────────────────── */}
       {metrics.length >= 2 && isAdmin && (
         <section className="space-y-4">
-          <div className="flex items-center gap-3">
-            <div style={{ width:36, height:36, borderRadius:12, background:'#ecfdf5', display:'flex', alignItems:'center', justifyContent:'center' }}>
-              <Award style={{ width:16, height:16, color:'#10b981' }} />
-            </div>
-            <div>
-              <h3 className="font-black text-gray-900 text-sm uppercase tracking-wider">Ranking de Vendedores</h3>
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-0.5">Ordenado por valor ganado</p>
-            </div>
-            <div className="flex-1 h-px ml-2" style={{ background:'linear-gradient(90deg, #10b98130, transparent)' }} />
-          </div>
+          <SectionHeader icon={Award} title="Ranking de Vendedores" subtitle="Ordenado por valor ganado" accent="#059669" />
 
-          <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
-            <div style={{ height:3, background:'linear-gradient(90deg, #10b981, #10b98144)' }} />
+          <div className={D.card}>
+            <CardAccent color="#059669" />
             <div className="p-6">
               <ComparisonTable metrics={metrics} colors={SELLER_COLORS} />
             </div>
@@ -900,6 +941,31 @@ export default function SalesMetrics() {
       {/* ── RAZONES DE CIERRE ────────────────────────────────────────────────── */}
       {closedDeals.length > 0 && (
         <CloseReasonsSection deals={closedDeals} colors={SELLER_COLORS} />
+      )}
+
+      {/* ── ESTATUS DE COTIZACIONES ───────────────────────────────────────────── */}
+      {isAdmin && allQuotes.length > 0 && (
+        <QuoteStatusSection quotes={allQuotes} sinceDate={sinceDate} metrics={metrics} colors={SELLER_COLORS} />
+      )}
+
+      {/* ── CLIENTES NUEVOS / RECUPERADOS / CARTERA ───────────────────────────── */}
+      {isAdmin && (
+        <ClientInsightsSection clients={allClients} deals={deals} quotes={allQuotes} sinceDate={sinceDate} colors={SELLER_COLORS} />
+      )}
+
+      {/* ── VENTA POR LÍNEAS (top productos de cotizaciones) ──────────────────── */}
+      {isAdmin && allQuotes.length > 0 && (
+        <ProductLinesSection quotes={allQuotes} sinceDate={sinceDate} />
+      )}
+
+      {/* ── PIPELINE KANBAN (solo visualización admin) ────────────────────────── */}
+      {isAdmin && deals.filter(d => !['CLOSED_WON','CLOSED_LOST'].includes(d.stage)).length > 0 && (
+        <PipelineKanbanReadOnly deals={deals} metrics={metrics} colors={SELLER_COLORS} />
+      )}
+
+      {/* ── ACTIVIDADES VENCIDAS ─────────────────────────────────────────────── */}
+      {isAdmin && activities.length > 0 && (
+        <OverdueActivitiesSection activities={activities} />
       )}
 
       {/* ── GESTIÓN DE DATOS: BITÁCORA · REPORTE DIARIO · CARTERA ───────────── */}
@@ -913,6 +979,601 @@ export default function SalesMetrics() {
       />
 
     </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ESTATUS DE COTIZACIONES
+// ══════════════════════════════════════════════════════════════════════════════
+const QUOTE_STATUS = {
+  PENDING:  { label: 'Pendiente',     color: '#f59e0b', bg: '#fffbeb', icon: Clock },
+  ACCEPTED: { label: 'Aprobada',      color: '#10b981', bg: '#ecfdf5', icon: CheckCircle2 },
+  REJECTED: { label: 'No concretada', color: '#ef4444', bg: '#fef2f2', icon: XCircle },
+  EXPIRED:  { label: 'Expirada',      color: '#94a3b8', bg: '#f8fafc', icon: AlertTriangle },
+};
+
+function QuoteStatusSection({ quotes, sinceDate, metrics, colors }) {
+  const [filterSeller, setFilterSeller] = useState('');
+
+  const filtered = filterSeller
+    ? quotes.filter(q => q.sellerId === filterSeller || q.creatorId === filterSeller)
+    : quotes;
+
+  const inPeriod = filtered.filter(q => new Date(q.createdAt) >= sinceDate);
+
+  const byStatus = {};
+  Object.keys(QUOTE_STATUS).forEach(k => {
+    byStatus[k] = { count: 0, value: 0 };
+  });
+  inPeriod.forEach(q => {
+    const st = q.status || 'PENDING';
+    if (byStatus[st]) { byStatus[st].count++; byStatus[st].value += q.total || 0; }
+  });
+
+  const total = inPeriod.length;
+  const totalValue = inPeriod.reduce((s, q) => s + (q.total || 0), 0);
+
+  // Por vendedor
+  const sellerQuotes = {};
+  metrics.forEach(m => { sellerQuotes[m.seller.id] = { name: m.seller.name, counts: { PENDING:0, ACCEPTED:0, REJECTED:0, EXPIRED:0 }, value: 0 }; });
+  inPeriod.forEach(q => {
+    const sid = q.sellerId || q.creatorId;
+    if (sid && sellerQuotes[sid]) {
+      sellerQuotes[sid].counts[q.status || 'PENDING']++;
+      sellerQuotes[sid].value += q.total || 0;
+    }
+  });
+
+  const pieData = Object.entries(byStatus)
+    .filter(([, v]) => v.count > 0)
+    .map(([k, v]) => ({ name: QUOTE_STATUS[k].label, value: v.count, color: QUOTE_STATUS[k].color }));
+
+  const sellers = metrics.map(m => m.seller);
+
+  return (
+    <section className="space-y-4">
+      <SectionHeader icon={FileText} title="Estatus de Cotizaciones" subtitle={`${total} cotizaciones · ${fmt(totalValue)} en valor`} accent="#b45309"
+        extra={
+          <select style={{ background:'#f8fafc', borderRadius:10, padding:'6px 12px', fontWeight:700, fontSize:11, color:'#334155', outline:'none', cursor:'pointer', border:'1px solid #e2e8f0' }}
+            value={filterSeller} onChange={e => setFilterSeller(e.target.value)}>
+            <option value="">Todos los vendedores</option>
+            {sellers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+          </select>
+        }
+      />
+
+      <div className={D.card}>
+        <CardAccent color="#b45309" />
+        <div className="p-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Cards de estado */}
+          <div className="space-y-3">
+            {Object.entries(QUOTE_STATUS).map(([key, meta]) => {
+              const Icon = meta.icon;
+              const data = byStatus[key] || { count: 0, value: 0 };
+              const pct  = total ? Math.round((data.count / total) * 100) : 0;
+              return (
+                <div key={key} style={{ background: meta.bg, borderRadius:14, padding:'14px 16px', display:'flex', alignItems:'center', gap:14, border:`1px solid ${meta.color}18` }}>
+                  <div style={{ width:40, height:40, borderRadius:12, background:'white', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, boxShadow:`0 1px 4px ${meta.color}20, 0 0 0 1px ${meta.color}15` }}>
+                    <Icon style={{ width:16, height:16, color: meta.color }} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between mb-1">
+                      <span style={{ fontSize:9, fontWeight:800, color: meta.color, textTransform:'uppercase', letterSpacing:'0.08em' }}>{meta.label}</span>
+                      <span style={{ fontSize:9, fontWeight:700, color:'#94a3b8' }}>{pct}%</span>
+                    </div>
+                    <div style={{ height:4, background:'rgba(0,0,0,0.06)', borderRadius:999, overflow:'hidden', marginBottom:6 }}>
+                      <div style={{ height:'100%', width:`${pct}%`, background: meta.color, borderRadius:999, transition:'width 0.8s ease' }} />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span style={{ fontSize:18, fontWeight:900, color:'#0f172a' }}>{data.count}</span>
+                      <span style={{ fontSize:11, fontWeight:800, color: meta.color }}>{fmt(data.value)}</span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Pie + tabla por vendedor */}
+          <div className="space-y-4">
+            {pieData.length > 0 && (
+              <ResponsiveContainer width="100%" height={180}>
+                <PieChart>
+                  <Pie data={pieData} cx="50%" cy="50%" innerRadius={50} outerRadius={80} dataKey="value" paddingAngle={3}>
+                    {pieData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
+                  </Pie>
+                  <Tooltip formatter={(v, n) => [v, n]} />
+                  <Legend wrapperStyle={{ fontSize:10, fontWeight:700 }} />
+                </PieChart>
+              </ResponsiveContainer>
+            )}
+            {/* Tabla por vendedor */}
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-gray-100">
+                    {['Vendedor','Pend.','Aprobadas','No Conc.','Valor'].map(h => (
+                      <th key={h} className="text-left pb-2 pr-3 text-[8px] font-black text-gray-400 uppercase tracking-widest whitespace-nowrap">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {Object.values(sellerQuotes).filter(s => Object.values(s.counts).some(v => v > 0)).map((sq, i) => (
+                    <tr key={i} className="hover:bg-gray-50/60">
+                      <td className="py-2 pr-3 font-black text-gray-900 text-[11px] whitespace-nowrap">{sq.name.split(' ')[0]}</td>
+                      <td className="py-2 pr-3"><span style={{ fontWeight:900, color:'#f59e0b', fontSize:12 }}>{sq.counts.PENDING}</span></td>
+                      <td className="py-2 pr-3"><span style={{ fontWeight:900, color:'#10b981', fontSize:12 }}>{sq.counts.ACCEPTED}</span></td>
+                      <td className="py-2 pr-3"><span style={{ fontWeight:900, color:'#ef4444', fontSize:12 }}>{sq.counts.REJECTED}</span></td>
+                      <td className="py-2"><span style={{ fontWeight:900, color:'#0f172a', fontSize:11 }}>{fmt(sq.value)}</span></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// CLIENTES NUEVOS / RECUPERADOS / CARTERA
+// ══════════════════════════════════════════════════════════════════════════════
+function ClientInsightsSection({ clients, deals, quotes, sinceDate, colors }) {
+  const newClients = clients.filter(c => new Date(c.createdAt) >= sinceDate);
+
+  // Recuperados: tienen deals recientes pero su cliente es anterior al período
+  const activeClientIdsInPeriod = new Set([
+    ...deals.filter(d => new Date(d.createdAt || d.updatedAt) >= sinceDate).map(d => d.clientId).filter(Boolean),
+    ...quotes.filter(q => new Date(q.createdAt) >= sinceDate).map(q => q.clientId).filter(Boolean),
+  ]);
+  const recoveredClients = clients.filter(c =>
+    new Date(c.createdAt) < sinceDate && activeClientIdsInPeriod.has(c.id)
+  );
+
+  // Top clientes por valor total de deals ganados
+  const clientValueMap = {};
+  deals.forEach(d => {
+    if (!d.clientId) return;
+    if (!clientValueMap[d.clientId]) clientValueMap[d.clientId] = { client: d.client, deals: 0, won: 0, value: 0, pipeline: 0 };
+    clientValueMap[d.clientId].deals++;
+    if (d.stage === 'CLOSED_WON') { clientValueMap[d.clientId].won++; clientValueMap[d.clientId].value += d.value || 0; }
+    else if (!['CLOSED_WON','CLOSED_LOST'].includes(d.stage)) { clientValueMap[d.clientId].pipeline += d.value || 0; }
+  });
+  const topClients = Object.values(clientValueMap)
+    .filter(c => c.client)
+    .sort((a, b) => (b.value + b.pipeline) - (a.value + a.pipeline))
+    .slice(0, 10);
+
+  const maxClientVal = topClients[0] ? topClients[0].value + topClients[0].pipeline : 1;
+
+  return (
+    <section className="space-y-4">
+      <SectionHeader icon={Users} title="Análisis de Clientes" subtitle={`${newClients.length} nuevos · ${recoveredClients.length} recuperados · ${clients.length} total`} accent="#059669" />
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {/* Clientes nuevos */}
+        <div className={D.card}>
+          <CardAccent color="#1d4ed8" />
+          <div className="p-5">
+            <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:16, paddingBottom:14, borderBottom:`1px solid ${D.border}` }}>
+              <div style={{ width:44, height:44, borderRadius:14, background:'#eff6ff', border:'1.5px solid #bfdbfe', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                <UserPlus style={{ width:18, height:18, color:'#1d4ed8' }} />
+              </div>
+              <div>
+                <p style={{ fontSize:28, fontWeight:900, color:'#0a0f1e', letterSpacing:'-0.04em', lineHeight:1 }}>{newClients.length}</p>
+                <p style={{ fontSize:9, fontWeight:700, color:'#94a3b8', textTransform:'uppercase', letterSpacing:'0.08em', marginTop:3 }}>Clientes Nuevos</p>
+              </div>
+            </div>
+            <div style={{ display:'flex', flexDirection:'column', gap:6, maxHeight:192, overflowY:'auto' }}>
+              {newClients.length === 0 ? (
+                <p style={{ fontSize:11, fontWeight:600, color:'#cbd5e1', textAlign:'center', padding:'16px 0' }}>Sin clientes nuevos en el período</p>
+              ) : newClients.slice(0, 8).map((c) => (
+                <div key={c.id} style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 10px', background:'#f8fafc', borderRadius:10, border:'1px solid #f1f5f9' }}>
+                  <div style={{ width:28, height:28, borderRadius:9, background:'#dbeafe', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                    <span style={{ fontSize:11, fontWeight:900, color:'#1d4ed8' }}>{(c.companyName||'?').charAt(0)}</span>
+                  </div>
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <p style={{ fontSize:11, fontWeight:700, color:'#0a0f1e', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{c.companyName}</p>
+                    <p style={{ fontSize:9, fontWeight:500, color:'#94a3b8', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{c.email}</p>
+                  </div>
+                </div>
+              ))}
+              {newClients.length > 8 && <p style={{ fontSize:9, fontWeight:700, color:'#94a3b8', textAlign:'center' }}>+{newClients.length - 8} más</p>}
+            </div>
+          </div>
+        </div>
+
+        {/* Clientes recuperados */}
+        <div className={D.card}>
+          <CardAccent color="#059669" />
+          <div className="p-5">
+            <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:16, paddingBottom:14, borderBottom:`1px solid ${D.border}` }}>
+              <div style={{ width:44, height:44, borderRadius:14, background:'#ecfdf5', border:'1.5px solid #a7f3d0', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                <UserCheck style={{ width:18, height:18, color:'#059669' }} />
+              </div>
+              <div>
+                <p style={{ fontSize:28, fontWeight:900, color:'#0a0f1e', letterSpacing:'-0.04em', lineHeight:1 }}>{recoveredClients.length}</p>
+                <p style={{ fontSize:9, fontWeight:700, color:'#94a3b8', textTransform:'uppercase', letterSpacing:'0.08em', marginTop:3 }}>Clientes Recuperados</p>
+              </div>
+            </div>
+            <div style={{ display:'flex', flexDirection:'column', gap:6, maxHeight:192, overflowY:'auto' }}>
+              {recoveredClients.length === 0 ? (
+                <p style={{ fontSize:11, fontWeight:600, color:'#cbd5e1', textAlign:'center', padding:'16px 0' }}>Sin clientes recuperados en el período</p>
+              ) : recoveredClients.slice(0, 8).map((c) => (
+                <div key={c.id} style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 10px', background:'#f8fafc', borderRadius:10, border:'1px solid #f1f5f9' }}>
+                  <div style={{ width:28, height:28, borderRadius:9, background:'#d1fae5', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                    <span style={{ fontSize:11, fontWeight:900, color:'#059669' }}>{(c.companyName||'?').charAt(0)}</span>
+                  </div>
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <p style={{ fontSize:11, fontWeight:700, color:'#0a0f1e', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{c.companyName}</p>
+                    <p style={{ fontSize:9, fontWeight:500, color:'#94a3b8', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{c.contactName || c.email}</p>
+                  </div>
+                </div>
+              ))}
+              {recoveredClients.length > 8 && <p style={{ fontSize:9, fontWeight:700, color:'#94a3b8', textAlign:'center' }}>+{recoveredClients.length - 8} más</p>}
+            </div>
+          </div>
+        </div>
+
+        {/* Análisis de cartera */}
+        <div className={D.card}>
+          <CardAccent color="#7c3aed" />
+          <div className="p-5">
+            <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:16, paddingBottom:14, borderBottom:`1px solid ${D.border}` }}>
+              <div style={{ width:44, height:44, borderRadius:14, background:'#f5f3ff', border:'1.5px solid #ddd6fe', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                <Building2 style={{ width:18, height:18, color:'#7c3aed' }} />
+              </div>
+              <div>
+                <p style={{ fontSize:28, fontWeight:900, color:'#0a0f1e', letterSpacing:'-0.04em', lineHeight:1 }}>{topClients.length}</p>
+                <p style={{ fontSize:9, fontWeight:700, color:'#94a3b8', textTransform:'uppercase', letterSpacing:'0.08em', marginTop:3 }}>Cartera Principal</p>
+              </div>
+            </div>
+            <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+              {topClients.slice(0, 7).map((tc, i) => {
+                const barW = Math.round(((tc.value + tc.pipeline) / maxClientVal) * 100);
+                return (
+                  <div key={i} style={{ display:'flex', flexDirection:'column', gap:4 }}>
+                    <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:8 }}>
+                      <span style={{ fontSize:11, fontWeight:700, color:'#334155', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:'60%' }}>{tc.client.companyName}</span>
+                      <span style={{ fontSize:11, fontWeight:900, color:'#7c3aed', flexShrink:0 }}>{fmt(tc.value + tc.pipeline)}</span>
+                    </div>
+                    <div style={{ height:4, background:'#f1f5f9', borderRadius:999, overflow:'hidden' }}>
+                      <div style={{ height:'100%', width:`${barW}%`, background:`linear-gradient(90deg, #7c3aed, #a78bfa)`, borderRadius:999, transition:'width 0.8s ease' }} />
+                    </div>
+                    <div className="flex gap-3">
+                      <span style={{ fontSize:8, fontWeight:700, color:'#10b981' }}>✓ {fmt(tc.value)} ganado</span>
+                      <span style={{ fontSize:8, fontWeight:700, color:'#8b5cf6' }}>◈ {fmt(tc.pipeline)} pipeline</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// VENTA POR LÍNEAS (top productos de cotizaciones aceptadas)
+// ══════════════════════════════════════════════════════════════════════════════
+function ProductLinesSection({ quotes, sinceDate }) {
+  const inPeriod = quotes.filter(q => new Date(q.createdAt) >= sinceDate);
+
+  // Agrupar items de todas las cotizaciones por nombre de producto
+  const productMap = {};
+  inPeriod.forEach(q => {
+    const items = Array.isArray(q.items) ? q.items : [];
+    items.forEach(item => {
+      if (!item.name) return;
+      const key = item.name.trim();
+      if (!productMap[key]) productMap[key] = { name: key, qty: 0, value: 0, count: 0 };
+      productMap[key].qty   += Number(item.qty)   || 0;
+      productMap[key].value += Number(item.total || (item.qty * item.price)) || 0;
+      productMap[key].count++;
+    });
+  });
+
+  const topProducts = Object.values(productMap)
+    .sort((a, b) => b.value - a.value)
+    .slice(0, 12);
+
+  const maxVal = topProducts[0]?.value || 1;
+
+  const PRODUCT_COLORS = ['#3b82f6','#10b981','#8b5cf6','#f59e0b','#ef4444','#0ea5e9','#14b8a6','#a855f7','#f43f5e','#84cc16','#fb923c','#6366f1'];
+
+  if (topProducts.length === 0) return null;
+
+  return (
+    <section className="space-y-4">
+      <SectionHeader icon={Package} title="Venta por Líneas / Productos" subtitle="Top productos por valor en cotizaciones" accent="#1d4ed8" />
+
+      <div className={D.card}>
+        <CardAccent color="#1d4ed8" />
+        <div className="p-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Barras horizontales */}
+          <div className="space-y-3">
+            {topProducts.slice(0, 8).map((p, i) => {
+              const pct = Math.round((p.value / maxVal) * 100);
+              const color = PRODUCT_COLORS[i % PRODUCT_COLORS.length];
+              return (
+                <div key={i} className="space-y-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <span style={{ fontSize:11, fontWeight:700, color:'#374151' }} className="truncate flex-1">{p.name}</span>
+                    <span style={{ fontSize:11, fontWeight:900, color, flexShrink:0 }}>{fmt(p.value)}</span>
+                  </div>
+                  <div style={{ height:6, background:'#f1f5f9', borderRadius:999, overflow:'hidden' }}>
+                    <div style={{ height:'100%', width:`${pct}%`, background:color, borderRadius:999, transition:'width 0.8s ease' }} />
+                  </div>
+                  <div className="flex gap-3">
+                    <span style={{ fontSize:8, fontWeight:700, color:'#94a3b8' }}>Cant: {p.qty}</span>
+                    <span style={{ fontSize:8, fontWeight:700, color:'#94a3b8' }}>En {p.count} cotizaciones</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Gráfica de barras verticales */}
+          <ResponsiveContainer width="100%" height={240}>
+            <BarChart data={topProducts.slice(0, 8).map((p, i) => ({
+              name: p.name.length > 14 ? p.name.slice(0,12)+'…' : p.name,
+              'Valor $': Math.round(p.value),
+              fill: PRODUCT_COLORS[i % PRODUCT_COLORS.length],
+            }))} margin={{ top:4, right:4, left:0, bottom:40 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+              <XAxis dataKey="name" tick={{ fontSize:8, fontWeight:700, fill:'#64748b' }} axisLine={false} tickLine={false} angle={-35} textAnchor="end" />
+              <YAxis tick={{ fontSize:9, fontWeight:700, fill:'#94a3b8' }} axisLine={false} tickLine={false} tickFormatter={v => `$${(v/1000).toFixed(0)}k`} />
+              <Tooltip content={<RichTooltip />} />
+              <Bar dataKey="Valor $" radius={[6,6,0,0]} maxBarSize={40}>
+                {topProducts.slice(0, 8).map((_, i) => <Cell key={i} fill={PRODUCT_COLORS[i % PRODUCT_COLORS.length]} />)}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// PIPELINE KANBAN SOLO VISUALIZACIÓN (admin)
+// ══════════════════════════════════════════════════════════════════════════════
+const KANBAN_STAGES = [
+  { key: 'QUALIFICATION',            label: 'Prospecto',            color: '#64748b' },
+  { key: 'NEEDS_ANALYSIS',           label: 'Acercamiento',         color: '#0ea5e9' },
+  { key: 'VALUE_PROPOSITION',        label: 'Contacto Decisor',     color: '#3b82f6' },
+  { key: 'IDENTIFY_DECISION_MAKERS', label: 'Oportunidad',          color: '#6366f1' },
+  { key: 'PROPOSAL_PRICE_QUOTE',     label: 'Levantamiento',        color: '#8b5cf6' },
+  { key: 'PROPOSAL_SENT',            label: 'Cotización Enviada',   color: '#a855f7' },
+  { key: 'NEGOTIATION_1',            label: 'Negociación 1',        color: '#f59e0b' },
+  { key: 'RECOTIZACION',             label: 'Recotización',         color: '#fb923c' },
+  { key: 'NEGOTIATION_2',            label: 'Negociación 2',        color: '#f97316' },
+  { key: 'CLOSED_WON_PENDING',       label: 'Autorización',         color: '#22c55e' },
+];
+
+function PipelineKanbanReadOnly({ deals, metrics, colors }) {
+  const [filterSeller, setFilterSeller] = useState('');
+  const sellers = metrics.map(m => m.seller);
+
+  const activeDeals = deals.filter(d => !['CLOSED_WON','CLOSED_LOST'].includes(d.stage));
+  const filtered = filterSeller ? activeDeals.filter(d => d.assignedTo?.id === filterSeller) : activeDeals;
+
+  const stageMap = {};
+  KANBAN_STAGES.forEach(s => { stageMap[s.key] = []; });
+  filtered.forEach(d => {
+    if (stageMap[d.stage]) stageMap[d.stage].push(d);
+    else stageMap['QUALIFICATION']?.push(d);
+  });
+
+  const nonEmpty = KANBAN_STAGES.filter(s => stageMap[s.key]?.length > 0);
+
+  return (
+    <section className="space-y-4">
+      <SectionHeader icon={LayoutGrid} title="Pipeline — Vista Kanban" subtitle={`Solo visualización · ${filtered.length} tratos activos`} accent="#0284c7"
+        extra={<div style={{ display:'flex', alignItems:'center', gap:8 }}>
+          <div style={{ display:'flex', alignItems:'center', gap:5, background:'#eff6ff', borderRadius:8, padding:'4px 10px', border:'1px solid #bfdbfe' }}>
+            <Eye style={{ width:10, height:10, color:'#1d4ed8' }} />
+            <span style={{ fontSize:8, fontWeight:800, color:'#1d4ed8', textTransform:'uppercase', letterSpacing:'0.08em' }}>Read only</span>
+          </div>
+          <select style={{ background:'#f8fafc', borderRadius:10, padding:'6px 12px', fontWeight:700, fontSize:11, color:'#334155', outline:'none', cursor:'pointer', border:'1px solid #e2e8f0' }}
+            value={filterSeller} onChange={e => setFilterSeller(e.target.value)}>
+            <option value="">Todos los vendedores</option>
+            {sellers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+          </select>
+        </div>}
+      />
+
+      <div className={D.card}>
+        <CardAccent color="#0284c7" />
+        <div className="overflow-x-auto p-5">
+          <div style={{ display:'flex', gap:14, minWidth: nonEmpty.length * 228 }}>
+            {nonEmpty.map(stage => {
+              const stageDeals = stageMap[stage.key] || [];
+              const stageValue = stageDeals.reduce((s, d) => s + (d.value || 0), 0);
+              return (
+                <div key={stage.key} style={{ minWidth:214, maxWidth:214, flexShrink:0 }}>
+                  {/* Encabezado columna */}
+                  <div style={{ background:`${stage.color}0d`, border:`1px solid ${stage.color}25`, borderRadius:12, padding:'10px 14px', marginBottom:10 }}>
+                    <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:6 }}>
+                      <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                        <div style={{ width:6, height:6, borderRadius:'50%', background:stage.color, flexShrink:0 }} />
+                        <span style={{ fontSize:8, fontWeight:800, color: stage.color, textTransform:'uppercase', letterSpacing:'0.08em' }}>{stage.label}</span>
+                      </div>
+                      <span style={{ fontSize:10, fontWeight:900, color: stage.color, background:`${stage.color}18`, borderRadius:6, padding:'1px 7px', border:`1px solid ${stage.color}20` }}>{stageDeals.length}</span>
+                    </div>
+                    <p style={{ fontSize:13, fontWeight:900, color:D.ink, letterSpacing:'-0.02em' }}>{fmt(stageValue)}</p>
+                  </div>
+                  {/* Tarjetas */}
+                  <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+                    {stageDeals.map(deal => {
+                      const sellerIdx = metrics.findIndex(m => m.seller.id === deal.assignedTo?.id);
+                      const color = sellerIdx >= 0 ? colors[sellerIdx % colors.length] : '#94a3b8';
+                      return (
+                        <div key={deal.id} style={{ background:'#fff', border:`1px solid ${D.border}`, borderRadius:12, padding:'11px 13px', cursor:'default', boxShadow:'0 1px 3px rgba(0,0,0,0.04)' }}>
+                          <p style={{ fontSize:11, fontWeight:700, color:D.ink, marginBottom:3, lineHeight:1.35, display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical', overflow:'hidden' }}>{deal.title}</p>
+                          {deal.company && <p style={{ fontSize:9, fontWeight:600, color:D.faint, marginBottom:8 }}>{deal.company}</p>}
+                          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                            <span style={{ fontSize:12, fontWeight:900, color:'#059669', letterSpacing:'-0.02em' }}>{fmt(deal.value)}</span>
+                            {deal.assignedTo && (
+                              <div style={{ display:'flex', alignItems:'center', gap:5 }}>
+                                <div style={{ width:22, height:22, borderRadius:7, background:`${color}18`, border:`1px solid ${color}25`, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                                  <span style={{ fontSize:9, fontWeight:900, color }}>{deal.assignedTo.name.charAt(0)}</span>
+                                </div>
+                                <span style={{ fontSize:9, fontWeight:600, color:D.faint }}>{deal.assignedTo.name.split(' ')[0]}</span>
+                              </div>
+                            )}
+                          </div>
+                          {deal.probability > 0 && (
+                            <div style={{ marginTop:8 }}>
+                              <div style={{ height:3, background:'#f1f5f9', borderRadius:999, overflow:'hidden' }}>
+                                <div style={{ height:'100%', width:`${deal.probability}%`, background: stage.color, borderRadius:999 }} />
+                              </div>
+                              <span style={{ fontSize:8, fontWeight:600, color:D.faint }}>{deal.probability}% prob.</span>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+            {nonEmpty.length === 0 && (
+              <div className="flex flex-col items-center justify-center py-16 w-full gap-3">
+                <LayoutGrid className="w-10 h-10 text-gray-200" />
+                <p className="text-[10px] font-black text-gray-300 uppercase tracking-widest">Sin tratos activos en el pipeline</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ACTIVIDADES VENCIDAS
+// ══════════════════════════════════════════════════════════════════════════════
+function OverdueActivitiesSection({ activities }) {
+  const now = new Date();
+  const overdue = activities.filter(a =>
+    a.status === 'PENDING' && a.dueDate && new Date(a.dueDate) < now
+  ).sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
+
+  const upcoming = activities.filter(a => {
+    if (a.status !== 'PENDING' || !a.dueDate) return false;
+    const due = new Date(a.dueDate);
+    const diff = (due - now) / (1000 * 60 * 60 * 24);
+    return diff >= 0 && diff <= 3;
+  }).sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
+
+  if (overdue.length === 0 && upcoming.length === 0) return null;
+
+  const fmtDue = (d) => new Date(d).toLocaleString('es-MX', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' });
+  const daysOverdue = (d) => Math.floor((now - new Date(d)) / (1000 * 60 * 60 * 24));
+
+  return (
+    <section className="space-y-4">
+      <SectionHeader icon={AlertTriangle} title="Actividades Vencidas y Próximas" subtitle={`${overdue.length} vencidas · ${upcoming.length} próximas (72h)`} accent="#dc2626" />
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Vencidas */}
+        {overdue.length > 0 && (
+          <div className={D.card}>
+            <div style={{ height:3, background:'linear-gradient(90deg, #dc2626, #ef4444)' }} />
+            <div className="p-5">
+              <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:14, paddingBottom:12, borderBottom:`1px solid #fee2e2` }}>
+                <div style={{ width:32, height:32, borderRadius:10, background:'#fef2f2', border:'1px solid #fecaca', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                  <AlertTriangle style={{ width:14, height:14, color:'#dc2626' }} />
+                </div>
+                <div>
+                  <p style={{ fontSize:13, fontWeight:800, color:'#dc2626', letterSpacing:'-0.01em' }}>{overdue.length} Vencidas</p>
+                  <p style={{ fontSize:9, fontWeight:600, color:'#94a3b8', textTransform:'uppercase', letterSpacing:'0.07em' }}>Requieren atención inmediata</p>
+                </div>
+              </div>
+              <div style={{ display:'flex', flexDirection:'column', gap:8, maxHeight:288, overflowY:'auto' }}>
+                {overdue.map(act => {
+                  const meta = ACT_META[act.type] || ACT_META.NOTE;
+                  const Icon = meta.icon;
+                  const days = daysOverdue(act.dueDate);
+                  return (
+                    <div key={act.id} style={{ background:'#fff5f5', borderRadius:12, padding:'10px 13px', borderLeft:'3px solid #dc2626', border:'1px solid #fee2e2', borderLeftWidth:3 }}>
+                      <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:10 }}>
+                        <div style={{ display:'flex', alignItems:'flex-start', gap:8, flex:1, minWidth:0 }}>
+                          <div style={{ width:24, height:24, borderRadius:7, background:`${meta.color}15`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, marginTop:1 }}>
+                            <Icon style={{ width:11, height:11, color: meta.color }} />
+                          </div>
+                          <div style={{ flex:1, minWidth:0 }}>
+                            <p style={{ fontSize:11, fontWeight:700, color:D.ink, lineHeight:1.35, display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical', overflow:'hidden' }}>{act.content}</p>
+                            <p style={{ fontSize:9, fontWeight:600, color:D.faint, marginTop:3, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{act.deal?.title || '—'} · {act.deal?.assignedTo?.name || '—'}</p>
+                          </div>
+                        </div>
+                        <div style={{ flexShrink:0, textAlign:'right' }}>
+                          <span style={{ fontSize:9, fontWeight:900, color:'#dc2626', background:'#fee2e2', padding:'2px 8px', borderRadius:8 }}>
+                            {days === 0 ? 'Hoy' : `${days}d vencida`}
+                          </span>
+                          <p style={{ fontSize:8, fontWeight:700, color:'#94a3b8', marginTop:3 }}>{fmtDue(act.dueDate)}</p>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Próximas 72h */}
+        {upcoming.length > 0 && (
+          <div className={D.card}>
+            <div style={{ height:3, background:'linear-gradient(90deg, #d97706, #f59e0b)' }} />
+            <div className="p-5">
+              <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:14, paddingBottom:12, borderBottom:`1px solid #fef3c7` }}>
+                <div style={{ width:32, height:32, borderRadius:10, background:'#fffbeb', border:'1px solid #fde68a', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                  <Clock style={{ width:14, height:14, color:'#d97706' }} />
+                </div>
+                <div>
+                  <p style={{ fontSize:13, fontWeight:800, color:'#b45309', letterSpacing:'-0.01em' }}>{upcoming.length} Próximas</p>
+                  <p style={{ fontSize:9, fontWeight:600, color:'#94a3b8', textTransform:'uppercase', letterSpacing:'0.07em' }}>Vencen en las próximas 72h</p>
+                </div>
+              </div>
+              <div style={{ display:'flex', flexDirection:'column', gap:8, maxHeight:288, overflowY:'auto' }}>
+                {upcoming.map(act => {
+                  const meta = ACT_META[act.type] || ACT_META.NOTE;
+                  const Icon = meta.icon;
+                  const hoursLeft = Math.round((new Date(act.dueDate) - now) / (1000 * 60 * 60));
+                  return (
+                    <div key={act.id} style={{ background:'#fffdf0', borderRadius:12, padding:'10px 13px', border:'1px solid #fef3c7', borderLeftWidth:3, borderLeftColor:'#d97706' }}>
+                      <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:10 }}>
+                        <div style={{ display:'flex', alignItems:'flex-start', gap:8, flex:1, minWidth:0 }}>
+                          <div style={{ width:24, height:24, borderRadius:7, background:`${meta.color}15`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, marginTop:1 }}>
+                            <Icon style={{ width:11, height:11, color: meta.color }} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-bold text-gray-800 text-[11px] line-clamp-2">{act.content}</p>
+                            <p className="text-[9px] font-bold text-gray-400 mt-0.5">{act.deal?.title || '—'} · {act.deal?.assignedTo?.name || '—'}</p>
+                          </div>
+                        </div>
+                        <div style={{ flexShrink:0, textAlign:'right' }}>
+                          <span style={{ fontSize:9, fontWeight:900, color:'#d97706', background:'#fef3c7', padding:'2px 8px', borderRadius:8 }}>
+                            {hoursLeft < 1 ? 'Ahora' : hoursLeft < 24 ? `${hoursLeft}h` : `${Math.floor(hoursLeft/24)}d`}
+                          </span>
+                          <p style={{ fontSize:8, fontWeight:700, color:'#94a3b8', marginTop:3 }}>{fmtDue(act.dueDate)}</p>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </section>
   );
 }
 
@@ -937,17 +1598,7 @@ function CloseReasonsSection({ deals, colors }) {
 
   return (
     <section className="space-y-4">
-      <div className="flex items-center gap-3">
-        <div style={{ width:36, height:36, borderRadius:12, background:'#fef3c7', display:'flex', alignItems:'center', justifyContent:'center' }}>
-          <MessageSquare style={{ width:16, height:16, color:'#f59e0b' }} />
-        </div>
-        <div>
-          <h3 className="font-black text-gray-900 text-sm uppercase tracking-wider">Razones de Cierre</h3>
-          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-0.5">
-            {won.length} ganados · {lost.length} perdidos
-          </p>
-        </div>
-        <div className="flex-1 h-px ml-2" style={{ background:'linear-gradient(90deg, #f59e0b30, transparent)' }} />
+      <SectionHeader icon={MessageSquare} title="Razones de Cierre" subtitle={`${won.length} ganados · ${lost.length} perdidos`} accent="#d97706" extra={
         <div className="flex gap-1">
           {[
             { key:'ALL',  label:'Todos',   bg:'#f1f5f9', color:'#475569', active:'#0f172a' },
@@ -967,7 +1618,7 @@ function CloseReasonsSection({ deals, colors }) {
             >{label}</button>
           ))}
         </div>
-      </div>
+      } />
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
         {filtered.map((deal, i) => {
@@ -977,7 +1628,7 @@ function CloseReasonsSection({ deals, colors }) {
           return (
             <div
               key={deal.id}
-              className="bg-white rounded-3xl border shadow-sm overflow-hidden hover:shadow-md transition-all"
+              className={cn(D.card, D.cardHover)}
               style={{ borderColor: isWon ? '#d1fae5' : '#fee2e2' }}
             >
               <div style={{ height:3, background: isWon ? '#10b981' : '#ef4444' }} />
@@ -1118,7 +1769,7 @@ function GestionDatosSection({ isAdmin, salesSummary, myReporte, myBitacora, myC
       </div>
 
       {!hasData ? (
-        <div className="bg-white rounded-3xl border border-gray-100 shadow-sm flex flex-col items-center justify-center py-16 gap-3">
+        <div className={`${D.card} flex flex-col items-center justify-center py-16 gap-3`}>
           <BookOpen className="w-10 h-10 text-gray-200" />
           <p className="text-[10px] font-black text-gray-300 uppercase tracking-widest">Sin registros de gestión aún</p>
           <p className="text-[9px] font-bold text-gray-300">Ingresa datos en Bitácora, Reporte Diario o Cartera</p>
@@ -1159,8 +1810,8 @@ function GestionDatosSection({ isAdmin, salesSummary, myReporte, myBitacora, myC
 
             {/* Admin: comparativa actividad por vendedor */}
             {isAdmin && salesSummary.length >= 2 && (
-              <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
-                <div style={{ height:3, background:'linear-gradient(90deg, #3b82f6, #3b82f644)' }} />
+              <div className={D.card}>
+                <CardAccent color="#1d4ed8" />
                 <div className="p-5 space-y-4">
                   <div className="flex items-center gap-2">
                     <PhoneCall style={{ width:13, height:13, color:'#3b82f6' }} />
@@ -1187,8 +1838,8 @@ function GestionDatosSection({ isAdmin, salesSummary, myReporte, myBitacora, myC
 
             {/* Admin: comparativa cierres y venta */}
             {isAdmin && salesSummary.length >= 2 && (
-              <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
-                <div style={{ height:3, background:'linear-gradient(90deg, #10b981, #10b98144)' }} />
+              <div className={D.card}>
+                <CardAccent color="#059669" />
                 <div className="p-5 space-y-4">
                   <div className="flex items-center gap-2">
                     <DollarSign style={{ width:13, height:13, color:'#10b981' }} />
@@ -1216,8 +1867,8 @@ function GestionDatosSection({ isAdmin, salesSummary, myReporte, myBitacora, myC
 
             {/* Individual: línea de actividad por día */}
             {!isAdmin && reporteLineData.length >= 2 && (
-              <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
-                <div style={{ height:3, background:'linear-gradient(90deg, #3b82f6, #3b82f644)' }} />
+              <div className={D.card}>
+                <CardAccent color="#1d4ed8" />
                 <div className="p-5 space-y-4">
                   <div className="flex items-center gap-2">
                     <Activity style={{ width:13, height:13, color:'#3b82f6' }} />
@@ -1245,8 +1896,8 @@ function GestionDatosSection({ isAdmin, salesSummary, myReporte, myBitacora, myC
 
             {/* Individual: KPIs bitácora */}
             {!isAdmin && myBitacora.length > 0 && (
-              <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
-                <div style={{ height:3, background:'linear-gradient(90deg, #a855f7, #a855f744)' }} />
+              <div className={D.card}>
+                <CardAccent color="#9333ea" />
                 <div className="p-5 space-y-4">
                   <div className="flex items-center gap-2">
                     <MapPin style={{ width:13, height:13, color:'#a855f7' }} />
@@ -1309,8 +1960,8 @@ function GestionDatosSection({ isAdmin, salesSummary, myReporte, myBitacora, myC
 
           {/* ── TABLA COMPARATIVA ADMIN (Gestión) ─────────────────────────────── */}
           {isAdmin && salesSummary.length > 0 && (
-            <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
-              <div style={{ height:3, background:'linear-gradient(90deg, #a855f7, #a855f744)' }} />
+            <div className={D.card}>
+              <CardAccent color="#9333ea" />
               <div className="p-6 space-y-4">
                 <div className="flex items-center gap-2">
                   <Layers style={{ width:13, height:13, color:'#a855f7' }} />
@@ -1373,8 +2024,8 @@ function GestionDatosSection({ isAdmin, salesSummary, myReporte, myBitacora, myC
 
           {/* ── REPORTE DIARIO INDIVIDUAL ──────────────────────────────────────── */}
           {!isAdmin && myReporte.length > 0 && (
-            <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
-              <div style={{ height:3, background:'linear-gradient(90deg, #f59e0b, #f59e0b44)' }} />
+            <div className={D.card}>
+              <CardAccent color="#b45309" />
               <div className="p-6 space-y-4">
                 <div className="flex items-center gap-2">
                   <BarChart2 style={{ width:13, height:13, color:'#f59e0b' }} />
@@ -1418,8 +2069,8 @@ function GestionDatosSection({ isAdmin, salesSummary, myReporte, myBitacora, myC
 
           {/* ── CARTERA INDIVIDUAL ─────────────────────────────────────────────── */}
           {!isAdmin && myCartera.length > 0 && (
-            <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
-              <div style={{ height:3, background:'linear-gradient(90deg, #0ea5e9, #0ea5e944)' }} />
+            <div className={D.card}>
+              <CardAccent color="#0284c7" />
               <div className="p-6 space-y-4">
                 <div className="flex items-center gap-2">
                   <Layers style={{ width:13, height:13, color:'#0ea5e9' }} />
