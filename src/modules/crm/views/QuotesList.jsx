@@ -193,8 +193,11 @@ export default function QuotesList() {
         setNewQuote(initialNewQuote());
         setFromDealMeta(null);
         fetchData();
+      } else {
+        const err = await res.json().catch(() => ({}));
+        alert(`Error al crear cotización: ${err.error || res.status}`);
       }
-    } catch (err) { alert('Error al crear cotización'); }
+    } catch (err) { alert(`Error al crear cotización: ${err.message}`); }
     finally { setIsGenerating(false); }
   };
 

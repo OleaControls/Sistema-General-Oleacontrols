@@ -34,10 +34,14 @@ export const otService = {
   },
 
   // Plantillas OT (guardadas en BD vía /api/ot-templates)
+  _templatesFlight: null,
   async getTemplates() {
-    const response = await apiFetch('/api/ot-templates');
-    if (!response.ok) return [];
-    return response.json();
+    // Deduplication: si ya hay una petición en vuelo, reutiliza la misma Promise
+    if (this._templatesFlight) return this._templatesFlight;
+    this._templatesFlight = apiFetch('/api/ot-templates')
+      .then(r => r.ok ? r.json() : [])
+      .finally(() => { this._templatesFlight = null; });
+    return this._templatesFlight;
   },
 
   async saveTemplate(templateData) {
@@ -63,17 +67,22 @@ export const otService = {
   },
 
   // Clientes OT (guardados en BD vía /api/ot-clients)
+  _otClientsFlight: null,
   async getOTClients(search = '') {
     const params = search ? `?search=${encodeURIComponent(search)}` : '';
+    // Solo deduplicar cuando no hay búsqueda (listado general)
+    if (!search) {
+      if (this._otClientsFlight) return this._otClientsFlight;
+      this._otClientsFlight = apiFetch(`/api/ot-clients${params}`)
+        .then(r => r.ok ? r.json() : [])
+        .then(data => data.map(c => ({ ...c, lat: c.latitude ?? c.lat, lng: c.longitude ?? c.lng })))
+        .finally(() => { this._otClientsFlight = null; });
+      return this._otClientsFlight;
+    }
     const response = await apiFetch(`/api/ot-clients${params}`);
     if (!response.ok) return [];
     const data = await response.json();
-    // Normalizar lat/lng desde latitude/longitude que devuelve Prisma
-    return data.map(c => ({
-      ...c,
-      lat: c.latitude  ?? c.lat,
-      lng: c.longitude ?? c.lng,
-    }));
+    return data.map(c => ({ ...c, lat: c.latitude ?? c.lat, lng: c.longitude ?? c.lng }));
   },
 
   async saveOTClient(clientData) {

@@ -53,9 +53,32 @@ export async function comparePassword(password, hashed) {
 }
 
 /**
+ * Throws an error if the request is not authenticated.
+ * Use in handlers that want try/catch-based auth instead of null checks.
+ * @param {import('http').IncomingMessage} req
+ * @returns {Object} decoded JWT payload
+ */
+export function requireAuth(req) {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    const err = new Error('Token missing or invalid');
+    err.status = 401;
+    throw err;
+  }
+  const token = authHeader.split(' ')[1];
+  const decoded = verifyToken(token);
+  if (!decoded) {
+    const err = new Error('Token expired or invalid');
+    err.status = 401;
+    throw err;
+  }
+  return decoded;
+}
+
+/**
  * API Middleware/Helper to ensure the user is authenticated.
- * @param {import('http').IncomingMessage} req 
- * @param {import('http').ServerResponse} res 
+ * @param {import('http').IncomingMessage} req
+ * @param {import('http').ServerResponse} res
  * @returns {Object|null} user if authenticated, otherwise null
  */
 export function authMiddleware(req, res) {

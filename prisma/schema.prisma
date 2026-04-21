@@ -633,3 +633,17 @@ model OTClient {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
+
+// --- AUDITORÍA PERSONAL DIARIA ---
+model PersonalAudit {
+  id          String   @id @default(cuid())
+  employeeId  String
+  projectName String
+  auditDate   DateTime
+  isLeader    Boolean  @default(false)
+  actionArea  String
+  didWell     Json     // [{desc: "..."}] mínimo 3
+  didPoor     Json     // [{desc: "..."}] mínimo 2
+  improvements Json   // [{desc: "..."}] mínimo 2
+  createdAt   DateTime @default(now())
+}

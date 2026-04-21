@@ -18,6 +18,10 @@ import vacationsHandler from './api/_handlers/vacations.js';
 import recruitmentHandler from './api/_handlers/recruitment.js';
 import assetsHandler from './api/_handlers/assets.js';
 import salesDataHandler from './api/_handlers/sales-data.js';
+import personalAuditsHandler from './api/_handlers/personal-audits.js';
+import lmsHandler from './api/_handlers/lms.js';
+import otClientsHandler from './api/_handlers/ot-clients.js';
+import otTemplatesHandler from './api/_handlers/ot-templates.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -120,6 +124,26 @@ app.get('/api/sales-data', adaptHandler(salesDataHandler));
 app.post('/api/sales-data', adaptHandler(salesDataHandler));
 app.put('/api/sales-data', adaptHandler(salesDataHandler));
 app.delete('/api/sales-data', adaptHandler(salesDataHandler));
+
+// Personal Audits
+app.get('/api/personal-audits', adaptHandler(personalAuditsHandler));
+app.post('/api/personal-audits', adaptHandler(personalAuditsHandler));
+app.delete('/api/personal-audits', adaptHandler(personalAuditsHandler));
+
+// LMS
+app.all('/api/lms', adaptHandler(lmsHandler));
+app.all('/api/lms/:resource', adaptHandler(lmsHandler));
+
+// OT Clients & Templates
+app.get('/api/ot-clients', adaptHandler(otClientsHandler));
+app.post('/api/ot-clients', adaptHandler(otClientsHandler));
+app.put('/api/ot-clients', adaptHandler(otClientsHandler));
+app.delete('/api/ot-clients', adaptHandler(otClientsHandler));
+
+app.get('/api/ot-templates', adaptHandler(otTemplatesHandler));
+app.post('/api/ot-templates', adaptHandler(otTemplatesHandler));
+app.put('/api/ot-templates', adaptHandler(otTemplatesHandler));
+app.delete('/api/ot-templates', adaptHandler(otTemplatesHandler));
 
 app.listen(PORT, () => {
   console.log(`🚀 Server running locally at http://localhost:${PORT}`);

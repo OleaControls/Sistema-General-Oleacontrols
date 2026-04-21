@@ -4,7 +4,7 @@ import {
   FileSignature, Palmtree, HardHat, Mail, MapPin, Phone,
   Clock, CheckCircle2, AlertTriangle, Sparkles,
   Star, TrendingUp, Users, DollarSign, Shield, X,
-  ChevronRight, Building2, BadgeCheck, Zap,
+  ChevronRight, Building2, BadgeCheck, Zap, Plus, ClipboardList, ChevronDown, Trash2,
 } from 'lucide-react';
 import { apiFetch } from '@/lib/api';
 import { useAuth, ROLES } from '@/store/AuthContext';
@@ -90,10 +90,12 @@ function MetricTile({ label, value, icon: Icon, hex, lightBg, suffix = '' }) {
 
 // ── Tabs ──────────────────────────────────────────────────────────────────────
 const PROFILE_TABS = [
-  { id: 'OVERVIEW',  label: 'Perfil',       icon: User },
-  { id: 'TIMEOFF',   label: 'Tiempo libre', icon: Palmtree },
-  { id: 'ASSETS',    label: 'Equipamiento', icon: HardHat },
-  { id: 'DOCUMENTS', label: 'Documentos',   icon: FileText },
+  { id: 'OVERVIEW',    label: 'Perfil',       icon: User },
+  { id: 'TIMEOFF',     label: 'Tiempo libre', icon: Palmtree },
+  { id: 'ASSETS',      label: 'Equipamiento', icon: HardHat },
+  { id: 'DOCUMENTS',   label: 'Documentos',   icon: FileText },
+  { id: 'REGLAMENTO',  label: 'Reglamento',   icon: Shield },
+  { id: 'AUDITORIA',   label: 'Auditoría',    icon: ClipboardList },
 ];
 
 const STATUS_STYLES = {
@@ -110,8 +112,23 @@ export default function MyProfile() {
   const [assets, setAssets]               = useState([]);
   const [loading, setLoading]             = useState(true);
   const [activeTab, setActiveTab]         = useState('OVERVIEW');
-  const [isUploading, setIsUploading]     = useState(false);
-  const [showRequestModal, setShowRequestModal] = useState(false);
+  const [isUploading, setIsUploading]               = useState(false);
+  const [reglamento, setReglamento]                 = useState(null);
+  const [loadingReglamento, setLoadingReglamento]   = useState(true);
+  const [isUploadingReglamento, setIsUploadingReglamento] = useState(false);
+  const [showRequestModal, setShowRequestModal]     = useState(false);
+
+  // Auditoría
+  const emptyItems = (n) => Array.from({ length: n }, () => ({ desc: '' }));
+  const [audits, setAudits]             = useState([]);
+  const [loadingAudits, setLoadingAudits] = useState(true);
+  const [showAuditForm, setShowAuditForm] = useState(false);
+  const [isSavingAudit, setIsSavingAudit] = useState(false);
+  const [expandedAudit, setExpandedAudit] = useState(null);
+  const [auditForm, setAuditForm] = useState({
+    projectName: '', auditDate: '', isLeader: false, actionArea: '',
+    didWell: emptyItems(3), didPoor: emptyItems(2), improvements: emptyItems(2),
+  });
   const [isSubmitting, setIsSubmitting]   = useState(false);
   const [formData, setFormData] = useState({
     startDate: '', endDate: '', days: '', reason: '', type: 'ANNUAL',
@@ -136,6 +153,24 @@ export default function MyProfile() {
       setLoading(false);
     })();
   }, [user]);
+
+  // Cargar reglamento y auditorías
+  useEffect(() => {
+    apiFetch('/api/config?key=REGLAMENTO')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data?.url) setReglamento(data); })
+      .catch(() => {})
+      .finally(() => setLoadingReglamento(false));
+  }, []);
+
+  useEffect(() => {
+    if (!employee?.id) return;
+    apiFetch(`/api/personal-audits?employeeId=${employee.id}`)
+      .then(r => r.ok ? r.json() : [])
+      .then(data => setAudits(data))
+      .catch(() => {})
+      .finally(() => setLoadingAudits(false));
+  }, [employee?.id]);
 
   useEffect(() => {
     if (formData.startDate && formData.endDate) {
@@ -164,6 +199,95 @@ export default function MyProfile() {
       alert('Error al enviar: ' + err.message);
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const canManageReglamento = user.role === ROLES.ADMIN || user.role === ROLES.HR;
+
+  const handleReglamentoUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (file.size > 20 * 1024 * 1024) { alert('El archivo no debe superar 20 MB.'); return; }
+    setIsUploadingReglamento(true);
+    try {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = async () => {
+        // Subir a R2
+        const uploadRes = await apiFetch('/api/upload', {
+          method: 'POST',
+          body: JSON.stringify({ file: reader.result, folder: 'reglamento' }),
+        });
+        if (!uploadRes.ok) throw new Error('Error al subir el archivo');
+        const { url } = await uploadRes.json();
+
+        // Guardar URL en SystemConfig
+        const meta = {
+          url,
+          name: file.name,
+          uploadedAt: new Date().toISOString(),
+          uploadedBy: user.name,
+        };
+        const configRes = await apiFetch('/api/config', {
+          method: 'POST',
+          body: JSON.stringify({ key: 'REGLAMENTO', value: meta }),
+        });
+        if (!configRes.ok) throw new Error('Error al guardar la configuración');
+
+        setReglamento(meta);
+        setIsUploadingReglamento(false);
+      };
+    } catch (err) {
+      alert('Error: ' + err.message);
+      setIsUploadingReglamento(false);
+    }
+  };
+
+  const handleSaveAudit = async (e) => {
+    e.preventDefault();
+    if (isSavingAudit) return;
+    setIsSavingAudit(true);
+    try {
+      const payload = {
+        employeeId: employee.id,
+        projectName: auditForm.projectName,
+        auditDate: auditForm.auditDate,
+        isLeader: auditForm.isLeader,
+        actionArea: auditForm.actionArea,
+        didWell:       auditForm.didWell.map(i => i.desc).filter(Boolean),
+        didPoor:       auditForm.didPoor.map(i => i.desc).filter(Boolean),
+        improvements:  auditForm.improvements.map(i => i.desc).filter(Boolean),
+      };
+      const res = await apiFetch('/api/personal-audits', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Error al guardar');
+      }
+      const saved = await res.json();
+      setAudits(prev => [saved, ...prev]);
+      setShowAuditForm(false);
+      setAuditForm({
+        projectName: '', auditDate: '', isLeader: false, actionArea: '',
+        didWell: emptyItems(3), didPoor: emptyItems(2), improvements: emptyItems(2),
+      });
+    } catch (err) {
+      alert('Error: ' + err.message);
+    } finally {
+      setIsSavingAudit(false);
+    }
+  };
+
+  const handleDeleteAudit = async (id) => {
+    if (!confirm('¿Eliminar esta auditoría? Esta acción no se puede deshacer.')) return;
+    setAudits(prev => prev.filter(a => a.id !== id));
+    try {
+      await apiFetch(`/api/personal-audits?id=${id}`, { method: 'DELETE' });
+    } catch {
+      const r = await apiFetch(`/api/personal-audits?employeeId=${employee.id}`);
+      if (r.ok) setAudits(await r.json());
     }
   };
 
@@ -888,6 +1012,536 @@ export default function MyProfile() {
           </div>
         </div>
       )}
+
+      {/* ── AUDITORÍA ── */}
+      {activeTab === 'AUDITORIA' && (
+        <div className="space-y-5 animate-in fade-in slide-in-from-bottom-3 duration-400">
+
+          {/* Header */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h3 className="text-2xl font-black text-gray-900 tracking-tight">Auditoría Personal</h3>
+              <p className="text-sm font-medium text-gray-400 mt-1">Registro diario de desempeño y áreas de mejora.</p>
+            </div>
+            <button
+              onClick={() => setShowAuditForm(v => !v)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 8,
+                background: showAuditForm ? '#f1f5f9' : 'linear-gradient(135deg, #0f172a, #1e293b)',
+                color: showAuditForm ? '#475569' : '#fff',
+                border: showAuditForm ? '1px solid #e2e8f0' : 'none',
+                cursor: 'pointer', padding: '12px 24px', borderRadius: 16,
+                fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em',
+                boxShadow: showAuditForm ? 'none' : '0 4px 20px rgba(0,0,0,0.15)',
+                transition: 'all 0.2s',
+              }}
+            >
+              {showAuditForm
+                ? <><X style={{ width: 14, height: 14 }} /> Cancelar</>
+                : <><Plus style={{ width: 14, height: 14 }} /> Nueva Auditoría</>}
+            </button>
+          </div>
+
+          {/* Formulario */}
+          {showAuditForm && (
+            <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden animate-in fade-in slide-in-from-top-2 duration-300">
+              {/* Header form */}
+              <div style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%)', padding: '24px 28px' }}>
+                <p style={{ fontSize: 10, fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 4 }}>
+                  Nueva entrada
+                </p>
+                <h4 style={{ fontSize: 18, fontWeight: 900, color: '#f8fafc', margin: 0 }}>Auditoría Personal</h4>
+              </div>
+
+              <form onSubmit={handleSaveAudit} className="p-7 space-y-6">
+                {/* Fila 1: Proyecto + Fecha */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label style={{ fontSize: 9, fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.07em', display: 'block' }}>
+                      Nombre del Proyecto *
+                    </label>
+                    <input
+                      required
+                      type="text"
+                      value={auditForm.projectName}
+                      onChange={e => setAuditForm(p => ({ ...p, projectName: e.target.value }))}
+                      placeholder="Ej: Instalación Planta Norte"
+                      style={{
+                        width: '100%', background: '#f8fafc', border: '1px solid #e2e8f0',
+                        borderRadius: 14, padding: '12px 16px', fontSize: 13, fontWeight: 700,
+                        outline: 'none', boxSizing: 'border-box',
+                      }}
+                      className="focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label style={{ fontSize: 9, fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.07em', display: 'block' }}>
+                      Fecha y Hora *
+                    </label>
+                    <input
+                      required
+                      type="datetime-local"
+                      value={auditForm.auditDate}
+                      onChange={e => setAuditForm(p => ({ ...p, auditDate: e.target.value }))}
+                      style={{
+                        width: '100%', background: '#f8fafc', border: '1px solid #e2e8f0',
+                        borderRadius: 14, padding: '12px 16px', fontSize: 13, fontWeight: 700,
+                        outline: 'none', boxSizing: 'border-box',
+                      }}
+                      className="focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all"
+                    />
+                  </div>
+                </div>
+
+                {/* Fila 2: Líder + Área */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* Toggle Líder */}
+                  <div className="space-y-2">
+                    <label style={{ fontSize: 9, fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.07em', display: 'block' }}>
+                      ¿Eres Líder? *
+                    </label>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      {[{ label: 'Sí', value: true }, { label: 'No', value: false }].map(opt => (
+                        <button
+                          key={String(opt.value)}
+                          type="button"
+                          onClick={() => setAuditForm(p => ({ ...p, isLeader: opt.value }))}
+                          style={{
+                            flex: 1, padding: '12px 0', borderRadius: 14, fontSize: 12, fontWeight: 800,
+                            cursor: 'pointer', transition: 'all 0.15s',
+                            background: auditForm.isLeader === opt.value
+                              ? 'linear-gradient(135deg, #2563eb, #1d4ed8)'
+                              : '#f8fafc',
+                            color: auditForm.isLeader === opt.value ? '#fff' : '#64748b',
+                            border: auditForm.isLeader === opt.value ? 'none' : '1px solid #e2e8f0',
+                            boxShadow: auditForm.isLeader === opt.value ? '0 4px 14px rgba(37,99,235,0.25)' : 'none',
+                          }}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <label style={{ fontSize: 9, fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.07em', display: 'block' }}>
+                      Área de Acción *
+                    </label>
+                    <input
+                      required
+                      type="text"
+                      value={auditForm.actionArea}
+                      onChange={e => setAuditForm(p => ({ ...p, actionArea: e.target.value }))}
+                      placeholder="Ej: Eléctrica, Mecánica, Supervisión…"
+                      style={{
+                        width: '100%', background: '#f8fafc', border: '1px solid #e2e8f0',
+                        borderRadius: 14, padding: '12px 16px', fontSize: 13, fontWeight: 700,
+                        outline: 'none', boxSizing: 'border-box',
+                      }}
+                      className="focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all"
+                    />
+                  </div>
+                </div>
+
+                {/* Secciones de items */}
+                {[
+                  { key: 'didWell',      label: '¿Qué hice bien?',         min: 3, color: '#059669', bg: '#ecfdf5', border: '#a7f3d0' },
+                  { key: 'didPoor',      label: '¿Qué hice mal?',          min: 2, color: '#dc2626', bg: '#fff1f2', border: '#fecaca' },
+                  { key: 'improvements', label: '¿Cómo podemos mejorar?',  min: 2, color: '#2563eb', bg: '#eff6ff', border: '#bfdbfe' },
+                ].map(({ key, label, min, color, bg, border }) => (
+                  <div key={key} className="space-y-3">
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <label style={{ fontSize: 9, fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
+                        {label} <span style={{ color, fontWeight: 900 }}>· mín {min}</span>
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setAuditForm(p => ({ ...p, [key]: [...p[key], { desc: '' }] }))}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: 4,
+                          fontSize: 9, fontWeight: 800, color,
+                          background: bg, border: `1px solid ${border}`,
+                          borderRadius: 20, padding: '4px 12px', cursor: 'pointer',
+                          textTransform: 'uppercase', letterSpacing: '0.06em',
+                        }}
+                      >
+                        <Plus style={{ width: 10, height: 10 }} /> Agregar
+                      </button>
+                    </div>
+                    <div className="space-y-2">
+                      {auditForm[key].map((item, idx) => (
+                        <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <div style={{
+                            width: 28, height: 28, borderRadius: 8, background: bg,
+                            border: `1px solid ${border}`, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            flexShrink: 0, fontSize: 10, fontWeight: 900, color,
+                          }}>
+                            {idx + 1}
+                          </div>
+                          <input
+                            required
+                            type="text"
+                            value={item.desc}
+                            onChange={e => setAuditForm(p => {
+                              const arr = [...p[key]];
+                              arr[idx] = { desc: e.target.value };
+                              return { ...p, [key]: arr };
+                            })}
+                            placeholder={`Acción ${idx + 1}…`}
+                            style={{
+                              flex: 1, background: '#f8fafc', border: '1px solid #e2e8f0',
+                              borderRadius: 12, padding: '10px 14px', fontSize: 13, fontWeight: 600,
+                              outline: 'none', boxSizing: 'border-box',
+                            }}
+                            className="focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all"
+                          />
+                          {auditForm[key].length > min && (
+                            <button
+                              type="button"
+                              onClick={() => setAuditForm(p => {
+                                const arr = p[key].filter((_, i) => i !== idx);
+                                return { ...p, [key]: arr };
+                              })}
+                              style={{
+                                width: 28, height: 28, borderRadius: 8, background: '#fff1f2',
+                                border: '1px solid #fecaca', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                cursor: 'pointer', flexShrink: 0,
+                              }}
+                            >
+                              <X style={{ width: 12, height: 12, color: '#dc2626' }} />
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+
+                {/* Botones */}
+                <div className="flex gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowAuditForm(false)}
+                    style={{
+                      flex: 1, background: '#f1f5f9', border: 'none', borderRadius: 14,
+                      padding: 14, fontSize: 11, fontWeight: 800, color: '#475569',
+                      cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.06em',
+                    }}
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSavingAudit}
+                    style={{
+                      flex: 2,
+                      background: isSavingAudit ? '#94a3b8' : 'linear-gradient(135deg, #2563eb, #1d4ed8)',
+                      border: 'none', borderRadius: 14, padding: 14,
+                      fontSize: 11, fontWeight: 800, color: '#fff',
+                      cursor: isSavingAudit ? 'not-allowed' : 'pointer',
+                      textTransform: 'uppercase', letterSpacing: '0.06em',
+                      boxShadow: isSavingAudit ? 'none' : '0 4px 20px rgba(37,99,235,0.3)',
+                    }}
+                  >
+                    {isSavingAudit ? 'Guardando…' : 'Guardar Auditoría'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+
+          {/* Historial */}
+          <div className="space-y-3">
+            {loadingAudits ? (
+              Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="h-20 bg-white rounded-2xl border animate-pulse" />
+              ))
+            ) : audits.length === 0 ? (
+              <div style={{
+                background: '#fff', border: '2px dashed #e2e8f0', borderRadius: 24,
+                padding: '56px 20px', textAlign: 'center',
+                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12,
+              }}>
+                <div style={{ width: 56, height: 56, borderRadius: 18, background: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <ClipboardList style={{ width: 24, height: 24, color: '#cbd5e1' }} />
+                </div>
+                <p style={{ fontSize: 14, fontWeight: 900, color: '#0f172a', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Sin auditorías registradas
+                </p>
+                <p style={{ fontSize: 12, fontWeight: 500, color: '#94a3b8', maxWidth: 280 }}>
+                  Registra tu primera auditoría personal para llevar un seguimiento de tu desempeño diario.
+                </p>
+              </div>
+            ) : (
+              audits.map(audit => {
+                const isOpen = expandedAudit === audit.id;
+                const dateStr = new Date(audit.auditDate).toLocaleDateString('es-MX', {
+                  day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
+                });
+                return (
+                  <div key={audit.id} style={{
+                    background: '#fff', border: '1px solid #e2e8f0', borderRadius: 20,
+                    overflow: 'hidden', transition: 'box-shadow 0.2s',
+                  }}
+                  className="hover:shadow-md"
+                  >
+                    {/* Cabecera clickeable */}
+                    <button
+                      type="button"
+                      onClick={() => setExpandedAudit(isOpen ? null : audit.id)}
+                      style={{
+                        width: '100%', display: 'flex', alignItems: 'center', gap: 16,
+                        padding: '16px 20px', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left',
+                      }}
+                    >
+                      <div style={{
+                        width: 44, height: 44, borderRadius: 14, flexShrink: 0,
+                        background: 'linear-gradient(135deg, #eff6ff, #dbeafe)',
+                        border: '1px solid #bfdbfe',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      }}>
+                        <ClipboardList style={{ width: 20, height: 20, color: '#2563eb' }} />
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <p style={{ fontSize: 14, fontWeight: 800, color: '#0f172a', marginBottom: 3 }} className="truncate">
+                          {audit.projectName}
+                        </p>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                            {dateStr}
+                          </span>
+                          <span style={{
+                            fontSize: 9, fontWeight: 800,
+                            color: audit.isLeader ? '#059669' : '#64748b',
+                            background: audit.isLeader ? '#ecfdf5' : '#f1f5f9',
+                            border: `1px solid ${audit.isLeader ? '#a7f3d0' : '#e2e8f0'}`,
+                            borderRadius: 20, padding: '2px 10px', textTransform: 'uppercase', letterSpacing: '0.06em',
+                          }}>
+                            {audit.isLeader ? 'Líder' : 'Colaborador'}
+                          </span>
+                          <span style={{
+                            fontSize: 9, fontWeight: 800, color: '#6366f1',
+                            background: '#f5f3ff', border: '1px solid #e0e7ff',
+                            borderRadius: 20, padding: '2px 10px', textTransform: 'uppercase', letterSpacing: '0.06em',
+                          }}>
+                            {audit.actionArea}
+                          </span>
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                        <button
+                          type="button"
+                          onClick={ev => { ev.stopPropagation(); handleDeleteAudit(audit.id); }}
+                          style={{
+                            width: 32, height: 32, borderRadius: 10, background: '#fff1f2',
+                            border: '1px solid #fecaca', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          <Trash2 style={{ width: 13, height: 13, color: '#dc2626' }} />
+                        </button>
+                        <ChevronDown style={{
+                          width: 18, height: 18, color: '#94a3b8',
+                          transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+                          transition: 'transform 0.25s',
+                        }} />
+                      </div>
+                    </button>
+
+                    {/* Detalle expandible */}
+                    {isOpen && (
+                      <div style={{ padding: '0 20px 20px', borderTop: '1px solid #f1f5f9' }} className="animate-in fade-in duration-200">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4">
+                          {[
+                            { label: '¿Qué hice bien?',        items: audit.didWell,      color: '#059669', bg: '#ecfdf5', border: '#a7f3d0' },
+                            { label: '¿Qué hice mal?',         items: audit.didPoor,      color: '#dc2626', bg: '#fff1f2', border: '#fecaca' },
+                            { label: '¿Cómo podemos mejorar?', items: audit.improvements, color: '#2563eb', bg: '#eff6ff', border: '#bfdbfe' },
+                          ].map(({ label, items, color, bg, border }) => (
+                            <div key={label} style={{ background: bg, border: `1px solid ${border}`, borderRadius: 16, padding: '14px 16px' }}>
+                              <p style={{ fontSize: 9, fontWeight: 900, color, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 10 }}>
+                                {label}
+                              </p>
+                              <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                {(items || []).map((item, i) => (
+                                  <li key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                                    <span style={{
+                                      width: 18, height: 18, borderRadius: 6, background: `${color}20`,
+                                      border: `1px solid ${color}40`, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                      fontSize: 9, fontWeight: 900, color, flexShrink: 0, marginTop: 1,
+                                    }}>
+                                      {i + 1}
+                                    </span>
+                                    <span style={{ fontSize: 12, fontWeight: 600, color: '#0f172a', lineHeight: 1.4 }}>{item}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── REGLAMENTO ── */}
+      {activeTab === 'REGLAMENTO' && (
+        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-3 duration-400">
+          <div>
+            <h3 className="text-2xl font-black text-gray-900 tracking-tight">Reglamento Interno</h3>
+            <p className="text-sm font-medium text-gray-400 mt-1">
+              Documento oficial de políticas y normas de la empresa.
+            </p>
+          </div>
+
+          {loadingReglamento ? (
+            <div className="h-48 bg-white rounded-3xl border animate-pulse" />
+          ) : reglamento ? (
+            /* ── Reglamento disponible ── */
+            <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
+              {/* Banner */}
+              <div style={{
+                background: 'linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%)',
+                padding: '32px 36px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 24,
+              }}>
+                <div style={{
+                  width: 64, height: 64, borderRadius: 20,
+                  background: 'rgba(255,255,255,0.1)',
+                  border: '1px solid rgba(255,255,255,0.15)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  flexShrink: 0,
+                }}>
+                  <Shield style={{ width: 28, height: 28, color: '#93c5fd' }} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p style={{ fontSize: 10, fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 4 }}>
+                    Documento Vigente
+                  </p>
+                  <p style={{ fontSize: 18, fontWeight: 900, color: '#f8fafc', lineHeight: 1.2 }} className="truncate">
+                    {reglamento.name}
+                  </p>
+                  <p style={{ fontSize: 11, color: '#64748b', marginTop: 6 }}>
+                    Subido por <span style={{ color: '#94a3b8', fontWeight: 700 }}>{reglamento.uploadedBy}</span>
+                    {' · '}
+                    {new Date(reglamento.uploadedAt).toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric' })}
+                  </p>
+                </div>
+              </div>
+
+              {/* Acciones */}
+              <div className="p-6 flex flex-col sm:flex-row gap-3">
+                <a
+                  href={reglamento.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex-1 flex items-center justify-center gap-2 py-3.5 rounded-2xl font-black text-sm uppercase tracking-widest transition-all hover:opacity-90"
+                  style={{
+                    background: 'linear-gradient(135deg, #2563eb, #1d4ed8)',
+                    color: '#fff',
+                    boxShadow: '0 4px 20px rgba(37,99,235,0.25)',
+                    textDecoration: 'none',
+                  }}
+                >
+                  <FileText style={{ width: 16, height: 16 }} />
+                  Ver Reglamento
+                </a>
+                <a
+                  href={reglamento.url}
+                  download
+                  className="flex-1 flex items-center justify-center gap-2 py-3.5 rounded-2xl font-black text-sm uppercase tracking-widest transition-all hover:bg-gray-100"
+                  style={{
+                    background: '#f8fafc',
+                    border: '1px solid #e2e8f0',
+                    color: '#475569',
+                    textDecoration: 'none',
+                  }}
+                >
+                  <Download style={{ width: 16, height: 16 }} />
+                  Descargar PDF
+                </a>
+              </div>
+
+              {/* Zona de reemplazo — solo ADMIN / HR */}
+              {canManageReglamento && (
+                <div className="px-6 pb-6">
+                  <div style={{
+                    border: '2px dashed #e2e8f0',
+                    borderRadius: 16, padding: '20px 24px',
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16,
+                  }}>
+                    <div>
+                      <p style={{ fontSize: 12, fontWeight: 800, color: '#0f172a' }}>Reemplazar documento</p>
+                      <p style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>PDF · máximo 20 MB</p>
+                    </div>
+                    <label style={{ cursor: isUploadingReglamento ? 'not-allowed' : 'pointer' }}>
+                      <input type="file" accept=".pdf" className="hidden" disabled={isUploadingReglamento} onChange={handleReglamentoUpload} />
+                      <span style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 8,
+                        padding: '10px 20px', borderRadius: 12,
+                        background: isUploadingReglamento ? '#f1f5f9' : '#0f172a',
+                        color: isUploadingReglamento ? '#94a3b8' : '#fff',
+                        fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em',
+                        transition: 'all 0.2s',
+                      }}>
+                        {isUploadingReglamento
+                          ? <><div style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid #94a3b8', borderTopColor: 'transparent', animation: 'spin 0.8s linear infinite' }} /> Subiendo…</>
+                          : <><Zap style={{ width: 14, height: 14 }} /> Subir nuevo</>}
+                      </span>
+                    </label>
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            /* ── Sin reglamento aún ── */
+            <div style={{
+              background: '#fff', border: '1px solid #e2e8f0',
+              borderRadius: 28, padding: '56px 36px',
+              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, textAlign: 'center',
+            }}>
+              <div style={{
+                width: 72, height: 72, borderRadius: 24, background: '#f1f5f9',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                <Shield style={{ width: 32, height: 32, color: '#94a3b8' }} />
+              </div>
+              <div>
+                <p style={{ fontSize: 16, fontWeight: 900, color: '#0f172a' }}>Sin reglamento publicado</p>
+                <p style={{ fontSize: 13, color: '#94a3b8', marginTop: 4, maxWidth: 340 }}>
+                  {canManageReglamento
+                    ? 'Sube el reglamento interno para que todos los colaboradores puedan consultarlo.'
+                    : 'El equipo de administración aún no ha publicado el reglamento.'}
+                </p>
+              </div>
+              {canManageReglamento && (
+                <label style={{ cursor: isUploadingReglamento ? 'not-allowed' : 'pointer', marginTop: 8 }}>
+                  <input type="file" accept=".pdf" className="hidden" disabled={isUploadingReglamento} onChange={handleReglamentoUpload} />
+                  <span style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 8,
+                    padding: '14px 28px', borderRadius: 16,
+                    background: isUploadingReglamento ? '#f1f5f9' : 'linear-gradient(135deg, #2563eb, #1d4ed8)',
+                    color: isUploadingReglamento ? '#94a3b8' : '#fff',
+                    fontSize: 12, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em',
+                    boxShadow: isUploadingReglamento ? 'none' : '0 4px 20px rgba(37,99,235,0.3)',
+                    transition: 'all 0.2s', cursor: 'inherit',
+                  }}>
+                    {isUploadingReglamento
+                      ? <><div style={{ width: 16, height: 16, borderRadius: '50%', border: '2px solid #94a3b8', borderTopColor: 'transparent', animation: 'spin 0.8s linear infinite' }} /> Subiendo…</>
+                      : <><Plus style={{ width: 16, height: 16 }} /> Publicar Reglamento</>}
+                  </span>
+                </label>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
     </div>
   );
 }

@@ -60,11 +60,12 @@ export default async function handler(req, res) {
       const config = await prisma.systemConfig.upsert({
         where:  { key: effectiveKey },
         update: { value },
-        create: { key: effectiveKey, value }
+        create: { id: effectiveKey, key: effectiveKey, value }
       });
 
       return res.status(200).json(config);
     } catch (error) {
+      console.error('[config POST]', error);
       return res.status(500).json({ error: error.message });
     }
   }

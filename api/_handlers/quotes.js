@@ -382,7 +382,10 @@ export default async function handler(req, res) {
       });
 
       const pdfUrl = await generateQuotePDF(quote);
-      if (pdfUrl) await prisma.quote.update({ where: { id: quote.id }, data: { pdfUrl } });
+      if (pdfUrl) {
+        await prisma.quote.update({ where: { id: quote.id }, data: { pdfUrl } });
+        quote.pdfUrl = pdfUrl;
+      }
       return res.status(201).json(quote);
     } catch (error) {
       return res.status(500).json({ error: error.message });
