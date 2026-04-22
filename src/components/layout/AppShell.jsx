@@ -4,7 +4,7 @@ import {
   LayoutDashboard, ClipboardList, Receipt, Users, GraduationCap,
   Briefcase, Menu, X, LogOut, Bell, ChevronDown, Trophy, User as UserIcon,
   BarChart3, Wallet, Target, Users2, FileText, Sliders, TrendingUp,
-  Database, Settings, BarChart4, BookOpen
+  Database, Settings, BarChart4, BookOpen, Calendar
 } from 'lucide-react';
 import { useAuth, ROLES } from '@/store/AuthContext';
 import { useTenant } from '@/store/TenantContext';
@@ -60,6 +60,7 @@ const NAV_STRUCTURE = [
     items: [
       { name: 'Órdenes de Trabajo', path: '/ots',                    icon: ClipboardList, roles: [ROLES.OPS],
         getName: () => 'Control OTs' },
+      { name: 'Agenda Operativa',   path: '/ops/calendar',           icon: Calendar,      roles: [ROLES.OPS] },
       { name: 'Arena de Líderes',   path: '/ots/leaderboard',        icon: Trophy,        roles: [ROLES.OPS] },
       { name: 'Catálogos OT',       path: '/ops/ots/catalogs',       icon: BookOpen,      roles: [ROLES.OPS] },
       { name: 'Control de Gastos',  path: '/ops/expenses/control',   icon: BarChart3,     roles: [ROLES.OPS] },

@@ -1,5 +1,5 @@
 import prisma from '../_lib/prisma.js'
-import { uploadToR2 } from '../_lib/r2.js'
+import { uploadToR2, signUrlIfNeeded } from '../_lib/r2.js'
 
 export default async function handler(req, res) {
   const { method } = req;
@@ -26,8 +26,8 @@ export default async function handler(req, res) {
   // GET: Obtener datos del cliente y sus eventos
   if (method === 'GET') {
     try {
-      // También traer OTs relacionadas por nombre de cliente si aplica
-      const workOrders = await prisma.workOrder.findMany({
+      // Traer OTs relacionadas por nombre de cliente
+      const rawOrders = await prisma.workOrder.findMany({
         where: { clientName: client.name },
         select: {
           id: true,
@@ -36,10 +36,21 @@ export default async function handler(req, res) {
           status: true,
           scheduledDate: true,
           arrivalTime: true,
-          description: true
+          description: true,
+          deliveryActUrl: true,
+          evidences: { select: { url: true, type: true } }
         },
         orderBy: { createdAt: 'desc' }
       });
+
+      // Firmar URL del acta de entrega si existe
+      const workOrders = await Promise.all(rawOrders.map(async (ot) => {
+        let signedActUrl = ot.deliveryActUrl || null;
+        if (signedActUrl && ['COMPLETED', 'VALIDATED'].includes(ot.status)) {
+          signedActUrl = await signUrlIfNeeded(signedActUrl);
+        }
+        return { ...ot, deliveryActUrl: signedActUrl };
+      }));
 
       return res.status(200).json({
         client: {
@@ -73,8 +84,7 @@ export default async function handler(req, res) {
       }
 
       // Subir a R2
-      const fileName = `portal/evidences/${client.id}/${Date.now()}_${evidence.name}`;
-      const url = await uploadToR2(fileName, evidence.base64, evidence.type);
+      const url = await uploadToR2(evidence.base64, 'portal/evidences', `${client.id}/${Date.now()}_${evidence.name}`);
 
       // Actualizar evento con la nueva evidencia
       const currentEvidences = Array.isArray(event.evidences) ? event.evidences : [];

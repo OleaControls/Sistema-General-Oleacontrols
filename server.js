@@ -22,6 +22,8 @@ import personalAuditsHandler from './api/_handlers/personal-audits.js';
 import lmsHandler from './api/_handlers/lms.js';
 import otClientsHandler from './api/_handlers/ot-clients.js';
 import otTemplatesHandler from './api/_handlers/ot-templates.js';
+import calendarHandler from './api/_handlers/calendar.js';
+import portalHandler from './api/_handlers/portal.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -144,6 +146,16 @@ app.get('/api/ot-templates', adaptHandler(otTemplatesHandler));
 app.post('/api/ot-templates', adaptHandler(otTemplatesHandler));
 app.put('/api/ot-templates', adaptHandler(otTemplatesHandler));
 app.delete('/api/ot-templates', adaptHandler(otTemplatesHandler));
+
+// Calendar
+app.get('/api/calendar', adaptHandler(calendarHandler));
+app.post('/api/calendar', adaptHandler(calendarHandler));
+app.put('/api/calendar', adaptHandler(calendarHandler));
+app.delete('/api/calendar', adaptHandler(calendarHandler));
+
+// Portal de Cliente (público)
+app.get('/api/portal', adaptHandler(portalHandler));
+app.post('/api/portal', adaptHandler(portalHandler));
 
 app.listen(PORT, () => {
   console.log(`🚀 Server running locally at http://localhost:${PORT}`);

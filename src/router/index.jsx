@@ -22,6 +22,7 @@ const TechGamification = lazy(() => import('@/modules/ots/views/TechGamification
 const OTValidation     = lazy(() => import('@/modules/ots/views/OTValidation'));
 const OTCatalogs       = lazy(() => import('@/modules/ots/views/OTCatalogs'));
 const DeliveryAct      = lazy(() => import('@/modules/ots/views/DeliveryAct'));
+const OpsCalendar      = lazy(() => import('@/modules/ots/views/OpsCalendar'));
 
 // HR
 const HRLayout          = lazy(() => import('@/modules/human-resources/components/HRLayout'));
@@ -66,6 +67,7 @@ const TechMetrics = lazy(() => import('@/modules/ots/views/TechMetrics'));
 
 // Misc
 const FeedbackForm = lazy(() => import('@/modules/feedback/FeedbackForm'));
+const ClientPortal = lazy(() => import('@/modules/ots/views/ClientPortal'));
 
 // ── Fallback de carga ─────────────────────────────────────────────────────────
 function PageLoader() {
@@ -114,7 +116,10 @@ export default function AppRouter() {
     <BrowserRouter>
       <Suspense fallback={<PageLoader />}>
         <Routes>
+          {/* Rutas Públicas - Deben ir primero */}
+          <Route path="/portal" element={<ClientPortal />} />
           <Route path="/login" element={<Login />} />
+          <Route path="/feedback/:type/:otId" element={<FeedbackForm />} />
 
           <Route path="/"           element={<ProtectedRoute><DashboardSelector /></ProtectedRoute>} />
           <Route path="/profile"    element={<ProtectedRoute><MyProfile /></ProtectedRoute>} />
@@ -128,6 +133,7 @@ export default function AppRouter() {
 
           {/* OTs */}
           <Route path="/ots"                         element={<ProtectedRoute><OTSelector /></ProtectedRoute>} />
+          <Route path="/ops/calendar"                element={<ProtectedRoute><OpsCalendar /></ProtectedRoute>} />
           <Route path="/ots/leaderboard"             element={<ProtectedRoute><TechGamification /></ProtectedRoute>} />
           <Route path="/ots/:id"                     element={<ProtectedRoute><OTDetail /></ProtectedRoute>} />
           <Route path="/ops/ots/validate/:id"        element={<ProtectedRoute><OTValidation /></ProtectedRoute>} />

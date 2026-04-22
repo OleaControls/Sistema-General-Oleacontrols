@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   FileText, Plus, Search, Trash2, MapPin, Phone, Mail,
-  X, Save, Building2, User, ClipboardList, Loader2, RefreshCw
+  X, Save, Building2, User, ClipboardList, Loader2, RefreshCw,
+  ExternalLink, Copy, Link2, Check
 } from 'lucide-react';
 import { otService } from '@/api/otService';
 import { cn } from '@/lib/utils';
@@ -128,6 +129,24 @@ export default function OTCatalogs() {
     cache.templates = null;
     try { await otService.deleteTemplate(id); }
     catch { fetchTemplates(true); }
+  };
+
+  const [copiedId, setCopiedId] = useState(null);
+  const handleGeneratePortal = async (client) => {
+    try {
+      const updated = await otService.generatePortalToken(client.id);
+      setOtClients(prev => prev.map(c => c.id === client.id ? updated : c));
+      cache.otClients = null;
+    } catch (err) {
+      alert('Error: ' + err.message);
+    }
+  };
+
+  const handleCopyLink = (token) => {
+    const link = `${window.location.protocol}//${window.location.host}/portal?token=${token}`;
+    navigator.clipboard.writeText(link);
+    setCopiedId(token);
+    setTimeout(() => setCopiedId(null), 2000);
   };
 
   // ── Filtros ─────────────────────────────────────────────────────────────────
@@ -283,6 +302,46 @@ export default function OTCatalogs() {
                     Ref: {client.otReference}
                   </div>
                 )}
+                
+                {/* Portal Management */}
+                <div className="mt-6 pt-5 border-t border-gray-50">
+                  {client.portalToken ? (
+                    <div className="space-y-3">
+                      <p className="text-[10px] font-black text-emerald-500 uppercase tracking-widest flex items-center gap-1.5">
+                        <Check className="h-3 w-3" /> Portal Activo
+                      </p>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleCopyLink(client.portalToken)}
+                          className={cn(
+                            "flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all",
+                            copiedId === client.portalToken 
+                              ? "bg-emerald-500 text-white shadow-lg shadow-emerald-200" 
+                              : "bg-gray-900 text-white shadow-lg shadow-gray-200 hover:bg-gray-800"
+                          )}
+                        >
+                          {copiedId === client.portalToken ? <><Check className="h-3.5 w-3.5" /> Copiado</> : <><Copy className="h-3.5 w-3.5" /> Copiar Link</>}
+                        </button>
+                        <a 
+                          href={`/portal?token=${client.portalToken}`} 
+                          target="_blank" 
+                          rel="noreferrer"
+                          className="p-2.5 bg-gray-100 text-gray-600 rounded-xl hover:bg-gray-200 transition-colors"
+                          title="Abrir Portal"
+                        >
+                          <ExternalLink className="h-4 w-4" />
+                        </a>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => handleGeneratePortal(client)}
+                      className="w-full flex items-center justify-center gap-2 py-3 bg-blue-50 text-blue-600 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-100 transition-all border border-blue-100 border-dashed"
+                    >
+                      <Link2 className="h-4 w-4" /> Activar Portal de Cliente
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           ))

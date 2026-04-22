@@ -118,6 +118,8 @@ model Employee {
 
   // --- ACTIVOS Y EPP ---
   assets          Asset[]      @relation("EmployeeAssets")
+
+  calendarEvents  CalendarEvent[]
 }
 
 model Credentials {
@@ -630,6 +632,10 @@ model OTClient {
   latitude    Float?
   longitude   Float?
   status      String   @default("ACTIVE") // ACTIVE, INACTIVE
+  
+  portalToken    String? @unique
+  calendarEvents CalendarEvent[]
+
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
@@ -647,3 +653,25 @@ model PersonalAudit {
   improvements Json   // [{desc: "..."}] mínimo 2
   createdAt   DateTime @default(now())
 }
+
+  model CalendarEvent {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  type        String   @default("VISIT") // VISIT, MAINTENANCE, OTHER
+  startDate   DateTime
+  endDate     DateTime?
+  allDay      Boolean  @default(false)
+  color       String   @default("#3b82f6")
+
+  otClientId  String?
+  otClient    OTClient? @relation(fields: [otClientId], references: [id])
+
+  userId      String
+  user        Employee  @relation(fields: [userId], references: [id])
+
+  evidences   Json?     // [{url, name, type, date}]
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  }

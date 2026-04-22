@@ -64,6 +64,13 @@ export default async function handler(req, res) {
       if (!id) return res.status(400).json({ error: 'ID requerido' });
 
       const data = { ...req.body };
+      
+      // Manejar generación de token para portal de cliente
+      if (data.generateToken) {
+        data.portalToken = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+        delete data.generateToken;
+      }
+
       if (data.latitude  != null) data.latitude  = parseFloat(data.latitude);
       if (data.longitude != null) data.longitude = parseFloat(data.longitude);
       delete data.id;

@@ -114,6 +114,15 @@ export const otService = {
     if (!response.ok) throw new Error('Error al eliminar cliente OT');
   },
 
+  async generatePortalToken(clientId) {
+    const response = await apiFetch(`/api/ot-clients?id=${clientId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ generateToken: true })
+    });
+    if (!response.ok) throw new Error('Error al generar token del portal');
+    return response.json();
+  },
+
   async saveOT(otData) {
     const response = await apiFetch('/api/ots', {
       method: 'POST',
