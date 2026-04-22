@@ -9,8 +9,12 @@ export default async function handler(req, res) {
 
   if (method === 'GET') {
     try {
+      const roles = Array.isArray(user.roles) ? user.roles : [];
+      const canSeeAll = roles.includes('ADMIN') || roles.includes('SUPERVISOR');
+      const where = canSeeAll ? {} : { userId: user.id };
       const events = await prisma.calendarEvent.findMany({
-        where: { userId: user.id },
+        where,
+        include: { user: { select: { name: true, avatar: true } } },
         orderBy: { startDate: 'asc' }
       });
       return res.status(200).json(events);
