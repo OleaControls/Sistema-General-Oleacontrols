@@ -358,8 +358,9 @@ function CategoriesPanel({ categories, onRename, onDelete }) {
 // ── Vista principal ────────────────────────────────────────────────────────────
 export default function ProductCatalog({ onAddToQuote }) {
   const { user } = useAuth();
-  const isAdmin  = user?.roles?.includes('ADMIN') || user?.role === ROLES.ADMIN
-               || user?.roles?.includes('SALES')  || user?.role === ROLES.SALES;
+  // Cualquier usuario logueado puede agregar/editar; solo ADMIN puede borrar
+  const isAdmin    = !!user;
+  const canDelete  = user?.roles?.includes('ADMIN') || user?.role === ROLES.ADMIN;
 
   const [products, setProducts]   = useState([]);
   const [total, setTotal]         = useState(0);
@@ -610,11 +611,13 @@ export default function ProductCatalog({ onAddToQuote }) {
                               title="Editar">
                               <Edit3 className="h-3.5 w-3.5" />
                             </button>
-                            <button onClick={() => handleDelete(p)} disabled={deleting === p.id}
-                              className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                              title="Eliminar">
-                              {deleting === p.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-                            </button>
+                            {canDelete && (
+                              <button onClick={() => handleDelete(p)} disabled={deleting === p.id}
+                                className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                                title="Eliminar">
+                                {deleting === p.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                              </button>
+                            )}
                           </>
                         )}
                       </div>
