@@ -162,13 +162,32 @@ function ImportModal({ onClose, onDone }) {
   };
 
   const parseCSV = (text) => {
-    const lines = text.trim().split('\n').filter(Boolean);
+    // Quitar BOM de Excel UTF-8
+    const clean = text.replace(/^\uFEFF/, '');
+    const lines = clean.split(/\r?\n/).filter(l => l.trim());
     if (lines.length < 2) return [];
-    const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/"/g, ''));
+
+    // Auto-detectar separador: si la primera línea tiene más ";" que "," usamos ";"
+    const sep = (lines[0].match(/;/g) || []).length >= (lines[0].match(/,/g) || []).length ? ';' : ',';
+
+    const splitLine = (line) => {
+      const result = [];
+      let cur = '', inQ = false;
+      for (let i = 0; i < line.length; i++) {
+        const c = line[i];
+        if (c === '"') { inQ = !inQ; continue; }
+        if (c === sep && !inQ) { result.push(cur.trim()); cur = ''; continue; }
+        cur += c;
+      }
+      result.push(cur.trim());
+      return result;
+    };
+
+    const headers = splitLine(lines[0]).map(h => h.trim().toLowerCase().replace(/"/g, ''));
     return lines.slice(1).map(line => {
-      const vals = line.split(',').map(v => v.trim().replace(/^"|"$/g, ''));
+      const vals = splitLine(line);
       const obj = {};
-      headers.forEach((h, i) => { obj[h] = vals[i] || ''; });
+      headers.forEach((h, i) => { obj[h] = (vals[i] ?? '').trim(); });
       return obj;
     });
   };
@@ -214,8 +233,13 @@ function ImportModal({ onClose, onDone }) {
           >
             <Upload className="h-8 w-8 text-gray-300 mx-auto mb-2" />
             <p className="text-xs font-black text-gray-400 uppercase tracking-widest">
-              {csv ? `✓ Archivo cargado (${parseCSV(csv).length} filas)` : 'Seleccionar archivo .CSV'}
+              {csv ? `✓ ${parseCSV(csv).length} filas detectadas` : 'Seleccionar archivo .CSV'}
             </p>
+            {csv && parseCSV(csv).length > 0 && (
+              <p className="text-[9px] text-gray-400 mt-1 font-mono">
+                Columnas: {Object.keys(parseCSV(csv)[0]).join(' · ')}
+              </p>
+            )}
             <input ref={fileRef} type="file" accept=".csv,text/csv" className="hidden" onChange={handleFile} />
           </div>
 
@@ -225,8 +249,14 @@ function ImportModal({ onClose, onDone }) {
               {result.error
                 ? <p>{result.error}</p>
                 : <>
-                    <p>✓ {result.created} productos procesados</p>
-                    {result.errors?.length > 0 && <p className="text-amber-600">{result.errors.length} con errores</p>}
+                    <p>✓ {result.created} productos importados/actualizados</p>
+                    {result.errors?.length > 0 && (
+                      <div className="text-amber-700 bg-amber-50 rounded-xl p-2 mt-2 space-y-0.5">
+                        <p className="font-black">{result.errors.length} filas con error:</p>
+                        {result.errors.slice(0, 5).map((e, i) => <p key={i} className="text-[9px] font-mono">{e}</p>)}
+                        {result.errors.length > 5 && <p className="text-[9px]">...y {result.errors.length - 5} más</p>}
+                      </div>
+                    )}
                   </>
               }
             </div>
