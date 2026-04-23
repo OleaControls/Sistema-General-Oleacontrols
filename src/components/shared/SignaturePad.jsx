@@ -87,7 +87,7 @@ const SignaturePadComponent = React.forwardRef(({
         style={{ touchAction: 'none' }}
       />
 
-      <div className="absolute bottom-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+      <div className="absolute bottom-4 right-4 flex gap-2">
         <button 
           type="button"
           onClick={() => ref.current?.undo()}
