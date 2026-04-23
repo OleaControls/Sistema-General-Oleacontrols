@@ -1,3 +1,12 @@
+// Deshabilitar el body parser de Vercel para manejarlo manualmente con límite mayor
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: '20mb',
+    },
+  },
+};
+
 const handlers = {
   employees: () => import('./_handlers/employees.js'),
   vacations: () => import('./_handlers/vacations.js'),

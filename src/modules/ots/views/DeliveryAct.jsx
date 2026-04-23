@@ -353,6 +353,30 @@ export default function DeliveryAct() {
   return doc.output('datauristring'); 
   };
 
+  // Convierte cualquier data URI a JPEG con fondo blanco y tamaño máximo 600px.
+  // Esto reduce firmas de 2-5 MB (PNG 3x DPI móvil) a ~80-200 KB, evitando
+  // el límite de 4.5 MB de Vercel serverless que causa "Load failed" en iOS/Android.
+  const compressSig = (dataUri) => new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+          try {
+              const MAX = 600;
+              const scale = Math.min(1, MAX / Math.max(img.width, img.height, 1));
+              const w = Math.max(1, Math.round(img.width * scale));
+              const h = Math.max(1, Math.round(img.height * scale));
+              const c = document.createElement('canvas');
+              c.width = w; c.height = h;
+              const ctx = c.getContext('2d');
+              ctx.fillStyle = '#ffffff';
+              ctx.fillRect(0, 0, w, h);
+              ctx.drawImage(img, 0, 0, w, h);
+              resolve(c.toDataURL('image/jpeg', 0.7));
+          } catch (e) { resolve(dataUri); }
+      };
+      img.onerror = () => resolve(dataUri);
+      img.src = dataUri;
+  });
+
   const handleFinish = async () => {
   if (tscSigPad.current.isEmpty() || clientSigPad.current.isEmpty()) {
       alert("Ambas firmas son obligatorias.");
@@ -360,11 +384,11 @@ export default function DeliveryAct() {
   }
   setIsSaving(true);
   try {
-      // 1. Obtener firmas actuales
-      const tscSigBase64 = tscSigPad.current.toDataURL();
-      const clientSigBase64 = clientSigPad.current.toDataURL();
+      // 1. Obtener firmas y comprimir a JPEG para no exceder límite de Vercel en móvil
+      const tscSigBase64    = await compressSig(tscSigPad.current.toDataURL());
+      const clientSigBase64 = await compressSig(clientSigPad.current.toDataURL());
 
-      // 2. Subir firmas y fotos por separado para evitar Payload Too Large
+      // 2. Subir firmas y fotos
       const [tscSigUrl, clientSigUrl] = await Promise.all([
           otService.uploadFile(tscSigBase64, 'signatures'),
           otService.uploadFile(clientSigBase64, 'signatures')
@@ -374,12 +398,12 @@ export default function DeliveryAct() {
           formData.photos.map(p => p.startsWith('data:') ? otService.uploadFile(p, 'evidences') : Promise.resolve(p))
       );
 
-      // 3. Generar PDF con los datos actuales (usando URLs de las imágenes subidas o base64 para el PDF)
+      // 3. Generar PDF (firmas ya comprimidas → PDF más liviano)
       const pdfBase64 = await generatePDF({
           ...formData,
           tscSignature: tscSigBase64,
           clientSignature: clientSigBase64,
-          photos: formData.photos // El generador de PDF usa los base64 locales para mayor velocidad
+          photos: formData.photos
       });
 
       // 4. Subir el PDF
