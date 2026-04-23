@@ -119,32 +119,43 @@ export default function DeliveryAct() {
   const margin = 15;
   const contentWidth = pageWidth - (margin * 2);
 
-  // Helper para cargar base64 desde archivos en public
-  const loadBase64 = async (url) => {
+  // Carga una imagen como JPEG via canvas — compatible con iOS Safari y Android
+  const loadImageAsJpeg = async (url) => {
       try {
-          const res = await fetch(url);
-          if (!res.ok) return null;
-          const text = await res.text();
-          // Eliminar TODOS los espacios en blanco internos del base64
-          const clean = text.replace(/\s/g, '');
-          if (!clean) return null;
-          return `data:image/png;base64,${clean}`;
+          return await new Promise((resolve) => {
+              const img = new Image();
+              img.onload = () => {
+                  try {
+                      const MAX = 300;
+                      const scale = Math.min(1, MAX / Math.max(img.naturalWidth, 1));
+                      const w = Math.round(img.naturalWidth * scale);
+                      const h = Math.round(img.naturalHeight * scale);
+                      const canvas = document.createElement('canvas');
+                      canvas.width = w;
+                      canvas.height = h;
+                      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+                      resolve(canvas.toDataURL('image/jpeg', 0.85));
+                  } catch (e) { resolve(null); }
+              };
+              img.onerror = () => resolve(null);
+              img.src = url;
+          });
       } catch (err) {
-          console.error("Error cargando logo:", url, err);
+          console.warn("Error cargando imagen para PDF:", url, err.message);
           return null;
       }
   };
 
-  const insigniaB64 = await loadBase64('/img/base64 logo.txt');
-  const logoB64 = await loadBase64('/img/oleacontrols.txt');
+  const insigniaB64 = await loadImageAsJpeg('/img/Insignia.png');
+  const logoB64 = await loadImageAsJpeg('/img/OLEACONTROLS.png');
 
   // --- 1. ENCABEZADO MINIMALISTA Y ELEGANTE ---
   doc.setFillColor(224, 242, 254); // Azul Cielo Claro (Sky 100)
   doc.rect(0, 0, pageWidth, 40, 'F');
 
   // Logos más pequeños y balanceados
-  if (insigniaB64) { try { doc.addImage(insigniaB64, 'PNG', margin, 8, 24, 24); } catch (e) { console.warn('Logo insignia no cargó:', e.message); } }
-  if (logoB64) { try { doc.addImage(logoB64, 'PNG', pageWidth - margin - 45, 12, 45, 12); } catch (e) { console.warn('Logo olea no cargó:', e.message); } }
+  if (insigniaB64) { try { doc.addImage(insigniaB64, 'JPEG', margin, 8, 24, 24); } catch (e) { console.warn('Logo insignia no cargó'); } }
+  if (logoB64) { try { doc.addImage(logoB64, 'JPEG', pageWidth - margin - 45, 12, 45, 12); } catch (e) { console.warn('Logo olea no cargó'); } }
 
   doc.setTextColor(7, 89, 133); // Azul Oceano Oscuro para el texto (Sky 800)
   doc.setFont("helvetica", "bold");
