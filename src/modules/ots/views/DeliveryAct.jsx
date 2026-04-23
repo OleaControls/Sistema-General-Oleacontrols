@@ -28,6 +28,8 @@ export default function DeliveryAct() {
   const [ot, setOt] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [debugLog, setDebugLog] = useState([]);
+  const [showDebug, setShowDebug] = useState(false);
   
   const tscSigPad = useRef(null);
   const clientSigPad = useRef(null);
@@ -377,57 +379,84 @@ export default function DeliveryAct() {
       img.src = dataUri;
   });
 
+  const log = (msg) => {
+      const line = `[${new Date().toLocaleTimeString()}] ${msg}`;
+      console.log(line);
+      setDebugLog(prev => [...prev, line]);
+  };
+
   const handleFinish = async () => {
   if (tscSigPad.current.isEmpty() || clientSigPad.current.isEmpty()) {
       alert("Ambas firmas son obligatorias.");
       return;
   }
+  setDebugLog([]);
+  setShowDebug(true);
   setIsSaving(true);
   try {
-      // 1. Obtener firmas y comprimir a JPEG para no exceder límite de Vercel en móvil
-      const tscSigBase64    = await compressSig(tscSigPad.current.toDataURL());
+      log(`UA: ${navigator.userAgent.slice(0, 80)}`);
+      log(`DPR: ${window.devicePixelRatio} | Online: ${navigator.onLine}`);
+
+      // 1. Comprimir firmas
+      log('Paso 1: comprimiendo firma técnico...');
+      const tscSigBase64 = await compressSig(tscSigPad.current.toDataURL());
+      log(`Firma TSC: ${Math.round(tscSigBase64.length / 1024)} KB`);
+
+      log('Paso 1b: comprimiendo firma cliente...');
       const clientSigBase64 = await compressSig(clientSigPad.current.toDataURL());
+      log(`Firma Cliente: ${Math.round(clientSigBase64.length / 1024)} KB`);
 
-      // 2. Subir firmas y fotos
-      const [tscSigUrl, clientSigUrl] = await Promise.all([
-          otService.uploadFile(tscSigBase64, 'signatures'),
-          otService.uploadFile(clientSigBase64, 'signatures')
-      ]);
+      // 2. Subir firmas
+      log('Paso 2: subiendo firma técnico a R2...');
+      const tscSigUrl = await otService.uploadFile(tscSigBase64, 'signatures');
+      log(`TSC URL: ${String(tscSigUrl).slice(0, 60)}`);
 
+      log('Paso 2b: subiendo firma cliente a R2...');
+      const clientSigUrl = await otService.uploadFile(clientSigBase64, 'signatures');
+      log(`Cliente URL: ${String(clientSigUrl).slice(0, 60)}`);
+
+      // 3. Subir fotos
+      log(`Paso 3: subiendo ${formData.photos.length} foto(s)...`);
       const photoUrls = await Promise.all(
           formData.photos.map(p => p.startsWith('data:') ? otService.uploadFile(p, 'evidences') : Promise.resolve(p))
       );
+      log(`Fotos OK: ${photoUrls.length}`);
 
-      // 3. Generar PDF (firmas ya comprimidas → PDF más liviano)
+      // 4. Generar PDF
+      log('Paso 4: generando PDF...');
       const pdfBase64 = await generatePDF({
           ...formData,
           tscSignature: tscSigBase64,
           clientSignature: clientSigBase64,
           photos: formData.photos
       });
+      log(`PDF generado: ${Math.round(pdfBase64.length / 1024)} KB`);
 
-      // 4. Subir el PDF
+      // 5. Subir PDF
+      log('Paso 5: subiendo PDF a R2...');
       const pdfUrl = await otService.uploadFile(pdfBase64, 'delivery-acts');
+      log(`PDF URL: ${String(pdfUrl).slice(0, 60)}`);
 
-      const updateData = {
+      // 6. Actualizar OT
+      log('Paso 6: actualizando OT en servidor...');
+      await otService.updateOT(ot.id, {
           status: 'COMPLETED',
           systemType: formData.systemType,
           deliveryDetails: formData.deliveryDetails,
           pendingTasks: formData.pendingTasks,
           signature: tscSigUrl,
           clientSignature: clientSigUrl,
-          deliveryActUrl: pdfUrl, 
+          deliveryActUrl: pdfUrl,
           photos: photoUrls,
           finishedAt: new Date().toISOString()
-      };
+      });
 
-      // 5. Actualizar en el servidor con las URLs ya procesadas
-      await otService.updateOT(ot.id, updateData);
-
+      log('✅ COMPLETADO');
       navigate('/ots');
   } catch (err) {
       console.error("Error crítico al finalizar acta:", err);
-      alert("Error al finalizar el acta: " + err.message);
+      log(`❌ ERROR en: ${err.message}`);
+      log(`Stack: ${(err.stack || '').slice(0, 200)}`);
   } finally { setIsSaving(false); }
   };
   if (loading) return <div className="p-20 text-center font-black animate-pulse">CARGANDO ACTA...</div>;
@@ -599,6 +628,32 @@ export default function DeliveryAct() {
             </div>
         </div>
       </div>
+
+      {/* ── Modal de diagnóstico (temporal para debug en móvil) ── */}
+      {showDebug && (
+        <div className="fixed inset-0 bg-black/80 z-[200] flex items-end justify-center p-4">
+          <div className="bg-gray-950 rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-white/10">
+              <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Diagnóstico de cierre</p>
+              {!isSaving && (
+                <button onClick={() => setShowDebug(false)} className="text-gray-500 hover:text-white transition-colors">
+                  <X className="h-5 w-5" />
+                </button>
+              )}
+            </div>
+            <div className="p-4 max-h-[60vh] overflow-y-auto space-y-1">
+              {debugLog.map((line, i) => (
+                <p key={i} className={`text-[10px] font-mono break-all leading-relaxed ${line.startsWith('❌') ? 'text-red-400' : line.startsWith('✅') ? 'text-emerald-400' : 'text-gray-400'}`}>
+                  {line}
+                </p>
+              ))}
+              {isSaving && (
+                <p className="text-[10px] font-mono text-amber-400 animate-pulse">Procesando...</p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
