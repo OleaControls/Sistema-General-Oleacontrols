@@ -93,50 +93,45 @@ export default async function handler(req, res) {
         const bonusConfig = Array.isArray(configRes?.value) ? configRes.value : [];
         const sortedBonusConfig = [...bonusConfig].sort((a, b) => (b.min || 0) - (a.min || 0));
 
-        const results = await Promise.all(technicians.map(async (tech) => {
-          try {
-            const currEvals = await prisma.evaluation.findMany({
-              where: { 
-                targetId: tech.id, 
-                type: { in: ['OPS_TECH', 'CUSTOMER_TECH'] },
-                createdAt: { gte: currentQ.start, lte: currentQ.end } 
-              }
-            });
-            const prevEvals = await prisma.evaluation.findMany({
-              where: { 
-                targetId: tech.id, 
-                type: { in: ['OPS_TECH', 'CUSTOMER_TECH'] },
-                createdAt: { gte: prevQ.start, lte: prevQ.end } 
-              }
-            });
+        const techIds = technicians.map(t => t.id);
+        const [currAllEvals, prevAllEvals] = await Promise.all([
+          prisma.evaluation.findMany({
+            where: {
+              targetId: { in: techIds },
+              type: { in: ['OPS_TECH', 'CUSTOMER_TECH'] },
+              createdAt: { gte: currentQ.start, lte: currentQ.end }
+            },
+            select: { targetId: true, score1: true, score2: true, score3: true }
+          }),
+          prisma.evaluation.findMany({
+            where: {
+              targetId: { in: techIds },
+              type: { in: ['OPS_TECH', 'CUSTOMER_TECH'] },
+              createdAt: { gte: prevQ.start, lte: prevQ.end }
+            },
+            select: { targetId: true, score1: true, score2: true, score3: true }
+          })
+        ]);
 
-            const current = calculateStats(currEvals);
-            const previous = calculateStats(prevEvals);
+        const currByTech = {};
+        const prevByTech = {};
+        currAllEvals.forEach(e => { (currByTech[e.targetId] ??= []).push(e); });
+        prevAllEvals.forEach(e => { (prevByTech[e.targetId] ??= []).push(e); });
 
-            const tier = sortedBonusConfig.find(b => current.totalAvg >= b.min);
-
-            return {
-              id: tech.id,
-              name: tech.name,
-              score: current.totalAvg,
-              prevScore: previous.totalAvg,
-              trend: current.totalAvg >= previous.totalAvg ? 'UP' : 'DOWN',
-              total: current.total,
-              bonus: (tier && typeof tier.amount === 'number') ? tier.amount : 0
-            };
-          } catch (e) {
-            console.error(`Error calculating metrics for tech ${tech.id}:`, e);
-            return {
-              id: tech.id,
-              name: tech.name,
-              score: 0,
-              prevScore: 0,
-              trend: 'DOWN',
-              total: 0,
-              bonus: 0
-            };
-          }
-        }));
+        const results = technicians.map((tech) => {
+          const current  = calculateStats(currByTech[tech.id] || []);
+          const previous = calculateStats(prevByTech[tech.id] || []);
+          const tier = sortedBonusConfig.find(b => current.totalAvg >= b.min);
+          return {
+            id: tech.id,
+            name: tech.name,
+            score: current.totalAvg,
+            prevScore: previous.totalAvg,
+            trend: current.totalAvg >= previous.totalAvg ? 'UP' : 'DOWN',
+            total: current.total,
+            bonus: (tier && typeof tier.amount === 'number') ? tier.amount : 0
+          };
+        });
 
         return res.status(200).json({
           period: `${currentQ.start.toISOString().split('T')[0]} - ${currentQ.end.toISOString().split('T')[0]}`,

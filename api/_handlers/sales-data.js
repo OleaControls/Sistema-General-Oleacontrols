@@ -79,12 +79,34 @@ export default async function handler(req, res) {
           where: { roles: { has: 'SALES' } },
           select: { id: true, name: true, avatar: true }
         });
-        const summaries = await Promise.all(sellers.map(async (s) => {
-          const [bitacora, reporte, cartera] = await Promise.all([
-            prisma.salesBitacora.count({ where: { sellerId: s.id } }),
-            prisma.salesDailyReport.findMany({ where: { sellerId: s.id }, select: { llamadas: true, efec: true, visitas: true, cotizaciones: true, cierres: true, venta: true } }),
-            prisma.salesPortfolio.count({ where: { sellerId: s.id } }),
-          ]);
+        const sellerIds = sellers.map(s => s.id);
+
+        const [bitacoraCounts, reporteData, carteraCounts] = await Promise.all([
+          prisma.salesBitacora.groupBy({
+            by: ['sellerId'],
+            where: { sellerId: { in: sellerIds } },
+            _count: { id: true }
+          }),
+          prisma.salesDailyReport.findMany({
+            where: { sellerId: { in: sellerIds } },
+            select: { sellerId: true, llamadas: true, efec: true, visitas: true, cotizaciones: true, cierres: true, venta: true }
+          }),
+          prisma.salesPortfolio.groupBy({
+            by: ['sellerId'],
+            where: { sellerId: { in: sellerIds } },
+            _count: { id: true }
+          }),
+        ]);
+
+        const bitacoraMap = Object.fromEntries(bitacoraCounts.map(b => [b.sellerId, b._count.id]));
+        const carteraMap  = Object.fromEntries(carteraCounts.map(c => [c.sellerId, c._count.id]));
+        const reporteMap  = {};
+        reporteData.forEach(r => { (reporteMap[r.sellerId] ??= []).push(r); });
+
+        const summaries = sellers.map((s) => {
+          const bitacora = bitacoraMap[s.id] || 0;
+          const reporte  = reporteMap[s.id]  || [];
+          const cartera  = carteraMap[s.id]  || 0;
           const totalLlamadas     = reporte.reduce((acc, r) => acc + r.llamadas, 0);
           const totalEfec         = reporte.reduce((acc, r) => acc + r.efec, 0);
           const totalVisitas      = reporte.reduce((acc, r) => acc + r.visitas, 0);
@@ -94,7 +116,7 @@ export default async function handler(req, res) {
           const tasaCierre        = totalCotizaciones ? Math.round((totalCierres / totalCotizaciones) * 100) : 0;
           const eficiencia        = totalLlamadas     ? Math.round((totalEfec / totalLlamadas) * 100) : 0;
           return { seller: s, bitacora, reporteRows: reporte.length, cartera, totalLlamadas, totalEfec, totalVisitas, totalCotizaciones, totalCierres, totalVenta, tasaCierre, eficiencia };
-        }));
+        });
         return res.status(200).json(summaries);
       }
 
