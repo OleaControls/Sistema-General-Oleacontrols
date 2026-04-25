@@ -304,9 +304,14 @@ export default async function handler(req, res) {
 
       if (!targetOT) return res.status(404).json({ error: 'OT no encontrada' });
 
-      // BLOQUEO DE SEGURIDAD: Solo permitir cambios de fondos si ya está completada
-      if (targetOT.status === 'COMPLETED' && !req.body.assignedFunds && !req.body.isLocked) {
+      // BLOQUEO DE SEGURIDAD: Solo permitir cambios de fondos (o desbloqueo explícito) si ya está completada
+      const isExplicitUnlock = req.body.isLocked === false && req.body.status === 'IN_PROGRESS';
+      if (targetOT.status === 'COMPLETED' && !req.body.assignedFunds && !isExplicitUnlock) {
           return res.status(403).json({ error: 'Esta OT está CERRADA. Solo se permite ampliar fondos.' });
+      }
+      // Las OTs VALIDATED solo pueden desbloquearse explícitamente
+      if (targetOT.status === 'VALIDATED' && !isExplicitUnlock) {
+          return res.status(403).json({ error: 'Esta OT está VALIDADA y bloqueada. Solo un administrador puede desbloquearla.' });
       }
 
       const updateData = {};
