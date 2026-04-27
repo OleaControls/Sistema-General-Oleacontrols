@@ -78,6 +78,7 @@ export default async function handler(req, res) {
             location: true,
             phone: true,
             reportsTo: true,
+            telegramChatId: true,
         }
       });
 
@@ -265,6 +266,7 @@ export default async function handler(req, res) {
         phone: phone || null,
         status: status || 'ACTIVE',
         reportsTo: (reportsTo && reportsTo.trim() !== "" && reportsTo !== id) ? reportsTo : null,
+        telegramChatId: body.telegramChatId !== undefined ? (body.telegramChatId || null) : undefined,
         
         birthPlace: birthPlace || null,
         nationality: nationality || null,

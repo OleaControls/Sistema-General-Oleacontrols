@@ -1,6 +1,7 @@
 import prisma from '../_lib/prisma.js'
 import { uploadToR2, signUrlIfNeeded } from '../_lib/r2.js'
 import { authMiddleware } from '../_lib/auth.js'
+import { notifyOTAssigned, notifyOTCompleted } from '../_lib/telegram.js'
 
 export const config = {
   api: {
@@ -251,7 +252,7 @@ export default async function handler(req, res) {
           description: data.workDescription,
           status: data.leadTechId ? 'ASSIGNED' : 'UNASSIGNED',
           priority: data.priority || 'MEDIUM',
-          
+
           storeNumber: data.storeNumber,
           storeName: data.storeName,
           clientName: data.client,
@@ -266,20 +267,35 @@ export default async function handler(req, res) {
           otReference: data.otReference,
           latitude: data.lat,
           longitude: data.lng,
-          
+
           arrivalTime: data.arrivalTime,
           scheduledDate: data.scheduledDate ? new Date(data.scheduledDate) : null,
           assignedFunds: parseFloat(data.assignedFunds) || 0,
-          
+
           supervisorId: data.supervisorId,
           technicianId: data.leadTechId,
           creatorId: data.supervisorId,
           assignedById: data.leadTechId ? data.supervisorId : null,
-          
+
           assistantTechs: data.assistantTechs || [],
           supportTechs: data.supportTechs || [],
         }
       });
+
+      // Notificar por Telegram si la OT ya viene asignada
+      if (data.leadTechId) {
+        const techIds = [data.leadTechId];
+        const assistants = Array.isArray(data.assistantTechs) ? data.assistantTechs.map(t => t.id).filter(Boolean) : [];
+        const support = Array.isArray(data.supportTechs) ? data.supportTechs.map(t => t.id).filter(Boolean) : [];
+        const allIds = [...new Set([...techIds, ...assistants, ...support])];
+
+        const techs = await prisma.employee.findMany({
+          where: { id: { in: allIds } },
+          select: { id: true, name: true, telegramChatId: true }
+        });
+        notifyOTAssigned(ot, techs).catch(console.error);
+      }
+
       return res.status(201).json(ot);
     } catch (error) {
       console.error("POST OT Error:", error);
@@ -335,7 +351,8 @@ export default async function handler(req, res) {
       // 1. Actualizar los datos maestros de la OT
       const updated = await prisma.workOrder.update({
         where: { id: targetOT.id },
-        data: updateData
+        data: updateData,
+        include: { technician: { select: { name: true } } }
       });
 
       // 2. Si vienen fotos nuevas, las guardamos como evidencias
@@ -348,7 +365,43 @@ export default async function handler(req, res) {
               }))
           });
       }
-      
+
+      // 3. Notificaciones Telegram
+      const prevStatus = targetOT.status;
+      const newStatus = updateData.status;
+
+      // 3a. OT asignada a técnico(s)
+      if (newStatus === 'ASSIGNED' && prevStatus !== 'ASSIGNED') {
+        const leadId = updateData.technicianId || targetOT.technicianId;
+        const assistants = Array.isArray(updateData.assistantTechs)
+          ? updateData.assistantTechs.map(t => t.id).filter(Boolean)
+          : (Array.isArray(targetOT.assistantTechs) ? targetOT.assistantTechs.map(t => t.id).filter(Boolean) : []);
+        const support = Array.isArray(updateData.supportTechs)
+          ? updateData.supportTechs.map(t => t.id).filter(Boolean)
+          : (Array.isArray(targetOT.supportTechs) ? targetOT.supportTechs.map(t => t.id).filter(Boolean) : []);
+        const allIds = [...new Set([leadId, ...assistants, ...support].filter(Boolean))];
+
+        if (allIds.length > 0) {
+          const techs = await prisma.employee.findMany({
+            where: { id: { in: allIds } },
+            select: { id: true, name: true, telegramChatId: true }
+          });
+          notifyOTAssigned(updated, techs).catch(console.error);
+        }
+      }
+
+      // 3b. OT completada → notificar al supervisor/operaciones
+      if (newStatus === 'COMPLETED' && prevStatus !== 'COMPLETED') {
+        const supId = targetOT.supervisorId;
+        if (supId) {
+          const supervisor = await prisma.employee.findUnique({
+            where: { id: supId },
+            select: { telegramChatId: true }
+          });
+          notifyOTCompleted(updated, supervisor).catch(console.error);
+        }
+      }
+
       return res.status(200).json(updated);
     } catch (error) {
       console.error("PUT OT Error:", error);

@@ -55,7 +55,9 @@ export default function EmployeeDirectory() {
     employeeId: '', position: '', department: '', joinDate: new Date().toISOString().split('T')[0], contractType: 'INDEFINIDO', workSchedule: '', salary: '', roles: [ROLES.COLLABORATOR], reportsTo: '',
     // Nómina
     bankName: '', bankAccount: '', paymentType: 'QUINCENAL',
-    password: ''
+    password: '',
+    // Notificaciones
+    telegramChatId: ''
   };
 
   const [formData, setFormData] = useState(initialForm);
@@ -256,6 +258,7 @@ export default function EmployeeDirectory() {
                                         <InputField label="Teléfono Celular" value={formData.phone} onChange={v => setFormData({...formData, phone: v})} />
                                         <InputField label="Email Corporativo" type="email" value={formData.email} onChange={v => setFormData({...formData, email: v})} required />
                                     </div>
+                                    <InputField label="ID de Telegram" placeholder="Ej: 123456789 (Chat ID del usuario)" value={formData.telegramChatId} onChange={v => setFormData({...formData, telegramChatId: v})} />
                                 </div>
                             </div>
 
