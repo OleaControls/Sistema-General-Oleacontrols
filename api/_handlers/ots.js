@@ -290,7 +290,7 @@ export default async function handler(req, res) {
         const allIds = [...new Set([...techIds, ...assistants, ...support])];
 
         const techs = await prisma.employee.findMany({
-          where: { id: { in: allIds } },
+          where: { id: { in: allIds }, roles: { has: 'TECHNICIAN' }, telegramChatId: { not: null } },
           select: { id: true, name: true, telegramChatId: true }
         });
         notifyOTAssigned(ot, techs).catch(console.error);
@@ -375,35 +375,32 @@ export default async function handler(req, res) {
       const prevStatus = targetOT.status;
       const newStatus = updateData.status;
 
-      // 3a. OT asignada a técnico(s)
+      // 3a. OT asignada → notificar a todos los técnicos asignados (rol TECHNICIAN)
       if (newStatus === 'ASSIGNED' && prevStatus !== 'ASSIGNED') {
         const leadId = updateData.technicianId || targetOT.technicianId;
-        const assistants = Array.isArray(updateData.assistantTechs)
-          ? updateData.assistantTechs.map(t => t.id).filter(Boolean)
-          : (Array.isArray(targetOT.assistantTechs) ? targetOT.assistantTechs.map(t => t.id).filter(Boolean) : []);
-        const support = Array.isArray(updateData.supportTechs)
-          ? updateData.supportTechs.map(t => t.id).filter(Boolean)
-          : (Array.isArray(targetOT.supportTechs) ? targetOT.supportTechs.map(t => t.id).filter(Boolean) : []);
+        const rawAssistants = updateData.assistantTechs ?? targetOT.assistantTechs;
+        const rawSupport   = updateData.supportTechs   ?? targetOT.supportTechs;
+        const assistants = Array.isArray(rawAssistants) ? rawAssistants.map(t => t.id).filter(Boolean) : [];
+        const support    = Array.isArray(rawSupport)    ? rawSupport.map(t => t.id).filter(Boolean)    : [];
         const allIds = [...new Set([leadId, ...assistants, ...support].filter(Boolean))];
 
         if (allIds.length > 0) {
           const techs = await prisma.employee.findMany({
-            where: { id: { in: allIds } },
+            where: { id: { in: allIds }, roles: { has: 'TECHNICIAN' }, telegramChatId: { not: null } },
             select: { id: true, name: true, telegramChatId: true }
           });
           notifyOTAssigned(updated, techs).catch(console.error);
         }
       }
 
-      // 3b. OT completada → notificar al supervisor/operaciones
+      // 3b. OT completada → notificar a todos los empleados con rol SUPERVISOR (Operaciones)
       if (newStatus === 'COMPLETED' && prevStatus !== 'COMPLETED') {
-        const supId = targetOT.supervisorId;
-        if (supId) {
-          const supervisor = await prisma.employee.findUnique({
-            where: { id: supId },
-            select: { telegramChatId: true }
-          });
-          notifyOTCompleted(updated, supervisor).catch(console.error);
+        const opsTeam = await prisma.employee.findMany({
+          where: { roles: { has: 'SUPERVISOR' }, telegramChatId: { not: null } },
+          select: { telegramChatId: true }
+        });
+        for (const ops of opsTeam) {
+          notifyOTCompleted(updated, ops).catch(console.error);
         }
       }
 
