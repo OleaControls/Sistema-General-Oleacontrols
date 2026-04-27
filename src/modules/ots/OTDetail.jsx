@@ -4,7 +4,7 @@ import {
   ClipboardList, MapPin, Clock, User, CheckCircle2, Receipt, FileText, ChevronLeft,
   X, Send, ArrowRight, Store, Map as MapIcon, AlertTriangle, Wallet, Plus, Coins,
   Phone, Mail, Info, Users, Hash, Calendar, Zap, Activity, Timer, ArrowUpCircle, ArrowDownCircle,
-  MessageCircle, Pause, Play, Flag, Check, BarChart2, Coffee
+  MessageCircle, Pause, Play, Flag, Check, BarChart2, Coffee, LockOpen, ShieldAlert
 } from 'lucide-react';
 import { otService } from '@/api/otService';
 import { expenseService } from '@/api/expenseService';
@@ -113,12 +113,14 @@ export default function OTDetail() {
   const isInvolved = isLead || isSupport;
   const userRoles = user?.roles || [user?.role];
   const isSupervisor = userRoles.includes(ROLES.OPS) || userRoles.includes(ROLES.ADMIN);
+  const isAdmin = userRoles.includes(ROLES.ADMIN);
   const isCompleted = ot?.status === 'COMPLETED';
 
   const [finishData, setFinishData] = useState({
     report: '',
     signature: null
   });
+  const [isUnlockModalOpen, setIsUnlockModalOpen] = useState(false);
 
   useEffect(() => { loadOT(); }, [id]);
 
@@ -302,6 +304,32 @@ export default function OTDetail() {
       }
   };
 
+  const handleUnlockOT = async () => {
+    if (isSaving) return;
+    setIsSaving(true);
+    try {
+      // Aseguramos que la última jornada quede en PAUSED para que el técnico
+      // pueda acceder a "Generar Acta" desde el flujo normal de IN_PROGRESS.
+      const currentJornadas = parseJornadas(ot.jornadas);
+      const pausedJornadas = currentJornadas.map((j, i) =>
+        i === currentJornadas.length - 1 && j.status !== 'PAUSED'
+          ? { ...j, endedAt: j.endedAt || new Date().toISOString(), status: 'PAUSED' }
+          : j
+      );
+      await otService.updateOT(id, {
+        status: 'IN_PROGRESS',
+        isLocked: false,
+        jornadas: pausedJornadas.length > 0 ? pausedJornadas : currentJornadas,
+      });
+      setIsUnlockModalOpen(false);
+      await loadOT();
+    } catch (err) {
+      alert('Error al desbloquear: ' + err.message);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const handleSaveExpense = async (formData) => {
     if (isSaving) return;
     setIsSaving(true);
@@ -404,23 +432,37 @@ export default function OTDetail() {
               </div>
             </div>
 
-            {/* Right: tabs inline on desktop */}
-            <div className="shrink-0 flex items-center gap-1 bg-gray-50 rounded-xl p-1 border border-gray-100">
-              {TABS.filter(tab => tab.id === 'INFO' || isInvolved || isSupervisor).map(tab => (
+            {/* Right: unlock button (admin) + tabs */}
+            <div className="shrink-0 flex items-center gap-2">
+              {/* Botón desbloquear — solo ADMIN en OTs cerradas */}
+              {isSupervisor && (ot.status === 'COMPLETED' || ot.status === 'VALIDATED') && (
                 <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={cn(
-                    "cursor-pointer flex items-center gap-1.5 px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all",
-                    activeTab === tab.id
-                      ? "bg-gray-950 text-white shadow-sm"
-                      : "text-gray-400 hover:text-gray-600"
-                  )}
+                  onClick={() => setIsUnlockModalOpen(true)}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100 transition-all"
+                  title="Desbloquear OT para modificar el acta"
                 >
-                  <tab.icon className="h-3.5 w-3.5" />
-                  <span className="hidden sm:inline">{tab.label}</span>
+                  <LockOpen className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Desbloquear</span>
                 </button>
-              ))}
+              )}
+
+              <div className="flex items-center gap-1 bg-gray-50 rounded-xl p-1 border border-gray-100">
+                {TABS.filter(tab => tab.id === 'INFO' || isInvolved || isSupervisor).map(tab => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={cn(
+                      "cursor-pointer flex items-center gap-1.5 px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all",
+                      activeTab === tab.id
+                        ? "bg-gray-950 text-white shadow-sm"
+                        : "text-gray-400 hover:text-gray-600"
+                    )}
+                  >
+                    <tab.icon className="h-3.5 w-3.5" />
+                    <span className="hidden sm:inline">{tab.label}</span>
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         </div>
@@ -1097,6 +1139,65 @@ export default function OTDetail() {
                 className="cursor-pointer w-full bg-emerald-600 text-white py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-emerald-700 transition-colors disabled:opacity-40 active:scale-[0.98] flex items-center justify-center gap-2"
               >
                 Enviar Reporte y Cerrar <Send className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL DESBLOQUEO OT (solo ADMIN) ──────────────────────────────── */}
+      {isUnlockModalOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
+          <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-md overflow-hidden">
+            {/* Header */}
+            <div className="bg-amber-50 border-b border-amber-100 px-7 py-5 flex items-center gap-3">
+              <div className="h-10 w-10 rounded-2xl bg-amber-100 flex items-center justify-center shrink-0">
+                <ShieldAlert className="h-5 w-5 text-amber-600" />
+              </div>
+              <div>
+                <p className="text-[9px] font-black text-amber-500 uppercase tracking-widest">Acción de Operaciones</p>
+                <h3 className="font-black text-gray-900 text-base leading-tight">Desbloquear OT</h3>
+              </div>
+            </div>
+
+            {/* Body */}
+            <div className="px-7 py-6 space-y-4">
+              <div className="bg-gray-50 border border-gray-100 rounded-2xl p-4">
+                <p className="text-xs font-black text-gray-700 mb-1">{ot.otNumber} — {ot.title}</p>
+                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">
+                  Estado actual: <span className="text-amber-600">{ot.status}</span>
+                </p>
+              </div>
+
+              <p className="text-sm font-medium text-gray-700 leading-relaxed">
+                Esto revertirá la OT a <strong>En Proceso</strong> y quitará el bloqueo, permitiendo que el técnico regenere y firme de nuevo el acta de entrega.
+              </p>
+
+              <div className="bg-amber-50 border border-amber-100 rounded-2xl p-4 flex items-start gap-3">
+                <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
+                <div className="text-[10px] font-bold text-amber-700 leading-relaxed space-y-1">
+                  <p>• La evaluación y validación del supervisor se perderán.</p>
+                  <p>• El técnico deberá generar y firmar el acta nuevamente.</p>
+                  <p>• Esta acción queda bajo tu responsabilidad como administrador.</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="px-7 pb-7 flex gap-3">
+              <button
+                onClick={() => setIsUnlockModalOpen(false)}
+                className="flex-1 px-5 py-3 rounded-2xl border border-gray-200 font-black text-sm text-gray-600 hover:bg-gray-50 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleUnlockOT}
+                disabled={isSaving}
+                className="flex-1 px-5 py-3 rounded-2xl bg-amber-500 hover:bg-amber-600 text-white font-black text-sm transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                <LockOpen className="h-4 w-4" />
+                {isSaving ? 'Desbloqueando…' : 'Sí, Desbloquear'}
               </button>
             </div>
           </div>

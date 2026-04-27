@@ -137,27 +137,60 @@ export default async function handler(req, res) {
           select: { id: true, name: true, avatar: true }
         });
 
-        const metrics = await Promise.all(sellers.map(async (seller) => {
-          const [deals, quotes, leads, actCount] = await Promise.all([
-            prisma.deal.findMany({
-              where: { assignedToId: seller.id, createdAt: { gte: since } },
-              select: { id: true, value: true, stage: true, createdAt: true }
-            }),
-            prisma.quote.findMany({
-              where: {
-                createdAt: { gte: since },
-                OR: [{ sellerId: seller.id }, { creatorId: seller.id }]
-              },
-              select: { id: true, total: true, status: true, createdAt: true }
-            }),
-            prisma.lead.findMany({
-              where: { assignedToId: seller.id, createdAt: { gte: since } },
-              select: { id: true, estimatedValue: true, stage: true }
-            }),
-            prisma.dealActivity.count({
-              where: { deal: { assignedToId: seller.id }, createdAt: { gte: since } }
-            }),
-          ]);
+        const sellerIds = sellers.map(s => s.id);
+        const [allDeals, allQuotes, allLeads] = await Promise.all([
+          prisma.deal.findMany({
+            where: { assignedToId: { in: sellerIds }, createdAt: { gte: since } },
+            select: { id: true, value: true, stage: true, createdAt: true, assignedToId: true }
+          }),
+          prisma.quote.findMany({
+            where: {
+              createdAt: { gte: since },
+              OR: [{ sellerId: { in: sellerIds } }, { creatorId: { in: sellerIds } }]
+            },
+            select: { id: true, total: true, status: true, createdAt: true, sellerId: true, creatorId: true }
+          }),
+          prisma.lead.findMany({
+            where: { assignedToId: { in: sellerIds }, createdAt: { gte: since } },
+            select: { id: true, estimatedValue: true, stage: true, assignedToId: true }
+          }),
+        ]);
+
+        const dealIds = allDeals.map(d => d.id);
+        const actGroups = dealIds.length > 0
+          ? await prisma.dealActivity.groupBy({
+              by: ['dealId'],
+              where: { dealId: { in: dealIds }, createdAt: { gte: since } },
+              _count: { id: true }
+            })
+          : [];
+
+        const dealsBySeller  = {};
+        const quotesBySeller = {};
+        const leadsBySeller  = {};
+        const actCountBySeller = {};
+
+        allDeals.forEach(d => { (dealsBySeller[d.assignedToId] ??= []).push(d); });
+
+        allQuotes.forEach(q => {
+          if (q.sellerId  && sellerIds.includes(q.sellerId))  (quotesBySeller[q.sellerId]  ??= new Map()).set(q.id, q);
+          if (q.creatorId && sellerIds.includes(q.creatorId) && q.creatorId !== q.sellerId)
+            (quotesBySeller[q.creatorId] ??= new Map()).set(q.id, q);
+        });
+
+        allLeads.forEach(l => { (leadsBySeller[l.assignedToId] ??= []).push(l); });
+
+        const dealToSeller = Object.fromEntries(allDeals.map(d => [d.id, d.assignedToId]));
+        actGroups.forEach(a => {
+          const sid = dealToSeller[a.dealId];
+          if (sid) actCountBySeller[sid] = (actCountBySeller[sid] || 0) + a._count.id;
+        });
+
+        const metrics = sellers.map((seller) => {
+          const deals    = dealsBySeller[seller.id]  || [];
+          const quotes   = quotesBySeller[seller.id] ? Array.from(quotesBySeller[seller.id].values()) : [];
+          const leads    = leadsBySeller[seller.id]  || [];
+          const actCount = actCountBySeller[seller.id] || 0;
 
           const wonDeals       = deals.filter(d => d.stage === 'CLOSED_WON');
           const lostDeals      = deals.filter(d => d.stage === 'CLOSED_LOST');
@@ -176,7 +209,7 @@ export default async function handler(req, res) {
             quotes: quotes.length, acceptedQuotes: acceptedQuotes.length, quoteValue,
             leads: leads.length, closeRate, activities: actCount,
           };
-        }));
+        });
 
         return res.status(200).json(metrics);
       }

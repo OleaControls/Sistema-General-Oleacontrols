@@ -12,11 +12,14 @@ if (!process.env.DATABASE_URL) {
 // En serverless cada invocación puede crear una conexión nueva.
 // Reutilizamos la instancia global para no agotar el pool de la DB.
 if (!global.__prisma) {
+  // Vercel serverless: cada instancia mantiene su propio pool, max:1 es correcto.
+  // Express / local: subir DB_POOL_MAX (ej: DB_POOL_MAX=5) para mayor concurrencia.
+  const poolMax = parseInt(process.env.DB_POOL_MAX || '1', 10);
   const pool = new pg.Pool({
     connectionString: process.env.DATABASE_URL,
     ssl: { rejectUnauthorized: false },
-    max: 1,                      // máximo 1 conexión por instancia serverless
-    idleTimeoutMillis: 10_000,   // cierra conexiones ociosas en 10 s
+    max: poolMax,
+    idleTimeoutMillis: 10_000,
     connectionTimeoutMillis: 10_000,
   })
   const adapter = new PrismaPg(pool)

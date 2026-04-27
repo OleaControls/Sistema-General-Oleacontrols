@@ -18,6 +18,8 @@ model Employee {
   email       String   @unique
   avatar      String?
   status      String   @default("ACTIVE")
+  // Note: roles (String[]) requires a GIN index via raw SQL migration for optimal performance:
+  // CREATE INDEX CONCURRENTLY idx_employee_roles ON "Employee" USING GIN (roles);
   
   // 1. Datos personales básicos
   birthDate       DateTime?
@@ -121,6 +123,9 @@ model Employee {
   assets          Asset[]      @relation("EmployeeAssets")
 
   calendarEvents  CalendarEvent[]
+
+  @@index([status])
+  @@index([department])
 }
 
 model Credentials {
@@ -201,9 +206,15 @@ model WorkOrder {
   
   evidences         Evidence[]
   expenses          Expense[]
-  
+
   // --- RELACIÓN OPUESTA EVALUATION ---
   evaluations       Evaluation[]
+
+  @@index([status])
+  @@index([technicianId])
+  @@index([supervisorId])
+  @@index([createdAt])
+  @@index([scheduledDate])
 }
 
 model Evidence {
@@ -213,6 +224,8 @@ model Evidence {
   workOrderId String
   workOrder   WorkOrder @relation(fields: [workOrderId], references: [id])
   createdAt   DateTime  @default(now())
+
+  @@index([workOrderId])
 }
 
 model Expense {
@@ -229,6 +242,9 @@ model Expense {
   employeeId  String
   employee    Employee  @relation(fields: [employeeId], references: [id])
   createdAt   DateTime  @default(now())
+
+  @@index([workOrderId])
+  @@index([employeeId])
 }
 
 model Evaluation {
@@ -255,7 +271,9 @@ model Evaluation {
   
   createdAt       DateTime @default(now())
 
-  @@unique([otId, type, targetId]) // Permite evaluar a múltiples personas en la misma OT
+  @@unique([otId, type, targetId])
+  @@index([targetId, createdAt])
+  @@index([otId])
 }
 
 model SystemConfig {
@@ -286,6 +304,9 @@ model Client {
 
   quotes        Quote[]
   deals         Deal[]
+
+  @@index([ownerId])
+  @@index([status])
 }
 
 model Lead {
@@ -304,6 +325,9 @@ model Lead {
   notes         String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+
+  @@index([assignedToId, createdAt])
+  @@index([stage])
 }
 
 model Quote {
@@ -337,6 +361,11 @@ model Quote {
 
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+
+  @@index([creatorId, createdAt])
+  @@index([sellerId])
+  @@index([status])
+  @@index([clientId])
 }
 
 model Deal {
@@ -375,6 +404,10 @@ model Deal {
   updatedAt     DateTime @updatedAt
 
   activities    DealActivity[]
+
+  @@index([assignedToId, createdAt])
+  @@index([stage])
+  @@index([clientId])
 }
 
 model DealActivity {
@@ -387,6 +420,8 @@ model DealActivity {
   status     String    @default("PENDING") // PENDING, COMPLETED, FAILED
   dueDate    DateTime?
   createdAt  DateTime  @default(now())
+
+  @@index([dealId, createdAt])
 }
 
 model VacationRequest {
@@ -401,6 +436,8 @@ model VacationRequest {
   type        String   @default("ANNUAL") // ANNUAL, PERSONAL, etc.
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  @@index([employeeId])
 }
 
 model Candidate {
@@ -431,6 +468,8 @@ model Asset {
   imageUrl      String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+
+  @@index([assignedToId])
 }
 
 // --- GESTIÓN DE CURSOS (LMS) ---
@@ -567,6 +606,8 @@ model SalesBitacora {
   resultado       String?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+
+  @@index([sellerId, createdAt])
 }
 
 model SalesDailyReport {
@@ -587,6 +628,8 @@ model SalesDailyReport {
   venta        Float    @default(0)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+
+  @@index([sellerId])
 }
 
 model SalesPortfolio {
@@ -603,6 +646,8 @@ model SalesPortfolio {
   motivo           String?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
+
+  @@index([sellerId])
 }
 
 // --- CATÁLOGO DE PRODUCTOS (base para cotizaciones) ---
@@ -666,13 +711,15 @@ model PersonalAudit {
   auditDate   DateTime
   isLeader    Boolean  @default(false)
   actionArea  String
-  didWell     Json     // [{desc: "..."}] mínimo 3
-  didPoor     Json     // [{desc: "..."}] mínimo 2
-  improvements Json   // [{desc: "..."}] mínimo 2
+  didWell     Json
+  didPoor     Json
+  improvements Json
   createdAt   DateTime @default(now())
+
+  @@index([employeeId])
 }
 
-  model CalendarEvent {
+model CalendarEvent {
   id          String   @id @default(cuid())
   title       String
   description String?
@@ -688,8 +735,11 @@ model PersonalAudit {
   userId      String
   user        Employee  @relation(fields: [userId], references: [id])
 
-  evidences   Json?     // [{url, name, type, date}]
+  evidences   Json?
 
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
-  }
+
+  @@index([userId, startDate])
+  @@index([otClientId])
+}
