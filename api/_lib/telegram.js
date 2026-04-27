@@ -1,25 +1,30 @@
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
-const BASE_URL = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}`;
 
 export async function sendTelegramMessage(chatId, text) {
-  if (!TELEGRAM_BOT_TOKEN || !chatId) return;
+  if (!TELEGRAM_BOT_TOKEN) {
+    console.error('[Telegram] TELEGRAM_BOT_TOKEN no está definido en .env');
+    return;
+  }
+  if (!chatId) {
+    console.warn('[Telegram] chatId vacío, omitiendo envío');
+    return;
+  }
 
+  const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
   try {
-    const response = await fetch(`${BASE_URL}/sendMessage`, {
+    const response = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        chat_id: chatId,
-        text,
-        parse_mode: 'HTML',
-      }),
+      body: JSON.stringify({ chat_id: chatId, text, parse_mode: 'HTML' }),
     });
     const result = await response.json();
-    if (!result.ok) {
-      console.error('[Telegram] Error al enviar mensaje:', result.description);
+    if (result.ok) {
+      console.log(`[Telegram] Mensaje enviado a chatId ${chatId}`);
+    } else {
+      console.error(`[Telegram] Error enviando a ${chatId}:`, result.description);
     }
   } catch (err) {
-    console.error('[Telegram] Fallo al enviar mensaje:', err.message);
+    console.error(`[Telegram] Excepción enviando a ${chatId}:`, err.message);
   }
 }
 

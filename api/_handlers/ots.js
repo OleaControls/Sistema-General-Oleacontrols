@@ -284,16 +284,17 @@ export default async function handler(req, res) {
 
       // Notificar por Telegram si la OT ya viene asignada
       if (data.leadTechId) {
-        const techIds = [data.leadTechId];
         const assistants = Array.isArray(data.assistantTechs) ? data.assistantTechs.map(t => t.id).filter(Boolean) : [];
         const support = Array.isArray(data.supportTechs) ? data.supportTechs.map(t => t.id).filter(Boolean) : [];
-        const allIds = [...new Set([...techIds, ...assistants, ...support])];
+        const allIds = [...new Set([data.leadTechId, ...assistants, ...support])];
 
+        console.log('[Telegram] POST OT asignada, buscando técnicos:', allIds);
         const techs = await prisma.employee.findMany({
-          where: { id: { in: allIds }, roles: { has: 'TECHNICIAN' }, telegramChatId: { not: null } },
+          where: { id: { in: allIds } },
           select: { id: true, name: true, telegramChatId: true }
         });
-        notifyOTAssigned(ot, techs).catch(console.error);
+        console.log('[Telegram] Técnicos encontrados:', techs.map(t => ({ name: t.name, chatId: t.telegramChatId })));
+        await notifyOTAssigned(ot, techs);
       }
 
       return res.status(201).json(ot);
@@ -375,7 +376,7 @@ export default async function handler(req, res) {
       const prevStatus = targetOT.status;
       const newStatus = updateData.status;
 
-      // 3a. OT asignada → notificar a todos los técnicos asignados (rol TECHNICIAN)
+      // 3a. OT asignada → notificar a todos los técnicos asignados
       if (newStatus === 'ASSIGNED' && prevStatus !== 'ASSIGNED') {
         const leadId = updateData.technicianId || targetOT.technicianId;
         const rawAssistants = updateData.assistantTechs ?? targetOT.assistantTechs;
@@ -384,12 +385,14 @@ export default async function handler(req, res) {
         const support    = Array.isArray(rawSupport)    ? rawSupport.map(t => t.id).filter(Boolean)    : [];
         const allIds = [...new Set([leadId, ...assistants, ...support].filter(Boolean))];
 
+        console.log('[Telegram] PUT OT asignada, buscando técnicos:', allIds);
         if (allIds.length > 0) {
           const techs = await prisma.employee.findMany({
-            where: { id: { in: allIds }, roles: { has: 'TECHNICIAN' }, telegramChatId: { not: null } },
+            where: { id: { in: allIds } },
             select: { id: true, name: true, telegramChatId: true }
           });
-          notifyOTAssigned(updated, techs).catch(console.error);
+          console.log('[Telegram] Técnicos encontrados:', techs.map(t => ({ name: t.name, chatId: t.telegramChatId })));
+          await notifyOTAssigned(updated, techs);
         }
       }
 
