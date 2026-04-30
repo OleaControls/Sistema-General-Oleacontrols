@@ -635,7 +635,7 @@ export default function OTDetail() {
                       <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Fecha</p>
                     </div>
                     <p className="text-sm font-black text-gray-900 font-mono">
-                      {ot.scheduledDate ? new Date(ot.scheduledDate).toLocaleDateString('es-MX') : '—'}
+                      {ot.scheduledDate ? new Date(ot.scheduledDate.split('T')[0] + 'T12:00:00').toLocaleDateString('es-MX') : '—'}
                     </p>
                   </div>
                   <div className="px-6 py-4 flex items-center justify-between">
@@ -760,7 +760,7 @@ export default function OTDetail() {
                     <div className="bg-white/5 rounded-2xl p-4 flex items-center gap-3">
                       <Calendar className="h-4 w-4 text-gray-500 shrink-0" />
                       <p className="text-xs font-bold text-gray-300">
-                        {ot.scheduledDate ? new Date(ot.scheduledDate).toLocaleDateString() : 'Sin fecha'} · {ot.arrivalTime || '--:--'}
+                        {ot.scheduledDate ? new Date(ot.scheduledDate.split('T')[0] + 'T12:00:00').toLocaleDateString('es-MX') : 'Sin fecha'} · {ot.arrivalTime || '--:--'}
                       </p>
                     </div>
                     {ot.contactName && (

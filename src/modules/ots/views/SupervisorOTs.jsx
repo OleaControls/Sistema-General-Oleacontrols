@@ -402,7 +402,7 @@ export default function SupervisorOTs() {
       ...ot,
       workDescription: ot.description || ot.workDescription || '',
       scheduledDate: ot.scheduledDate
-        ? new Date(ot.scheduledDate).toISOString().split('T')[0]
+        ? ot.scheduledDate.split('T')[0]
         : new Date().toISOString().split('T')[0]
     });
     setEditingId(ot.id);
@@ -849,7 +849,7 @@ export default function SupervisorOTs() {
                           <div className="flex items-center gap-1 mt-0.5">
                             <Clock className="h-3 w-3 text-gray-200 shrink-0" />
                             <p className="text-[9px] text-gray-300 font-mono">
-                              {new Date(ot.scheduledDate).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' })}
+                              {new Date(ot.scheduledDate.split('T')[0] + 'T12:00:00').toLocaleDateString('es-MX', { day: '2-digit', month: 'short' })}
                             </p>
                           </div>
                         )}

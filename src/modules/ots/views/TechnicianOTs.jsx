@@ -172,7 +172,7 @@ function OTCard({ ot, userId, index, navigate }) {
               <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest leading-none">Fecha</p>
               <p className="text-xs font-bold text-gray-700 mt-0.5">
                 {ot.scheduledDate
-                  ? new Date(ot.scheduledDate).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' })
+                  ? new Date(ot.scheduledDate.split('T')[0] + 'T12:00:00').toLocaleDateString('es-MX', { day: '2-digit', month: 'short' })
                   : '—'}
               </p>
             </div>

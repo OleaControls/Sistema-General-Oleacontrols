@@ -4,7 +4,7 @@ import {
   LayoutDashboard, ClipboardList, Receipt, Users, GraduationCap,
   Briefcase, Menu, X, LogOut, Bell, ChevronDown, Trophy, User as UserIcon,
   BarChart3, Wallet, Target, Users2, FileText, Sliders, TrendingUp,
-  Database, Settings, BarChart4, BookOpen, Calendar, Package
+  Activity, Settings, BarChart4, BookOpen, Calendar, Package
 } from 'lucide-react';
 import { useAuth, ROLES } from '@/store/AuthContext';
 import { useTenant } from '@/store/TenantContext';
@@ -17,7 +17,7 @@ import ConnectivityAlert from '@/components/shared/ConnectivityAlert';
 
 const NAV_STRUCTURE = [
 
-  // ── ADMIN: solo métricas ───────────────────────────────────────────────────
+  // ── ADMIN: métricas ────────────────────────────────────────────────────────
   {
     type: 'group',
     name: 'Métricas',
@@ -32,6 +32,20 @@ const NAV_STRUCTURE = [
     ]
   },
 
+  // ── ADMIN: CRM / Seguimientos ─────────────────────────────────────────────
+  {
+    type: 'group',
+    name: 'CRM',
+    icon: Activity,
+    roles: [ROLES.ADMIN],
+    defaultOpen: false,
+    items: [
+      { name: 'Seguimientos', path: '/crm/seguimientos', icon: Activity,   roles: [ROLES.ADMIN] },
+      { name: 'Cotizaciones', path: '/crm/quotes',       icon: FileText,   roles: [ROLES.ADMIN] },
+      { name: 'Métricas CRM', path: '/sales/metricas',   icon: TrendingUp, roles: [ROLES.ADMIN] },
+    ]
+  },
+
   // ── GRUPO: VENTAS (solo SALES) ─────────────────────────────────────────────
   {
     type: 'group',
@@ -40,14 +54,14 @@ const NAV_STRUCTURE = [
     roles: [ROLES.SALES],
     defaultOpen: true,
     items: [
-      { name: 'Pipeline / Tratos',  path: '/crm/deals',      icon: Briefcase,  roles: [ROLES.SALES] },
-      { name: 'Prospectos (Leads)', path: '/crm/leads',      icon: Target,     roles: [ROLES.SALES] },
-      { name: 'Clientes',           path: '/crm/clients',    icon: Users2,     roles: [ROLES.SALES] },
-      { name: 'Cotizaciones',       path: '/crm/quotes',     icon: FileText,   roles: [ROLES.SALES] },
-      { name: 'Métricas Ventas',    path: '/sales/metricas', icon: TrendingUp, roles: [ROLES.SALES] },
-      { name: 'Gestión de Datos',   path: '/sales/datos',    icon: Database,   roles: [ROLES.SALES] },
-      { name: 'Catálogo Productos', path: '/crm/catalog',    icon: Package,    roles: [ROLES.SALES] },
-      { name: 'Config. Pipeline',   path: '/crm/settings',   icon: Sliders,    roles: [ROLES.SALES] },
+      { name: 'Pipeline / Tratos',  path: '/crm/deals',           icon: Briefcase,  roles: [ROLES.SALES] },
+      { name: 'Prospectos (Leads)', path: '/crm/leads',           icon: Target,     roles: [ROLES.SALES] },
+      { name: 'Clientes',           path: '/crm/clients',         icon: Users2,     roles: [ROLES.SALES] },
+      { name: 'Cotizaciones',       path: '/crm/quotes',          icon: FileText,   roles: [ROLES.SALES] },
+      { name: 'Seguimientos',       path: '/crm/seguimientos',    icon: Activity,   roles: [ROLES.SALES] },
+      { name: 'Métricas Ventas',    path: '/sales/metricas',      icon: TrendingUp, roles: [ROLES.SALES] },
+      { name: 'Catálogo Productos', path: '/crm/catalog',         icon: Package,    roles: [ROLES.SALES] },
+      { name: 'Config. Pipeline',   path: '/crm/settings',        icon: Sliders,    roles: [ROLES.SALES] },
     ]
   },
 

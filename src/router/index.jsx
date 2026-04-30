@@ -56,6 +56,8 @@ const InvoicesOrders  = lazy(() => import('@/modules/crm/views/InvoicesOrders'))
 const PipelineSettings  = lazy(() => import('@/modules/crm/views/PipelineSettings'));
 const SalesMetrics      = lazy(() => import('@/modules/crm/views/SalesMetrics'));
 const CRMActivityFeed   = lazy(() => import('@/modules/crm/views/CRMActivityFeed'));
+const Seguimientos      = lazy(() => import('@/modules/crm/views/Seguimientos'));
+const ProspectoProfile  = lazy(() => import('@/modules/crm/views/ProspectoProfile'));
 const ProductCatalog    = lazy(() => import('@/modules/crm/views/ProductCatalog'));
 
 // Academy / LMS
@@ -173,12 +175,13 @@ export default function AppRouter() {
             <Route path="invoices"      element={<InvoicesOrders />} />
             <Route path="settings"      element={<PipelineSettings />} />
             <Route path="activity"      element={<CRMActivityFeed />} />
+            <Route path="seguimientos"           element={<Seguimientos />} />
+            <Route path="seguimientos/:dealId"  element={<ProspectoProfile />} />
             <Route path="catalog"       element={<ProductCatalog />} />
           </Route>
 
           {/* Ventas – acceso directo SALES */}
           <Route path="/sales/metricas" element={<ProtectedRoute><SalesMetrics /></ProtectedRoute>} />
-          <Route path="/sales/datos"    element={<ProtectedRoute><HRDashboard defaultTab="datos" onlyTabs={['datos']} /></ProtectedRoute>} />
 
           {/* Métricas por rol */}
           <Route path="/ops/metricas"  element={<ProtectedRoute><OpsMetrics /></ProtectedRoute>} />

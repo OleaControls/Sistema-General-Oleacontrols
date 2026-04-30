@@ -1,18 +1,23 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
-  Activity, MessageSquare, PhoneCall, Send, Coffee,
-  CheckSquare, ArrowRight, RefreshCw, Filter, User, Building2
+  Activity, MessageSquare, MessageCircle, PhoneCall, Send, Coffee,
+  CheckSquare, ArrowRight, RefreshCw, Filter, User, Building2,
+  MapPin, ClipboardCheck, FileText
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { apiFetch } from '@/lib/api';
 
 const TYPE_META = {
-  NOTE:         { label: 'Nota',              icon: MessageSquare, color: 'bg-gray-100 text-gray-600',    dot: 'bg-gray-400' },
-  CALL:         { label: 'Llamada',           icon: PhoneCall,     color: 'bg-blue-50 text-blue-600',     dot: 'bg-blue-500' },
-  EMAIL:        { label: 'Email',             icon: Send,          color: 'bg-purple-50 text-purple-600', dot: 'bg-purple-500' },
-  MEETING:      { label: 'Reunión',           icon: Coffee,        color: 'bg-amber-50 text-amber-700',   dot: 'bg-amber-500' },
-  TASK:         { label: 'Tarea',             icon: CheckSquare,   color: 'bg-emerald-50 text-emerald-700', dot: 'bg-emerald-500' },
-  STAGE_CHANGE: { label: 'Cambio de etapa',   icon: ArrowRight,    color: 'bg-indigo-50 text-indigo-700', dot: 'bg-indigo-500' },
+  NOTE:         { label: 'Nota',         icon: MessageSquare,  color: 'bg-gray-100 text-gray-600',      dot: 'bg-gray-400' },
+  CALL:         { label: 'Llamada',      icon: PhoneCall,      color: 'bg-blue-50 text-blue-600',       dot: 'bg-blue-500' },
+  MESSAGE:      { label: 'Mensaje',      icon: MessageCircle,  color: 'bg-teal-50 text-teal-600',       dot: 'bg-teal-500' },
+  EMAIL:        { label: 'Correo',       icon: Send,           color: 'bg-purple-50 text-purple-600',   dot: 'bg-purple-500' },
+  VISIT:        { label: 'Visita',       icon: MapPin,         color: 'bg-green-50 text-green-600',     dot: 'bg-green-500' },
+  MEETING:      { label: 'Reunión',      icon: Coffee,         color: 'bg-amber-50 text-amber-700',     dot: 'bg-amber-500' },
+  SEGUIMIENTO:  { label: 'Seguimiento',  icon: ClipboardCheck, color: 'bg-indigo-50 text-indigo-700',   dot: 'bg-indigo-500' },
+  TASK:         { label: 'Tarea',        icon: CheckSquare,    color: 'bg-emerald-50 text-emerald-700', dot: 'bg-emerald-500' },
+  QUOTE:        { label: 'Cotización',   icon: FileText,       color: 'bg-orange-50 text-orange-600',   dot: 'bg-orange-500' },
+  STAGE_CHANGE: { label: 'Cambio etapa', icon: ArrowRight,     color: 'bg-indigo-50 text-indigo-700',   dot: 'bg-indigo-500' },
 };
 
 const STAGE_LABELS = {

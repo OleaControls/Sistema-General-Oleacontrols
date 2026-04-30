@@ -135,6 +135,7 @@ export default function QuotesList() {
   const [quotes,    setQuotes]    = useState([]);
   const [clients,   setClients]   = useState([]);
   const [employees, setEmployees] = useState([]);
+  const [deals,     setDeals]     = useState([]);
   const [loading,   setLoading]   = useState(true);
   const [searchTerm,   setSearchTerm]   = useState('');
   const [filterStatus, setFilterStatus] = useState('ALL');
@@ -158,6 +159,7 @@ export default function QuotesList() {
   const initialNewQuote = () => ({
     quoteNumber:  generateQuoteNumber(),
     clientId:     '', sellerId: '', projectName: '', projectPhase: 'INICIAL',
+    linkedDealId: '',
     contactName:  '',
     validUntil:   new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     terms:        'Pago 100% anticipado. Tiempo de entrega sujeto a existencias.',
@@ -170,18 +172,28 @@ export default function QuotesList() {
   // ── Fetch ─────────────────────────────────────────────────────────────────
   const fetchData = async () => {
     try {
-      const [qRes, cRes, eRes] = await Promise.all([
-        apiFetch('/api/quotes'), apiFetch('/api/crm/clients'), apiFetch('/api/employees')
+      const [qRes, cRes, eRes, dRes] = await Promise.all([
+        apiFetch('/api/quotes'), apiFetch('/api/crm/clients'),
+        apiFetch('/api/employees'), apiFetch('/api/crm/deals'),
       ]);
-      const [q, c, e] = await Promise.all([qRes.json(), cRes.json(), eRes.json()]);
+      const [q, c, e, d] = await Promise.all([qRes.json(), cRes.json(), eRes.json(), dRes.json()]);
       setQuotes(Array.isArray(q) ? q : []);
       setClients(Array.isArray(c) ? c : []);
       setEmployees(Array.isArray(e) ? e : []);
+      setDeals(Array.isArray(d) ? d.filter(deal => !['CLOSED_WON','CLOSED_LOST'].includes(deal.stage)) : []);
     } catch (err) { console.error(err); }
     finally { setLoading(false); }
   };
 
   useEffect(() => { fetchData(); }, []);
+
+  // Auto-filtrar por folio si viene del perfil de prospecto
+  useEffect(() => {
+    const folio = location.state?.openQuote;
+    if (!folio) return;
+    setSearchTerm(folio);
+    window.history.replaceState({}, '');
+  }, [location.state?.openQuote]);
 
   // Auto-abrir modal de nueva cotización si viene de un deal del pipeline
   useEffect(() => {
@@ -311,12 +323,33 @@ export default function QuotesList() {
         method: 'POST', body: JSON.stringify({ ...newQuote, clientId, creatorId: user.id })
       });
       if (res.ok) {
+        // ── Registrar actividad en el trato vinculado ────────────────────────
+        const targetDealId = fromDealMeta?.id || newQuote.linkedDealId || null;
+        if (targetDealId) {
+          const linkedDeal = fromDealMeta || deals.find(d => d.id === targetDealId);
+          const isRecot = fromDealMeta?.stage === 'RECOTIZACION' || newQuote.projectPhase === 'RECOTIZACION';
+          const fmtM = (n) => `$${Number(n || 0).toLocaleString('es-MX', { maximumFractionDigits: 0 })}`;
+          const content = isRecot
+            ? `Recotización generada — Folio: ${newQuote.quoteNumber} | Total: ${fmtM(newQuote.total)} | Proyecto: ${newQuote.projectName || linkedDeal?.title || ''}`
+            : `Cotización generada — Folio: ${newQuote.quoteNumber} | Total: ${fmtM(newQuote.total)} | Proyecto: ${newQuote.projectName || linkedDeal?.title || ''}`;
+          apiFetch('/api/crm/deal-activities', {
+            method: 'POST',
+            body: JSON.stringify({
+              dealId:     targetDealId,
+              type:       'QUOTE',
+              content,
+              authorName: user?.name || 'Sistema',
+              status:     'COMPLETED',
+            })
+          }).catch(() => {});
+        }
         setShowAddModal(false);
         setNewQuote(initialNewQuote());
         setNewClientData(initialNewClientData());
         setClientMode('existing');
         setFromDealMeta(null);
         fetchData();
+
       } else {
         const err = await res.json().catch(() => ({}));
         alert(`Error al crear cotización: ${err.error || res.status}`);
@@ -828,6 +861,40 @@ export default function QuotesList() {
                     <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest block mb-1.5">Nombre del Proyecto</label>
                     <input type="text" className="w-full bg-gray-50 rounded-xl px-4 py-4 font-bold text-sm outline-none" placeholder="Ej: Proyecto CCTV Planta Norte" value={newQuote.projectName} onChange={e => setNewQuote(f => ({ ...f, projectName: e.target.value }))} />
                   </div>
+                  {/* Vincular trato — solo si NO viene del pipeline (fromDealMeta ya lo trae) */}
+                  {!fromDealMeta && (
+                  <div>
+                    <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest block mb-1.5">
+                      Vincular a trato del pipeline
+                    </label>
+                    <select
+                      className="w-full bg-emerald-50 rounded-xl px-4 py-4 font-bold text-sm outline-none text-emerald-800 cursor-pointer"
+                      value={newQuote.linkedDealId}
+                      onChange={e => {
+                        const deal = deals.find(d => d.id === e.target.value);
+                        setNewQuote(f => ({
+                          ...f,
+                          linkedDealId: e.target.value,
+                          projectName: f.projectName || deal?.title || '',
+                          contactName: f.contactName || deal?.contactName || '',
+                          sellerId:    f.sellerId    || deal?.assignedToId || '',
+                        }));
+                      }}
+                    >
+                      <option value="">— Sin vincular —</option>
+                      {deals.map(d => (
+                        <option key={d.id} value={d.id}>
+                          {d.title}{d.company ? ` · ${d.company}` : ''}
+                        </option>
+                      ))}
+                    </select>
+                    {newQuote.linkedDealId && (
+                      <p className="text-[8px] font-bold text-emerald-600 mt-1">
+                        ✓ La cotización quedará registrada en el historial del trato
+                      </p>
+                    )}
+                  </div>
+                  )}
                   <div>
                     <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest block mb-1.5">Vigente hasta</label>
                     <input type="date" className="w-full bg-gray-50 rounded-xl px-4 py-4 font-bold text-sm outline-none" value={newQuote.validUntil} onChange={e => setNewQuote(f => ({ ...f, validUntil: e.target.value }))} />

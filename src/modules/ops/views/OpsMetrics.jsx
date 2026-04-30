@@ -425,7 +425,7 @@ export default function OpsMetrics() {
                 <div className="flex items-center gap-2 text-gray-400 group-hover:text-gray-600">
                   <Clock className="h-3 w-3 shrink-0" />
                   <span className="text-[9px] font-bold uppercase tracking-tighter">
-                    {new Date(ot.scheduledDate).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' })} • {ot.arrivalTime || '09:00'}
+                    {new Date(ot.scheduledDate.split('T')[0] + 'T12:00:00').toLocaleDateString('es-MX', { day: '2-digit', month: 'short' })} • {ot.arrivalTime || '09:00'}
                   </span>
                 </div>
               </div>

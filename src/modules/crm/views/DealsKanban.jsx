@@ -5,7 +5,7 @@ import {
   MessageSquare, PhoneCall, Send, Coffee, CheckSquare, Clock,
   Edit3, Link2, ChevronDown, Award, AlertCircle, Search, Filter,
   BarChart2, Percent, SlidersHorizontal, ArrowRight, FileText,
-  ClipboardList, Hash, Loader2
+  ClipboardList, Hash, Loader2, MessageCircle, MapPin, ClipboardCheck
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
@@ -46,11 +46,15 @@ function normalizeStages(raw) {
 }
 
 const ACTIVITY_TYPES = [
-  { id: 'NOTE',    label: 'Nota',     icon: MessageSquare, color: 'text-gray-500' },
-  { id: 'CALL',    label: 'Llamada',  icon: PhoneCall,     color: 'text-blue-500' },
-  { id: 'EMAIL',   label: 'Email',    icon: Send,          color: 'text-purple-500' },
-  { id: 'MEETING', label: 'Reunión',  icon: Coffee,        color: 'text-amber-500' },
-  { id: 'TASK',    label: 'Tarea',    icon: CheckSquare,   color: 'text-emerald-500' },
+  { id: 'NOTE',        label: 'Nota',         icon: MessageSquare,  color: 'text-gray-500' },
+  { id: 'CALL',        label: 'Llamada',       icon: PhoneCall,      color: 'text-blue-500' },
+  { id: 'MESSAGE',     label: 'Mensaje',       icon: MessageCircle,  color: 'text-teal-500' },
+  { id: 'EMAIL',       label: 'Correo',        icon: Send,           color: 'text-purple-500' },
+  { id: 'VISIT',       label: 'Visita',        icon: MapPin,         color: 'text-green-500' },
+  { id: 'MEETING',     label: 'Reunión',       icon: Coffee,         color: 'text-amber-500' },
+  { id: 'SEGUIMIENTO', label: 'Seguimiento',   icon: ClipboardCheck, color: 'text-primary' },
+  { id: 'TASK',        label: 'Tarea',         icon: CheckSquare,    color: 'text-emerald-500' },
+  { id: 'QUOTE',       label: 'Cotización',    icon: FileText,       color: 'text-orange-500' },
 ];
 
 const SOURCES = ['Web', 'Referido', 'LinkedIn', 'Facebook', 'Llamada en frío', 'Evento', 'Otro'];
@@ -1486,21 +1490,37 @@ function ActivitiesPanel({ activities, loading, newActivity, setNewActivity, onA
 
 // ── Sección de Seguimientos ────────────────────────────────────────────────────
 const TIPO_META = {
-  NOTE:        { label: 'Nota',          color: 'bg-gray-100 text-gray-600' },
-  CALL:        { label: 'Llamada',       color: 'bg-blue-100 text-blue-700' },
-  EMAIL:       { label: 'Email',         color: 'bg-purple-100 text-purple-700' },
-  MEETING:     { label: 'Reunión',       color: 'bg-amber-100 text-amber-700' },
-  TASK:        { label: 'Tarea',         color: 'bg-emerald-100 text-emerald-700' },
-  SEGUIMIENTO: { label: 'Seguimiento',   color: 'bg-primary/10 text-primary' },
-  STAGE_CHANGE:{ label: 'Cambio etapa', color: 'bg-violet-100 text-violet-700' },
+  NOTE:        { label: 'Nota',        color: 'bg-gray-100 text-gray-600' },
+  CALL:        { label: 'Llamada',     color: 'bg-blue-100 text-blue-700' },
+  MESSAGE:     { label: 'Mensaje',     color: 'bg-teal-100 text-teal-700' },
+  EMAIL:       { label: 'Correo',      color: 'bg-purple-100 text-purple-700' },
+  VISIT:       { label: 'Visita',      color: 'bg-green-100 text-green-700' },
+  MEETING:     { label: 'Reunión',     color: 'bg-amber-100 text-amber-700' },
+  SEGUIMIENTO: { label: 'Seguimiento', color: 'bg-primary/10 text-primary' },
+  TASK:        { label: 'Tarea',       color: 'bg-emerald-100 text-emerald-700' },
+  QUOTE:       { label: 'Cotización',  color: 'bg-orange-100 text-orange-700' },
+  STAGE_CHANGE:{ label: 'Cambio etapa',color: 'bg-violet-100 text-violet-700' },
 };
 
 function ActividadesSection({ actividades, loading, newAct, setNewAct, deals, onAdd, adding, onUpdateStatus }) {
   const typeMap = Object.fromEntries(ACTIVITY_TYPES.map(t => [t.id, t]));
+  const [filterCompany, setFilterCompany] = React.useState('');
 
   const fmtDateTime = (d) => d
     ? new Date(d).toLocaleString('es-MX', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
     : null;
+
+  // Clientes únicos con actividades registradas
+  const companies = React.useMemo(() => {
+    const seen = new Set();
+    return actividades
+      .map(a => a.deal?.company || a.deal?.client?.companyName || null)
+      .filter(c => c && !seen.has(c) && seen.add(c));
+  }, [actividades]);
+
+  const filtered = filterCompany
+    ? actividades.filter(a => (a.deal?.company || a.deal?.client?.companyName) === filterCompany)
+    : actividades;
 
   return (
     <div className="m-4 mb-8 bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
@@ -1514,7 +1534,7 @@ function ActividadesSection({ actividades, loading, newAct, setNewAct, deals, on
           <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Timeline global de actividades por trato</p>
         </div>
         <span className="ml-auto text-[10px] font-black text-gray-400 bg-white border rounded-xl px-3 py-1">
-          {actividades.length} registros
+          {filtered.length} registros
         </span>
       </div>
 
@@ -1597,20 +1617,56 @@ function ActividadesSection({ actividades, loading, newAct, setNewAct, deals, on
         </form>
 
         {/* Timeline */}
-        <div className="lg:col-span-2 p-6 overflow-y-auto max-h-[600px]">
+        <div className="lg:col-span-2 flex flex-col max-h-[600px]">
+          {/* Filtro por cliente */}
+          {companies.length > 0 && (
+            <div className="px-4 pt-4 pb-2 border-b border-gray-100 flex gap-2 flex-wrap">
+              <button
+                type="button"
+                onClick={() => setFilterCompany('')}
+                className={cn(
+                  "px-3 py-1.5 rounded-xl text-[8px] font-black uppercase tracking-widest border-2 transition-all",
+                  !filterCompany ? 'border-primary bg-primary/10 text-primary' : 'border-gray-200 text-gray-400 hover:border-gray-300'
+                )}
+              >
+                Todos ({actividades.length})
+              </button>
+              {companies.map(company => {
+                const count = actividades.filter(a => (a.deal?.company || a.deal?.client?.companyName) === company).length;
+                return (
+                  <button
+                    key={company}
+                    type="button"
+                    onClick={() => setFilterCompany(company)}
+                    className={cn(
+                      "px-3 py-1.5 rounded-xl text-[8px] font-black uppercase tracking-widest border-2 transition-all max-w-[180px] truncate",
+                      filterCompany === company ? 'border-primary bg-primary/10 text-primary' : 'border-gray-200 text-gray-400 hover:border-gray-300'
+                    )}
+                    title={company}
+                  >
+                    {company} <span className="opacity-60">({count})</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          <div className="flex-1 overflow-y-auto p-6">
           {loading ? (
             <div className="flex items-center justify-center h-40 gap-2 text-gray-400">
               <Loader2 className="h-5 w-5 animate-spin" />
               <span className="text-[10px] font-black uppercase tracking-widest">Cargando...</span>
             </div>
-          ) : actividades.length === 0 ? (
+          ) : filtered.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-40 gap-2 text-gray-300">
               <Activity className="h-8 w-8" />
-              <p className="text-[9px] font-black uppercase tracking-widest">Sin actividades registradas</p>
+              <p className="text-[9px] font-black uppercase tracking-widest">
+                {filterCompany ? 'Sin actividades para este cliente' : 'Sin actividades registradas'}
+              </p>
             </div>
           ) : (
             <div className="space-y-3">
-              {actividades.map((act, i) => {
+              {filtered.map((act, i) => {
                 const T = typeMap[act.type] || { label: act.type, icon: Activity, color: 'text-gray-500' };
                 const sMeta = STATUS_META[act.status] || STATUS_META.PENDING;
                 const due = fmtDateTime(act.dueDate);
@@ -1675,6 +1731,7 @@ function ActividadesSection({ actividades, loading, newAct, setNewAct, deals, on
               })}
             </div>
           )}
+          </div>
         </div>
       </div>
     </div>
