@@ -167,15 +167,15 @@ export default function ProspectoProfile() {
     const load = async () => {
       setLoading(true);
       try {
-        // Si no tenemos deal por state, buscamos en la lista
-        if (!deal) {
-          const res  = await apiFetch('/api/crm/deals');
-          const list = await res.json();
-          const found = Array.isArray(list) ? list.find(d => d.id === dealId) : null;
-          if (found) setDeal(found);
+        // Deal y actividades en paralelo
+        const [dealRes, actRes] = await Promise.all([
+          deal ? Promise.resolve(null) : apiFetch(`/api/crm/deals?id=${dealId}`),
+          apiFetch(`/api/crm/deal-activities?dealId=${dealId}`),
+        ]);
+        if (dealRes) {
+          const dealData = await dealRes.json();
+          if (dealData && !dealData.error) setDeal(dealData);
         }
-        // Actividades del trato
-        const actRes  = await apiFetch(`/api/crm/deal-activities?dealId=${dealId}`);
         const actData = await actRes.json();
         setActivities(Array.isArray(actData) ? actData : []);
       } catch (err) { console.error(err); }

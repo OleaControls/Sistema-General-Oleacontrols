@@ -1,15 +1,6 @@
 import prisma from '../_lib/prisma.js'
 import { authMiddleware } from '../_lib/auth.js'
 
-// Obtiene el rol efectivo del usuario directo desde la BD (no depende del JWT)
-async function getCallerRoles(callerId) {
-  const emp = await prisma.employee.findUnique({
-    where: { id: callerId },
-    select: { roles: true }
-  });
-  return emp?.roles || [];
-}
-
 export default async function handler(req, res) {
   const method = req.method.toUpperCase();
   const urlParts = req.url.split('?')[0].split('/');
@@ -22,8 +13,8 @@ export default async function handler(req, res) {
 
   const userId = caller.id;
 
-  // Roles desde la BD (siempre actualizados)
-  const roles   = await getCallerRoles(userId);
+  // Roles desde el JWT (ya incluidos al hacer login)
+  const roles   = caller.roles || [];
   const isAdmin = roles.includes('ADMIN');
   const isSales = roles.includes('SALES') && !isAdmin;
 
@@ -54,14 +45,22 @@ export default async function handler(req, res) {
       }
 
       if (resource === 'deals') {
+        const includeShape = {
+          client: { select: { id: true, companyName: true } },
+          assignedTo: { select: { id: true, name: true, avatar: true } },
+          _count: { select: { activities: true } }
+        };
+        // Un solo deal por ID
+        if (req.query.id) {
+          const where = { id: req.query.id, ...(isSales ? { assignedToId: userId } : {}) };
+          const deal = await prisma.deal.findFirst({ where, include: includeShape });
+          if (!deal) return res.status(404).json({ error: 'Deal no encontrado' });
+          return res.status(200).json(deal);
+        }
         const where = isSales ? { assignedToId: userId } : {};
         const deals = await prisma.deal.findMany({
           where,
-          include: {
-            client: { select: { id: true, companyName: true } },
-            assignedTo: { select: { id: true, name: true, avatar: true } },
-            _count: { select: { activities: true } }
-          },
+          include: includeShape,
           orderBy: { updatedAt: 'desc' }
         });
         return res.status(200).json(deals || []);

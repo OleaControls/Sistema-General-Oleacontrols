@@ -5,7 +5,7 @@ import {
   Activity, MessageSquare, MessageCircle, PhoneCall, Send, Coffee,
   CheckSquare, ArrowRight, RefreshCw, Filter, User, Building2,
   ChevronDown, ChevronRight, FileText, Clock, MapPin, ClipboardCheck,
-  DollarSign, Target, ExternalLink
+  DollarSign, Target, ExternalLink, Pencil, Trash2, X, Save, AlertTriangle
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { apiFetch } from '@/lib/api';
@@ -84,7 +84,7 @@ function timeAgo(d) {
 }
 
 // ── Historial de un trato (colapsable) ────────────────────────────────────────
-function DealHistorial({ deal, actsByDeal, onOpenProfile }) {
+function DealHistorial({ deal, actsByDeal, onOpenProfile, onEdit, onDelete }) {
   const [open, setOpen] = useState(false);
   const acts = actsByDeal[deal.id] || [];
 
@@ -137,14 +137,14 @@ function DealHistorial({ deal, actsByDeal, onOpenProfile }) {
           </div>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-1.5 shrink-0">
           {deal.value > 0 && (
-            <span className="text-[8px] font-black text-gray-500 flex items-center gap-1">
+            <span className="text-[8px] font-black text-gray-500 flex items-center gap-1 mr-1">
               <DollarSign className="h-2.5 w-2.5" />{fmt(deal.value)}
             </span>
           )}
           {deal.assignedTo && (
-            <span className="text-[8px] font-bold text-gray-400 hidden sm:flex items-center gap-1">
+            <span className="text-[8px] font-bold text-gray-400 hidden sm:flex items-center gap-1 mr-1">
               <User className="h-2.5 w-2.5 text-primary" />{deal.assignedTo.name.split(' ')[0]}
             </span>
           )}
@@ -154,6 +154,20 @@ function DealHistorial({ deal, actsByDeal, onOpenProfile }) {
             title="Ver perfil completo"
           >
             <ExternalLink className="h-3 w-3" />
+          </button>
+          <button
+            onClick={e => { e.stopPropagation(); onEdit(deal); }}
+            className="p-1.5 rounded-lg bg-gray-100 text-gray-500 hover:bg-blue-50 hover:text-blue-600 transition-all"
+            title="Editar trato"
+          >
+            <Pencil className="h-3 w-3" />
+          </button>
+          <button
+            onClick={e => { e.stopPropagation(); onDelete(deal); }}
+            className="p-1.5 rounded-lg bg-gray-100 text-gray-500 hover:bg-red-50 hover:text-red-500 transition-all"
+            title="Eliminar trato"
+          >
+            <Trash2 className="h-3 w-3" />
           </button>
           {acts.length > 0 && (
             open
@@ -200,7 +214,7 @@ function DealHistorial({ deal, actsByDeal, onOpenProfile }) {
 }
 
 // ── Sección de etapa colapsable ───────────────────────────────────────────────
-function StageSection({ stage, deals, actsByDeal, onOpenProfile }) {
+function StageSection({ stage, deals, actsByDeal, onOpenProfile, onEdit, onDelete }) {
   const [open, setOpen] = useState(true);
 
   const totalActs = deals.reduce((s, d) => s + (actsByDeal[d.id]?.length || 0), 0);
@@ -246,7 +260,7 @@ function StageSection({ stage, deals, actsByDeal, onOpenProfile }) {
       {open && (
         <div className="bg-white p-3 space-y-2">
           {deals.map(deal => (
-            <DealHistorial key={deal.id} deal={deal} actsByDeal={actsByDeal} onOpenProfile={onOpenProfile} />
+            <DealHistorial key={deal.id} deal={deal} actsByDeal={actsByDeal} onOpenProfile={onOpenProfile} onEdit={onEdit} onDelete={onDelete} />
           ))}
         </div>
       )}
@@ -255,6 +269,8 @@ function StageSection({ stage, deals, actsByDeal, onOpenProfile }) {
 }
 
 // ── Vista principal ───────────────────────────────────────────────────────────
+const EDIT_BLANK = { title:'', company:'', contactName:'', contactPhone:'', contactEmail:'', value:'', stage:'QUALIFICATION', source:'', expectedClose:'', description:'', notes:'' };
+
 export default function Seguimientos() {
   const navigate     = useNavigate();
   const { user }     = useAuth();
@@ -266,6 +282,62 @@ export default function Seguimientos() {
   const [filterSeller, setFilterSeller] = useState('');
   const [filterType,   setFilterType]   = useState('');
   const [filterPeriod, setFilterPeriod] = useState('month');
+
+  // Edit / Delete state
+  const [editingDeal, setEditingDeal]   = useState(null); // deal object or null
+  const [editForm,    setEditForm]      = useState(EDIT_BLANK);
+  const [saving,      setSaving]        = useState(false);
+  const [deletingDeal, setDeletingDeal] = useState(null); // deal object or null
+  const [deleting,    setDeleting]      = useState(false);
+
+  const openEdit = (deal) => {
+    setEditForm({
+      title:         deal.title || '',
+      company:       deal.company || '',
+      contactName:   deal.contactName || '',
+      contactPhone:  deal.contactPhone || '',
+      contactEmail:  deal.contactEmail || '',
+      value:         deal.value || '',
+      stage:         deal.stage || 'QUALIFICATION',
+      source:        deal.source || '',
+      expectedClose: deal.expectedClose ? deal.expectedClose.split('T')[0] : '',
+      description:   deal.description || '',
+      notes:         deal.notes || '',
+    });
+    setEditingDeal(deal);
+  };
+
+  const handleSave = async () => {
+    if (!editForm.title.trim()) return;
+    setSaving(true);
+    try {
+      const res = await apiFetch('/api/crm/deals', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: editingDeal.id, ...editForm, value: parseFloat(editForm.value) || 0 }),
+      });
+      const updated = await res.json();
+      if (updated.id) {
+        setDeals(prev => prev.map(d => d.id === updated.id ? updated : d));
+        setEditingDeal(null);
+      }
+    } catch (err) { console.error(err); }
+    finally { setSaving(false); }
+  };
+
+  const handleDelete = async () => {
+    setDeleting(true);
+    try {
+      await apiFetch('/api/crm/deals', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: deletingDeal.id }),
+      });
+      setDeals(prev => prev.filter(d => d.id !== deletingDeal.id));
+      setDeletingDeal(null);
+    } catch (err) { console.error(err); }
+    finally { setDeleting(false); }
+  };
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
@@ -446,9 +518,199 @@ export default function Seguimientos() {
                 deals={stageDeals}
                 actsByDeal={actsByDeal}
                 onOpenProfile={deal => navigate(`/crm/seguimientos/${deal.id}`, { state: { deal } })}
+                onEdit={openEdit}
+                onDelete={setDeletingDeal}
               />
             );
           })}
+        </div>
+      )}
+
+      {/* ── Modal Editar ──────────────────────────────────────────────────── */}
+      {editingDeal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100">
+              <div>
+                <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Editar trato</p>
+                <h3 className="text-sm font-black text-gray-900 truncate max-w-[280px]">{editingDeal.title}</h3>
+              </div>
+              <button onClick={() => setEditingDeal(null)} className="p-2 hover:bg-gray-100 rounded-xl transition-colors">
+                <X className="h-4 w-4 text-gray-400" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              {/* Título */}
+              <div>
+                <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Título *</label>
+                <input
+                  className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm font-bold text-gray-800 outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                  value={editForm.title}
+                  onChange={e => setEditForm(f => ({ ...f, title: e.target.value }))}
+                />
+              </div>
+
+              {/* Empresa + Etapa */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Empresa</label>
+                  <input
+                    className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm font-bold text-gray-800 outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                    value={editForm.company}
+                    onChange={e => setEditForm(f => ({ ...f, company: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Etapa</label>
+                  <select
+                    className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm font-bold text-gray-800 outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary bg-white"
+                    value={editForm.stage}
+                    onChange={e => setEditForm(f => ({ ...f, stage: e.target.value }))}
+                  >
+                    {PIPELINE_STAGES.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              {/* Contacto */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Nombre contacto</label>
+                  <input
+                    className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm font-bold text-gray-800 outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                    value={editForm.contactName}
+                    onChange={e => setEditForm(f => ({ ...f, contactName: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Teléfono</label>
+                  <input
+                    className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm font-bold text-gray-800 outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                    value={editForm.contactPhone}
+                    onChange={e => setEditForm(f => ({ ...f, contactPhone: e.target.value }))}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Correo contacto</label>
+                  <input
+                    type="email"
+                    className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm font-bold text-gray-800 outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                    value={editForm.contactEmail}
+                    onChange={e => setEditForm(f => ({ ...f, contactEmail: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Valor ($)</label>
+                  <input
+                    type="number"
+                    className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm font-bold text-gray-800 outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                    value={editForm.value}
+                    onChange={e => setEditForm(f => ({ ...f, value: e.target.value }))}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Fuente</label>
+                  <input
+                    className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm font-bold text-gray-800 outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                    value={editForm.source}
+                    onChange={e => setEditForm(f => ({ ...f, source: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Cierre esperado</label>
+                  <input
+                    type="date"
+                    className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm font-bold text-gray-800 outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                    value={editForm.expectedClose}
+                    onChange={e => setEditForm(f => ({ ...f, expectedClose: e.target.value }))}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Descripción</label>
+                <textarea
+                  rows={2}
+                  className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm font-medium text-gray-800 outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary resize-none"
+                  value={editForm.description}
+                  onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))}
+                />
+              </div>
+
+              <div>
+                <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Notas internas</label>
+                <textarea
+                  rows={2}
+                  className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm font-medium text-gray-800 outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary resize-none"
+                  value={editForm.notes}
+                  onChange={e => setEditForm(f => ({ ...f, notes: e.target.value }))}
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-3 px-6 pb-6">
+              <button
+                onClick={() => setEditingDeal(null)}
+                className="flex-1 py-3 rounded-2xl border border-gray-200 text-xs font-black text-gray-500 hover:bg-gray-50 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleSave}
+                disabled={saving || !editForm.title.trim()}
+                className="flex-1 py-3 rounded-2xl bg-primary text-white text-xs font-black flex items-center justify-center gap-2 hover:bg-primary/90 transition-colors disabled:opacity-50"
+              >
+                {saving ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+                {saving ? 'Guardando...' : 'Guardar cambios'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal Confirmar Eliminar ───────────────────────────────────────── */}
+      {deletingDeal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm p-6 space-y-5">
+            <div className="flex flex-col items-center text-center gap-3">
+              <div className="h-14 w-14 rounded-2xl bg-red-50 flex items-center justify-center">
+                <AlertTriangle className="h-7 w-7 text-red-500" />
+              </div>
+              <div>
+                <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-1">Confirmar eliminación</p>
+                <p className="text-sm font-black text-gray-900">{deletingDeal.title}</p>
+                {deletingDeal.company && (
+                  <p className="text-xs font-bold text-gray-400 mt-0.5">{deletingDeal.company}</p>
+                )}
+              </div>
+              <p className="text-xs text-gray-500 font-medium">
+                Se eliminarán también todas las actividades de este trato. Esta acción no se puede deshacer.
+              </p>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setDeletingDeal(null)}
+                className="flex-1 py-3 rounded-2xl border border-gray-200 text-xs font-black text-gray-500 hover:bg-gray-50 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleDelete}
+                disabled={deleting}
+                className="flex-1 py-3 rounded-2xl bg-red-500 text-white text-xs font-black flex items-center justify-center gap-2 hover:bg-red-600 transition-colors disabled:opacity-50"
+              >
+                {deleting ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                {deleting ? 'Eliminando...' : 'Sí, eliminar'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
