@@ -9,7 +9,7 @@ export default async function handler(req, res) {
     try {
       const techs = await prisma.employee.findMany({
         where: {
-          roles: { has: 'TECH' },
+          roles: { has: 'TECHNICIAN' },
           status: 'ACTIVE',
           techLat: { not: null },
           techLng: { not: null }

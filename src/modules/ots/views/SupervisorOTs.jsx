@@ -98,12 +98,16 @@ export default function SupervisorOTs() {
 
   useEffect(() => {
     loadData();
-    const interval = setInterval(async () => {
+
+    const fetchTechLocations = async () => {
       try {
         const locs = await otService.getTechnicianLocations();
         setTechLocations(locs);
       } catch (err) { }
-    }, 10000);
+    };
+
+    fetchTechLocations(); // carga inicial inmediata
+    const interval = setInterval(fetchTechLocations, 10000);
     return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
