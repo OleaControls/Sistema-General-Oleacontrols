@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   ClipboardList, MapPin, Clock, ArrowRight, CheckCircle2,
   Store, Calendar, AlertTriangle, Trophy, User, Zap,
-  Circle, Filter, RefreshCw, ChevronRight, Star
+  Circle, Filter, RefreshCw, ChevronRight, Star, Navigation, Navigation2, WifiOff
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
@@ -231,7 +231,78 @@ export default function TechnicianOTs() {
   const [loading, setLoading] = useState(true);
   const [showMap, setShowMap] = useState(false);
   const [filter, setFilter] = useState('all');
+  // 'idle' | 'requesting' | 'active' | 'denied'
+  const [locationStatus, setLocationStatus] = useState('idle');
+  const watchIdRef = useRef(null);
+  const lastSentRef = useRef(null);
   const navigate = useNavigate();
+
+  // ── Verificar permiso al montar ────────────────────────────────────────────
+  useEffect(() => {
+    if (!navigator.permissions) return;
+    navigator.permissions.query({ name: 'geolocation' }).then((result) => {
+      if (result.state === 'granted') setLocationStatus('active');
+      else if (result.state === 'denied') setLocationStatus('denied');
+      result.addEventListener('change', () => {
+        if (result.state === 'granted') setLocationStatus('active');
+        else if (result.state === 'denied') setLocationStatus('denied');
+        else setLocationStatus('idle');
+      });
+    });
+  }, []);
+
+  // ── Enviar ubicación al servidor ───────────────────────────────────────────
+  const sendLocationToServer = useCallback(async (lat, lng) => {
+    const now = Date.now();
+    if (lastSentRef.current && now - lastSentRef.current < 290000) return; // throttle 5 min
+    try {
+      await otService.updateTechnicianLocation(user.id, user.name, lat, lng);
+      lastSentRef.current = now;
+      setTechLocation({ lat, lng, lastUpdate: new Date().toISOString() });
+    } catch (err) {
+      console.error('[ubicación] Error al enviar:', err);
+    }
+  }, [user]);
+
+  // ── Activar ubicación (botón) ──────────────────────────────────────────────
+  const handleEnableLocation = useCallback(() => {
+    if (!('geolocation' in navigator)) {
+      setLocationStatus('denied');
+      return;
+    }
+    setLocationStatus('requesting');
+
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        setLocationStatus('active');
+        const { latitude: lat, longitude: lng } = pos.coords;
+        setTechLocation({ lat, lng, lastUpdate: new Date().toISOString() });
+        // Enviar inmediatamente ignorando el throttle
+        lastSentRef.current = null;
+        await sendLocationToServer(lat, lng);
+
+        // Iniciar watchPosition para actualizaciones automáticas
+        if (watchIdRef.current !== null) {
+          navigator.geolocation.clearWatch(watchIdRef.current);
+        }
+        watchIdRef.current = navigator.geolocation.watchPosition(
+          (p) => sendLocationToServer(p.coords.latitude, p.coords.longitude),
+          () => {},
+          { enableHighAccuracy: true, maximumAge: 60000, timeout: 15000 }
+        );
+      },
+      () => setLocationStatus('denied')
+    );
+  }, [sendLocationToServer]);
+
+  // ── Limpiar watcher al desmontar ───────────────────────────────────────────
+  useEffect(() => {
+    return () => {
+      if (watchIdRef.current !== null) {
+        navigator.geolocation.clearWatch(watchIdRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     loadData();
@@ -283,6 +354,36 @@ export default function TechnicianOTs() {
             </p>
           </div>
           <div className="flex gap-2">
+            {/* Botón ubicación */}
+            <button
+              onClick={locationStatus === 'active' ? undefined : handleEnableLocation}
+              disabled={locationStatus === 'requesting'}
+              title={
+                locationStatus === 'active' ? 'Ubicación activa' :
+                locationStatus === 'denied' ? 'Permiso denegado — toca para reintentar' :
+                locationStatus === 'requesting' ? 'Obteniendo ubicación…' :
+                'Activar ubicación'
+              }
+              className={cn(
+                'relative p-2.5 rounded-xl border text-[8px] font-black uppercase flex flex-col items-center gap-1 transition-all',
+                locationStatus === 'active'  && 'bg-emerald-500/20 border-emerald-500/40 text-emerald-400 cursor-default',
+                locationStatus === 'denied'  && 'bg-red-500/20 border-red-500/40 text-red-400 hover:bg-red-500/30',
+                locationStatus === 'requesting' && 'bg-white/10 border-white/10 text-white opacity-60 cursor-wait',
+                locationStatus === 'idle'    && 'bg-white/10 border-white/10 text-white hover:bg-white/20',
+              )}
+            >
+              {locationStatus === 'active' && (
+                <span className="absolute top-1 right-1 h-1.5 w-1.5 rounded-full bg-emerald-400 animate-ping" />
+              )}
+              {locationStatus === 'denied'
+                ? <WifiOff className="h-4 w-4" />
+                : locationStatus === 'requesting'
+                ? <Navigation className="h-4 w-4 animate-pulse" />
+                : <Navigation2 className={cn('h-4 w-4', locationStatus === 'active' && 'fill-emerald-400')} />
+              }
+              GPS
+            </button>
+
             <button
               onClick={() => setShowMap(v => !v)}
               className={cn(
@@ -353,6 +454,47 @@ export default function TechnicianOTs() {
               )}
             </MapContainer>
           </div>
+        )}
+
+        {/* Banner: permiso denegado */}
+        {locationStatus === 'denied' && (
+          <div className="relative mt-3 flex items-start gap-2.5 bg-red-500/15 border border-red-500/30 rounded-2xl px-4 py-3">
+            <WifiOff className="h-4 w-4 text-red-400 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-[10px] font-black text-red-300 uppercase tracking-wider">Permiso de ubicación denegado</p>
+              <p className="text-[9px] text-red-400/80 mt-0.5">
+                Ve a Configuración del navegador → Permisos de sitio → Ubicación → Permitir para este sitio.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Banner: ubicación activa — recordatorio de mantener app abierta */}
+        {locationStatus === 'active' && (
+          <div className="relative mt-3 flex items-start gap-2.5 bg-emerald-500/15 border border-emerald-500/30 rounded-2xl px-4 py-2.5">
+            <Navigation2 className="h-4 w-4 text-emerald-400 shrink-0 mt-0.5 fill-emerald-400/30" />
+            <div>
+              <p className="text-[10px] font-black text-emerald-300 uppercase tracking-wider">
+                Ubicación activa · se actualiza cada 5 min
+              </p>
+              <p className="text-[9px] text-emerald-400/70 mt-0.5">
+                Mantén esta pantalla abierta para que el supervisor vea tu posición en tiempo real.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Banner: idle — invitar a activar */}
+        {locationStatus === 'idle' && (
+          <button
+            onClick={handleEnableLocation}
+            className="relative mt-3 w-full flex items-center gap-2.5 bg-white/8 border border-white/15 rounded-2xl px-4 py-2.5 hover:bg-white/15 transition-colors text-left"
+          >
+            <Navigation2 className="h-4 w-4 text-gray-400 shrink-0" />
+            <p className="text-[10px] font-black text-gray-300 uppercase tracking-wider">
+              Toca para activar tu ubicación
+            </p>
+          </button>
         )}
 
         {/* In-progress alert */}
