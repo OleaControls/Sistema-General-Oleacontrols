@@ -1,6 +1,5 @@
 import { apiFetch } from '../lib/api';
 
-const TECH_LOCATIONS_KEY = 'olea_tech_locations_db';
 
 export const otService = {
   async getOTs(filters = {}) {
@@ -202,23 +201,27 @@ export const otService = {
     };
   },
 
-  // Real-time location
+  // Real-time location (persisted in DB via /api/tech-locations)
   async updateTechnicianLocation(techId, techName, lat, lng) {
-    const data = localStorage.getItem(TECH_LOCATIONS_KEY);
-    const locations = data ? JSON.parse(data) : {};
-    locations[techId] = {
-        id: techId,
-        name: techName,
-        lat,
-        lng,
-        lastUpdate: new Date().toISOString()
-    };
-    localStorage.setItem(TECH_LOCATIONS_KEY, JSON.stringify(locations));
-    return true;
+    const response = await apiFetch('/api/tech-locations', {
+      method: 'POST',
+      body: JSON.stringify({ techId, lat, lng })
+    });
+    return response.ok;
   },
 
   async getTechnicianLocations() {
-    const data = localStorage.getItem(TECH_LOCATIONS_KEY);
-    return data ? JSON.parse(data) : {};
+    try {
+      const response = await apiFetch('/api/tech-locations');
+      if (!response.ok) return {};
+      const data = await response.json();
+      const result = {};
+      for (const tech of data) {
+        result[tech.id] = tech;
+      }
+      return result;
+    } catch {
+      return {};
+    }
   }
 };

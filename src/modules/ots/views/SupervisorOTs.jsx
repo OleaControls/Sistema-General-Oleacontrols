@@ -27,6 +27,15 @@ const otIcon = new L.Icon({
   shadowSize: [41, 41]
 });
 
+const techIcon = new L.Icon({
+  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
+  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+  popupAnchor: [1, -34],
+  shadowSize: [41, 41]
+});
+
 // Fix Leaflet markers
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -658,14 +667,38 @@ export default function SupervisorOTs() {
                   <div className="p-1 space-y-0.5">
                     <p className="font-black text-xs">{ot.otNumber}</p>
                     <p className="text-[10px] text-gray-500">{ot.title}</p>
+                    {ot.leadTechName && <p className="text-[10px] text-blue-600">{ot.leadTechName}</p>}
                   </div>
                 </Popup>
               </Marker>
             ))}
+            {Object.values(techLocations).map(tech =>
+              tech.lat && tech.lng ? (
+                <Marker key={`tech-${tech.id}`} position={[tech.lat, tech.lng]} icon={techIcon}>
+                  <Popup>
+                    <div className="p-1 space-y-0.5">
+                      <p className="font-black text-xs text-green-700">{tech.name}</p>
+                      <p className="text-[10px] text-gray-500">
+                        {tech.lastUpdate
+                          ? new Date(tech.lastUpdate).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })
+                          : 'Ubicación desconocida'}
+                      </p>
+                    </div>
+                  </Popup>
+                </Marker>
+              ) : null
+            )}
           </MapContainer>
           {/* Overlay corner legend */}
-          <div className="absolute bottom-3 left-3 bg-white/90 backdrop-blur-sm rounded-xl px-3 py-2 border border-white/60 shadow-sm pointer-events-none z-[400]">
-            <p className="text-[9px] font-mono font-bold text-gray-500 uppercase tracking-widest">{ots.filter(o => o.lat && o.lng).length} en mapa</p>
+          <div className="absolute bottom-3 left-3 bg-white/90 backdrop-blur-sm rounded-xl px-3 py-2 border border-white/60 shadow-sm pointer-events-none z-[400] space-y-0.5">
+            <div className="flex items-center gap-1.5">
+              <span className="inline-block w-2 h-2 rounded-full bg-blue-500"></span>
+              <p className="text-[9px] font-mono font-bold text-gray-500 uppercase tracking-widest">{ots.filter(o => o.lat && o.lng).length} OTs</p>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="inline-block w-2 h-2 rounded-full bg-green-500"></span>
+              <p className="text-[9px] font-mono font-bold text-gray-500 uppercase tracking-widest">{Object.keys(techLocations).length} técnicos</p>
+            </div>
           </div>
         </div>
 
