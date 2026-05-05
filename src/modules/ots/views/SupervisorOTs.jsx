@@ -4,7 +4,7 @@ import {
   ClipboardList, Search, MoreHorizontal, Clock, Eye,
   X, Send, Trophy, Building2, User, Trash2, AlertCircle, FileText,
   MapPin, Loader2, Layers, ChevronDown, ChevronUp, Receipt, TrendingDown,
-  DollarSign, ChevronLeft, ChevronRight, Check, Briefcase, Zap
+  DollarSign, ChevronLeft, ChevronRight, Check, Briefcase, Zap, Star, MessageSquare
 } from 'lucide-react';
 import { MapContainer, TileLayer, Marker, useMap, useMapEvents, Popup } from 'react-leaflet';
 import L from 'leaflet';
@@ -369,8 +369,6 @@ export default function SupervisorOTs() {
 
     setExpandedOtId(otId);
 
-    // Los financieros ya vienen inyectados en el objeto 'ot' desde el backend
-    // No necesitamos hacer peticiones adicionales aquí
     const ot = ots.find(o => o.id === otId);
     if (ot && ot.financials) {
       setOtFinancials(prev => ({ ...prev, [otId]: ot.financials }));
@@ -1063,6 +1061,107 @@ export default function SupervisorOTs() {
                           ) : (
                             <p className="text-[10px] font-mono font-bold text-red-400 uppercase py-4">Error al cargar datos financieros.</p>
                           )}
+
+                          {/* ── Calificaciones de encuestas ── */}
+                          {(() => {
+                            const evals = ot.evaluations || [];
+                            if (evals.length === 0) return null;
+                            const TYPE_LABEL = {
+                              CUSTOMER_TECH: 'Satisfacción · Técnico',
+                              CUSTOMER_EXEC: 'Experiencia · Ejecutivo',
+                              OPS_TECH: 'Eficiencia · Operativa',
+                            };
+                            const TYPE_COLOR = {
+                              CUSTOMER_TECH: 'text-emerald-600 bg-emerald-50 border-emerald-100',
+                              CUSTOMER_EXEC: 'text-violet-600 bg-violet-50 border-violet-100',
+                              OPS_TECH: 'text-amber-600 bg-amber-50 border-amber-100',
+                            };
+                            const Stars = ({ value, max = 5 }) => (
+                              <div className="flex gap-0.5">
+                                {Array.from({ length: max }).map((_, i) => (
+                                  <Star key={i} className={cn("h-3 w-3", i < Math.round(value) ? "fill-amber-400 text-amber-400" : "text-gray-200")} />
+                                ))}
+                              </div>
+                            );
+                            return (
+                              <div className="mt-4 bg-white rounded-xl border border-gray-100 overflow-hidden">
+                                <div className="px-5 py-3 border-b border-gray-50 flex items-center justify-between bg-gray-50/40">
+                                  <div className="flex items-center gap-2">
+                                    <MessageSquare className="h-3.5 w-3.5 text-gray-400" />
+                                    <p className="text-[9px] font-mono font-bold uppercase tracking-[0.15em] text-gray-500">Calificaciones de Encuestas</p>
+                                  </div>
+                                  <span className="text-[8px] font-mono font-bold text-gray-400 bg-white border border-gray-100 px-2 py-0.5 rounded-md">
+                                    {evals.length} resp.
+                                  </span>
+                                </div>
+                                <div className="p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                                  {evals.map(ev => {
+                                    const scores = [ev.score1, ev.score2, ev.score3].filter(s => s != null);
+                                    const avg = scores.length > 0 ? scores.reduce((a, b) => a + b, 0) / scores.length : null;
+                                    return (
+                                      <div key={ev.id} className="bg-gray-50 rounded-lg p-3.5 space-y-2.5">
+                                        <div className="flex items-center justify-between">
+                                          <span className={cn("text-[8px] font-mono font-bold px-2 py-0.5 rounded-md border uppercase", TYPE_COLOR[ev.type] || 'text-gray-500 bg-gray-100 border-gray-200')}>
+                                            {TYPE_LABEL[ev.type] || ev.type}
+                                          </span>
+                                          <span className="text-[8px] font-mono text-gray-400">
+                                            {new Date(ev.createdAt).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' })}
+                                          </span>
+                                        </div>
+                                        {ev.target?.name && (
+                                          <p className="text-[9px] font-medium text-gray-500">Técnico: <span className="font-bold text-gray-700">{ev.target.name}</span></p>
+                                        )}
+                                        <div className="space-y-1">
+                                          {ev.score1 != null && (
+                                            <div className="flex items-center justify-between">
+                                              <span className="text-[8px] text-gray-400">P1</span>
+                                              <Stars value={ev.score1} />
+                                            </div>
+                                          )}
+                                          {ev.score2 != null && (
+                                            <div className="flex items-center justify-between">
+                                              <span className="text-[8px] text-gray-400">P2</span>
+                                              <Stars value={ev.score2} />
+                                            </div>
+                                          )}
+                                          {ev.score3 != null && (
+                                            <div className="flex items-center justify-between">
+                                              <span className="text-[8px] text-gray-400">P3</span>
+                                              <Stars value={ev.score3} />
+                                            </div>
+                                          )}
+                                        </div>
+                                        {avg != null && (
+                                          <div className="flex items-center justify-between pt-1.5 border-t border-gray-100">
+                                            <span className="text-[8px] font-bold text-gray-500 uppercase tracking-wide">Promedio</span>
+                                            <div className="flex items-center gap-1">
+                                              <Stars value={avg} />
+                                              <span className="text-[9px] font-mono font-bold text-gray-700">{avg.toFixed(1)}</span>
+                                            </div>
+                                          </div>
+                                        )}
+                                        {ev.materialUsage && (
+                                          <p className="text-[8px] text-gray-400">Material: <span className="font-bold text-gray-600">{ev.materialUsage}</span></p>
+                                        )}
+                                        {ev.improvements && (
+                                          <div className="bg-blue-50 border border-blue-100 rounded-md px-2.5 py-2">
+                                            <p className="text-[8px] font-bold text-blue-500 uppercase mb-0.5">Mejoras sugeridas</p>
+                                            <p className="text-[9px] text-blue-700 leading-relaxed">{ev.improvements}</p>
+                                          </div>
+                                        )}
+                                        {ev.comment && (
+                                          <div className="bg-gray-100 rounded-md px-2.5 py-2">
+                                            <p className="text-[8px] font-bold text-gray-400 uppercase mb-0.5">Comentario</p>
+                                            <p className="text-[9px] text-gray-600 leading-relaxed">{ev.comment}</p>
+                                          </div>
+                                        )}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            );
+                          })()}
                         </td>
                       </tr>
                     )}

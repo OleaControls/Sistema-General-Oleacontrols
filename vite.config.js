@@ -11,13 +11,21 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       workbox: {
+        skipWaiting: true,
+        clientsClaim: true,
         maximumFileSizeToCacheInBytes: 3 * 1024 * 1024, // 3 MiB
-        // No precachear JS grandes — se sirven desde red con cache HTTP normal
         runtimeCaching: [
           {
+            // NetworkFirst: siempre intenta la red primero para JS/CSS
+            // Si el servidor responde (incluso con 404 porque el hash cambió),
+            // no sirve el chunk viejo en caché → fuerza recarga limpia
             urlPattern: /\.(?:js|css)$/,
-            handler: 'StaleWhileRevalidate',
-            options: { cacheName: 'static-assets', expiration: { maxEntries: 60, maxAgeSeconds: 60 * 60 * 24 * 30 } },
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'static-assets',
+              networkTimeoutSeconds: 10,
+              expiration: { maxEntries: 60, maxAgeSeconds: 60 * 60 * 24 * 7 },
+            },
           },
         ],
       },

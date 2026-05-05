@@ -121,6 +121,35 @@ export default function DeliveryAct() {
   const margin = 15;
   const contentWidth = pageWidth - (margin * 2);
 
+  // Carga una imagen como PNG (con transparencia) via canvas
+  const loadImageAsPng = async (url) => {
+      try {
+          return await new Promise((resolve) => {
+              const img = new Image();
+              img.onload = () => {
+                  try {
+                      const MAX = 300;
+                      const scale = Math.min(1, MAX / Math.max(img.naturalWidth, 1));
+                      const w = Math.round(img.naturalWidth * scale);
+                      const h = Math.round(img.naturalHeight * scale);
+                      const canvas = document.createElement('canvas');
+                      canvas.width = w;
+                      canvas.height = h;
+                      const ctx = canvas.getContext('2d');
+                      ctx.clearRect(0, 0, w, h);
+                      ctx.drawImage(img, 0, 0, w, h);
+                      resolve(canvas.toDataURL('image/png'));
+                  } catch (e) { resolve(null); }
+              };
+              img.onerror = () => resolve(null);
+              img.src = url;
+          });
+      } catch (err) {
+          console.warn("Error cargando imagen para PDF:", url, err.message);
+          return null;
+      }
+  };
+
   // Carga una imagen como JPEG via canvas — compatible con iOS Safari y Android
   const loadImageAsJpeg = async (url) => {
       try {
@@ -151,16 +180,14 @@ export default function DeliveryAct() {
       }
   };
 
-  const insigniaB64 = await loadImageAsJpeg('/img/Insignia.png');
-  const logoB64 = await loadImageAsJpeg('/img/OLEACONTROLS.png');
+  const insigniaB64 = await loadImageAsPng('/img/logo_cliente.png');
 
   // --- 1. ENCABEZADO MINIMALISTA Y ELEGANTE ---
   doc.setFillColor(224, 242, 254); // Azul Cielo Claro (Sky 100)
   doc.rect(0, 0, pageWidth, 40, 'F');
 
-  // Logos más pequeños y balanceados
-  if (insigniaB64) { try { doc.addImage(insigniaB64, 'JPEG', margin, 8, 24, 24); } catch (e) { console.warn('Logo insignia no cargó'); } }
-  if (logoB64) { try { doc.addImage(logoB64, 'JPEG', pageWidth - margin - 45, 12, 45, 12); } catch (e) { console.warn('Logo olea no cargó'); } }
+  // Solo logo izquierdo con transparencia
+  if (insigniaB64) { try { doc.addImage(insigniaB64, 'PNG', margin, 8, 24, 24); } catch (e) { console.warn('Logo insignia no cargó'); } }
 
   doc.setTextColor(7, 89, 133); // Azul Oceano Oscuro para el texto (Sky 800)
   doc.setFont("helvetica", "bold");

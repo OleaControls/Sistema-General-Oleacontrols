@@ -183,6 +183,13 @@ export default async function handler(req, res) {
           expenses: {
             where: { NOT: { status: 'REJECTED' } },
             select: { amount: true, category: true, description: true, createdAt: true, id: true }
+          },
+          evaluations: {
+            select: {
+              id: true, type: true, score1: true, score2: true, score3: true,
+              materialUsage: true, improvements: true, comment: true, createdAt: true,
+              target: { select: { name: true } }
+            }
           }
         },
         orderBy: { createdAt: 'desc' }
@@ -218,6 +225,7 @@ export default async function handler(req, res) {
           lng: ot.longitude,
           location: ot.address,
           financials,
+          evaluations: ot.evaluations || [],
           completionPhotos: ot.evidences.map(e => e.url),
           deliveryActUrl: signedActUrl,
           assistantTechs: ot.assistantTechs ? (typeof ot.assistantTechs === 'string' ? JSON.parse(ot.assistantTechs) : ot.assistantTechs) : [],

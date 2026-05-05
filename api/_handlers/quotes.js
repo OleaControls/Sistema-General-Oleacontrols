@@ -27,7 +27,7 @@ async function generateQuotePDF(quote) {
       const logoPath = path.join(process.cwd(), 'public', 'img', 'OLEACONTROLS.png');
       if (fs.existsSync(logoPath)) {
         const logoData = fs.readFileSync(logoPath).toString('base64');
-        doc.addImage(`data:image/png;base64,${logoData}`, 'PNG', margin, 10, 68, 15);
+        doc.addImage(`data:image/png;base64,${logoData}`, 'PNG', margin, 10, 60, 7);
       }
     } catch (_) {}
 
@@ -61,7 +61,7 @@ async function generateQuotePDF(quote) {
     doc.text(fmtDate(quote.validUntil), bxX + 19, bxY + 27);
 
     // ── DATOS EMPRESA (izquierda, abajo del logo) ─────────────────────────────
-    let y = 30;
+    let y = 21;
     doc.setFontSize(7.5);
     doc.setTextColor(...GRAY);
     doc.setFont('helvetica', 'bold');
@@ -174,9 +174,6 @@ async function generateQuotePDF(quote) {
     });
 
     // ── BLOQUE TOTALES + TÉRMINOS ─────────────────────────────────────────────
-    const afterTableY = doc.lastAutoTable.finalY + 6;
-
-    // Totales (derecha)
     const totW  = 82;
     const totX  = pageW - margin - totW;
     const rows  = [
@@ -187,6 +184,14 @@ async function generateQuotePDF(quote) {
     const rowH    = 6.5;
     const headerH = 8;
     const totH    = headerH + rows.length * rowH + 9;
+
+    // Si el bloque de totales + datos bancarios no cabe, nueva página
+    const spaceNeeded = totH + 42 + 20; // totales + bank + margen
+    let afterTableY = doc.lastAutoTable.finalY + 6;
+    if (afterTableY + spaceNeeded > pageH - 15) {
+      doc.addPage();
+      afterTableY = 20;
+    }
 
     doc.setFillColor(...LIGHT);
     doc.setDrawColor(...BLUE);
