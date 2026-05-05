@@ -4,7 +4,7 @@ import {
   LayoutDashboard, ClipboardList, Receipt, Users, GraduationCap,
   Briefcase, Menu, X, LogOut, Bell, ChevronDown, Trophy, User as UserIcon,
   BarChart3, Wallet, Target, Users2, FileText, Sliders, TrendingUp,
-  Activity, Settings, BarChart4, BookOpen, Calendar, Package
+  Activity, Settings, BarChart4, BookOpen, Calendar, Package, Star
 } from 'lucide-react';
 import { useAuth, ROLES } from '@/store/AuthContext';
 import { useTenant } from '@/store/TenantContext';
@@ -81,6 +81,7 @@ const NAV_STRUCTURE = [
       { name: 'Control de Gastos',  path: '/ops/expenses/control',   icon: BarChart3,     roles: [ROLES.OPS] },
       { name: 'Aprobaciones',       path: '/ops/approvals/expenses', icon: Wallet,        roles: [ROLES.OPS] },
       { name: 'Métricas Ops',       path: '/ops/metricas',           icon: TrendingUp,    roles: [ROLES.OPS] },
+      { name: 'Calificaciones',     path: '/performance',            icon: Star,          roles: [ROLES.OPS] },
     ]
   },
 
