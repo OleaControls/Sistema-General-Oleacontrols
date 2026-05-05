@@ -27,7 +27,7 @@ async function generateQuotePDF(quote) {
       const logoPath = path.join(process.cwd(), 'public', 'img', 'OLEACONTROLS.png');
       if (fs.existsSync(logoPath)) {
         const logoData = fs.readFileSync(logoPath).toString('base64');
-        doc.addImage(`data:image/png;base64,${logoData}`, 'PNG', margin, 10, 68, 15);
+        doc.addImage(`data:image/png;base64,${logoData}`, 'PNG', margin, 10, 60, 7);
       }
     } catch (_) {}
 
@@ -61,7 +61,7 @@ async function generateQuotePDF(quote) {
     doc.text(fmtDate(quote.validUntil), bxX + 19, bxY + 27);
 
     // ── DATOS EMPRESA (izquierda, abajo del logo) ─────────────────────────────
-    let y = 30;
+    let y = 21;
     doc.setFontSize(7.5);
     doc.setTextColor(...GRAY);
     doc.setFont('helvetica', 'bold');
