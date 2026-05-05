@@ -796,7 +796,7 @@ export default function QuotesList() {
                         <div>
                           <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest block mb-1">Correo electrónico *</label>
                           <input
-                            type="email" required={clientMode === 'new'}
+                            type="text" required={clientMode === 'new'}
                             className="w-full bg-white rounded-xl px-4 py-3 font-bold text-sm outline-none"
                             placeholder="contacto@empresa.com"
                             value={newClientData.email}
