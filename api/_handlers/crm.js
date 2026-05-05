@@ -235,8 +235,11 @@ export default async function handler(req, res) {
       if (resource === 'clients') {
         const { companyName, contactName, email, phone, rfc, address, latitude, longitude } = req.body;
         if (!companyName || !email) return res.status(400).json({ error: 'Faltan campos obligatorios (Empresa/Email)' });
-        const existing = await prisma.client.findUnique({ where: { email } });
-        if (existing) return res.status(409).json({ error: `Ya existe un cliente con el correo "${email}". Usa "Cliente existente" para seleccionarlo.` });
+        const existing = await prisma.client.findUnique({
+          where: { email },
+          include: { owner: { select: { id: true, name: true, avatar: true } } }
+        });
+        if (existing) return res.status(200).json(existing);
         const client = await prisma.client.create({
           data: {
             companyName,
