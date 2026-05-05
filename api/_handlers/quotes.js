@@ -174,9 +174,6 @@ async function generateQuotePDF(quote) {
     });
 
     // ── BLOQUE TOTALES + TÉRMINOS ─────────────────────────────────────────────
-    const afterTableY = doc.lastAutoTable.finalY + 6;
-
-    // Totales (derecha)
     const totW  = 82;
     const totX  = pageW - margin - totW;
     const rows  = [
@@ -187,6 +184,14 @@ async function generateQuotePDF(quote) {
     const rowH    = 6.5;
     const headerH = 8;
     const totH    = headerH + rows.length * rowH + 9;
+
+    // Si el bloque de totales + datos bancarios no cabe, nueva página
+    const spaceNeeded = totH + 42 + 20; // totales + bank + margen
+    let afterTableY = doc.lastAutoTable.finalY + 6;
+    if (afterTableY + spaceNeeded > pageH - 15) {
+      doc.addPage();
+      afterTableY = 20;
+    }
 
     doc.setFillColor(...LIGHT);
     doc.setDrawColor(...BLUE);
