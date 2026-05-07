@@ -303,6 +303,86 @@ async function generateQuotePDF(quote) {
     doc.setLineWidth(0.3);
     doc.line(margin + cW / 2, bankY + 11, margin + cW / 2, bankY + bankH - 4);
 
+    // ── IMÁGENES DE PRODUCTOS ─────────────────────────────────────────────────
+    const itemsWithImages = (quote.items || []).filter(item => item.imageBase64);
+    if (itemsWithImages.length > 0) {
+      let imgSectY = bankY + bankH + 10;
+
+      // Calcular espacio necesario: cabecera (12) + filas de imágenes
+      const imgW    = 53;
+      const imgH    = 44;
+      const nameH   = 10;
+      const colGap  = 6;
+      const cols    = 3;
+      const rows    = Math.ceil(itemsWithImages.length / cols);
+      const needed  = 12 + rows * (imgH + nameH + 6);
+
+      if (imgSectY + needed > pageH - 15) {
+        doc.addPage();
+        imgSectY = 20;
+      }
+
+      // Encabezado azul
+      doc.setFillColor(...BLUE);
+      doc.roundedRect(margin, imgSectY, cW, 9, 2, 2, 'F');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8);
+      doc.setTextColor(255, 255, 255);
+      doc.text('IMÁGENES DE PRODUCTOS', margin + cW / 2, imgSectY + 6, { align: 'center' });
+      imgSectY += 12;
+
+      let col = 0;
+      let rowY = imgSectY;
+      for (const item of itemsWithImages) {
+        const x = margin + col * (imgW + colGap);
+
+        // Marco de imagen
+        doc.setFillColor(248, 249, 253);
+        doc.setDrawColor(215, 220, 230);
+        doc.setLineWidth(0.2);
+        doc.roundedRect(x, rowY, imgW, imgH, 2, 2, 'FD');
+
+        // Imagen — extraer base64 puro desde el data URL (siempre PNG desde el frontend)
+        try {
+          let imgData   = item.imageBase64;
+          let imgFormat = 'PNG';
+          if (imgData && imgData.startsWith('data:')) {
+            const commaIdx = imgData.indexOf(',');
+            if (commaIdx !== -1) imgData = imgData.slice(commaIdx + 1);
+          }
+          if (imgData) doc.addImage(imgData, imgFormat, x + 1, rowY + 1, imgW - 2, imgH - 2);
+        } catch (imgErr) {
+          console.error('[PDF] Error agregando imagen del producto:', imgErr.message);
+        }
+
+        // Nombre del producto
+        doc.setFontSize(6.5);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(...DARK);
+        const nameLines = doc.splitTextToSize(item.name || '—', imgW);
+        doc.text(nameLines.slice(0, 2), x + imgW / 2, rowY + imgH + 5, { align: 'center' });
+
+        // Serie si existe
+        if (item.serial) {
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(6);
+          doc.setTextColor(...GRAY);
+          doc.text(item.serial, x + imgW / 2, rowY + imgH + 5 + (nameLines.slice(0, 2).length * 3.5), { align: 'center' });
+        }
+
+        col++;
+        if (col >= cols) {
+          col = 0;
+          rowY += imgH + nameH + 8;
+          // Verificar si la siguiente fila cabe en la página
+          if (rowY + imgH + nameH > pageH - 20) {
+            doc.addPage();
+            rowY = 20;
+          }
+        }
+      }
+    }
+
     // ── FOOTER ────────────────────────────────────────────────────────────────
     const footY = pageH - 8;
     doc.setDrawColor(200, 200, 200);

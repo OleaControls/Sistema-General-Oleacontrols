@@ -3,7 +3,7 @@ import {
   Plus, FileText, Download, Search, Trash2, PlusCircle, Building2,
   User, Calendar, DollarSign, X, Save, CheckCircle2, AlertCircle,
   Clock, Hash, Send, Edit3, ExternalLink, ChevronRight, TrendingUp,
-  BarChart2, Percent, Eye, RefreshCw, Package, Loader2
+  BarChart2, Percent, Eye, RefreshCw, Package, Loader2, ImagePlus
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/store/AuthContext';
@@ -24,7 +24,26 @@ const fmtDate = (d) => d ? new Date(d).toLocaleDateString('es-MX', { day: '2-dig
 const generateQuoteNumber = () =>
   `COT-${new Date().getFullYear()}-${Math.floor(Math.random() * 9000 + 1000)}`;
 
-const emptyItem = () => ({ serial: '', name: '', desc: '', qty: 1, price: 0, total: 0 });
+const emptyItem = () => ({ serial: '', name: '', desc: '', qty: 1, price: 0, total: 0, imageBase64: '' });
+
+// Redimensiona imagen a máx 350px y la convierte a PNG (jsPDF en Node.js solo soporta PNG sin dependencias extra)
+const compressImage = (file) => new Promise((resolve) => {
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const img = new Image();
+    img.onload = () => {
+      const maxW = 350;
+      const scale = Math.min(maxW / img.width, 1);
+      const canvas = document.createElement('canvas');
+      canvas.width  = Math.round(img.width  * scale);
+      canvas.height = Math.round(img.height * scale);
+      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+      resolve(canvas.toDataURL('image/png'));
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+});
 
 // ── Buscador de productos del catálogo ────────────────────────────────────────
 function ProductSearchModal({ onSelect, onClose }) {
@@ -389,6 +408,24 @@ export default function QuotesList() {
     }
   };
 
+  // Subir imagen por ítem (nueva cotización)
+  const handleItemImage = async (index, file) => {
+    if (!file) return;
+    const base64 = await compressImage(file);
+    const ni = [...newQuote.items];
+    ni[index] = { ...ni[index], imageBase64: base64 };
+    setNewQuote(f => ({ ...f, items: ni }));
+  };
+
+  // Subir imagen por ítem (edición)
+  const handleEditItemImage = async (index, file) => {
+    if (!file) return;
+    const base64 = await compressImage(file);
+    const ni = [...editQuote.items];
+    ni[index] = { ...ni[index], imageBase64: base64 };
+    setEditQuote(f => ({ ...f, items: ni }));
+  };
+
   const addEditItem = () => setEditQuote(f => ({ ...f, items: [...(f.items || []), emptyItem()] }));
   const removeEditItem = (i) => setEditQuote(f => ({ ...f, items: f.items.filter((_, idx) => idx !== i) }));
   const updateEditItem = (index, field, value) => {
@@ -674,6 +711,7 @@ export default function QuotesList() {
                     onAddItem={addEditItem}
                     onRemoveItem={removeEditItem}
                     onUpdateItem={updateEditItem}
+                    onItemImage={handleEditItemImage}
                     onSave={saveQuoteEdit}
                     saving={savingQuote}
                   />
@@ -946,6 +984,32 @@ export default function QuotesList() {
                         <input className="col-span-12 sm:col-span-3 bg-white rounded-lg p-2.5 text-[10px] font-bold outline-none" type="number" min="0" step="0.01" placeholder="0.00" value={item.price} onChange={e => updateItem(index, 'price', parseFloat(e.target.value) || 0)} onFocus={e => e.target.select()} />
                         <div className="col-span-12 sm:col-span-2 text-right font-black text-xs text-gray-900">{fmt(item.qty * item.price)}</div>
                       </div>
+                      {/* Imagen del producto */}
+                      <div className="flex items-center gap-3 pt-1">
+                        <label className="cursor-pointer flex items-center gap-1.5 px-3 py-1.5 bg-white border border-dashed border-gray-300 hover:border-primary hover:bg-primary/5 text-gray-400 hover:text-primary rounded-xl text-[8px] font-black uppercase tracking-widest transition-all">
+                          <ImagePlus className="h-3 w-3" />
+                          {item.imageBase64 ? 'Cambiar imagen' : 'Imagen del producto'}
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={e => handleItemImage(index, e.target.files[0])}
+                          />
+                        </label>
+                        {item.imageBase64 && (
+                          <>
+                            <img src={item.imageBase64} alt={item.name} className="h-10 w-10 object-cover rounded-lg border border-gray-200 shadow-sm" />
+                            <button
+                              type="button"
+                              onClick={() => updateItem(index, 'imageBase64', '')}
+                              className="text-red-400 hover:text-red-600 transition-colors"
+                              title="Quitar imagen"
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </button>
+                          </>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -1089,6 +1153,29 @@ function QuotePreview({ quote, employees, onStatusChange, onDelete }) {
         </div>
       )}
 
+      {/* Imágenes de productos */}
+      {(quote.items || []).some(i => i.imageBase64) && (
+        <div>
+          <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+            <ImagePlus className="h-3 w-3" /> Imágenes de Productos
+          </p>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+            {(quote.items || []).filter(i => i.imageBase64).map((item, i) => (
+              <div key={i} className="space-y-2 text-center">
+                <img
+                  src={item.imageBase64}
+                  alt={item.name}
+                  className="w-full rounded-2xl object-cover border border-gray-100 shadow-sm"
+                  style={{ maxHeight: 180 }}
+                />
+                <p className="text-[9px] font-black text-gray-800 uppercase leading-tight">{item.name || '—'}</p>
+                {item.serial && <p className="text-[8px] font-bold text-gray-400">{item.serial}</p>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Acciones de status */}
       <div className="border-t border-gray-100 pt-5">
         <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-3">Cambiar estado</p>
@@ -1136,7 +1223,7 @@ function QuotePreview({ quote, employees, onStatusChange, onDelete }) {
 }
 
 // ── Componente: Formulario de edición de cotización ────────────────────────────
-function QuoteEditForm({ editQuote, setEditQuote, employees, onAddItem, onRemoveItem, onUpdateItem, onSave, saving }) {
+function QuoteEditForm({ editQuote, setEditQuote, employees, onAddItem, onRemoveItem, onUpdateItem, onItemImage, onSave, saving }) {
   return (
     <div className="p-6 md:p-8 space-y-6">
       {/* Info básica */}
@@ -1216,6 +1303,32 @@ function QuoteEditForm({ editQuote, setEditQuote, employees, onAddItem, onRemove
               <input className="col-span-2 bg-white rounded-lg p-2 text-[9px] text-center font-bold outline-none" type="number" min="1" value={item.qty} onChange={e => onUpdateItem(i, 'qty', parseInt(e.target.value) || 1)} onFocus={e => e.target.select()} />
               <input className="col-span-3 bg-white rounded-lg p-2 text-[9px] font-bold outline-none" type="number" min="0" step="0.01" placeholder="Precio" value={item.price} onChange={e => onUpdateItem(i, 'price', parseFloat(e.target.value) || 0)} onFocus={e => e.target.select()} />
               <div className="col-span-2 text-right font-black text-xs text-gray-900">{fmt(Number(item.qty) * Number(item.price))}</div>
+            </div>
+            {/* Imagen del producto */}
+            <div className="flex items-center gap-3 pt-1">
+              <label className="cursor-pointer flex items-center gap-1.5 px-3 py-1.5 bg-white border border-dashed border-gray-300 hover:border-primary hover:bg-primary/5 text-gray-400 hover:text-primary rounded-xl text-[8px] font-black uppercase tracking-widest transition-all">
+                <ImagePlus className="h-3 w-3" />
+                {item.imageBase64 ? 'Cambiar imagen' : 'Imagen del producto'}
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={e => onItemImage && onItemImage(i, e.target.files[0])}
+                />
+              </label>
+              {item.imageBase64 && (
+                <>
+                  <img src={item.imageBase64} alt={item.name} className="h-10 w-10 object-cover rounded-lg border border-gray-200 shadow-sm" />
+                  <button
+                    type="button"
+                    onClick={() => onUpdateItem(i, 'imageBase64', '')}
+                    className="text-red-400 hover:text-red-600 transition-colors"
+                    title="Quitar imagen"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </>
+              )}
             </div>
           </div>
         ))}
