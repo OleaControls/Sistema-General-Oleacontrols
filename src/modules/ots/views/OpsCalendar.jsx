@@ -94,6 +94,10 @@ export default function OpsCalendar() {
   const [deleting, setDeleting] = useState(false);
   const [editSaving, setEditSaving] = useState(false);
 
+  // ── Hover tooltip ─────────────────────────────────────────────────────────
+  const [hoveredEvent, setHoveredEvent] = useState(null);
+  const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
+
   // ── Convert Modal states ──────────────────────────────────────────────────
   const [isConvertModalOpen, setIsConvertModalOpen] = useState(false);
   const [convertStep, setConvertStep] = useState(1);
@@ -459,10 +463,26 @@ export default function OpsCalendar() {
                         return (
                           <div
                             key={ev.id}
-                            onClick={(e) => { e.stopPropagation(); setSelectedEvent(ev); setConvertedOT(null); }}
+                            onClick={(e) => { e.stopPropagation(); setSelectedEvent(ev); setConvertedOT(null); setHoveredEvent(null); }}
                             style={{ background: p.bg, border: `1px solid ${p.border}`, borderRadius: 8, padding: '5px 7px', cursor: 'pointer', transition: 'all .12s', display: 'flex', flexDirection: 'column', gap: 2 }}
-                            onMouseEnter={e => { e.currentTarget.style.filter = 'brightness(.94)'; e.currentTarget.style.transform = 'translateX(1px)'; }}
-                            onMouseLeave={e => { e.currentTarget.style.filter = ''; e.currentTarget.style.transform = ''; }}
+                            onMouseEnter={e => {
+                              e.currentTarget.style.filter = 'brightness(.94)';
+                              e.currentTarget.style.transform = 'translateX(1px)';
+                              const rect = e.currentTarget.getBoundingClientRect();
+                              const vw = window.innerWidth;
+                              const vh = window.innerHeight;
+                              const tooltipW = 268;
+                              const tooltipH = 220;
+                              const x = rect.right + tooltipW + 12 < vw ? rect.right + 10 : rect.left - tooltipW - 10;
+                              const y = Math.max(8, Math.min(rect.top - 8, vh - tooltipH - 8));
+                              setTooltipPos({ x, y });
+                              setHoveredEvent(ev);
+                            }}
+                            onMouseLeave={e => {
+                              e.currentTarget.style.filter = '';
+                              e.currentTarget.style.transform = '';
+                              setHoveredEvent(null);
+                            }}
                           >
                             <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                               <div style={{ width: 6, height: 6, borderRadius: '50%', background: p.dot, flexShrink: 0 }} />
@@ -488,6 +508,120 @@ export default function OpsCalendar() {
           })}
         </div>
       </div>
+
+      {/* ══ TOOLTIP HOVER EVENTO ══ */}
+      <style>{`
+        @keyframes tooltipFadeIn {
+          from { opacity: 0; transform: translateY(4px) scale(.97); }
+          to   { opacity: 1; transform: translateY(0)  scale(1); }
+        }
+      `}</style>
+      {hoveredEvent && !selectedEvent && (() => {
+        const hMeta = EVENT_TYPES[hoveredEvent.type] || EVENT_TYPES.OTHER;
+        const hp = hMeta.pill;
+        const HIcon = hMeta.icon;
+        const isOT = hoveredEvent.id?.startsWith('ot-');
+        const linkedClient = hoveredEvent.otClientId ? clients.find(c => c.id === hoveredEvent.otClientId) : null;
+        const priorityMap = { URGENT: ['Urgente', '#fee2e2', '#991b1b'], HIGH: ['Alta', '#fee2e2', '#991b1b'], MEDIUM: ['Media', '#fef3c7', '#92400e'], LOW: ['Baja', '#f0fdf4', '#166534'] };
+        const [prLabel, prBg, prColor] = priorityMap[hoveredEvent.priority] || [];
+        return (
+          <div
+            style={{
+              position: 'fixed',
+              top: tooltipPos.y,
+              left: tooltipPos.x,
+              zIndex: 9999,
+              background: '#fff',
+              borderRadius: 16,
+              boxShadow: '0 16px 48px rgba(0,0,0,.18), 0 2px 8px rgba(0,0,0,.06)',
+              width: 268,
+              pointerEvents: 'none',
+              border: `1.5px solid ${hp.border}`,
+              overflow: 'hidden',
+              animation: 'tooltipFadeIn .15s ease-out forwards',
+            }}
+          >
+            <div style={{ height: 4, background: hp.dot }} />
+            <div style={{ padding: '14px 16px 12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 10 }}>
+                <div style={{ background: hp.bg, border: `1px solid ${hp.border}`, borderRadius: 8, padding: '3px 8px', display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <HIcon size={11} style={{ color: hp.text }} />
+                  <span style={{ fontSize: 9, fontWeight: 700, color: hp.text, textTransform: 'uppercase', letterSpacing: '.07em' }}>{hMeta.label}</span>
+                </div>
+                <span style={{ fontSize: 10, fontFamily: 'monospace', color: '#9ca3af', display: 'flex', alignItems: 'center', gap: 3 }}>
+                  <Clock size={10} /> {hoveredEvent.time}
+                </span>
+                {prLabel && (
+                  <span style={{ marginLeft: 'auto', fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.07em', background: prBg, color: prColor, borderRadius: 6, padding: '2px 7px' }}>
+                    {prLabel}
+                  </span>
+                )}
+              </div>
+              <p style={{ fontSize: 13, fontWeight: 800, color: '#111827', margin: '0 0 8px', lineHeight: 1.3 }}>{hoveredEvent.title}</p>
+              {(hoveredEvent.description || (isOT && hoveredEvent.workDescription)) && (
+                <p style={{ fontSize: 11, color: '#6b7280', margin: '0 0 8px', lineHeight: 1.5, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                  {hoveredEvent.description || hoveredEvent.workDescription}
+                </p>
+              )}
+              {isOT && hoveredEvent.client && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 4 }}>
+                  <User size={11} style={{ color: '#9ca3af', flexShrink: 0 }} />
+                  <span style={{ fontSize: 11, color: '#374151', fontWeight: 600 }}>{hoveredEvent.client}</span>
+                </div>
+              )}
+              {isOT && hoveredEvent.storeName && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 4 }}>
+                  <Building2 size={11} style={{ color: '#9ca3af', flexShrink: 0 }} />
+                  <span style={{ fontSize: 11, color: '#6b7280', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {hoveredEvent.storeNumber ? `#${hoveredEvent.storeNumber} · ` : ''}{hoveredEvent.storeName}
+                  </span>
+                </div>
+              )}
+              {isOT && hoveredEvent.address && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 4 }}>
+                  <MapPin size={11} style={{ color: '#9ca3af', flexShrink: 0 }} />
+                  <span style={{ fontSize: 11, color: '#6b7280', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{hoveredEvent.address}</span>
+                </div>
+              )}
+              {isOT && hoveredEvent.leadTechName && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 4 }}>
+                  <Wrench size={11} style={{ color: '#9ca3af', flexShrink: 0 }} />
+                  <span style={{ fontSize: 11, color: '#374151', fontWeight: 600 }}>{hoveredEvent.leadTechName}</span>
+                  <span style={{ fontSize: 9, color: '#9ca3af' }}>Líder</span>
+                </div>
+              )}
+              {isOT && hoveredEvent.assignedByName && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 6 }}>
+                  <User size={11} style={{ color: '#9ca3af', flexShrink: 0 }} />
+                  <span style={{ fontSize: 11, color: '#6b7280' }}>{hoveredEvent.assignedByName}</span>
+                  <span style={{ fontSize: 9, color: '#9ca3af' }}>Supervisor</span>
+                </div>
+              )}
+              {isOT && hoveredEvent.status && (() => {
+                const stMap = { UNASSIGNED: ['Sin asignar', '#f3f4f6', '#6b7280'], ASSIGNED: ['Asignado', '#dbeafe', '#1d4ed8'], IN_PROGRESS: ['En progreso', '#fef9c3', '#854d0e'], COMPLETED: ['Completado', '#dcfce7', '#166534'], VALIDATED: ['Validado', '#f3e8ff', '#6b21a8'] };
+                const [stLabel, stBg, stColor] = stMap[hoveredEvent.status] || ['—', '#f3f4f6', '#6b7280'];
+                return (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ fontSize: 9, fontWeight: 700, color: stColor, background: stBg, borderRadius: 6, padding: '2px 8px', textTransform: 'uppercase', letterSpacing: '.06em' }}>{stLabel}</span>
+                    {hoveredEvent.otNumber && <span style={{ fontSize: 9, fontFamily: 'monospace', color: '#9ca3af' }}>#{hoveredEvent.otNumber}</span>}
+                  </div>
+                );
+              })()}
+              {!isOT && linkedClient && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 4 }}>
+                  <ShieldCheck size={11} style={{ color: '#10b981', flexShrink: 0 }} />
+                  <span style={{ fontSize: 11, color: '#374151', fontWeight: 600 }}>{linkedClient.name}</span>
+                </div>
+              )}
+            </div>
+            <div style={{ padding: '8px 16px', background: '#f9fafb', borderTop: `1px solid ${hp.border}20` }}>
+              <span style={{ fontSize: 9, color: '#9ca3af', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.08em' }}>
+                Clic para ver detalles completos
+              </span>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ══ MODAL DETALLE EVENTO ══ */}
       {selectedEvent && !isModalOpen && !isPortalModalOpen && !isConvertModalOpen && (() => {
@@ -552,10 +686,135 @@ export default function OpsCalendar() {
                 {/* Body scrollable */}
                 <div style={{ flex: 1, overflowY: 'auto', padding: '24px 28px', display: 'flex', flexDirection: 'column', gap: 24 }}>
 
+                  {/* ── Sección OT: datos del equipo y generales ── */}
+                  {!isCalendarEvent && (() => {
+                    const stMap = { UNASSIGNED: ['Sin asignar', '#f3f4f6', '#6b7280'], ASSIGNED: ['Asignado', '#dbeafe', '#1d4ed8'], IN_PROGRESS: ['En progreso', '#fef9c3', '#854d0e'], COMPLETED: ['Completado', '#dcfce7', '#166534'], VALIDATED: ['Validado', '#f3e8ff', '#6b21a8'] };
+                    const [stLabel, stBg, stColor] = stMap[selectedEvent.status] || ['—', '#f3f4f6', '#6b7280'];
+                    const techName = selectedEvent.leadTechName || 'Sin asignar';
+                    const techAvatar = selectedEvent.technician?.avatar;
+                    const techPosition = selectedEvent.technician?.position || 'Técnico Líder';
+                    const supervisorName = selectedEvent.assignedByName;
+                    const assistIds = Array.isArray(selectedEvent.assistantTechs) ? selectedEvent.assistantTechs : [];
+                    const assistNames = assistIds.map(id => availableTechs.find(t => t.id === id)?.name).filter(Boolean);
+                    const funds = selectedEvent.financials;
+                    return (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                        {/* OT número + status */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                          {selectedEvent.otNumber && (
+                            <span style={{ fontSize: 11, fontFamily: 'monospace', fontWeight: 700, color: '#6b7280', background: '#f3f4f6', borderRadius: 8, padding: '4px 10px' }}>
+                              OT #{selectedEvent.otNumber}
+                            </span>
+                          )}
+                          <span style={{ fontSize: 11, fontWeight: 700, color: stColor, background: stBg, borderRadius: 8, padding: '4px 10px' }}>
+                            {stLabel}
+                          </span>
+                          {selectedEvent.storeNumber && (
+                            <span style={{ fontSize: 11, fontWeight: 600, color: '#9ca3af', fontFamily: 'monospace' }}>
+                              Suc. #{selectedEvent.storeNumber}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Equipo asignado */}
+                        <div style={{ background: '#f9fafb', border: '1px solid #f3f4f6', borderRadius: 14, padding: '16px 18px' }}>
+                          <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase', color: '#9ca3af', margin: '0 0 14px' }}>Equipo Asignado</p>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                            {/* Técnico líder */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                              <div style={{ width: 40, height: 40, borderRadius: '50%', background: '#1e40af', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden', border: '2px solid #bfdbfe' }}>
+                                {techAvatar
+                                  ? <img src={techAvatar} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" />
+                                  : <span style={{ fontSize: 15, fontWeight: 800, color: '#fff' }}>{techName.charAt(0).toUpperCase()}</span>
+                                }
+                              </div>
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#111827' }}>{techName}</p>
+                                <p style={{ margin: 0, fontSize: 11, color: '#6b7280' }}>{techPosition}</p>
+                              </div>
+                              <span style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.07em', color: '#1d4ed8', background: '#dbeafe', borderRadius: 6, padding: '3px 8px', flexShrink: 0 }}>Líder</span>
+                            </div>
+
+                            {supervisorName && (
+                              <>
+                                <div style={{ height: 1, background: '#f3f4f6' }} />
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                                  <div style={{ width: 40, height: 40, borderRadius: '50%', background: '#6b7280', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, border: '2px solid #e5e7eb' }}>
+                                    <User size={18} style={{ color: '#fff' }} />
+                                  </div>
+                                  <div style={{ flex: 1, minWidth: 0 }}>
+                                    <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#111827' }}>{supervisorName}</p>
+                                    <p style={{ margin: 0, fontSize: 11, color: '#6b7280' }}>Supervisor · Asignó la OT</p>
+                                  </div>
+                                </div>
+                              </>
+                            )}
+
+                            {assistNames.length > 0 && (
+                              <>
+                                <div style={{ height: 1, background: '#f3f4f6' }} />
+                                <div>
+                                  <p style={{ fontSize: 10, fontWeight: 700, color: '#9ca3af', margin: '0 0 8px', textTransform: 'uppercase', letterSpacing: '.06em' }}>Técnicos Auxiliares</p>
+                                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                                    {assistNames.map((name, i) => (
+                                      <span key={i} style={{ fontSize: 11, fontWeight: 600, color: '#374151', background: '#f3f4f6', border: '1px solid #e5e7eb', borderRadius: 8, padding: '4px 10px' }}>{name}</span>
+                                    ))}
+                                  </div>
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Tienda / Ubicación */}
+                        {(selectedEvent.storeName || selectedEvent.address) && (
+                          <div style={{ background: '#f9fafb', border: '1px solid #f3f4f6', borderRadius: 14, padding: '14px 18px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                            <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase', color: '#9ca3af', margin: 0 }}>Ubicación · Tienda</p>
+                            {selectedEvent.storeName && (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <Building2 size={14} style={{ color: '#9ca3af', flexShrink: 0 }} />
+                                <span style={{ fontSize: 13, fontWeight: 600, color: '#374151' }}>
+                                  {selectedEvent.storeNumber ? `#${selectedEvent.storeNumber} · ` : ''}{selectedEvent.storeName}
+                                </span>
+                              </div>
+                            )}
+                            {selectedEvent.address && (
+                              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                                <MapPin size={14} style={{ color: '#9ca3af', flexShrink: 0, marginTop: 1 }} />
+                                <span style={{ fontSize: 12, color: '#6b7280', lineHeight: 1.4 }}>{selectedEvent.address}</span>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Presupuesto */}
+                        {funds && funds.assignedFunds > 0 && (
+                          <div style={{ background: '#f9fafb', border: '1px solid #f3f4f6', borderRadius: 14, padding: '14px 18px' }}>
+                            <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase', color: '#9ca3af', margin: '0 0 12px' }}>Presupuesto</p>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8 }}>
+                              {[
+                                ['Asignado', `$${funds.assignedFunds.toLocaleString()}`, '#1d4ed8', '#dbeafe'],
+                                ['Gastado',  `$${funds.totalSpent.toLocaleString()}`,   '#b45309', '#fef3c7'],
+                                ['Balance',  `$${Math.abs(funds.balance).toLocaleString()}${funds.balance < 0 ? ' (excedido)' : ''}`, funds.isOverLimit ? '#dc2626' : '#166534', funds.isOverLimit ? '#fee2e2' : '#dcfce7'],
+                              ].map(([label, value, color, bg]) => (
+                                <div key={label} style={{ background: bg, borderRadius: 10, padding: '10px 12px', textAlign: 'center' }}>
+                                  <p style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.06em', color, margin: '0 0 4px', opacity: .75 }}>{label}</p>
+                                  <p style={{ fontSize: 14, fontWeight: 800, color, margin: 0, fontFamily: 'monospace' }}>{value}</p>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+
                   {/* Descripción */}
                   {selectedEvent.description ? (
                     <div style={{ background: '#f9fafb', border: '1px solid #f3f4f6', borderRadius: 14, padding: '16px 18px' }}>
-                      <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase', color: '#9ca3af', marginBottom: 8 }}>Descripción</p>
+                      <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase', color: '#9ca3af', marginBottom: 8 }}>
+                        {!isCalendarEvent ? 'Descripción del Trabajo' : 'Descripción'}
+                      </p>
                       <p style={{ fontSize: 14, color: '#374151', lineHeight: 1.75, margin: 0 }}>{selectedEvent.description}</p>
                     </div>
                   ) : (

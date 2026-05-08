@@ -446,6 +446,45 @@ export default async function handler(req, res) {
   if (method === 'POST') {
     try {
       const data = req.body;
+
+      // ── Duplicar cotización existente ────────────────────────────────────────
+      if (data.duplicateFromId) {
+        const original = await prisma.quote.findUnique({
+          where: { id: data.duplicateFromId },
+          include: { client: true, creator: true, seller: true }
+        });
+        if (!original) return res.status(404).json({ error: 'Cotización original no encontrada' });
+
+        const year  = new Date().getFullYear();
+        const count = await prisma.quote.count();
+        const newQuoteNumber = `COT-${year}-${String(count + 1).padStart(4, '0')}`;
+
+        const validUntil = new Date();
+        validUntil.setDate(validUntil.getDate() + 30);
+
+        const copy = await prisma.quote.create({
+          data: {
+            quoteNumber:  newQuoteNumber,
+            clientId:     original.clientId,
+            projectName:  `[COPIA] ${original.projectName || ''}`.trim(),
+            projectPhase: original.projectPhase || 'INICIAL',
+            contactName:  original.contactName  || '',
+            items:        original.items,
+            subtotal:     original.subtotal,
+            tax:          original.tax,
+            total:        original.total,
+            validUntil,
+            terms:        original.terms || '',
+            creatorId:    userId,
+            sellerId:     original.sellerId || null,
+            status:       'PENDING',
+          },
+          include: { client: true, creator: true, seller: true }
+        });
+        return res.status(201).json(copy);
+      }
+
+      // ── Crear cotización normal ──────────────────────────────────────────────
       const quote = await prisma.quote.create({
         data: {
           quoteNumber: data.quoteNumber,
@@ -479,9 +518,10 @@ export default async function handler(req, res) {
 
   if (method === 'PUT') {
     try {
-      const { id, status, sellerId, projectName, contactName, validUntil, terms, items, subtotal, tax, adjustment, total } = req.body;
+      const { id, status, clientId, sellerId, projectName, contactName, validUntil, terms, items, subtotal, tax, adjustment, total } = req.body;
       const updateData = {};
       if (status !== undefined)      updateData.status = status;
+      if (clientId !== undefined && clientId) updateData.clientId = clientId;
       if (sellerId !== undefined)    updateData.sellerId = sellerId || null;
       if (projectName !== undefined) updateData.projectName = projectName;
       if (contactName !== undefined) updateData.contactName = contactName;

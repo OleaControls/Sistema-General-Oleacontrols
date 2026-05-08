@@ -3,7 +3,7 @@ import {
   Plus, FileText, Download, Search, Trash2, PlusCircle, Building2,
   User, Calendar, DollarSign, X, Save, CheckCircle2, AlertCircle,
   Clock, Hash, Send, Edit3, ExternalLink, ChevronRight, TrendingUp,
-  BarChart2, Percent, Eye, RefreshCw, Package, Loader2, ImagePlus
+  BarChart2, Percent, Eye, RefreshCw, Package, Loader2, ImagePlus, Copy
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/store/AuthContext';
@@ -16,6 +16,13 @@ const STATUS = {
   ACCEPTED: { label: 'Aprobada',      bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200',icon: CheckCircle2 },
   REJECTED: { label: 'No concretada', bg: 'bg-red-50',     text: 'text-red-700',     border: 'border-red-200',    icon: X },
   EXPIRED:  { label: 'Expirada',      bg: 'bg-gray-50',    text: 'text-gray-500',    border: 'border-gray-200',   icon: AlertCircle },
+};
+
+const STATUS_STYLE = {
+  PENDING:  { accent: '#f59e0b', bg: '#fffbeb', text: '#92400e', border: '#fde68a' },
+  ACCEPTED: { accent: '#10b981', bg: '#ecfdf5', text: '#065f46', border: '#a7f3d0' },
+  REJECTED: { accent: '#ef4444', bg: '#fef2f2', text: '#991b1b', border: '#fecaca' },
+  EXPIRED:  { accent: '#94a3b8', bg: '#f8fafc', text: '#475569', border: '#e2e8f0' },
 };
 
 const fmt    = (n)  => `$${Number(n || 0).toLocaleString('es-MX', { maximumFractionDigits: 2 })}`;
@@ -165,6 +172,7 @@ export default function QuotesList() {
   const [editQuote,     setEditQuote]     = useState({});
   const [savingQuote,   setSavingQuote]   = useState(false);
   const [generatingPDF, setGeneratingPDF] = useState(false);
+  const [duplicating,   setDuplicating]   = useState(null);
 
   // Modal: crear cotización
   const [showAddModal,  setShowAddModal]  = useState(false);
@@ -253,6 +261,7 @@ export default function QuotesList() {
     setSelectedQuote(quote);
     setDetailTab('preview');
     setEditQuote({
+      clientId:    quote.clientId    || '',
       sellerId:    quote.sellerId    || '',
       projectName: quote.projectName || '',
       contactName: quote.contactName || '',
@@ -282,6 +291,28 @@ export default function QuotesList() {
       }
     } catch (err) { console.error(err); }
     finally { setSavingQuote(false); }
+  };
+
+  // ── Duplicar cotización ───────────────────────────────────────────────────
+  const duplicateQuote = async (q, e) => {
+    e.stopPropagation();
+    if (duplicating) return;
+    setDuplicating(q.id);
+    try {
+      const res = await apiFetch('/api/quotes', {
+        method: 'POST',
+        body: JSON.stringify({ duplicateFromId: q.id })
+      });
+      if (!res.ok) throw new Error('Error al duplicar');
+      const copy = await res.json();
+      setQuotes(prev => [copy, ...prev]);
+      openDetail(copy);
+      setDetailTab('edit');
+    } catch (err) {
+      alert('Error al duplicar la cotización: ' + err.message);
+    } finally {
+      setDuplicating(null);
+    }
   };
 
   // ── Cambiar status ────────────────────────────────────────────────────────
@@ -457,72 +488,86 @@ export default function QuotesList() {
   );
 
   return (
-    <div className="max-w-full mx-auto space-y-6 animate-in fade-in duration-700 pb-20 px-2 md:px-0">
+    <div className="space-y-6 pb-20">
 
-      {/* ── Header ──────────────────────────────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h2 className="text-3xl md:text-4xl font-black text-primary tracking-tighter uppercase italic">Cotizaciones</h2>
-          <p className="text-gray-400 font-bold text-[10px] mt-1 uppercase tracking-widest flex items-center gap-2">
-            <FileText className="h-3 w-3 text-blue-500" /> Cotizador OleaControls
-          </p>
-        </div>
-        <button
-          onClick={() => { setNewQuote(initialNewQuote()); setNewClientData(initialNewClientData()); setClientMode('existing'); setShowAddModal(true); }}
-          className="w-full sm:w-auto bg-gray-900 text-white px-6 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl flex items-center justify-center gap-3 hover:bg-primary transition-all"
-        >
-          <PlusCircle className="h-4 w-4" /> Crear Cotización
-        </button>
-      </div>
-
-      {/* ── KPIs ────────────────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-        {[
-          { label: 'Total', value: quotes.length, color: 'text-blue-600', bg: 'bg-blue-50', icon: FileText },
-          { label: 'Pendientes', value: totalPending, color: 'text-amber-600', bg: 'bg-amber-50', icon: Clock },
-          { label: 'Aprobadas', value: totalAccepted, color: 'text-emerald-600', bg: 'bg-emerald-50', icon: CheckCircle2 },
-          { label: 'No Concretadas', value: totalRejected, color: 'text-red-500', bg: 'bg-red-50', icon: X },
-          { label: 'Aprobado $', value: fmt(acceptedValue), color: 'text-emerald-700', bg: 'bg-emerald-50', icon: TrendingUp },
-        ].map(({ label, value, color, bg, icon: Icon }) => (
-          <div key={label} className={cn("flex items-center gap-3 p-3 rounded-2xl border border-gray-100", bg)}>
-            <div className={cn("h-8 w-8 rounded-xl flex items-center justify-center bg-white shadow-sm", color)}>
-              <Icon className="h-4 w-4" />
-            </div>
+      {/* ── Header Premium ───────────────────────────────────────────────────── */}
+      <div style={{ position: 'relative', overflow: 'hidden', background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 60%, #0f2027 100%)', borderRadius: 28, padding: '36px 40px' }}>
+        <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(circle, rgba(255,255,255,.05) 1px, transparent 1px)', backgroundSize: '28px 28px' }} />
+        <div style={{ position: 'absolute', right: -80, top: -80, width: 360, height: 360, background: 'radial-gradient(circle, rgba(16,185,129,.07) 0%, transparent 65%)' }} />
+        <div style={{ position: 'absolute', left: '40%', bottom: -40, width: 200, height: 200, background: 'radial-gradient(circle, rgba(99,102,241,.06) 0%, transparent 70%)' }} />
+        <div style={{ position: 'relative', zIndex: 1 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 20, flexWrap: 'wrap', marginBottom: 28 }}>
             <div>
-              <p className="text-[7px] font-black text-gray-400 uppercase tracking-widest">{label}</p>
-              <p className={cn("text-sm font-black", color)}>{value}</p>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+                <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#10b981' }} />
+                <span style={{ fontSize: 9, fontWeight: 700, color: '#475569', letterSpacing: '.25em', textTransform: 'uppercase', fontFamily: 'monospace' }}>OleaControls · Sistema Comercial</span>
+              </div>
+              <h1 style={{ fontSize: 'clamp(2rem, 5vw, 3.2rem)', fontWeight: 900, color: '#f1f5f9', margin: 0, letterSpacing: '-.03em', lineHeight: 1 }}>
+                Cotizaciones
+              </h1>
+              <p style={{ fontSize: 11, color: '#475569', fontWeight: 600, margin: '6px 0 0', letterSpacing: '.06em' }}>
+                {quotes.length} documento{quotes.length !== 1 ? 's' : ''} en el sistema
+              </p>
             </div>
+            <button
+              onClick={() => { setNewQuote(initialNewQuote()); setNewClientData(initialNewClientData()); setClientMode('existing'); setShowAddModal(true); }}
+              style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#10b981', color: '#fff', padding: '14px 24px', borderRadius: 14, fontWeight: 900, fontSize: 11, textTransform: 'uppercase', letterSpacing: '.1em', border: 'none', cursor: 'pointer', transition: 'all .2s', flexShrink: 0, boxShadow: '0 8px 24px rgba(16,185,129,.35)' }}
+              onMouseEnter={e => { e.currentTarget.style.background = '#059669'; e.currentTarget.style.transform = 'translateY(-2px)'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = '#10b981'; e.currentTarget.style.transform = 'none'; }}
+            >
+              <PlusCircle size={16} /> Nueva Cotización
+            </button>
           </div>
-        ))}
+
+          {/* KPIs inline en header */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 12 }}>
+            {[
+              { label: 'Cartera Total',    value: fmt(totalValue),    color: '#a5b4fc', accent: 'rgba(165,180,252,.15)' },
+              { label: 'Valor Aprobado',   value: fmt(acceptedValue), color: '#6ee7b7', accent: 'rgba(110,231,183,.15)' },
+              { label: 'Pendientes',       value: totalPending,       color: '#fcd34d', accent: 'rgba(252,211,77,.12)'  },
+              { label: 'Aprobadas',        value: totalAccepted,      color: '#6ee7b7', accent: 'rgba(110,231,183,.12)' },
+              { label: 'No Concretadas',   value: totalRejected,      color: '#fca5a5', accent: 'rgba(252,165,165,.12)' },
+            ].map(({ label, value, color, accent }) => (
+              <div key={label} style={{ background: accent, borderRadius: 14, padding: '14px 16px', border: '1px solid rgba(255,255,255,.06)', backdropFilter: 'blur(4px)' }}>
+                <p style={{ fontSize: 8, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '.14em', margin: '0 0 6px' }}>{label}</p>
+                <p style={{ fontSize: typeof value === 'string' ? 15 : 24, fontWeight: 900, color, margin: 0, fontFamily: 'monospace', lineHeight: 1 }}>{value}</p>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
 
       {/* ── Filtros ──────────────────────────────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="flex items-center gap-2 bg-white border border-gray-100 rounded-2xl px-5 py-3 flex-1">
-          <Search className="h-4 w-4 text-gray-400" />
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#fff', border: '1.5px solid #f1f5f9', borderRadius: 14, padding: '11px 18px', flex: '1 1 200px', boxShadow: '0 1px 6px rgba(0,0,0,.04)' }}>
+          <Search size={14} style={{ color: '#94a3b8', flexShrink: 0 }} />
           <input
             type="text"
-            placeholder="Buscar por número, cliente, proyecto, vendedor..."
-            className="bg-transparent outline-none font-bold text-sm text-gray-900 flex-1"
+            placeholder="Buscar cliente, proyecto, número..."
+            style={{ background: 'transparent', border: 'none', outline: 'none', fontSize: 13, fontWeight: 600, color: '#0f172a', flex: 1 }}
             value={searchTerm}
             onChange={e => setSearchTerm(e.target.value)}
           />
         </div>
-        <div className="flex gap-1 flex-wrap">
+        <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
           {[
-            { id: 'ALL', label: 'Todas' },
-            { id: 'PENDING', label: 'Pendientes' },
-            { id: 'ACCEPTED', label: 'Aprobadas' },
-            { id: 'REJECTED', label: 'No Concretadas' },
-            { id: 'EXPIRED', label: 'Expiradas' },
+            { id: 'ALL',      label: 'Todas',           ac: '#0f172a' },
+            { id: 'PENDING',  label: 'Pendientes',       ac: '#d97706' },
+            { id: 'ACCEPTED', label: 'Aprobadas',        ac: '#059669' },
+            { id: 'REJECTED', label: 'No Concretadas',   ac: '#dc2626' },
+            { id: 'EXPIRED',  label: 'Expiradas',        ac: '#64748b' },
           ].map(f => (
             <button
               key={f.id}
               onClick={() => setFilterStatus(f.id)}
-              className={cn(
-                "px-4 py-2 rounded-xl font-black text-[9px] uppercase tracking-widest transition-all",
-                filterStatus === f.id ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-              )}
+              style={{
+                padding: '9px 16px', borderRadius: 10, fontWeight: 800, fontSize: 9, textTransform: 'uppercase',
+                letterSpacing: '.1em', cursor: 'pointer', transition: 'all .15s',
+                background: filterStatus === f.id ? f.ac : '#f1f5f9',
+                color: filterStatus === f.id ? '#fff' : '#64748b',
+                border: filterStatus === f.id ? `1.5px solid ${f.ac}` : '1.5px solid transparent',
+                boxShadow: filterStatus === f.id ? `0 4px 12px ${f.ac}30` : 'none',
+              }}
             >{f.label}</button>
           ))}
         </div>
@@ -530,96 +575,151 @@ export default function QuotesList() {
 
       {/* ── Grid de cotizaciones ──────────────────────────────────────────── */}
       {filtered.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-24 space-y-3">
-          <FileText className="h-14 w-14 text-gray-200" />
-          <p className="text-[10px] font-black text-gray-300 uppercase tracking-widest">Sin cotizaciones</p>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '80px 20px', gap: 14 }}>
+          <div style={{ width: 64, height: 64, borderRadius: 20, background: '#f8fafc', border: '1.5px solid #f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <FileText size={28} style={{ color: '#e2e8f0' }} />
+          </div>
+          <p style={{ fontSize: 10, fontWeight: 800, color: '#cbd5e1', textTransform: 'uppercase', letterSpacing: '.2em', margin: 0 }}>Sin cotizaciones</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filtered.map(q => {
-            const s = STATUS[q.status] || STATUS.PENDING;
-            const Icon = s.icon;
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(310px, 1fr))', gap: 16 }}>
+          {filtered.map((q, idx) => {
+            const ss = STATUS_STYLE[q.status] || STATUS_STYLE.PENDING;
+            const s  = STATUS[q.status]  || STATUS.PENDING;
+            const SIcon = s.icon;
             return (
               <motion.div
                 key={q.id}
-                whileHover={{ y: -3 }}
-                className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm hover:shadow-xl transition-all group relative overflow-hidden cursor-pointer"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: idx * 0.045, type: 'spring', stiffness: 380, damping: 32 }}
+                whileHover={{ y: -5 }}
                 onClick={() => openDetail(q)}
+                className="group"
+                style={{
+                  background: '#fff',
+                  borderRadius: 20,
+                  border: '1.5px solid #f1f5f9',
+                  boxShadow: '0 2px 16px rgba(15,23,42,.06)',
+                  cursor: 'pointer',
+                  overflow: 'hidden',
+                  position: 'relative',
+                  transition: 'box-shadow .25s',
+                  borderTop: `4px solid ${ss.accent}`,
+                }}
               >
-                {/* Fondo decorativo */}
-                <div className="absolute top-0 right-0 w-28 h-28 opacity-[0.03] rounded-full bg-blue-600 translate-x-10 -translate-y-10" />
-
-                <div className="space-y-5 relative z-10">
-                  {/* Status + acciones */}
-                  <div className="flex justify-between items-start">
-                    <span className={cn("flex items-center gap-1 text-[8px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full border", s.bg, s.text, s.border)}>
-                      <Icon className="h-2.5 w-2.5" />
-                      {s.label}
+                {/* Cabecera card */}
+                <div style={{ padding: '18px 20px 16px', borderBottom: '1px solid #f8fafc' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+                    <span style={{ fontSize: 9, fontFamily: 'monospace', fontWeight: 700, color: '#94a3b8', letterSpacing: '.18em', textTransform: 'uppercase' }}>
+                      {q.quoteNumber}
                     </span>
-                    <button
-                      onClick={e => { e.stopPropagation(); deleteQuote(q.id, q.quoteNumber); }}
-                      className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg bg-red-50 text-red-400 hover:text-red-600 transition-all"
-                    >
-                      <Trash2 className="h-3 w-3" />
-                    </button>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontSize: 8, fontWeight: 800, color: ss.text, background: ss.bg, border: `1.5px solid ${ss.border}`, borderRadius: 8, padding: '3px 9px', textTransform: 'uppercase', letterSpacing: '.08em', display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+                        <SIcon size={9} /> {s.label}
+                      </span>
+                      <button
+                        onClick={e => { e.stopPropagation(); deleteQuote(q.id, q.quoteNumber); }}
+                        className="opacity-0 group-hover:opacity-100 transition-opacity"
+                        style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '5px', cursor: 'pointer', color: '#ef4444', display: 'flex' }}
+                      >
+                        <Trash2 size={11} />
+                      </button>
+                    </div>
                   </div>
 
-                  {/* Info */}
-                  <div>
-                    <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-1">
-                      <Hash className="h-2.5 w-2.5 inline mr-1" />{q.quoteNumber}
+                  <h3 style={{ fontSize: 17, fontWeight: 900, color: '#0f172a', margin: '0 0 4px', lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {q.client?.companyName || '—'}
+                  </h3>
+                  {q.projectName && (
+                    <p style={{ fontSize: 11, color: '#94a3b8', fontWeight: 600, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {q.projectName}
                     </p>
-                    <h3 className="text-base font-black text-gray-900 group-hover:text-primary transition-colors truncate">
-                      {q.client?.companyName}
-                    </h3>
-                    {q.projectName && (
-                      <p className="text-[9px] font-bold text-gray-400 mt-0.5 truncate">{q.projectName}</p>
+                  )}
+                </div>
+
+                {/* Cuerpo card */}
+                <div style={{ padding: '14px 20px 18px' }}>
+                  {/* Vendedor + items */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <div style={{ width: 26, height: 26, borderRadius: '50%', background: '#0f172a', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 900, flexShrink: 0, letterSpacing: 0 }}>
+                        {q.seller?.name?.charAt(0)?.toUpperCase() || '?'}
+                      </div>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: '#64748b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 130 }}>
+                        {q.seller?.name || 'Sin asignar'}
+                      </span>
+                    </div>
+                    {q.items?.length > 0 && (
+                      <span style={{ fontSize: 9, fontWeight: 700, color: '#94a3b8', background: '#f8fafc', border: '1px solid #f1f5f9', borderRadius: 8, padding: '3px 10px', flexShrink: 0 }}>
+                        {q.items.length} ítem{q.items.length !== 1 ? 's' : ''}
+                      </span>
                     )}
                   </div>
 
-                  {/* Vendedor */}
-                  <div className="flex items-center gap-2">
-                    <div className="h-6 w-6 rounded-full bg-gray-900 text-white flex items-center justify-center text-[8px] font-black">
-                      {q.seller?.name?.charAt(0) || '?'}
+                  {/* Precio + acciones */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: 12 }}>
+                    <div style={{ minWidth: 0 }}>
+                      <p style={{ fontSize: 8, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '.14em', margin: '0 0 2px' }}>Total</p>
+                      <p style={{ fontSize: 24, fontWeight: 900, color: '#0f172a', fontFamily: 'monospace', margin: 0, lineHeight: 1, letterSpacing: '-.02em' }}>{fmt(q.total)}</p>
+                      <p style={{ fontSize: 9, color: '#94a3b8', fontWeight: 600, margin: '5px 0 0', display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <Calendar size={9} /> {fmtDate(q.validUntil)}
+                      </p>
                     </div>
-                    <p className="text-[9px] font-bold text-gray-400 truncate">
-                      {q.seller?.name || 'Sin vendedor asignado'}
-                    </p>
-                  </div>
 
-                  {/* Total + acciones rápidas */}
-                  <div className="pt-4 border-t border-gray-50 flex justify-between items-end">
-                    <div>
-                      <p className="text-[7px] font-black text-gray-400 uppercase">Total</p>
-                      <p className="text-2xl font-black text-gray-900">{fmt(q.total)}</p>
-                      <p className="text-[7px] font-bold text-gray-400 mt-0.5">Vigente hasta: {fmtDate(q.validUntil)}</p>
-                    </div>
-                    <div className="flex gap-2">
-                      {/* Botones rápidos de status */}
+                    <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
                       {q.status === 'PENDING' && (
                         <>
                           <button
                             onClick={e => { e.stopPropagation(); updateStatus(q.id, 'ACCEPTED'); }}
-                            className="p-2.5 bg-emerald-500 text-white rounded-xl hover:bg-emerald-600 transition-all shadow-lg shadow-emerald-200"
                             title="Aprobar"
+                            style={{ width: 34, height: 34, borderRadius: 10, background: '#ecfdf5', color: '#059669', border: '1.5px solid #a7f3d0', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'all .15s', flexShrink: 0 }}
+                            onMouseEnter={e => { e.currentTarget.style.background = '#059669'; e.currentTarget.style.color = '#fff'; e.currentTarget.style.borderColor = '#059669'; e.currentTarget.style.boxShadow = '0 4px 14px rgba(5,150,105,.35)'; }}
+                            onMouseLeave={e => { e.currentTarget.style.background = '#ecfdf5'; e.currentTarget.style.color = '#059669'; e.currentTarget.style.borderColor = '#a7f3d0'; e.currentTarget.style.boxShadow = 'none'; }}
                           >
-                            <CheckCircle2 className="h-4 w-4" />
+                            <CheckCircle2 size={15} />
                           </button>
                           <button
                             onClick={e => { e.stopPropagation(); updateStatus(q.id, 'REJECTED'); }}
-                            className="p-2.5 bg-red-500 text-white rounded-xl hover:bg-red-600 transition-all"
                             title="Rechazar"
+                            style={{ width: 34, height: 34, borderRadius: 10, background: '#fef2f2', color: '#ef4444', border: '1.5px solid #fecaca', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'all .15s', flexShrink: 0 }}
+                            onMouseEnter={e => { e.currentTarget.style.background = '#ef4444'; e.currentTarget.style.color = '#fff'; e.currentTarget.style.borderColor = '#ef4444'; e.currentTarget.style.boxShadow = '0 4px 14px rgba(239,68,68,.35)'; }}
+                            onMouseLeave={e => { e.currentTarget.style.background = '#fef2f2'; e.currentTarget.style.color = '#ef4444'; e.currentTarget.style.borderColor = '#fecaca'; e.currentTarget.style.boxShadow = 'none'; }}
                           >
-                            <X className="h-4 w-4" />
+                            <X size={15} />
                           </button>
                         </>
                       )}
                       <button
-                        onClick={e => { e.stopPropagation(); downloadPDF(q.id, q.quoteNumber); }}
-                        className="p-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all shadow-lg"
-                        title="Descargar PDF"
+                        onClick={e => { e.stopPropagation(); openDetail(q); setDetailTab('edit'); }}
+                        title="Editar cotización"
+                        style={{ width: 34, height: 34, borderRadius: 10, background: '#f8fafc', color: '#475569', border: '1.5px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'all .15s', flexShrink: 0 }}
+                        onMouseEnter={e => { e.currentTarget.style.background = '#0f172a'; e.currentTarget.style.color = '#fff'; e.currentTarget.style.borderColor = '#0f172a'; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = '#f8fafc'; e.currentTarget.style.color = '#475569'; e.currentTarget.style.borderColor = '#e2e8f0'; }}
                       >
-                        <Download className="h-4 w-4" />
+                        <Edit3 size={14} />
+                      </button>
+                      <button
+                        onClick={e => duplicateQuote(q, e)}
+                        title="Duplicar cotización"
+                        disabled={duplicating === q.id}
+                        style={{ width: 34, height: 34, borderRadius: 10, background: '#f5f3ff', color: '#7c3aed', border: '1.5px solid #ddd6fe', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: duplicating === q.id ? 'wait' : 'pointer', transition: 'all .15s', flexShrink: 0, opacity: duplicating && duplicating !== q.id ? .5 : 1 }}
+                        onMouseEnter={e => { if (!duplicating) { e.currentTarget.style.background = '#7c3aed'; e.currentTarget.style.color = '#fff'; e.currentTarget.style.borderColor = '#7c3aed'; e.currentTarget.style.boxShadow = '0 4px 14px rgba(124,58,237,.35)'; } }}
+                        onMouseLeave={e => { e.currentTarget.style.background = '#f5f3ff'; e.currentTarget.style.color = '#7c3aed'; e.currentTarget.style.borderColor = '#ddd6fe'; e.currentTarget.style.boxShadow = 'none'; }}
+                      >
+                        {duplicating === q.id
+                          ? <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} />
+                          : <Copy size={13} />
+                        }
+                      </button>
+                      <button
+                        onClick={e => { e.stopPropagation(); downloadPDF(q.id, q.quoteNumber); }}
+                        title="Descargar PDF"
+                        style={{ width: 34, height: 34, borderRadius: 10, background: '#eff6ff', color: '#3b82f6', border: '1.5px solid #dbeafe', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'all .15s', flexShrink: 0 }}
+                        onMouseEnter={e => { e.currentTarget.style.background = '#3b82f6'; e.currentTarget.style.color = '#fff'; e.currentTarget.style.borderColor = '#3b82f6'; e.currentTarget.style.boxShadow = '0 4px 14px rgba(59,130,246,.35)'; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = '#eff6ff'; e.currentTarget.style.color = '#3b82f6'; e.currentTarget.style.borderColor = '#dbeafe'; e.currentTarget.style.boxShadow = 'none'; }}
+                      >
+                        <Download size={14} />
                       </button>
                     </div>
                   </div>
@@ -708,6 +808,8 @@ export default function QuotesList() {
                     editQuote={editQuote}
                     setEditQuote={setEditQuote}
                     employees={employees}
+                    clients={clients}
+                    selectedQuote={selectedQuote}
                     onAddItem={addEditItem}
                     onRemoveItem={removeEditItem}
                     onUpdateItem={updateEditItem}
@@ -1223,9 +1325,87 @@ function QuotePreview({ quote, employees, onStatusChange, onDelete }) {
 }
 
 // ── Componente: Formulario de edición de cotización ────────────────────────────
-function QuoteEditForm({ editQuote, setEditQuote, employees, onAddItem, onRemoveItem, onUpdateItem, onItemImage, onSave, saving }) {
+function QuoteEditForm({ editQuote, setEditQuote, employees, clients, selectedQuote, onAddItem, onRemoveItem, onUpdateItem, onItemImage, onSave, saving }) {
+  const [clientSearch, setClientSearch] = React.useState('');
+  const [clientOpen,   setClientOpen]   = React.useState(false);
+
+  const currentClient = clients?.find(c => c.id === editQuote.clientId) || selectedQuote?.client;
+  const filteredClients = (clients || []).filter(c =>
+    !clientSearch || c.companyName?.toLowerCase().includes(clientSearch.toLowerCase()) ||
+    c.contactName?.toLowerCase().includes(clientSearch.toLowerCase())
+  );
+
   return (
     <div className="p-6 md:p-8 space-y-6">
+
+      {/* ── Selector de Cliente ── */}
+      <div>
+        <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest block mb-1.5">Cliente</label>
+        <div style={{ position: 'relative' }}>
+          <button
+            type="button"
+            onClick={() => { setClientOpen(o => !o); setClientSearch(''); }}
+            style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, background: currentClient ? '#f0fdf4' : '#f9fafb', border: `1.5px solid ${currentClient ? '#a7f3d0' : '#e5e7eb'}`, borderRadius: 12, padding: '10px 14px', cursor: 'pointer', transition: 'all .15s', textAlign: 'left' }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+              <div style={{ width: 28, height: 28, borderRadius: 8, background: currentClient ? '#059669' : '#e5e7eb', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <Building2 size={14} style={{ color: currentClient ? '#fff' : '#9ca3af' }} />
+              </div>
+              <div style={{ minWidth: 0 }}>
+                <p style={{ fontSize: 13, fontWeight: 700, color: currentClient ? '#065f46' : '#9ca3af', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {currentClient?.companyName || 'Seleccionar cliente...'}
+                </p>
+                {currentClient?.contactName && (
+                  <p style={{ fontSize: 10, color: '#6b7280', margin: 0 }}>{currentClient.contactName}</p>
+                )}
+              </div>
+            </div>
+            <ChevronRight size={14} style={{ color: '#9ca3af', flexShrink: 0, transform: clientOpen ? 'rotate(90deg)' : 'none', transition: 'transform .15s' }} />
+          </button>
+
+          {clientOpen && (
+            <div style={{ position: 'absolute', top: 'calc(100% + 6px)', left: 0, right: 0, background: '#fff', border: '1.5px solid #e5e7eb', borderRadius: 14, boxShadow: '0 12px 32px rgba(0,0,0,.12)', zIndex: 50, overflow: 'hidden' }}>
+              <div style={{ padding: '10px 12px', borderBottom: '1px solid #f3f4f6' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#f9fafb', borderRadius: 10, padding: '7px 12px' }}>
+                  <Search size={13} style={{ color: '#9ca3af', flexShrink: 0 }} />
+                  <input
+                    autoFocus
+                    type="text"
+                    placeholder="Buscar empresa o contacto..."
+                    value={clientSearch}
+                    onChange={e => setClientSearch(e.target.value)}
+                    style={{ background: 'transparent', border: 'none', outline: 'none', fontSize: 12, fontWeight: 600, color: '#111827', flex: 1 }}
+                  />
+                </div>
+              </div>
+              <div style={{ maxHeight: 220, overflowY: 'auto' }}>
+                {filteredClients.length === 0 ? (
+                  <div style={{ padding: '20px', textAlign: 'center', fontSize: 11, color: '#9ca3af', fontWeight: 600 }}>Sin resultados</div>
+                ) : filteredClients.map(c => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => { setEditQuote(f => ({ ...f, clientId: c.id })); setClientOpen(false); }}
+                    style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: editQuote.clientId === c.id ? '#f0fdf4' : 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left', transition: 'background .1s' }}
+                    onMouseEnter={e => { if (editQuote.clientId !== c.id) e.currentTarget.style.background = '#f9fafb'; }}
+                    onMouseLeave={e => { if (editQuote.clientId !== c.id) e.currentTarget.style.background = 'transparent'; }}
+                  >
+                    <div style={{ width: 30, height: 30, borderRadius: 8, background: editQuote.clientId === c.id ? '#059669' : '#f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 11, fontWeight: 900, color: editQuote.clientId === c.id ? '#fff' : '#6b7280' }}>
+                      {c.companyName?.charAt(0)?.toUpperCase() || '?'}
+                    </div>
+                    <div style={{ minWidth: 0 }}>
+                      <p style={{ fontSize: 12, fontWeight: 700, color: '#111827', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.companyName}</p>
+                      {c.contactName && <p style={{ fontSize: 10, color: '#6b7280', margin: 0 }}>{c.contactName}</p>}
+                    </div>
+                    {editQuote.clientId === c.id && <CheckCircle2 size={14} style={{ color: '#059669', marginLeft: 'auto', flexShrink: 0 }} />}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* Info básica */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="col-span-1">
