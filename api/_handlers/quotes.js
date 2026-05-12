@@ -267,9 +267,9 @@ async function generateQuotePDF(quote) {
 
     // Términos (izquierda, junto a totales)
     const payOpts = [
-      { label: 'Pago en 24 hrs', pct: '5%' },
-      { label: 'Pago en 48 hrs', pct: '3%' },
-      { label: 'Pago en 72 hrs', pct: '1%' },
+      { label: 'Pago Inmediato 24Hrs', pct: '5% de descuento' },
+      { label: 'Pago Preferente',      pct: '3% de descuento' },
+      { label: 'Pago Programado',      pct: '1% de descuento' },
     ];
     let termsBottomY = afterTableY;
     if (quote.terms) {
@@ -287,7 +287,7 @@ async function generateQuotePDF(quote) {
     // Recuadro de descuentos por pago anticipado (debajo de términos, lado izquierdo)
     const discW    = totX - margin - 6;
     const discBoxY = termsBottomY + 5;
-    const discBoxH = 6 + payOpts.length * 5.5;
+    const discBoxH = 7 + payOpts.length * 6.2;
     doc.setFillColor(245, 248, 255);
     doc.setDrawColor(...BLUE);
     doc.setLineWidth(0.2);
@@ -297,14 +297,14 @@ async function generateQuotePDF(quote) {
     doc.setTextColor(...BLUE);
     doc.text('DESCUENTOS POR PAGO ANTICIPADO', margin + discW / 2, discBoxY + 4.5, { align: 'center' });
     payOpts.forEach((opt, i) => {
-      const ry = discBoxY + 8 + i * 5.5;
+      const ry = discBoxY + 9 + i * 6.2;
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(6.5);
       doc.setTextColor(...GRAY);
       doc.text(opt.label, margin + 4, ry);
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(...BLUE);
-      doc.text(`${opt.pct} desc.`, margin + discW - 4, ry, { align: 'right' });
+      doc.text(opt.pct, margin + discW - 4, ry, { align: 'right' });
     });
     termsBottomY = discBoxY + discBoxH;
 

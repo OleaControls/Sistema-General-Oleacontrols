@@ -55,13 +55,13 @@ const compressImage = (file) => new Promise((resolve) => {
 
 // ── Sección de Promociones ────────────────────────────────────────────────────
 const PAYMENT_OPTS = [
-  { hrs: 24, pct: 5,  label: '24 hrs', color: '#7c3aed', bg: '#f5f3ff', border: '#ddd6fe' },
-  { hrs: 48, pct: 3,  label: '48 hrs', color: '#2563eb', bg: '#eff6ff', border: '#bfdbfe' },
-  { hrs: 72, pct: 1,  label: '72 hrs', color: '#0891b2', bg: '#ecfeff', border: '#a5f3fc' },
+  { hrs: 24, pct: 5,  label: 'Inmediato 24Hrs', color: '#7c3aed', bg: '#f5f3ff', border: '#ddd6fe' },
+  { hrs: 48, pct: 3,  label: 'Preferente',      color: '#2563eb', bg: '#eff6ff', border: '#bfdbfe' },
+  { hrs: 72, pct: 1,  label: 'Programado',       color: '#0891b2', bg: '#ecfeff', border: '#a5f3fc' },
 ];
 
 function PromoSection({ subtotal, discountPct, onChange }) {
-  const base     = subtotal * 1.16;           // subtotal + IVA
+  const base     = subtotal;                  // descuento sobre precio sin IVA
   const discount = discountPct > 0 ? base * discountPct / 100 : 0;
 
   return (
@@ -92,7 +92,7 @@ function PromoSection({ subtotal, discountPct, onChange }) {
               }}
             >
               <p style={{ fontSize: 7.5, fontWeight: 900, color: active ? 'rgba(255,255,255,.8)' : '#6b7280', textTransform: 'uppercase', letterSpacing: '.1em', margin: '0 0 4px' }}>
-                Pago en {opt.label}
+                Pago {opt.label}
               </p>
               <p style={{ fontSize: 22, fontWeight: 900, color: active ? '#fff' : opt.color, margin: '0 0 2px', lineHeight: 1 }}>
                 {opt.pct}%
@@ -102,7 +102,7 @@ function PromoSection({ subtotal, discountPct, onChange }) {
               </p>
               {active && subtotal > 0 && (
                 <p style={{ fontSize: 8, fontWeight: 900, color: '#fff', marginTop: 6, background: 'rgba(0,0,0,.15)', borderRadius: 6, padding: '2px 6px', display: 'inline-block' }}>
-                  −${(subtotal * 1.16 * opt.pct / 100).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  −${(subtotal * opt.pct / 100).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </p>
               )}
             </button>
@@ -175,6 +175,7 @@ function RequirementsField({
   label = 'Requerimientos del cliente',
   placeholder = 'Describe los requerimientos específicos del cliente...',
   textareaClass = 'w-full bg-gray-50 rounded-xl px-4 py-3 font-bold text-sm outline-none resize-none border border-gray-100 focus:border-blue-300 transition-colors',
+  hideLabel = false,
 }) {
   const [open,    setOpen]    = React.useState(false);
   const [saving,  setSaving]  = React.useState(false);
@@ -192,9 +193,7 @@ function RequirementsField({
 
   return (
     <div className="space-y-2">
-      <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest block">
-        {label}
-      </label>
+      {!hideLabel && <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest block">{label}</label>}
       <textarea
         rows={3}
         placeholder={placeholder}
@@ -398,7 +397,9 @@ export default function QuotesList() {
   const [isGenerating,  setIsGenerating]  = useState(false);
   const [fromDealMeta,  setFromDealMeta]  = useState(null); // deal del que proviene la cotización
   const [prodSearch,    setProdSearch]    = useState(null); // { index, mode:'new'|'edit' }
-  const [clientMode,    setClientMode]    = useState('existing'); // 'existing' | 'new'
+  const [clientMode,      setClientMode]      = useState('existing'); // 'existing' | 'new'
+  const [newClientSearch, setNewClientSearch] = useState('');
+  const [newClientOpen,   setNewClientOpen]   = useState(false);
   const initialNewClientData = () => ({ companyName: '', contactName: '', email: '', phone: '', rfc: '', address: '' });
   const [newClientData, setNewClientData] = useState(initialNewClientData());
 
@@ -518,7 +519,7 @@ export default function QuotesList() {
     const sub = newQuote.items.reduce((acc, i) => acc + (Number(i.qty) * Number(i.price)), 0);
     const tax = sub * 0.16;
     const pct = newQuote.discountPct || 0;
-    const adj = pct > 0 ? -((sub + tax) * pct / 100) : 0;
+    const adj = pct > 0 ? -(sub * pct / 100) : 0;
     setNewQuote(prev => ({ ...prev, subtotal: sub, tax, adjustment: adj, total: sub + tax + adj }));
   }, [newQuote.items, newQuote.discountPct]);
 
@@ -528,7 +529,7 @@ export default function QuotesList() {
     const sub = editQuote.items.reduce((acc, i) => acc + (Number(i.qty) * Number(i.price)), 0);
     const tax = sub * 0.16;
     const pct = editQuote.discountPct || 0;
-    const adj = pct > 0 ? -((sub + tax) * pct / 100) : 0;
+    const adj = pct > 0 ? -(sub * pct / 100) : 0;
     setEditQuote(prev => ({ ...prev, subtotal: sub, tax, adjustment: adj, total: sub + tax + adj }));
   }, [editQuote.items, editQuote.discountPct]);
 
@@ -553,7 +554,7 @@ export default function QuotesList() {
       adjustment:   quote.adjustment || 0,
       total:        quote.total     || 0,
       discountPct:  (quote.adjustment < 0 && quote.subtotal > 0)
-        ? Math.round(Math.abs(quote.adjustment) / (quote.subtotal * 1.16) * 1000) / 10
+        ? Math.round(Math.abs(quote.adjustment) / quote.subtotal * 1000) / 10
         : 0,
     });
   };
@@ -1124,426 +1125,429 @@ export default function QuotesList() {
 
       {/* ── Modal: Nueva cotización ───────────────────────────────────────── */}
       <AnimatePresence>
-        {showAddModal && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+        {showAddModal && (() => {
+          const tplColor  = newQuote.templateType === 'PREFACTURA' ? '#16823c' : '#005BBB';
+          const tplBg     = newQuote.templateType === 'PREFACTURA' ? '#f0fdf4' : '#eff6ff';
+          const tplBorder = newQuote.templateType === 'PREFACTURA' ? '#bbf7d0' : '#bfdbfe';
+          const selClient = clients.find(c => c.id === newQuote.clientId);
+          const filteredNC = clients.filter(c =>
+            !newClientSearch ||
+            c.companyName?.toLowerCase().includes(newClientSearch.toLowerCase()) ||
+            c.contactName?.toLowerCase().includes(newClientSearch.toLowerCase())
+          );
+          const SectionHeader = ({ num, icon: Icon, label }) => (
+            <div className="flex items-center gap-3 mb-5">
+              <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-[10px] font-black flex-shrink-0" style={{ background: tplColor }}>{num}</div>
+              <div className="flex items-center gap-2">
+                {Icon && <Icon size={14} style={{ color: tplColor }} />}
+                <span className="text-[9px] font-black uppercase tracking-widest" style={{ color: tplColor }}>{label}</span>
+              </div>
+              <div className="flex-1 h-px bg-gray-100" />
+            </div>
+          );
+          return (
+          <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={e => { if (e.target === e.currentTarget) { setShowAddModal(false); setFromDealMeta(null); } }}>
             <motion.div
-              initial={{ opacity: 0, y: 100 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 100 }}
-              className="bg-white rounded-t-[2.5rem] sm:rounded-[2.5rem] shadow-2xl w-full max-w-5xl max-h-[95vh] overflow-y-auto"
+              initial={{ opacity: 0, y: 60, scale: .97 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 60, scale: .97 }}
+              transition={{ type: 'spring', damping: 28, stiffness: 320 }}
+              className="bg-white rounded-t-[2rem] sm:rounded-[2rem] shadow-2xl w-full max-w-4xl max-h-[96vh] flex flex-col overflow-hidden"
             >
-              <form onSubmit={handleCreateQuote} className="p-6 md:p-10 space-y-8">
-                <div className="flex justify-between items-center border-b pb-5">
+              {/* Header sticky */}
+              <div className="flex-shrink-0 flex items-center justify-between px-7 py-5 border-b border-gray-100" style={{ background: tplBg }}>
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 rounded-2xl flex items-center justify-center" style={{ background: tplColor }}>
+                    <FileText size={18} style={{ color: '#fff' }} />
+                  </div>
                   <div>
-                    <h3 className="text-2xl font-black text-gray-900 tracking-tighter uppercase italic">
+                    <h3 className="text-lg font-black text-gray-900 tracking-tight">
                       {fromDealMeta?.stage === 'RECOTIZACION' ? 'Recotización' : 'Nueva Cotización'}
                     </h3>
-                    <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest mt-1">
-                      Folio: {newQuote.quoteNumber}
-                    </p>
-                  </div>
-                  <button type="button" onClick={() => { setShowAddModal(false); setFromDealMeta(null); }} className="p-2 hover:bg-gray-100 rounded-full">
-                    <X className="h-6 w-6 text-gray-400" />
-                  </button>
-                </div>
-
-                {/* ── Selector de plantilla ─────────────────────────────────── */}
-                <div className="space-y-3">
-                  <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Tipo de Documento *</p>
-                  <div className="grid grid-cols-2 gap-3">
-                    {[
-                      { id: 'PRESUPUESTO', badge: 'REFERENCIAS DE PROYECTO', title: 'Ref. Proyecto', sub: 'Cliente · Asesor', color: '#005BBB', bg: '#eff6ff' },
-                      { id: 'PREFACTURA',  badge: 'PREFACTURA',         title: 'Prefactura',   sub: 'Facturar a · Vendedor', color: '#16823c', bg: '#f0fdf4' },
-                    ].map(opt => {
-                      const active = newQuote.templateType === opt.id;
-                      return (
-                        <button
-                          key={opt.id}
-                          type="button"
-                          onClick={() => setNewQuote(f => ({ ...f, templateType: opt.id }))}
-                          style={{
-                            padding: '14px 16px', borderRadius: 16, textAlign: 'left', cursor: 'pointer', transition: 'all .15s',
-                            border: `2px solid ${active ? opt.color : '#e5e7eb'}`,
-                            background: active ? opt.bg : '#f9fafb',
-                            boxShadow: active ? `0 4px 16px ${opt.color}22` : 'none',
-                          }}
-                        >
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                            <div style={{ background: opt.color, borderRadius: 6, padding: '3px 8px', display: 'inline-block' }}>
-                              <span style={{ color: '#fff', fontSize: 7, fontWeight: 900, letterSpacing: '.1em' }}>{opt.badge}</span>
-                            </div>
-                            {active && <CheckCircle2 size={14} style={{ color: opt.color }} />}
-                          </div>
-                          <p style={{ fontSize: 12, fontWeight: 900, color: active ? opt.color : '#374151', margin: 0 }}>{opt.title}</p>
-                          <p style={{ fontSize: 9, color: '#6b7280', fontWeight: 600, margin: '2px 0 0' }}>{opt.sub}</p>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Banner: vinculado a deal del pipeline */}
-                {fromDealMeta && (
-                  <div className="flex items-start gap-3 p-4 bg-emerald-50 rounded-2xl border border-emerald-100">
-                    <FileText className="h-4 w-4 text-emerald-600 mt-0.5 flex-shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[8px] font-black text-emerald-700 uppercase tracking-widest mb-1">
-                        Generando desde Pipeline CRM
-                      </p>
-                      <p className="text-xs font-black text-gray-900 truncate">{fromDealMeta.title}</p>
-                      <div className="flex flex-wrap gap-x-4 gap-y-0.5 mt-1">
-                        {fromDealMeta.company && <span className="text-[9px] font-bold text-gray-500">{fromDealMeta.company}</span>}
-                        {fromDealMeta.email   && <span className="text-[9px] font-bold text-gray-400">{fromDealMeta.email}</span>}
-                        {fromDealMeta.phone   && <span className="text-[9px] font-bold text-gray-400">{fromDealMeta.phone}</span>}
-                      </div>
-                    </div>
-                    {fromDealMeta.value > 0 && (
-                      <span className="text-xs font-black text-emerald-700 flex-shrink-0">
-                        ${Number(fromDealMeta.value).toLocaleString('es-MX', { maximumFractionDigits: 0 })}
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span className="text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full text-white" style={{ background: tplColor }}>
+                        {newQuote.templateType === 'PREFACTURA' ? 'Prefactura' : 'Ref. Proyecto'}
                       </span>
-                    )}
-                  </div>
-                )}
-
-                {/* Selector de modo cliente */}
-                <div className="space-y-4">
-                  <div className="flex items-center gap-2">
-                    <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Cliente *</p>
-                  </div>
-                  <div className="flex gap-2 p-1 bg-gray-100 rounded-2xl">
-                    <button
-                      type="button"
-                      onClick={() => setClientMode('existing')}
-                      className={cn(
-                        "flex-1 py-3 px-4 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2",
-                        clientMode === 'existing' ? "bg-white text-gray-900 shadow-sm" : "text-gray-400 hover:text-gray-600"
-                      )}
-                    >
-                      <Building2 className="h-3 w-3" /> Cliente existente
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setClientMode('new')}
-                      className={cn(
-                        "flex-1 py-3 px-4 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2",
-                        clientMode === 'new' ? "bg-white text-gray-900 shadow-sm" : "text-gray-400 hover:text-gray-600"
-                      )}
-                    >
-                      <Plus className="h-3 w-3" /> Nuevo cliente
-                    </button>
-                  </div>
-
-                  {/* Cliente existente */}
-                  {clientMode === 'existing' && (
-                    <div>
-                      <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest block mb-1.5">Seleccionar cliente *</label>
-                      <select
-                        required={clientMode === 'existing'}
-                        className="w-full bg-gray-50 rounded-xl px-4 py-4 font-bold text-sm outline-none cursor-pointer"
-                        value={newQuote.clientId}
-                        onChange={e => setNewQuote(f => ({ ...f, clientId: e.target.value }))}
-                      >
-                        <option value="">Seleccionar cliente...</option>
-                        {clients.map(c => <option key={c.id} value={c.id}>{c.companyName}</option>)}
-                      </select>
-                    </div>
-                  )}
-
-                  {/* Nuevo cliente */}
-                  {clientMode === 'new' && (
-                    <div className="p-5 bg-blue-50 rounded-2xl border border-blue-100 space-y-4">
-                      <p className="text-[8px] font-black text-blue-600 uppercase tracking-widest flex items-center gap-1.5">
-                        <User className="h-3 w-3" /> Datos del nuevo cliente
-                      </p>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div>
-                          <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest block mb-1">Empresa / Nombre *</label>
-                          <input
-                            type="text" required={clientMode === 'new'}
-                            className="w-full bg-white rounded-xl px-4 py-3 font-bold text-sm outline-none"
-                            placeholder="Ej: ACME Industrias S.A."
-                            value={newClientData.companyName}
-                            onChange={e => setNewClientData(f => ({ ...f, companyName: e.target.value }))}
-                          />
-                        </div>
-                        <div>
-                          <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest block mb-1">Correo electrónico *</label>
-                          <input
-                            type="text" required={clientMode === 'new'}
-                            className="w-full bg-white rounded-xl px-4 py-3 font-bold text-sm outline-none"
-                            placeholder="contacto@empresa.com"
-                            value={newClientData.email}
-                            onChange={e => setNewClientData(f => ({ ...f, email: e.target.value }))}
-                          />
-                        </div>
-                        <div>
-                          <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest block mb-1">Nombre de contacto</label>
-                          <input
-                            type="text"
-                            className="w-full bg-white rounded-xl px-4 py-3 font-bold text-sm outline-none"
-                            placeholder="Nombre del contacto"
-                            value={newClientData.contactName}
-                            onChange={e => setNewClientData(f => ({ ...f, contactName: e.target.value }))}
-                          />
-                        </div>
-                        <div>
-                          <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest block mb-1">Teléfono</label>
-                          <input
-                            type="tel"
-                            className="w-full bg-white rounded-xl px-4 py-3 font-bold text-sm outline-none"
-                            placeholder="+52 55 0000 0000"
-                            value={newClientData.phone}
-                            onChange={e => setNewClientData(f => ({ ...f, phone: e.target.value }))}
-                          />
-                        </div>
-                        <div>
-                          <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest block mb-1">RFC</label>
-                          <input
-                            type="text"
-                            className="w-full bg-white rounded-xl px-4 py-3 font-bold text-sm outline-none uppercase"
-                            placeholder="RFC del cliente"
-                            value={newClientData.rfc}
-                            onChange={e => setNewClientData(f => ({ ...f, rfc: e.target.value.toUpperCase() }))}
-                          />
-                        </div>
-                        <div>
-                          <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest block mb-1">Dirección</label>
-                          <input
-                            type="text"
-                            className="w-full bg-white rounded-xl px-4 py-3 font-bold text-sm outline-none"
-                            placeholder="Dirección fiscal o de envío"
-                            value={newClientData.address}
-                            onChange={e => setNewClientData(f => ({ ...f, address: e.target.value }))}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Requerimientos del cliente */}
-                <RequirementsField
-                  value={newQuote.requirements || ''}
-                  onChange={v => setNewQuote(f => ({ ...f, requirements: v }))}
-                  phrases={phrases}
-                  onSavePhrase={savePhrase}
-                  onDeletePhrase={deletePhrase}
-                />
-
-                {/* Info general */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  <div>
-                    <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest block mb-1.5">Vendedor</label>
-                    <select className="w-full bg-blue-50 rounded-xl px-4 py-4 font-black text-sm outline-none text-blue-700 cursor-pointer" value={newQuote.sellerId} onChange={e => setNewQuote(f => ({ ...f, sellerId: e.target.value }))}>
-                      <option value="">¿Quién vendió?</option>
-                      {employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest block mb-1.5">Nombre del Proyecto</label>
-                    <input type="text" className="w-full bg-gray-50 rounded-xl px-4 py-4 font-bold text-sm outline-none" placeholder="Ej: Proyecto CCTV Planta Norte" value={newQuote.projectName} onChange={e => setNewQuote(f => ({ ...f, projectName: e.target.value }))} />
-                  </div>
-                  {/* Vincular trato — solo si NO viene del pipeline (fromDealMeta ya lo trae) */}
-                  {!fromDealMeta && (
-                  <div>
-                    <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest block mb-1.5">
-                      Vincular a trato del pipeline
-                    </label>
-                    <select
-                      className="w-full bg-emerald-50 rounded-xl px-4 py-4 font-bold text-sm outline-none text-emerald-800 cursor-pointer"
-                      value={newQuote.linkedDealId}
-                      onChange={e => {
-                        const deal = deals.find(d => d.id === e.target.value);
-                        setNewQuote(f => ({
-                          ...f,
-                          linkedDealId: e.target.value,
-                          projectName: f.projectName || deal?.title || '',
-                          contactName: f.contactName || deal?.contactName || '',
-                          sellerId:    f.sellerId    || deal?.assignedToId || '',
-                        }));
-                      }}
-                    >
-                      <option value="">— Sin vincular —</option>
-                      {deals.map(d => (
-                        <option key={d.id} value={d.id}>
-                          {d.title}{d.company ? ` · ${d.company}` : ''}
-                        </option>
-                      ))}
-                    </select>
-                    {newQuote.linkedDealId && (
-                      <p className="text-[8px] font-bold text-emerald-600 mt-1">
-                        ✓ La cotización quedará registrada en el historial del trato
-                      </p>
-                    )}
-                  </div>
-                  )}
-                  <div>
-                    <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest block mb-1.5">Vigente hasta</label>
-                    <input type="date" className="w-full bg-gray-50 rounded-xl px-4 py-4 font-bold text-sm outline-none" value={newQuote.validUntil} onChange={e => setNewQuote(f => ({ ...f, validUntil: e.target.value }))} />
-                  </div>
-                </div>
-
-                {/* Conceptos */}
-                <div className="space-y-4">
-                  <div className="flex justify-between items-center">
-                    <h4 className="text-xs font-black text-gray-900 uppercase tracking-widest flex items-center gap-2">
-                      <Package className="h-4 w-4 text-primary" /> Conceptos
-                    </h4>
-                    <button type="button" onClick={addItem} className="text-[9px] font-black text-primary uppercase tracking-widest hover:underline flex items-center gap-1">
-                      <Plus className="h-3 w-3" /> Agregar concepto
-                    </button>
-                  </div>
-
-                  {/* Cabecera de tabla */}
-                  <div className="hidden sm:grid grid-cols-12 gap-2 px-3 text-[7px] font-black text-gray-400 uppercase tracking-widest">
-                    <span className="col-span-2">Nº Serie</span>
-                    <span className="col-span-4">Descripción</span>
-                    <span className="col-span-2 text-center">Cant.</span>
-                    <span className="col-span-2">P. Unitario</span>
-                    <span className="col-span-1 text-right">Total</span>
-                    <span className="col-span-1" />
-                  </div>
-
-                  {newQuote.items.map((item, index) => (
-                    <div key={index} className="p-4 bg-gray-50 rounded-2xl space-y-2">
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setProdSearch({ index, mode: 'new' })}
-                          className="flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 text-primary rounded-xl text-[8px] font-black uppercase tracking-widest hover:bg-primary hover:text-white transition-all flex-shrink-0"
-                        >
-                          <Search className="h-3 w-3" /> Catálogo
-                        </button>
-                        <input className="flex-1 bg-white rounded-lg p-2.5 text-[10px] font-black uppercase outline-none" placeholder="Nº Serie / SKU" value={item.serial} onChange={e => updateItem(index, 'serial', e.target.value)} />
-                        <button type="button" onClick={() => removeItem(index)}>
-                          <X className="h-4 w-4 text-red-400 hover:text-red-600" />
-                        </button>
-                      </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-center">
-                        <div className="col-span-12 sm:col-span-5 space-y-1.5">
-                          <input className="w-full bg-white rounded-lg p-2.5 text-[10px] font-bold outline-none" placeholder="Nombre del producto / servicio" value={item.name} onChange={e => updateItem(index, 'name', e.target.value)} />
-                          <input className="w-full bg-white/60 rounded-lg p-2 text-[9px] text-gray-500 outline-none" placeholder="Descripción adicional" value={item.desc} onChange={e => updateItem(index, 'desc', e.target.value)} />
-                        </div>
-                        <input className="col-span-12 sm:col-span-2 bg-white rounded-lg p-2.5 text-[10px] text-center font-bold outline-none" type="number" min="1" value={item.qty} onChange={e => updateItem(index, 'qty', parseInt(e.target.value) || 1)} onFocus={e => e.target.select()} />
-                        <input className="col-span-12 sm:col-span-3 bg-white rounded-lg p-2.5 text-[10px] font-bold outline-none" type="number" min="0" step="0.01" placeholder="0.00" value={item.price} onChange={e => updateItem(index, 'price', parseFloat(e.target.value) || 0)} onFocus={e => e.target.select()} />
-                        <div className="col-span-12 sm:col-span-2 text-right font-black text-xs text-gray-900">{fmt(item.qty * item.price)}</div>
-                      </div>
-                      {/* Imagen del producto */}
-                      <div className="flex items-center gap-3 pt-1">
-                        <label className="cursor-pointer flex items-center gap-1.5 px-3 py-1.5 bg-white border border-dashed border-gray-300 hover:border-primary hover:bg-primary/5 text-gray-400 hover:text-primary rounded-xl text-[8px] font-black uppercase tracking-widest transition-all">
-                          <ImagePlus className="h-3 w-3" />
-                          {item.imageBase64 ? 'Cambiar imagen' : 'Imagen del producto'}
-                          <input
-                            type="file"
-                            accept="image/*"
-                            className="hidden"
-                            onChange={e => handleItemImage(index, e.target.files[0])}
-                          />
-                        </label>
-                        {item.imageBase64 && (
-                          <>
-                            <img src={item.imageBase64} alt={item.name} className="h-10 w-10 object-cover rounded-lg border border-gray-200 shadow-sm" />
-                            <button
-                              type="button"
-                              onClick={() => updateItem(index, 'imageBase64', '')}
-                              className="text-red-400 hover:text-red-600 transition-colors"
-                              title="Quitar imagen"
-                            >
-                              <X className="h-3.5 w-3.5" />
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Promoción */}
-                <PromoSection
-                  subtotal={newQuote.subtotal}
-                  discountPct={newQuote.discountPct || 0}
-                  onChange={pct => setNewQuote(f => ({ ...f, discountPct: pct }))}
-                />
-
-                {/* Footer financiero */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  <RequirementsField
-                    label="Términos y Condiciones"
-                    placeholder="Escribe los términos y condiciones..."
-                    textareaClass="w-full bg-amber-50 rounded-xl px-4 py-3 font-bold text-sm outline-none resize-none border border-amber-100 focus:border-amber-300 transition-colors"
-                    value={newQuote.terms}
-                    onChange={v => setNewQuote(f => ({ ...f, terms: v }))}
-                    phrases={termsPhases}
-                    onSavePhrase={saveTermsPhrase}
-                    onDeletePhrase={deleteTermsPhrase}
-                  />
-                  <div className="bg-gray-900 rounded-2xl p-6 text-white space-y-3">
-                    <div className="flex justify-between text-[10px] font-black uppercase opacity-50">
-                      <span>Subtotal</span><span>{fmt(newQuote.subtotal)}</span>
-                    </div>
-                    <div className="flex justify-between text-[10px] font-black uppercase opacity-50">
-                      <span>IVA (16%)</span><span>{fmt(newQuote.tax)}</span>
-                    </div>
-                    {newQuote.adjustment < 0 && (
-                      <div className="flex justify-between text-[10px] font-black text-emerald-400">
-                        <span>Promoción ({newQuote.discountPct}%)</span>
-                        <span>{fmt(newQuote.adjustment)}</span>
-                      </div>
-                    )}
-                    <div className="pt-4 border-t border-white/10 flex justify-between items-center">
-                      <span className="text-sm font-black uppercase text-primary">Inversión Total</span>
-                      <span className="text-3xl font-black">{fmt(newQuote.total)}</span>
-                    </div>
-                    <div style={{ marginTop: 10, background: 'rgba(255,255,255,.06)', borderRadius: 10, padding: '8px 10px' }}>
-                      <p style={{ fontSize: 6.5, fontWeight: 900, color: 'rgba(255,255,255,.4)', textTransform: 'uppercase', letterSpacing: '.1em', margin: '0 0 5px' }}>Descuentos por pago anticipado</p>
-                      {PAYMENT_OPTS.map(opt => (
-                        <div key={opt.hrs} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 }}>
-                          <span style={{ fontSize: 8, fontWeight: 700, color: 'rgba(255,255,255,.55)' }}>Pago en {opt.label}</span>
-                          <span style={{ fontSize: 8, fontWeight: 900, color: '#86efac', background: 'rgba(134,239,172,.12)', borderRadius: 5, padding: '1px 7px' }}>{opt.pct}% desc.</span>
-                        </div>
-                      ))}
+                      <span className="text-[8px] font-bold text-gray-400">Folio {newQuote.quoteNumber}</span>
                     </div>
                   </div>
                 </div>
-
-                {/* Motivos para elegir con confianza */}
-                <RequirementsField
-                  label="Motivos para elegir con confianza"
-                  placeholder="Describe los motivos para elegir con confianza esta solución para el cliente..."
-                  value={newQuote.benefits || ''}
-                  onChange={v => setNewQuote(f => ({ ...f, benefits: v }))}
-                  phrases={benefitsPhases}
-                  onSavePhrase={saveBenefitsPhrase}
-                  onDeletePhrase={deleteBenefitsPhrase}
-                />
-
-                {/* Observaciones — ancho completo debajo de términos e inversión */}
-                <div className="border border-gray-200 rounded-2xl p-4 bg-gray-50">
-                  <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-2">Observaciones</p>
-                  <textarea
-                    className="w-full bg-white rounded-xl px-4 py-3 text-[10px] font-bold outline-none resize-none border border-gray-100"
-                    rows={3}
-                    placeholder="Observaciones adicionales..."
-                    value={newQuote.observations || ''}
-                    onChange={e => setNewQuote(f => ({ ...f, observations: e.target.value }))}
-                  />
-                </div>
-
-                <button
-                  disabled={isGenerating || (clientMode === 'existing' ? !newQuote.clientId : (!newClientData.companyName || !newClientData.email))}
-                  type="submit"
-                  className="w-full bg-blue-600 text-white py-5 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl hover:bg-blue-700 transition-all disabled:opacity-60"
-                >
-                  {isGenerating ? (
-                    <span className="flex items-center justify-center gap-2"><RefreshCw className="h-4 w-4 animate-spin" /> Generando PDF...</span>
-                  ) : (
-                    <span className="flex items-center justify-center gap-2"><FileText className="h-4 w-4" /> Generar Cotización y PDF</span>
-                  )}
+                <button type="button" onClick={() => { setShowAddModal(false); setFromDealMeta(null); }} className="p-2 hover:bg-black/10 rounded-full transition-colors">
+                  <X className="h-5 w-5 text-gray-500" />
                 </button>
-              </form>
+              </div>
+
+              {/* Scrollable body */}
+              <div className="flex-1 overflow-y-auto">
+                <form onSubmit={handleCreateQuote} className="p-7 space-y-9">
+
+                  {/* ① Tipo de documento */}
+                  <div>
+                    <SectionHeader num="1" icon={FileText} label="Tipo de documento" />
+                    <div className="grid grid-cols-2 gap-3">
+                      {[
+                        { id: 'PRESUPUESTO', badge: 'REFERENCIAS DE PROYECTO', title: 'Ref. Proyecto', sub: 'Cliente · Asesor', color: '#005BBB', bg: '#eff6ff' },
+                        { id: 'PREFACTURA',  badge: 'PREFACTURA', title: 'Prefactura', sub: 'Facturar a · Vendedor', color: '#16823c', bg: '#f0fdf4' },
+                      ].map(opt => {
+                        const active = newQuote.templateType === opt.id;
+                        return (
+                          <button key={opt.id} type="button" onClick={() => setNewQuote(f => ({ ...f, templateType: opt.id }))}
+                            style={{ padding: '14px 16px', borderRadius: 16, textAlign: 'left', cursor: 'pointer', transition: 'all .18s',
+                              border: `2px solid ${active ? opt.color : '#e5e7eb'}`,
+                              background: active ? opt.bg : '#fafafa',
+                              boxShadow: active ? `0 4px 18px ${opt.color}20` : 'none' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                              <div style={{ background: opt.color, borderRadius: 6, padding: '3px 9px' }}>
+                                <span style={{ color: '#fff', fontSize: 7, fontWeight: 900, letterSpacing: '.1em' }}>{opt.badge}</span>
+                              </div>
+                              {active && <CheckCircle2 size={15} style={{ color: opt.color }} />}
+                            </div>
+                            <p style={{ fontSize: 13, fontWeight: 900, color: active ? opt.color : '#374151', margin: 0 }}>{opt.title}</p>
+                            <p style={{ fontSize: 9, color: '#6b7280', fontWeight: 600, margin: '3px 0 0' }}>{opt.sub}</p>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Banner pipeline */}
+                  {fromDealMeta && (
+                    <div className="flex items-start gap-3 p-4 rounded-2xl border" style={{ background: '#f0fdf4', borderColor: '#bbf7d0' }}>
+                      <FileText className="h-4 w-4 mt-0.5 flex-shrink-0" style={{ color: '#16a34a' }} />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[8px] font-black uppercase tracking-widest mb-1" style={{ color: '#16a34a' }}>Generando desde Pipeline CRM</p>
+                        <p className="text-xs font-black text-gray-900 truncate">{fromDealMeta.title}</p>
+                        <div className="flex flex-wrap gap-x-4 gap-y-0.5 mt-1">
+                          {fromDealMeta.company && <span className="text-[9px] font-bold text-gray-500">{fromDealMeta.company}</span>}
+                          {fromDealMeta.email   && <span className="text-[9px] font-bold text-gray-400">{fromDealMeta.email}</span>}
+                        </div>
+                      </div>
+                      {fromDealMeta.value > 0 && <span className="text-xs font-black flex-shrink-0" style={{ color: '#16a34a' }}>${Number(fromDealMeta.value).toLocaleString('es-MX', { maximumFractionDigits: 0 })}</span>}
+                    </div>
+                  )}
+
+                  {/* ② Cliente & Contacto */}
+                  <div>
+                    <SectionHeader num="2" icon={Building2} label="Cliente y contacto" />
+                    {/* Toggle existing / new */}
+                    <div className="flex gap-1.5 p-1 rounded-2xl mb-4" style={{ background: '#f1f5f9' }}>
+                      {[{ id: 'existing', icon: Building2, label: 'Cliente existente' }, { id: 'new', icon: Plus, label: 'Nuevo cliente' }].map(m => (
+                        <button key={m.id} type="button" onClick={() => setClientMode(m.id)}
+                          className="flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all"
+                          style={{ background: clientMode === m.id ? '#fff' : 'transparent', color: clientMode === m.id ? '#0f172a' : '#94a3b8', boxShadow: clientMode === m.id ? '0 1px 4px rgba(0,0,0,.08)' : 'none' }}>
+                          <m.icon size={12} /> {m.label}
+                        </button>
+                      ))}
+                    </div>
+
+                    {clientMode === 'existing' && (
+                      <div className="space-y-3">
+                        {/* Searchable client picker */}
+                        <div style={{ position: 'relative' }}>
+                          <button type="button" onClick={() => { setNewClientOpen(o => !o); setNewClientSearch(''); }}
+                            style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
+                              background: selClient ? tplBg : '#f9fafb',
+                              border: `1.5px solid ${selClient ? tplBorder : '#e5e7eb'}`,
+                              borderRadius: 14, padding: '12px 16px', cursor: 'pointer', transition: 'all .15s', textAlign: 'left' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
+                              <div style={{ width: 36, height: 36, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 14, fontWeight: 900,
+                                background: selClient ? tplColor : '#e5e7eb', color: selClient ? '#fff' : '#9ca3af' }}>
+                                {selClient ? selClient.companyName.charAt(0).toUpperCase() : <Building2 size={16} style={{ color: '#9ca3af' }} />}
+                              </div>
+                              <div style={{ minWidth: 0 }}>
+                                <p style={{ fontSize: 14, fontWeight: 700, margin: 0, color: selClient ? '#0f172a' : '#9ca3af', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  {selClient?.companyName || 'Buscar y seleccionar cliente...'}
+                                </p>
+                                {selClient?.contactName && <p style={{ fontSize: 10, color: '#6b7280', margin: 0 }}>{selClient.contactName}</p>}
+                              </div>
+                            </div>
+                            <ChevronRight size={15} style={{ color: '#9ca3af', flexShrink: 0, transform: newClientOpen ? 'rotate(90deg)' : 'none', transition: 'transform .15s' }} />
+                          </button>
+                          {newClientOpen && (
+                            <div style={{ position: 'absolute', top: 'calc(100% + 6px)', left: 0, right: 0, background: '#fff', border: '1.5px solid #e5e7eb', borderRadius: 16, boxShadow: '0 16px 40px rgba(0,0,0,.14)', zIndex: 60, overflow: 'hidden' }}>
+                              <div style={{ padding: '10px 12px', borderBottom: '1px solid #f3f4f6' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#f9fafb', borderRadius: 10, padding: '8px 12px' }}>
+                                  <Search size={13} style={{ color: '#9ca3af', flexShrink: 0 }} />
+                                  <input autoFocus type="text" placeholder="Buscar empresa o contacto..." value={newClientSearch}
+                                    onChange={e => setNewClientSearch(e.target.value)}
+                                    style={{ background: 'transparent', border: 'none', outline: 'none', fontSize: 13, fontWeight: 600, color: '#111827', flex: 1 }} />
+                                </div>
+                              </div>
+                              <div style={{ maxHeight: 240, overflowY: 'auto' }}>
+                                {filteredNC.length === 0
+                                  ? <div style={{ padding: 20, textAlign: 'center', fontSize: 11, color: '#9ca3af', fontWeight: 600 }}>Sin resultados</div>
+                                  : filteredNC.map(c => (
+                                    <button key={c.id} type="button"
+                                      onClick={() => { setNewQuote(f => ({ ...f, clientId: c.id })); setNewClientOpen(false); }}
+                                      style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 12, padding: '10px 16px',
+                                        background: newQuote.clientId === c.id ? tplBg : 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left', transition: 'background .1s' }}
+                                      onMouseEnter={e => { if (newQuote.clientId !== c.id) e.currentTarget.style.background = '#f9fafb'; }}
+                                      onMouseLeave={e => { if (newQuote.clientId !== c.id) e.currentTarget.style.background = 'transparent'; }}>
+                                      <div style={{ width: 32, height: 32, borderRadius: 9, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 12, fontWeight: 900,
+                                        background: newQuote.clientId === c.id ? tplColor : '#f3f4f6', color: newQuote.clientId === c.id ? '#fff' : '#6b7280' }}>
+                                        {c.companyName?.charAt(0)?.toUpperCase() || '?'}
+                                      </div>
+                                      <div style={{ minWidth: 0 }}>
+                                        <p style={{ fontSize: 13, fontWeight: 700, color: '#111827', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.companyName}</p>
+                                        {c.contactName && <p style={{ fontSize: 10, color: '#6b7280', margin: 0 }}>{c.contactName}</p>}
+                                      </div>
+                                      {newQuote.clientId === c.id && <CheckCircle2 size={14} style={{ color: tplColor, marginLeft: 'auto', flexShrink: 0 }} />}
+                                    </button>
+                                  ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                        {/* Contacto para cliente existente */}
+                        <div>
+                          <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest block mb-1.5">Contacto</label>
+                          <input className="w-full bg-gray-50 rounded-xl px-4 py-3 font-bold text-sm outline-none border border-transparent focus:border-gray-200 transition-colors"
+                            placeholder="Nombre de la persona de contacto"
+                            value={newQuote.contactName || ''}
+                            onChange={e => setNewQuote(f => ({ ...f, contactName: e.target.value }))} />
+                        </div>
+                      </div>
+                    )}
+
+                    {clientMode === 'new' && (
+                      <div className="p-5 rounded-2xl border space-y-4" style={{ background: tplBg, borderColor: tplBorder }}>
+                        <p className="text-[8px] font-black uppercase tracking-widest flex items-center gap-1.5" style={{ color: tplColor }}>
+                          <User size={11} /> Datos del nuevo cliente
+                        </p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          {[
+                            { label: 'Empresa / Nombre *', key: 'companyName', required: true, placeholder: 'Ej: ACME Industrias S.A.' },
+                            { label: 'Correo electrónico *', key: 'email', required: true, placeholder: 'contacto@empresa.com' },
+                            { label: 'Contacto', key: 'contactName', placeholder: 'Nombre del contacto' },
+                            { label: 'Teléfono', key: 'phone', placeholder: '+52 55 0000 0000', type: 'tel' },
+                            { label: 'RFC', key: 'rfc', placeholder: 'RFC del cliente', upper: true },
+                            { label: 'Dirección', key: 'address', placeholder: 'Dirección fiscal o de envío' },
+                          ].map(f => (
+                            <div key={f.key}>
+                              <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest block mb-1">{f.label}</label>
+                              <input
+                                type={f.type || 'text'}
+                                required={!!f.required && clientMode === 'new'}
+                                className="w-full bg-white rounded-xl px-4 py-3 font-bold text-sm outline-none"
+                                placeholder={f.placeholder}
+                                value={newClientData[f.key]}
+                                onChange={e => setNewClientData(p => ({ ...p, [f.key]: f.upper ? e.target.value.toUpperCase() : e.target.value }))}
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* ③ Proyecto */}
+                  <div>
+                    <SectionHeader num="3" icon={Package} label="Información del proyecto" />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest block mb-1.5">Nombre del Proyecto</label>
+                        <input className="w-full bg-gray-50 rounded-xl px-4 py-3.5 font-bold text-sm outline-none border border-transparent focus:border-gray-200 transition-colors"
+                          placeholder="Ej: Proyecto CCTV Planta Norte"
+                          value={newQuote.projectName}
+                          onChange={e => setNewQuote(f => ({ ...f, projectName: e.target.value }))} />
+                      </div>
+                      <div>
+                        <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest block mb-1.5">Vendedor</label>
+                        <select className="w-full rounded-xl px-4 py-3.5 font-black text-sm outline-none cursor-pointer border border-transparent"
+                          style={{ background: tplBg, color: tplColor }}
+                          value={newQuote.sellerId} onChange={e => setNewQuote(f => ({ ...f, sellerId: e.target.value }))}>
+                          <option value="">¿Quién vendió?</option>
+                          {employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest block mb-1.5">Vigente hasta</label>
+                        <input type="date" className="w-full bg-gray-50 rounded-xl px-4 py-3.5 font-bold text-sm outline-none border border-transparent focus:border-gray-200 transition-colors"
+                          value={newQuote.validUntil} onChange={e => setNewQuote(f => ({ ...f, validUntil: e.target.value }))} />
+                      </div>
+                      {!fromDealMeta && (
+                        <div>
+                          <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest block mb-1.5">Vincular a trato del pipeline</label>
+                          <select className="w-full bg-emerald-50 rounded-xl px-4 py-3.5 font-bold text-sm outline-none text-emerald-800 cursor-pointer"
+                            value={newQuote.linkedDealId}
+                            onChange={e => {
+                              const deal = deals.find(d => d.id === e.target.value);
+                              setNewQuote(f => ({ ...f, linkedDealId: e.target.value, projectName: f.projectName || deal?.title || '', contactName: f.contactName || deal?.contactName || '', sellerId: f.sellerId || deal?.assignedToId || '' }));
+                            }}>
+                            <option value="">— Sin vincular —</option>
+                            {deals.map(d => <option key={d.id} value={d.id}>{d.title}{d.company ? ` · ${d.company}` : ''}</option>)}
+                          </select>
+                          {newQuote.linkedDealId && <p className="text-[8px] font-bold text-emerald-600 mt-1">✓ Se registrará en el historial del trato</p>}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* ④ Requerimientos */}
+                  <div>
+                    <SectionHeader num="4" icon={FileText} label="Requerimientos del cliente" />
+                    <RequirementsField
+                      value={newQuote.requirements || ''}
+                      onChange={v => setNewQuote(f => ({ ...f, requirements: v }))}
+                      phrases={phrases}
+                      onSavePhrase={savePhrase}
+                      onDeletePhrase={deletePhrase}
+                      hideLabel
+                    />
+                  </div>
+
+                  {/* ⑤ Conceptos */}
+                  <div>
+                    <SectionHeader num="5" icon={Package} label="Conceptos / Productos" />
+                    <div className="space-y-3">
+                      {newQuote.items.map((item, index) => (
+                        <div key={index} className="rounded-2xl border border-gray-100 overflow-hidden" style={{ background: '#fafafa' }}>
+                          {/* Top bar */}
+                          <div className="flex items-center gap-2 px-4 py-3 border-b border-gray-100 bg-white">
+                            <button type="button" onClick={() => setProdSearch({ index, mode: 'new' })}
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[8px] font-black uppercase tracking-widest transition-all flex-shrink-0"
+                              style={{ background: tplBg, color: tplColor }}>
+                              <Search size={11} /> Catálogo
+                            </button>
+                            <input className="flex-1 bg-gray-50 rounded-lg px-3 py-2 text-[10px] font-black uppercase outline-none" placeholder="Nº Serie / SKU" value={item.serial} onChange={e => updateItem(index, 'serial', e.target.value)} />
+                            <button type="button" onClick={() => removeItem(index)} className="p-1.5 hover:bg-red-50 rounded-lg transition-colors">
+                              <X size={14} className="text-red-400" />
+                            </button>
+                          </div>
+                          {/* Body */}
+                          <div className="p-4 space-y-3">
+                            <input className="w-full bg-white rounded-xl px-4 py-2.5 text-sm font-bold outline-none border border-gray-100 focus:border-gray-200" placeholder="Nombre del producto o servicio" value={item.name} onChange={e => updateItem(index, 'name', e.target.value)} />
+                            <input className="w-full bg-white rounded-xl px-4 py-2 text-[11px] text-gray-400 font-semibold outline-none border border-gray-100" placeholder="Descripción adicional (opcional)" value={item.desc} onChange={e => updateItem(index, 'desc', e.target.value)} />
+                            <div className="grid grid-cols-3 gap-3">
+                              <div>
+                                <label className="text-[7px] font-black text-gray-400 uppercase tracking-widest block mb-1">Cantidad</label>
+                                <input className="w-full bg-white rounded-xl px-3 py-2.5 text-sm text-center font-black outline-none border border-gray-100" type="number" min="1" value={item.qty} onChange={e => updateItem(index, 'qty', parseInt(e.target.value) || 1)} onFocus={e => e.target.select()} />
+                              </div>
+                              <div>
+                                <label className="text-[7px] font-black text-gray-400 uppercase tracking-widest block mb-1">Precio Unitario</label>
+                                <input className="w-full bg-white rounded-xl px-3 py-2.5 text-sm font-black outline-none border border-gray-100" type="number" min="0" step="0.01" placeholder="0.00" value={item.price} onChange={e => updateItem(index, 'price', parseFloat(e.target.value) || 0)} onFocus={e => e.target.select()} />
+                              </div>
+                              <div>
+                                <label className="text-[7px] font-black text-gray-400 uppercase tracking-widest block mb-1">Total</label>
+                                <div className="w-full rounded-xl px-3 py-2.5 text-sm font-black text-right" style={{ background: tplBg, color: tplColor }}>{fmt(item.qty * item.price)}</div>
+                              </div>
+                            </div>
+                            {/* Imagen */}
+                            <div className="flex items-center gap-3">
+                              <label className="cursor-pointer flex items-center gap-1.5 px-3 py-1.5 bg-white border border-dashed border-gray-200 hover:border-gray-400 text-gray-400 hover:text-gray-600 rounded-xl text-[8px] font-black uppercase tracking-widest transition-all">
+                                <ImagePlus size={12} /> {item.imageBase64 ? 'Cambiar imagen' : 'Imagen'}
+                                <input type="file" accept="image/*" className="hidden" onChange={e => handleItemImage(index, e.target.files[0])} />
+                              </label>
+                              {item.imageBase64 && (
+                                <>
+                                  <img src={item.imageBase64} alt={item.name} className="h-9 w-9 object-cover rounded-lg border border-gray-200" />
+                                  <button type="button" onClick={() => updateItem(index, 'imageBase64', '')} className="p-1 hover:bg-red-50 rounded-lg transition-colors"><X size={12} className="text-red-400" /></button>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                      <button type="button" onClick={addItem}
+                        className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl border-2 border-dashed text-[9px] font-black uppercase tracking-widest transition-all hover:border-solid"
+                        style={{ borderColor: tplColor, color: tplColor, background: tplBg }}>
+                        <Plus size={13} /> Agregar concepto
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* ⑥ Promoción */}
+                  <div>
+                    <SectionHeader num="6" icon={Package} label="Promoción / Descuento" />
+                    <PromoSection
+                      subtotal={newQuote.subtotal}
+                      discountPct={newQuote.discountPct || 0}
+                      onChange={pct => setNewQuote(f => ({ ...f, discountPct: pct }))}
+                    />
+                  </div>
+
+                  {/* ⑦ Términos + Totales */}
+                  <div>
+                    <SectionHeader num="7" icon={FileText} label="Términos y totales" />
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                      <RequirementsField
+                        label="Términos y Condiciones"
+                        placeholder="Escribe los términos y condiciones..."
+                        textareaClass="w-full bg-amber-50 rounded-xl px-4 py-3 font-bold text-sm outline-none resize-none border border-amber-100 focus:border-amber-300 transition-colors"
+                        value={newQuote.terms}
+                        onChange={v => setNewQuote(f => ({ ...f, terms: v }))}
+                        phrases={termsPhases}
+                        onSavePhrase={saveTermsPhrase}
+                        onDeletePhrase={deleteTermsPhrase}
+                      />
+                      <div className="rounded-2xl p-6 text-white space-y-3" style={{ background: '#0f172a' }}>
+                        {[['Subtotal', fmt(newQuote.subtotal)], ['IVA (16%)', fmt(newQuote.tax)]].map(([l, v]) => (
+                          <div key={l} className="flex justify-between text-[10px] font-black uppercase" style={{ opacity: .5 }}>
+                            <span>{l}</span><span>{v}</span>
+                          </div>
+                        ))}
+                        {newQuote.adjustment < 0 && (
+                          <div className="flex justify-between text-[10px] font-black" style={{ color: '#86efac' }}>
+                            <span>Promoción ({newQuote.discountPct}%)</span>
+                            <span>{fmt(newQuote.adjustment)}</span>
+                          </div>
+                        )}
+                        <div className="pt-4 border-t border-white/10 flex justify-between items-end">
+                          <span className="text-[11px] font-black uppercase" style={{ color: tplColor === '#16823c' ? '#6ee7b7' : '#93c5fd' }}>Inversión Total</span>
+                          <span className="text-3xl font-black">{fmt(newQuote.total)}</span>
+                        </div>
+                        <div style={{ marginTop: 8, background: 'rgba(255,255,255,.06)', borderRadius: 10, padding: '8px 12px' }}>
+                          <p style={{ fontSize: 6.5, fontWeight: 900, color: 'rgba(255,255,255,.35)', textTransform: 'uppercase', letterSpacing: '.1em', margin: '0 0 6px' }}>Descuentos por pago</p>
+                          {[['Pago Inmediato 24Hrs', '5%'], ['Pago Preferente', '3%'], ['Pago Programado', '1%']].map(([l, p]) => (
+                            <div key={l} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
+                              <span style={{ fontSize: 8, fontWeight: 600, color: 'rgba(255,255,255,.5)' }}>{l}</span>
+                              <span style={{ fontSize: 8, fontWeight: 900, color: '#86efac' }}>{p} desc.</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* ⑧ Motivos + Observaciones */}
+                  <div>
+                    <SectionHeader num="8" icon={FileText} label="Motivos y observaciones" />
+                    <div className="space-y-4">
+                      <RequirementsField
+                        label="Motivos para elegir con confianza"
+                        placeholder="Describe los motivos para elegir con confianza esta solución..."
+                        value={newQuote.benefits || ''}
+                        onChange={v => setNewQuote(f => ({ ...f, benefits: v }))}
+                        phrases={benefitsPhases}
+                        onSavePhrase={saveBenefitsPhrase}
+                        onDeletePhrase={deleteBenefitsPhrase}
+                      />
+                      <div className="rounded-2xl border border-gray-100 p-4" style={{ background: '#fafafa' }}>
+                        <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest block mb-2">Observaciones</label>
+                        <textarea className="w-full bg-white rounded-xl px-4 py-3 text-sm font-semibold outline-none resize-none border border-gray-100 focus:border-gray-200 transition-colors" rows={3}
+                          placeholder="Observaciones adicionales para el cliente..."
+                          value={newQuote.observations || ''}
+                          onChange={e => setNewQuote(f => ({ ...f, observations: e.target.value }))} />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Submit */}
+                  <button
+                    disabled={isGenerating || (clientMode === 'existing' ? !newQuote.clientId : (!newClientData.companyName || !newClientData.email))}
+                    type="submit"
+                    className="w-full py-5 rounded-2xl font-black text-sm uppercase tracking-widest shadow-lg transition-all disabled:opacity-50 text-white"
+                    style={{ background: tplColor }}>
+                    {isGenerating
+                      ? <span className="flex items-center justify-center gap-2"><RefreshCw size={16} className="animate-spin" /> Generando PDF...</span>
+                      : <span className="flex items-center justify-center gap-2"><FileText size={16} /> Generar Cotización y PDF</span>}
+                  </button>
+                </form>
+              </div>
             </motion.div>
           </div>
-        )}
+          );
+        })()}
       </AnimatePresence>
 
       {/* ── Buscador de catálogo ─────────────────────────────────────────── */}
@@ -2007,7 +2011,7 @@ function QuoteEditForm({ editQuote, setEditQuote, employees, clients, selectedQu
             <p style={{ fontSize: 6.5, fontWeight: 900, color: 'rgba(255,255,255,.4)', textTransform: 'uppercase', letterSpacing: '.1em', margin: '0 0 5px' }}>Descuentos por pago anticipado</p>
             {PAYMENT_OPTS.map(opt => (
               <div key={opt.hrs} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 }}>
-                <span style={{ fontSize: 8, fontWeight: 700, color: 'rgba(255,255,255,.55)' }}>Pago en {opt.label}</span>
+                <span style={{ fontSize: 8, fontWeight: 700, color: 'rgba(255,255,255,.55)' }}>Pago {opt.label}</span>
                 <span style={{ fontSize: 8, fontWeight: 900, color: '#86efac', background: 'rgba(134,239,172,.12)', borderRadius: 5, padding: '1px 7px' }}>{opt.pct}% desc.</span>
               </div>
             ))}
