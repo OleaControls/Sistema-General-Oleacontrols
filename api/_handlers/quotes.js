@@ -513,6 +513,8 @@ async function generateQuotePDF(quote) {
 
     if (quote.benefits && quote.benefits.trim()) {
       // Mostrar texto de beneficios en un recuadro elegante
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9);
       const benefLines = doc.splitTextToSize(quote.benefits.trim(), cW - 12);
       const benefH     = 10 + benefLines.length * 5.2 + 8;
 
@@ -521,8 +523,6 @@ async function generateQuotePDF(quote) {
       doc.setLineWidth(0.3);
       doc.roundedRect(margin, benefY, cW, benefH, 3, 3, 'FD');
 
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(9);
       doc.setTextColor(...DARK);
       doc.text(benefLines, margin + 6, benefY + 10);
 
