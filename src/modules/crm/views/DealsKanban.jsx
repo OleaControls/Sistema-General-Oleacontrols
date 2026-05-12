@@ -837,9 +837,16 @@ export default function DealsKanban() {
                   </div>
                   <div>
                     <label className="text-[8px] font-black text-gray-500 uppercase tracking-widest block mb-1">Fuente</label>
-                    <select className="w-full bg-gray-50 rounded-xl px-4 py-4 font-black text-xs outline-none cursor-pointer" value={newDeal.source} onChange={e => setNewDeal(f => ({ ...f, source: e.target.value }))}>
-                      {SOURCES.map(s => <option key={s}>{s}</option>)}
-                    </select>
+                    <input
+                      list="deal-sources-new"
+                      className="w-full bg-gray-50 rounded-xl px-4 py-4 font-black text-xs outline-none focus:ring-2 ring-primary/20"
+                      placeholder="Ej. Web, Referido…"
+                      value={newDeal.source}
+                      onChange={e => setNewDeal(f => ({ ...f, source: e.target.value }))}
+                    />
+                    <datalist id="deal-sources-new">
+                      {SOURCES.map(s => <option key={s} value={s} />)}
+                    </datalist>
                   </div>
                 </div>
 
@@ -1239,9 +1246,16 @@ function DealInfoPanel({ editForm, setEditForm, clients, employees, onSave, savi
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest block mb-1.5">Fuente</label>
-          <select className="w-full bg-gray-50 rounded-xl px-3 py-3 font-bold text-xs outline-none cursor-pointer" {...f('source')} onBlur={onSave}>
-            {SOURCES.map(s => <option key={s}>{s}</option>)}
-          </select>
+          <input
+            list="deal-sources-edit"
+            className="w-full bg-gray-50 rounded-xl px-3 py-3 font-bold text-xs outline-none focus:ring-2 ring-primary/20"
+            placeholder="Ej. Web, Referido…"
+            {...f('source')}
+            onBlur={onSave}
+          />
+          <datalist id="deal-sources-edit">
+            {SOURCES.map(s => <option key={s} value={s} />)}
+          </datalist>
         </div>
         <div>
           <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest block mb-1.5">Prob. Manual (%)</label>

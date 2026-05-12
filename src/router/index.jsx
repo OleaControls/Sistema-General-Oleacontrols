@@ -59,6 +59,7 @@ const CRMActivityFeed   = lazy(() => import('@/modules/crm/views/CRMActivityFeed
 const Seguimientos      = lazy(() => import('@/modules/crm/views/Seguimientos'));
 const ProspectoProfile  = lazy(() => import('@/modules/crm/views/ProspectoProfile'));
 const ProductCatalog    = lazy(() => import('@/modules/crm/views/ProductCatalog'));
+const SalesCalendar     = lazy(() => import('@/modules/crm/views/SalesCalendar'));
 
 // Academy / LMS
 const AcademyHome  = lazy(() => import('@/modules/lms/views/AcademyHome'));
@@ -178,6 +179,7 @@ export default function AppRouter() {
             <Route path="seguimientos"           element={<Seguimientos />} />
             <Route path="seguimientos/:dealId"  element={<ProspectoProfile />} />
             <Route path="catalog"       element={<ProductCatalog />} />
+            <Route path="calendar"      element={<SalesCalendar />} />
           </Route>
 
           {/* Ventas – acceso directo SALES */}

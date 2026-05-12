@@ -330,9 +330,16 @@ export default function SalesPipeline() {
                     </div>
                     <div>
                       <label className="text-[8px] font-black text-gray-500 uppercase tracking-widest block mb-1.5">Fuente</label>
-                      <select className="w-full bg-gray-50 rounded-xl px-4 py-3.5 font-bold text-xs outline-none cursor-pointer" value={newLead.source} onChange={e => setNewLead({ ...newLead, source: e.target.value })}>
-                        {SOURCES.map(s => <option key={s}>{s}</option>)}
-                      </select>
+                      <input
+                        list="lead-sources"
+                        className="w-full bg-gray-50 rounded-xl px-4 py-3.5 font-bold text-xs outline-none focus:ring-2 ring-primary/20"
+                        placeholder="Ej. Web, Referido…"
+                        value={newLead.source}
+                        onChange={e => setNewLead({ ...newLead, source: e.target.value })}
+                      />
+                      <datalist id="lead-sources">
+                        {SOURCES.map(s => <option key={s} value={s} />)}
+                      </datalist>
                     </div>
                   </div>
                 </div>
