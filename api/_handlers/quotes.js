@@ -295,12 +295,56 @@ async function generateQuotePDF(quote) {
       afterTableY = 20;
     }
 
+    // Términos primero (izquierda) para saber el Y donde arrancan ambos recuadros
+    const termsColW = totX - margin - 6;
+    let termsBottomY = afterTableY;
+    if (quote.terms) {
+      doc.setFontSize(7);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(...GRAY);
+      doc.text('TÉRMINOS Y CONDICIONES:', margin, afterTableY);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(...DARK);
+      const termsLines = doc.splitTextToSize(quote.terms, termsColW);
+      const lineH3     = 3.5;
+      const maxTermsY  = pageH - 15;
+      const availLines = Math.max(1, Math.floor((maxTermsY - (afterTableY + 5)) / lineH3));
+      doc.text(termsLines.slice(0, availLines), margin, afterTableY + 5);
+      termsBottomY = Math.min(afterTableY + 5 + termsLines.length * lineH3, maxTermsY - 2);
+    }
+
+    // Y compartida: ambos recuadros (descuentos y totales) arrancan aquí alineados
+    const discW    = totX - margin - 6;
+    const discBoxH = 7 + payOpts.length * 6.2;
+    const boxStartY = termsBottomY + (quote.terms ? 5 : 0);
+
+    // Recuadro de descuentos (izquierda)
+    doc.setFillColor(245, 248, 255);
+    doc.setDrawColor(...BLUE);
+    doc.setLineWidth(0.2);
+    doc.roundedRect(margin, boxStartY, discW, discBoxH, 2, 2, 'FD');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(5.5);
+    doc.setTextColor(...BLUE);
+    doc.text('DESCUENTOS POR PAGO ANTICIPADO', margin + discW / 2, boxStartY + 4.5, { align: 'center' });
+    payOpts.forEach((opt, i) => {
+      const ry = boxStartY + 9 + i * 6.2;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(6.5);
+      doc.setTextColor(...GRAY);
+      doc.text(opt.label, margin + 4, ry);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(...BLUE);
+      doc.text(opt.pct, margin + discW - 4, ry, { align: 'right' });
+    });
+
+    // Recuadro de totales (derecha) — alineado con el recuadro de descuentos
     doc.setFillColor(...LIGHT);
     doc.setDrawColor(...BLUE);
     doc.setLineWidth(0.3);
-    doc.roundedRect(totX, afterTableY, totW, totH, 2, 2, 'FD');
+    doc.roundedRect(totX, boxStartY, totW, totH, 2, 2, 'FD');
 
-    let ty = afterTableY + 5;
+    let ty = boxStartY + 5;
     rows.forEach(([label, val]) => {
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(7.5);
@@ -316,7 +360,7 @@ async function generateQuotePDF(quote) {
     doc.line(totX + 3, ty, totX + totW - 3, ty);
     ty += 3;
 
-    // TOTAL GENERAL
+    // INVERSIÓN TOTAL
     doc.setFillColor(...BLUE);
     doc.roundedRect(totX, ty - 1, totW, 10, 2, 2, 'F');
     doc.setFont('helvetica', 'bold');
@@ -326,53 +370,8 @@ async function generateQuotePDF(quote) {
     doc.setFontSize(9);
     doc.text(fmtMXN(quote.total || 0), totX + totW - 4, ty + 6, { align: 'right' });
 
-    const totBottomY = ty + 12;
-
-    // Términos (izquierda, junto a totales)
-    const termsColW = totX - margin - 6;
-    let termsBottomY = afterTableY;
-    if (quote.terms) {
-      const termsLines = doc.splitTextToSize(quote.terms, termsColW);
-      const termsMaxY  = afterTableY + 5 + termsLines.length * 3.5;
-      // Si los términos desbordan la página, truncar al espacio disponible para mantener columnas alineadas
-      const maxTermsY  = pageH - 15;
-      doc.setFontSize(7);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(...GRAY);
-      doc.text('TÉRMINOS Y CONDICIONES:', margin, afterTableY);
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(...DARK);
-      // Solo renderizar las líneas que caben en la página
-      const lineH3 = 3.5;
-      const availLines = Math.max(1, Math.floor((maxTermsY - (afterTableY + 5)) / lineH3));
-      const visibleTerms = termsLines.slice(0, availLines);
-      doc.text(visibleTerms, margin, afterTableY + 5);
-      termsBottomY = Math.min(afterTableY + 5 + termsLines.length * lineH3, maxTermsY - 2);
-    }
-
-    // Recuadro de descuentos por pago anticipado (debajo de términos, lado izquierdo)
-    const discW    = totX - margin - 6;
-    const discBoxY = termsBottomY + 5;
-    const discBoxH = 7 + payOpts.length * 6.2;
-    doc.setFillColor(245, 248, 255);
-    doc.setDrawColor(...BLUE);
-    doc.setLineWidth(0.2);
-    doc.roundedRect(margin, discBoxY, discW, discBoxH, 2, 2, 'FD');
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(5.5);
-    doc.setTextColor(...BLUE);
-    doc.text('DESCUENTOS POR PAGO ANTICIPADO', margin + discW / 2, discBoxY + 4.5, { align: 'center' });
-    payOpts.forEach((opt, i) => {
-      const ry = discBoxY + 9 + i * 6.2;
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(6.5);
-      doc.setTextColor(...GRAY);
-      doc.text(opt.label, margin + 4, ry);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(...BLUE);
-      doc.text(opt.pct, margin + discW - 4, ry, { align: 'right' });
-    });
-    termsBottomY = discBoxY + discBoxH;
+    const totBottomY   = ty + 12;
+    termsBottomY = boxStartY + discBoxH;
 
     // ── OBSERVACIONES — recuadro ancho completo debajo de términos e inversión total ──
     let afterTotalsY = Math.max(totBottomY, termsBottomY);
