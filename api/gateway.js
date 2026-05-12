@@ -27,6 +27,7 @@ const handlers = {
   'ot-templates':    () => import('./_handlers/ot-templates.js'),
   'personal-audits': () => import('./_handlers/personal-audits.js'),
   quotes: () => import('./_handlers/quotes.js'),
+  'quote-phrases': () => import('./_handlers/quote-phrases.js'),
   catalog: () => import('./_handlers/catalog.js'),
   upload: () => import('./_handlers/upload.js'),
   lms: () => import('./_handlers/lms.js'),

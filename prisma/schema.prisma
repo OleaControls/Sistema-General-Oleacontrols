@@ -353,7 +353,11 @@ model Quote {
   status        String   @default("PENDING") // PENDING, ACCEPTED, REJECTED, EXPIRED
   validUntil    DateTime
   terms         String?  @default("Pago 100% anticipado. Tiempo de entrega sujeto a existencias.")
-  
+  templateType  String?  @default("PRESUPUESTO") // PRESUPUESTO, PREFACTURA
+  requirements  String?  @default("")             // Requerimientos del cliente
+  observations  String?  @default("")             // Observaciones
+  benefits      String?  @default("")             // Beneficios
+
   pdfUrl        String?  // Link a R2
   
   creatorId     String
@@ -369,6 +373,14 @@ model Quote {
   @@index([sellerId])
   @@index([status])
   @@index([clientId])
+}
+
+model QuoteRequirementPhrase {
+  id        String   @id @default(cuid())
+  text      String
+  order     Int      @default(0)
+  category  String   @default("requirements") // requirements | terms
+  createdAt DateTime @default(now())
 }
 
 model Deal {

@@ -25,6 +25,7 @@ import otTemplatesHandler from './api/_handlers/ot-templates.js';
 import calendarHandler from './api/_handlers/calendar.js';
 import portalHandler from './api/_handlers/portal.js';
 import catalogHandler from './api/_handlers/catalog.js';
+import quotePhraseHandler from './api/_handlers/quote-phrases.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -106,6 +107,12 @@ app.get('/api/quotes', adaptHandler(quotesHandler));
 app.post('/api/quotes', adaptHandler(quotesHandler));
 app.put('/api/quotes', adaptHandler(quotesHandler));
 app.delete('/api/quotes', adaptHandler(quotesHandler));
+
+// Quote Requirement Phrases
+app.get('/api/quote-phrases', adaptHandler(quotePhraseHandler));
+app.post('/api/quote-phrases', adaptHandler(quotePhraseHandler));
+app.put('/api/quote-phrases', adaptHandler(quotePhraseHandler));
+app.delete('/api/quote-phrases', adaptHandler(quotePhraseHandler));
 
 // Vacations
 app.get('/api/vacations', adaptHandler(vacationsHandler));

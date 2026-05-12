@@ -3,7 +3,8 @@ import {
   Plus, FileText, Download, Search, Trash2, PlusCircle, Building2,
   User, Calendar, DollarSign, X, Save, CheckCircle2, AlertCircle,
   Clock, Hash, Send, Edit3, ExternalLink, ChevronRight, TrendingUp,
-  BarChart2, Percent, Eye, RefreshCw, Package, Loader2, ImagePlus, Copy
+  BarChart2, Percent, Eye, RefreshCw, Package, Loader2, ImagePlus, Copy,
+  BookOpen, ChevronDown, ChevronUp
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/store/AuthContext';
@@ -51,6 +52,221 @@ const compressImage = (file) => new Promise((resolve) => {
   };
   reader.readAsDataURL(file);
 });
+
+// ── Sección de Promociones ────────────────────────────────────────────────────
+const PAYMENT_OPTS = [
+  { hrs: 24, pct: 5,  label: '24 hrs', color: '#7c3aed', bg: '#f5f3ff', border: '#ddd6fe' },
+  { hrs: 48, pct: 3,  label: '48 hrs', color: '#2563eb', bg: '#eff6ff', border: '#bfdbfe' },
+  { hrs: 72, pct: 1,  label: '72 hrs', color: '#0891b2', bg: '#ecfeff', border: '#a5f3fc' },
+];
+
+function PromoSection({ subtotal, discountPct, onChange }) {
+  const base     = subtotal * 1.16;           // subtotal + IVA
+  const discount = discountPct > 0 ? base * discountPct / 100 : 0;
+
+  return (
+    <div style={{ border: '1.5px solid #e9d5ff', borderRadius: 20, background: 'linear-gradient(135deg,#faf5ff 0%,#f5f3ff 100%)', padding: '18px 20px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+        <div style={{ width: 28, height: 28, borderRadius: 8, background: '#7c3aed', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <Percent size={14} style={{ color: '#fff' }} />
+        </div>
+        <p style={{ fontSize: 9, fontWeight: 900, color: '#7c3aed', textTransform: 'uppercase', letterSpacing: '.12em', margin: 0 }}>
+          Promoción
+        </p>
+      </div>
+
+      {/* Tarjetas de pago rápido */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 14 }}>
+        {PAYMENT_OPTS.map(opt => {
+          const active = discountPct === opt.pct;
+          return (
+            <button
+              key={opt.hrs}
+              type="button"
+              onClick={() => onChange(active ? 0 : opt.pct)}
+              style={{
+                borderRadius: 14, padding: '12px 8px', textAlign: 'center', cursor: 'pointer',
+                border: `2px solid ${active ? opt.color : opt.border}`,
+                background: active ? opt.color : opt.bg,
+                transition: 'all .15s', boxShadow: active ? `0 4px 14px ${opt.color}30` : 'none',
+              }}
+            >
+              <p style={{ fontSize: 7.5, fontWeight: 900, color: active ? 'rgba(255,255,255,.8)' : '#6b7280', textTransform: 'uppercase', letterSpacing: '.1em', margin: '0 0 4px' }}>
+                Pago en {opt.label}
+              </p>
+              <p style={{ fontSize: 22, fontWeight: 900, color: active ? '#fff' : opt.color, margin: '0 0 2px', lineHeight: 1 }}>
+                {opt.pct}%
+              </p>
+              <p style={{ fontSize: 7, fontWeight: 700, color: active ? 'rgba(255,255,255,.75)' : '#9ca3af', margin: 0 }}>
+                de descuento
+              </p>
+              {active && subtotal > 0 && (
+                <p style={{ fontSize: 8, fontWeight: 900, color: '#fff', marginTop: 6, background: 'rgba(0,0,0,.15)', borderRadius: 6, padding: '2px 6px', display: 'inline-block' }}>
+                  −${(subtotal * 1.16 * opt.pct / 100).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </p>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Input manual de porcentaje */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#fff', border: '1.5px solid #ddd6fe', borderRadius: 12, padding: '8px 14px', flex: '0 0 auto' }}>
+          <input
+            type="number"
+            min="0"
+            max="100"
+            step="0.5"
+            value={discountPct || ''}
+            placeholder="0"
+            onChange={e => onChange(parseFloat(e.target.value) || 0)}
+            style={{ width: 44, fontWeight: 900, fontSize: 16, color: '#7c3aed', background: 'transparent', border: 'none', outline: 'none', textAlign: 'center' }}
+          />
+          <span style={{ fontWeight: 900, fontSize: 16, color: '#7c3aed' }}>%</span>
+        </div>
+
+        {discountPct > 0 && subtotal > 0 ? (
+          <>
+            <div style={{ flex: 1, background: '#fff', border: '1.5px solid #bbf7d0', borderRadius: 12, padding: '8px 14px' }}>
+              <p style={{ fontSize: 7.5, fontWeight: 900, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '.08em', margin: '0 0 1px' }}>Ahorro total</p>
+              <p style={{ fontSize: 14, fontWeight: 900, color: '#16a34a', margin: 0 }}>
+                −${discount.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => onChange(0)}
+              style={{ width: 34, height: 34, borderRadius: 10, background: '#fef2f2', border: '1.5px solid #fecaca', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}
+            >
+              <X size={13} style={{ color: '#ef4444' }} />
+            </button>
+          </>
+        ) : (
+          <p style={{ fontSize: 10, color: '#9ca3af', fontWeight: 600, margin: 0 }}>
+            Ingresa un porcentaje o selecciona una opción de pago rápido
+          </p>
+        )}
+      </div>
+
+      {/* Descripción de condiciones de pago */}
+      <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid #e9d5ff', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+        <p style={{ fontSize: 7.5, fontWeight: 700, color: '#9ca3af', margin: 0, letterSpacing: '.04em' }}>
+          Condiciones de pago anticipado:
+        </p>
+        {PAYMENT_OPTS.map((opt, i) => (
+          <React.Fragment key={opt.hrs}>
+            <span style={{ fontSize: 7.5, fontWeight: 900, color: opt.color, background: opt.bg, border: `1px solid ${opt.border}`, borderRadius: 6, padding: '2px 8px', whiteSpace: 'nowrap' }}>
+              {opt.label} → {opt.pct}% desc.
+            </span>
+            {i < PAYMENT_OPTS.length - 1 && (
+              <span style={{ fontSize: 8, color: '#d1d5db', fontWeight: 900 }}>·</span>
+            )}
+          </React.Fragment>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Campo con frases guardadas (genérico) ─────────────────────────────────────
+function RequirementsField({
+  value, onChange, phrases, onSavePhrase, onDeletePhrase,
+  label = 'Requerimientos del cliente',
+  placeholder = 'Describe los requerimientos específicos del cliente...',
+  textareaClass = 'w-full bg-gray-50 rounded-xl px-4 py-3 font-bold text-sm outline-none resize-none border border-gray-100 focus:border-blue-300 transition-colors',
+}) {
+  const [open,    setOpen]    = React.useState(false);
+  const [saving,  setSaving]  = React.useState(false);
+
+  const handleInsert = (text) => {
+    onChange(value ? `${value}\n${text}` : text);
+  };
+
+  const handleSave = async () => {
+    if (!value.trim()) return;
+    setSaving(true);
+    await onSavePhrase(value.trim());
+    setSaving(false);
+  };
+
+  return (
+    <div className="space-y-2">
+      <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest block">
+        {label}
+      </label>
+      <textarea
+        rows={3}
+        placeholder={placeholder}
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        className={textareaClass}
+      />
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <button
+          type="button"
+          onClick={() => setOpen(o => !o)}
+          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: open ? '#1e40af' : '#f1f5f9', color: open ? '#fff' : '#475569', borderRadius: 10, border: 'none', cursor: 'pointer', fontSize: 8, fontWeight: 900, letterSpacing: '.08em', textTransform: 'uppercase', transition: 'all .15s' }}
+        >
+          <BookOpen size={11} />
+          Frases guardadas ({phrases.length})
+          {open ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
+        </button>
+        {value.trim() && (
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={saving}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: '#eff6ff', color: '#2563eb', borderRadius: 10, border: '1px solid #bfdbfe', cursor: 'pointer', fontSize: 8, fontWeight: 900, letterSpacing: '.08em', textTransform: 'uppercase', transition: 'all .15s', opacity: saving ? .6 : 1 }}
+          >
+            <Save size={10} />
+            {saving ? 'Guardando...' : '+ Guardar como frase'}
+          </button>
+        )}
+      </div>
+
+      {open && (
+        <div style={{ background: '#fff', border: '1.5px solid #e2e8f0', borderRadius: 14, overflow: 'hidden', boxShadow: '0 4px 16px rgba(0,0,0,.07)' }}>
+          {phrases.length === 0 ? (
+            <div style={{ padding: 20, textAlign: 'center', fontSize: 10, color: '#94a3b8', fontWeight: 600 }}>
+              No hay frases guardadas aún.<br />
+              <span style={{ fontSize: 9, color: '#cbd5e1' }}>Escribe algo y haz clic en "Guardar como frase"</span>
+            </div>
+          ) : (
+            <div style={{ maxHeight: 220, overflowY: 'auto' }}>
+              {phrases.map(ph => (
+                <div
+                  key={ph.id}
+                  style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '10px 12px', borderBottom: '1px solid #f8fafc', transition: 'background .1s' }}
+                  onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                >
+                  <p style={{ flex: 1, fontSize: 11, fontWeight: 600, color: '#374151', margin: 0, lineHeight: 1.5 }}>{ph.text}</p>
+                  <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+                    <button
+                      type="button"
+                      onClick={() => { handleInsert(ph.text); setOpen(false); }}
+                      style={{ padding: '3px 9px', background: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe', borderRadius: 7, fontSize: 8, fontWeight: 900, cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '.06em' }}
+                    >
+                      Insertar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onDeletePhrase(ph.id)}
+                      style={{ padding: '3px 6px', background: '#fef2f2', color: '#ef4444', border: '1px solid #fecaca', borderRadius: 7, cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                    >
+                      <X size={10} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ── Buscador de productos del catálogo ────────────────────────────────────────
 function ProductSearchModal({ onSelect, onClose }) {
@@ -162,6 +378,9 @@ export default function QuotesList() {
   const [clients,   setClients]   = useState([]);
   const [employees, setEmployees] = useState([]);
   const [deals,     setDeals]     = useState([]);
+  const [phrases,        setPhrases]        = useState([]);
+  const [termsPhases,    setTermsPhases]    = useState([]);
+  const [benefitsPhases, setBenefitsPhases] = useState([]);
   const [loading,   setLoading]   = useState(true);
   const [searchTerm,   setSearchTerm]   = useState('');
   const [filterStatus, setFilterStatus] = useState('ALL');
@@ -188,9 +407,14 @@ export default function QuotesList() {
     clientId:     '', sellerId: '', projectName: '', projectPhase: 'INICIAL',
     linkedDealId: '',
     contactName:  '',
-    validUntil:   new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-    terms:        'Pago 100% anticipado. Tiempo de entrega sujeto a existencias.',
-    items:        [emptyItem()],
+    templateType:  'PRESUPUESTO',
+    requirements:  '',
+    observations:  '',
+    benefits:      '',
+    validUntil:    new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    terms:         'Pago 100% anticipado. Tiempo de entrega sujeto a existencias.',
+    items:         [emptyItem()],
+    discountPct: 0, adjustment: 0,
     subtotal: 0, tax: 0, total: 0
   });
 
@@ -199,17 +423,65 @@ export default function QuotesList() {
   // ── Fetch ─────────────────────────────────────────────────────────────────
   const fetchData = async () => {
     try {
-      const [qRes, cRes, eRes, dRes] = await Promise.all([
+      const [qRes, cRes, eRes, dRes, phRes, thRes, bhRes] = await Promise.all([
         apiFetch('/api/quotes'), apiFetch('/api/crm/clients'),
         apiFetch('/api/employees'), apiFetch('/api/crm/deals'),
+        apiFetch('/api/quote-phrases?category=requirements'),
+        apiFetch('/api/quote-phrases?category=terms'),
+        apiFetch('/api/quote-phrases?category=benefits'),
       ]);
-      const [q, c, e, d] = await Promise.all([qRes.json(), cRes.json(), eRes.json(), dRes.json()]);
+      const [q, c, e, d, ph, th, bh] = await Promise.all([qRes.json(), cRes.json(), eRes.json(), dRes.json(), phRes.json(), thRes.json(), bhRes.json()]);
       setQuotes(Array.isArray(q) ? q : []);
       setClients(Array.isArray(c) ? c : []);
       setEmployees(Array.isArray(e) ? e : []);
       setDeals(Array.isArray(d) ? d.filter(deal => !['CLOSED_WON','CLOSED_LOST'].includes(deal.stage)) : []);
+      setPhrases(Array.isArray(ph) ? ph : []);
+      setTermsPhases(Array.isArray(th) ? th : []);
+      setBenefitsPhases(Array.isArray(bh) ? bh : []);
     } catch (err) { console.error(err); }
     finally { setLoading(false); }
+  };
+
+  const savePhrase = async (text) => {
+    try {
+      const res = await apiFetch('/api/quote-phrases', { method: 'POST', body: JSON.stringify({ text, category: 'requirements' }) });
+      if (res.ok) { const ph = await res.json(); setPhrases(prev => [...prev, ph]); }
+    } catch (err) { console.error(err); }
+  };
+
+  const deletePhrase = async (id) => {
+    try {
+      const res = await apiFetch('/api/quote-phrases', { method: 'DELETE', body: JSON.stringify({ id }) });
+      if (res.ok) setPhrases(prev => prev.filter(p => p.id !== id));
+    } catch (err) { console.error(err); }
+  };
+
+  const saveTermsPhrase = async (text) => {
+    try {
+      const res = await apiFetch('/api/quote-phrases', { method: 'POST', body: JSON.stringify({ text, category: 'terms' }) });
+      if (res.ok) { const ph = await res.json(); setTermsPhases(prev => [...prev, ph]); }
+    } catch (err) { console.error(err); }
+  };
+
+  const deleteTermsPhrase = async (id) => {
+    try {
+      const res = await apiFetch('/api/quote-phrases', { method: 'DELETE', body: JSON.stringify({ id }) });
+      if (res.ok) setTermsPhases(prev => prev.filter(p => p.id !== id));
+    } catch (err) { console.error(err); }
+  };
+
+  const saveBenefitsPhrase = async (text) => {
+    try {
+      const res = await apiFetch('/api/quote-phrases', { method: 'POST', body: JSON.stringify({ text, category: 'benefits' }) });
+      if (res.ok) { const ph = await res.json(); setBenefitsPhases(prev => [...prev, ph]); }
+    } catch (err) { console.error(err); }
+  };
+
+  const deleteBenefitsPhrase = async (id) => {
+    try {
+      const res = await apiFetch('/api/quote-phrases', { method: 'DELETE', body: JSON.stringify({ id }) });
+      if (res.ok) setBenefitsPhases(prev => prev.filter(p => p.id !== id));
+    } catch (err) { console.error(err); }
   };
 
   useEffect(() => { fetchData(); }, []);
@@ -241,36 +513,48 @@ export default function QuotesList() {
     window.history.replaceState({}, '');
   }, [location.state]);
 
-  // Recalcular totales al cambiar ítems (nuevo modal)
+  // Recalcular totales al cambiar ítems o descuento (nuevo modal)
   useEffect(() => {
     const sub = newQuote.items.reduce((acc, i) => acc + (Number(i.qty) * Number(i.price)), 0);
     const tax = sub * 0.16;
-    setNewQuote(prev => ({ ...prev, subtotal: sub, tax, total: sub + tax }));
-  }, [newQuote.items]);
+    const pct = newQuote.discountPct || 0;
+    const adj = pct > 0 ? -((sub + tax) * pct / 100) : 0;
+    setNewQuote(prev => ({ ...prev, subtotal: sub, tax, adjustment: adj, total: sub + tax + adj }));
+  }, [newQuote.items, newQuote.discountPct]);
 
-  // Recalcular al editar ítems en el modal de detalle
+  // Recalcular al editar ítems o descuento en el modal de detalle
   useEffect(() => {
     if (!editQuote.items) return;
     const sub = editQuote.items.reduce((acc, i) => acc + (Number(i.qty) * Number(i.price)), 0);
     const tax = sub * 0.16;
-    setEditQuote(prev => ({ ...prev, subtotal: sub, tax, total: sub + tax }));
-  }, [editQuote.items]);
+    const pct = editQuote.discountPct || 0;
+    const adj = pct > 0 ? -((sub + tax) * pct / 100) : 0;
+    setEditQuote(prev => ({ ...prev, subtotal: sub, tax, adjustment: adj, total: sub + tax + adj }));
+  }, [editQuote.items, editQuote.discountPct]);
 
   // ── Abrir detalle ─────────────────────────────────────────────────────────
   const openDetail = (quote) => {
     setSelectedQuote(quote);
     setDetailTab('preview');
     setEditQuote({
-      clientId:    quote.clientId    || '',
-      sellerId:    quote.sellerId    || '',
-      projectName: quote.projectName || '',
-      contactName: quote.contactName || '',
-      validUntil:  quote.validUntil ? quote.validUntil.split('T')[0] : '',
-      terms:       quote.terms       || '',
-      items:       quote.items ? JSON.parse(JSON.stringify(quote.items)) : [],
-      subtotal:    quote.subtotal || 0,
-      tax:         quote.tax      || 0,
-      total:       quote.total    || 0,
+      clientId:     quote.clientId     || '',
+      sellerId:     quote.sellerId     || '',
+      projectName:  quote.projectName  || '',
+      contactName:  quote.contactName  || '',
+      validUntil:   quote.validUntil ? quote.validUntil.split('T')[0] : '',
+      terms:        quote.terms        || '',
+      templateType:  quote.templateType  || 'PRESUPUESTO',
+      requirements:  quote.requirements  || '',
+      observations:  quote.observations  || '',
+      benefits:      quote.benefits      || '',
+      items:         quote.items ? JSON.parse(JSON.stringify(quote.items)) : [],
+      subtotal:     quote.subtotal  || 0,
+      tax:          quote.tax       || 0,
+      adjustment:   quote.adjustment || 0,
+      total:        quote.total     || 0,
+      discountPct:  (quote.adjustment < 0 && quote.subtotal > 0)
+        ? Math.round(Math.abs(quote.adjustment) / (quote.subtotal * 1.16) * 1000) / 10
+        : 0,
     });
   };
 
@@ -345,7 +629,7 @@ export default function QuotesList() {
     try {
       const res  = await apiFetch(`/api/quotes?id=${quoteId}`);
       const data = await res.json();
-      if (data.pdfUrl) window.open(data.pdfUrl, '_blank');
+      if (data.pdfUrl) window.open(`${data.pdfUrl}?t=${Date.now()}`, '_blank');
     } catch (err) { console.error(err); }
     finally { setGeneratingPDF(false); }
   };
@@ -764,12 +1048,17 @@ export default function QuotesList() {
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0">
                     <button
-                      onClick={() => downloadPDF(selectedQuote.id, selectedQuote.quoteNumber)}
-                      disabled={generatingPDF}
+                      onClick={async () => {
+                        if (detailTab === 'edit') {
+                          await saveQuoteEdit();
+                        }
+                        downloadPDF(selectedQuote.id, selectedQuote.quoteNumber);
+                      }}
+                      disabled={generatingPDF || savingQuote}
                       className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-xl font-black text-[9px] uppercase tracking-widest hover:bg-blue-700 transition-all disabled:opacity-60"
                     >
-                      {generatingPDF ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
-                      PDF
+                      {(generatingPDF || savingQuote) ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+                      {detailTab === 'edit' ? 'Guardar y PDF' : 'PDF'}
                     </button>
                     <button onClick={() => setSelectedQuote(null)} className="p-2 hover:bg-gray-100 rounded-xl text-gray-400">
                       <X className="h-5 w-5" />
@@ -816,6 +1105,15 @@ export default function QuotesList() {
                     onItemImage={handleEditItemImage}
                     onSave={saveQuoteEdit}
                     saving={savingQuote}
+                    phrases={phrases}
+                    onSavePhrase={savePhrase}
+                    onDeletePhrase={deletePhrase}
+                    termsPhases={termsPhases}
+                    onSaveTermsPhrase={saveTermsPhrase}
+                    onDeleteTermsPhrase={deleteTermsPhrase}
+                    benefitsPhases={benefitsPhases}
+                    onSaveBenefitsPhrase={saveBenefitsPhrase}
+                    onDeleteBenefitsPhrase={deleteBenefitsPhrase}
                   />
                 )}
               </div>
@@ -847,6 +1145,41 @@ export default function QuotesList() {
                   <button type="button" onClick={() => { setShowAddModal(false); setFromDealMeta(null); }} className="p-2 hover:bg-gray-100 rounded-full">
                     <X className="h-6 w-6 text-gray-400" />
                   </button>
+                </div>
+
+                {/* ── Selector de plantilla ─────────────────────────────────── */}
+                <div className="space-y-3">
+                  <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Tipo de Documento *</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    {[
+                      { id: 'PRESUPUESTO', badge: 'INVERSIÓN ESTIMADA', title: 'Inv. Estimada', sub: 'Cliente · Asesor', color: '#005BBB', bg: '#eff6ff' },
+                      { id: 'PREFACTURA',  badge: 'PREFACTURA',         title: 'Prefactura',   sub: 'Facturar a · Vendedor', color: '#16823c', bg: '#f0fdf4' },
+                    ].map(opt => {
+                      const active = newQuote.templateType === opt.id;
+                      return (
+                        <button
+                          key={opt.id}
+                          type="button"
+                          onClick={() => setNewQuote(f => ({ ...f, templateType: opt.id }))}
+                          style={{
+                            padding: '14px 16px', borderRadius: 16, textAlign: 'left', cursor: 'pointer', transition: 'all .15s',
+                            border: `2px solid ${active ? opt.color : '#e5e7eb'}`,
+                            background: active ? opt.bg : '#f9fafb',
+                            boxShadow: active ? `0 4px 16px ${opt.color}22` : 'none',
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                            <div style={{ background: opt.color, borderRadius: 6, padding: '3px 8px', display: 'inline-block' }}>
+                              <span style={{ color: '#fff', fontSize: 7, fontWeight: 900, letterSpacing: '.1em' }}>{opt.badge}</span>
+                            </div>
+                            {active && <CheckCircle2 size={14} style={{ color: opt.color }} />}
+                          </div>
+                          <p style={{ fontSize: 12, fontWeight: 900, color: active ? opt.color : '#374151', margin: 0 }}>{opt.title}</p>
+                          <p style={{ fontSize: 9, color: '#6b7280', fontWeight: 600, margin: '2px 0 0' }}>{opt.sub}</p>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
 
                 {/* Banner: vinculado a deal del pipeline */}
@@ -988,6 +1321,15 @@ export default function QuotesList() {
                   )}
                 </div>
 
+                {/* Requerimientos del cliente */}
+                <RequirementsField
+                  value={newQuote.requirements || ''}
+                  onChange={v => setNewQuote(f => ({ ...f, requirements: v }))}
+                  phrases={phrases}
+                  onSavePhrase={savePhrase}
+                  onDeletePhrase={deletePhrase}
+                />
+
                 {/* Info general */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   <div>
@@ -1116,14 +1458,24 @@ export default function QuotesList() {
                   ))}
                 </div>
 
+                {/* Promoción */}
+                <PromoSection
+                  subtotal={newQuote.subtotal}
+                  discountPct={newQuote.discountPct || 0}
+                  onChange={pct => setNewQuote(f => ({ ...f, discountPct: pct }))}
+                />
+
                 {/* Footer financiero */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  <textarea
-                    className="w-full bg-gray-50 rounded-2xl p-5 text-[10px] font-bold outline-none resize-none border border-gray-100"
-                    rows={4}
-                    placeholder="Términos y condiciones..."
+                  <RequirementsField
+                    label="Términos y Condiciones"
+                    placeholder="Escribe los términos y condiciones..."
+                    textareaClass="w-full bg-amber-50 rounded-xl px-4 py-3 font-bold text-sm outline-none resize-none border border-amber-100 focus:border-amber-300 transition-colors"
                     value={newQuote.terms}
-                    onChange={e => setNewQuote(f => ({ ...f, terms: e.target.value }))}
+                    onChange={v => setNewQuote(f => ({ ...f, terms: v }))}
+                    phrases={termsPhases}
+                    onSavePhrase={saveTermsPhrase}
+                    onDeletePhrase={deleteTermsPhrase}
                   />
                   <div className="bg-gray-900 rounded-2xl p-6 text-white space-y-3">
                     <div className="flex justify-between text-[10px] font-black uppercase opacity-50">
@@ -1132,11 +1484,49 @@ export default function QuotesList() {
                     <div className="flex justify-between text-[10px] font-black uppercase opacity-50">
                       <span>IVA (16%)</span><span>{fmt(newQuote.tax)}</span>
                     </div>
+                    {newQuote.adjustment < 0 && (
+                      <div className="flex justify-between text-[10px] font-black text-emerald-400">
+                        <span>Promoción ({newQuote.discountPct}%)</span>
+                        <span>{fmt(newQuote.adjustment)}</span>
+                      </div>
+                    )}
                     <div className="pt-4 border-t border-white/10 flex justify-between items-center">
-                      <span className="text-sm font-black uppercase text-primary">Total General</span>
+                      <span className="text-sm font-black uppercase text-primary">Inversión Total</span>
                       <span className="text-3xl font-black">{fmt(newQuote.total)}</span>
                     </div>
+                    <div style={{ marginTop: 10, background: 'rgba(255,255,255,.06)', borderRadius: 10, padding: '8px 10px' }}>
+                      <p style={{ fontSize: 6.5, fontWeight: 900, color: 'rgba(255,255,255,.4)', textTransform: 'uppercase', letterSpacing: '.1em', margin: '0 0 5px' }}>Descuentos por pago anticipado</p>
+                      {PAYMENT_OPTS.map(opt => (
+                        <div key={opt.hrs} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 }}>
+                          <span style={{ fontSize: 8, fontWeight: 700, color: 'rgba(255,255,255,.55)' }}>Pago en {opt.label}</span>
+                          <span style={{ fontSize: 8, fontWeight: 900, color: '#86efac', background: 'rgba(134,239,172,.12)', borderRadius: 5, padding: '1px 7px' }}>{opt.pct}% desc.</span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
+                </div>
+
+                {/* Beneficios */}
+                <RequirementsField
+                  label="Beneficios"
+                  placeholder="Describe los beneficios de esta solución para el cliente..."
+                  value={newQuote.benefits || ''}
+                  onChange={v => setNewQuote(f => ({ ...f, benefits: v }))}
+                  phrases={benefitsPhases}
+                  onSavePhrase={saveBenefitsPhrase}
+                  onDeletePhrase={deleteBenefitsPhrase}
+                />
+
+                {/* Observaciones — ancho completo debajo de términos e inversión */}
+                <div className="border border-gray-200 rounded-2xl p-4 bg-gray-50">
+                  <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-2">Observaciones</p>
+                  <textarea
+                    className="w-full bg-white rounded-xl px-4 py-3 text-[10px] font-bold outline-none resize-none border border-gray-100"
+                    rows={3}
+                    placeholder="Observaciones adicionales..."
+                    value={newQuote.observations || ''}
+                    onChange={e => setNewQuote(f => ({ ...f, observations: e.target.value }))}
+                  />
                 </div>
 
                 <button
@@ -1170,14 +1560,25 @@ export default function QuotesList() {
 // ── Componente: Vista previa de cotización ─────────────────────────────────────
 function QuotePreview({ quote, employees, onStatusChange, onDelete }) {
   const s = STATUS[quote.status] || STATUS.PENDING;
+  const isPre   = (quote.templateType || 'PRESUPUESTO') === 'PRESUPUESTO';
+  const accent  = isPre ? '#1d4ed8' : '#16823c';
+  const accentBg   = isPre ? '#f0f6ff' : '#f0fdf4';
+  const accentBorder = isPre ? '#bfdbfe' : '#bbf7d0';
 
   return (
     <div className="p-6 md:p-8 space-y-6">
       {/* Encabezado cliente + proyecto */}
       <div className="grid grid-cols-2 gap-4">
         <div className="p-4 bg-gray-50 rounded-2xl space-y-2">
-          <p className="text-[7px] font-black text-gray-400 uppercase tracking-widest">Facturar a</p>
+          <p className="text-[7px] font-black text-gray-400 uppercase tracking-widest">
+            {isPre ? 'Cliente' : 'Facturar a'}
+          </p>
           <p className="font-black text-gray-900">{quote.client?.companyName}</p>
+          {quote.contactName && (
+            <p className="text-[9px] font-bold flex items-center gap-1" style={{ color: accent }}>
+              <User className="h-3 w-3" /> {quote.contactName}
+            </p>
+          )}
           <p className="text-[9px] font-bold text-gray-500">{quote.client?.address || '—'}</p>
           <p className="text-[9px] font-bold text-gray-500">{quote.client?.email}</p>
         </div>
@@ -1188,13 +1589,25 @@ function QuotePreview({ quote, employees, onStatusChange, onDelete }) {
             <User className="h-3 w-3" /> Creado por: {quote.creator?.name || '—'}
           </p>
           <p className="text-[9px] font-bold text-gray-500 flex items-center gap-1">
-            <User className="h-3 w-3" /> Vendedor: {quote.seller?.name || 'Sin asignar'}
+            <User className="h-3 w-3" /> {isPre ? 'Asesor' : 'Vendedor'}: {quote.seller?.name || 'Sin asignar'}
           </p>
           <p className="text-[9px] font-bold text-gray-500 flex items-center gap-1">
             <Calendar className="h-3 w-3" /> Vigente hasta: {fmtDate(quote.validUntil)}
           </p>
         </div>
       </div>
+
+      {/* Requerimientos del cliente */}
+      {quote.requirements && quote.requirements.trim() && (
+        <div style={{ background: accentBg, border: `1.5px solid ${accentBorder}`, borderRadius: 16, padding: '14px 18px' }}>
+          <p style={{ fontSize: 8, fontWeight: 900, color: accent, textTransform: 'uppercase', letterSpacing: '.14em', marginBottom: 6 }}>
+            Requerimientos del cliente
+          </p>
+          <p style={{ fontSize: 11, fontWeight: 600, color: '#1e293b', whiteSpace: 'pre-wrap', margin: 0, lineHeight: 1.6 }}>
+            {quote.requirements}
+          </p>
+        </div>
+      )}
 
       {/* Tabla de conceptos */}
       <div>
@@ -1237,11 +1650,11 @@ function QuotePreview({ quote, employees, onStatusChange, onDelete }) {
           </div>
           {quote.adjustment !== 0 && (
             <div className="flex justify-between text-[10px] font-black opacity-50">
-              <span>Ajuste</span><span>{fmt(quote.adjustment)}</span>
+              <span>Promoción</span><span>{fmt(quote.adjustment)}</span>
             </div>
           )}
           <div className="pt-3 border-t border-white/10 flex justify-between items-center">
-            <span className="font-black uppercase text-primary">Total General</span>
+            <span className="font-black uppercase" style={{ color: accent }}>Inversión Total</span>
             <span className="text-2xl font-black">{fmt(quote.total)}</span>
           </div>
         </div>
@@ -1252,6 +1665,14 @@ function QuotePreview({ quote, employees, onStatusChange, onDelete }) {
         <div className="p-4 bg-amber-50 rounded-2xl">
           <p className="text-[7px] font-black text-amber-600 uppercase tracking-widest mb-1">Términos y Condiciones</p>
           <p className="text-[10px] font-bold text-gray-600">{quote.terms}</p>
+        </div>
+      )}
+
+      {/* Observaciones — recuadro completo debajo de términos e inversión total */}
+      {quote.observations && quote.observations.trim() && (
+        <div className="border border-gray-200 rounded-2xl p-4 bg-gray-50">
+          <p className="text-[7px] font-black text-gray-400 uppercase tracking-widest mb-2">Observaciones</p>
+          <p className="text-[10px] font-bold text-gray-700 whitespace-pre-wrap">{quote.observations}</p>
         </div>
       )}
 
@@ -1325,7 +1746,7 @@ function QuotePreview({ quote, employees, onStatusChange, onDelete }) {
 }
 
 // ── Componente: Formulario de edición de cotización ────────────────────────────
-function QuoteEditForm({ editQuote, setEditQuote, employees, clients, selectedQuote, onAddItem, onRemoveItem, onUpdateItem, onItemImage, onSave, saving }) {
+function QuoteEditForm({ editQuote, setEditQuote, employees, clients, selectedQuote, onAddItem, onRemoveItem, onUpdateItem, onItemImage, onSave, saving, phrases, onSavePhrase, onDeletePhrase, termsPhases, onSaveTermsPhrase, onDeleteTermsPhrase, benefitsPhases, onSaveBenefitsPhrase, onDeleteBenefitsPhrase }) {
   const [clientSearch, setClientSearch] = React.useState('');
   const [clientOpen,   setClientOpen]   = React.useState(false);
 
@@ -1338,9 +1759,45 @@ function QuoteEditForm({ editQuote, setEditQuote, employees, clients, selectedQu
   return (
     <div className="p-6 md:p-8 space-y-6">
 
+      {/* ── Selector de plantilla ── */}
+      <div className="space-y-3">
+        <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Tipo de Documento</p>
+        <div className="grid grid-cols-2 gap-3">
+          {[
+            { id: 'PRESUPUESTO', badge: 'INVERSIÓN ESTIMADA', title: 'Inv. Estimada', sub: 'Cliente · Asesor', color: '#005BBB', bg: '#eff6ff' },
+            { id: 'PREFACTURA',  badge: 'PREFACTURA',         title: 'Prefactura',   sub: 'Facturar a · Vendedor', color: '#16823c', bg: '#f0fdf4' },
+          ].map(opt => {
+            const active = (editQuote.templateType || 'PRESUPUESTO') === opt.id;
+            return (
+              <button
+                key={opt.id}
+                type="button"
+                onClick={() => setEditQuote(f => ({ ...f, templateType: opt.id }))}
+                style={{
+                  padding: '12px 14px', borderRadius: 14, textAlign: 'left', cursor: 'pointer', transition: 'all .15s',
+                  border: `2px solid ${active ? opt.color : '#e5e7eb'}`,
+                  background: active ? opt.bg : '#f9fafb',
+                  boxShadow: active ? `0 4px 14px ${opt.color}20` : 'none',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                  <div style={{ background: opt.color, borderRadius: 5, padding: '2px 7px' }}>
+                    <span style={{ color: '#fff', fontSize: 7, fontWeight: 900, letterSpacing: '.08em' }}>{opt.badge}</span>
+                  </div>
+                  {active && <CheckCircle2 size={13} style={{ color: opt.color }} />}
+                </div>
+                <p style={{ fontSize: 11, fontWeight: 900, color: active ? opt.color : '#374151', margin: 0 }}>{opt.title}</p>
+                <p style={{ fontSize: 9, color: '#6b7280', fontWeight: 600, margin: '2px 0 0' }}>{opt.sub}</p>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       {/* ── Selector de Cliente ── */}
-      <div>
-        <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest block mb-1.5">Cliente</label>
+      <div className="grid grid-cols-3 gap-3 items-end">
+        <div className="col-span-2">
+          <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest block mb-1.5">Cliente</label>
         <div style={{ position: 'relative' }}>
           <button
             type="button"
@@ -1404,18 +1861,6 @@ function QuoteEditForm({ editQuote, setEditQuote, employees, clients, selectedQu
             </div>
           )}
         </div>
-      </div>
-
-      {/* Info básica */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="col-span-1">
-          <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest block mb-1.5">Nombre del Proyecto</label>
-          <input
-            className="w-full bg-gray-50 rounded-xl px-4 py-3 font-bold text-sm outline-none"
-            placeholder="Ej: Proyecto CCTV"
-            value={editQuote.projectName || ''}
-            onChange={e => setEditQuote(f => ({ ...f, projectName: e.target.value }))}
-          />
         </div>
         <div>
           <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest block mb-1.5">Contacto</label>
@@ -1424,6 +1869,28 @@ function QuoteEditForm({ editQuote, setEditQuote, employees, clients, selectedQu
             placeholder="Nombre del contacto"
             value={editQuote.contactName || ''}
             onChange={e => setEditQuote(f => ({ ...f, contactName: e.target.value }))}
+          />
+        </div>
+        </div>
+
+      {/* Requerimientos del cliente */}
+      <RequirementsField
+        value={editQuote.requirements || ''}
+        onChange={v => setEditQuote(f => ({ ...f, requirements: v }))}
+        phrases={phrases}
+        onSavePhrase={onSavePhrase}
+        onDeletePhrase={onDeletePhrase}
+      />
+
+      {/* Info básica */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest block mb-1.5">Nombre del Proyecto</label>
+          <input
+            className="w-full bg-gray-50 rounded-xl px-4 py-3 font-bold text-sm outline-none"
+            placeholder="Ej: Proyecto CCTV"
+            value={editQuote.projectName || ''}
+            onChange={e => setEditQuote(f => ({ ...f, projectName: e.target.value }))}
           />
         </div>
         <div>
@@ -1514,26 +1981,72 @@ function QuoteEditForm({ editQuote, setEditQuote, employees, clients, selectedQu
         ))}
       </div>
 
+      {/* Promoción */}
+      <PromoSection
+        subtotal={editQuote.subtotal}
+        discountPct={editQuote.discountPct || 0}
+        onChange={pct => setEditQuote(f => ({ ...f, discountPct: pct }))}
+      />
+
       {/* Totales */}
       <div className="flex justify-end">
         <div className="bg-gray-900 rounded-2xl p-5 text-white space-y-2 w-72">
           <div className="flex justify-between text-[9px] font-black opacity-50"><span>Subtotal</span><span>{fmt(editQuote.subtotal)}</span></div>
           <div className="flex justify-between text-[9px] font-black opacity-50"><span>IVA (16%)</span><span>{fmt(editQuote.tax)}</span></div>
+          {editQuote.adjustment < 0 && (
+            <div className="flex justify-between text-[9px] font-black text-emerald-400">
+              <span>Promoción ({editQuote.discountPct}%)</span>
+              <span>{fmt(editQuote.adjustment)}</span>
+            </div>
+          )}
           <div className="pt-3 border-t border-white/10 flex justify-between items-center">
-            <span className="text-[10px] font-black uppercase text-primary">Total</span>
+            <span className="text-[10px] font-black uppercase text-primary">Inversión Total</span>
             <span className="text-xl font-black">{fmt(editQuote.total)}</span>
+          </div>
+          <div style={{ marginTop: 10, background: 'rgba(255,255,255,.06)', borderRadius: 10, padding: '8px 10px' }}>
+            <p style={{ fontSize: 6.5, fontWeight: 900, color: 'rgba(255,255,255,.4)', textTransform: 'uppercase', letterSpacing: '.1em', margin: '0 0 5px' }}>Descuentos por pago anticipado</p>
+            {PAYMENT_OPTS.map(opt => (
+              <div key={opt.hrs} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 }}>
+                <span style={{ fontSize: 8, fontWeight: 700, color: 'rgba(255,255,255,.55)' }}>Pago en {opt.label}</span>
+                <span style={{ fontSize: 8, fontWeight: 900, color: '#86efac', background: 'rgba(134,239,172,.12)', borderRadius: 5, padding: '1px 7px' }}>{opt.pct}% desc.</span>
+              </div>
+            ))}
           </div>
         </div>
       </div>
 
       {/* Términos */}
-      <div>
-        <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest block mb-1.5">Términos y Condiciones</label>
+      <RequirementsField
+        label="Términos y Condiciones"
+        placeholder="Escribe los términos y condiciones..."
+        textareaClass="w-full bg-amber-50 rounded-xl px-4 py-3 font-bold text-xs outline-none resize-none border border-amber-100 focus:border-amber-300 transition-colors"
+        value={editQuote.terms || ''}
+        onChange={v => setEditQuote(f => ({ ...f, terms: v }))}
+        phrases={termsPhases || []}
+        onSavePhrase={onSaveTermsPhrase}
+        onDeletePhrase={onDeleteTermsPhrase}
+      />
+
+      {/* Beneficios */}
+      <RequirementsField
+        label="Beneficios"
+        placeholder="Describe los beneficios de esta solución para el cliente..."
+        value={editQuote.benefits || ''}
+        onChange={v => setEditQuote(f => ({ ...f, benefits: v }))}
+        phrases={benefitsPhases || []}
+        onSavePhrase={onSaveBenefitsPhrase}
+        onDeletePhrase={onDeleteBenefitsPhrase}
+      />
+
+      {/* Observaciones — ancho completo debajo de términos e inversión */}
+      <div className="border border-gray-200 rounded-2xl p-4 bg-gray-50">
+        <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-2">Observaciones</p>
         <textarea
           rows={3}
-          className="w-full bg-amber-50 rounded-xl px-4 py-3 font-bold text-xs outline-none resize-none"
-          value={editQuote.terms || ''}
-          onChange={e => setEditQuote(f => ({ ...f, terms: e.target.value }))}
+          className="w-full bg-white rounded-xl px-4 py-3 font-bold text-xs outline-none resize-none border border-gray-100"
+          placeholder="Observaciones adicionales..."
+          value={editQuote.observations || ''}
+          onChange={e => setEditQuote(f => ({ ...f, observations: e.target.value }))}
         />
       </div>
 

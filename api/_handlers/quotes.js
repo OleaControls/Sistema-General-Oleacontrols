@@ -8,15 +8,20 @@ import path from 'path';
 
 async function generateQuotePDF(quote) {
   try {
-    const doc     = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter' });
-    const BLUE    = [0, 91, 187];
-    const DARK    = [25, 25, 25];
-    const GRAY    = [110, 110, 110];
-    const LIGHT   = [243, 246, 252];
-    const margin  = 18;
-    const pageW   = doc.internal.pageSize.width;   // 215.9 mm
-    const pageH   = doc.internal.pageSize.height;  // 279.4 mm
-    const cW      = pageW - margin * 2;
+    const doc  = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'letter' });
+    const DARK = [25, 25, 25];
+    const GRAY = [110, 110, 110];
+    const margin = 18;
+    const pageW  = doc.internal.pageSize.width;
+    const pageH  = doc.internal.pageSize.height;
+    const cW     = pageW - margin * 2;
+
+    const tpl   = quote.templateType || 'PRESUPUESTO';
+    const isPre = tpl === 'PRESUPUESTO';
+
+    // Colores según plantilla: azul para PRESUPUESTO, verde para PREFACTURA
+    const BLUE  = isPre ? [0, 91, 187]    : [22, 130, 60];
+    const LIGHT = isPre ? [243, 246, 252] : [240, 253, 244];
 
     const fmtMXN = (n) =>
       `MX$ ${parseFloat(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -39,7 +44,7 @@ async function generateQuotePDF(quote) {
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(10.5);
     doc.setTextColor(255, 255, 255);
-    doc.text('PRESUPUESTO', bxX + 36, bxY + 6.3, { align: 'center' });
+    doc.text(isPre ? 'INVERSIÓN ESTIMADA' : 'PREFACTURA', bxX + 36, bxY + 6.3, { align: 'center' });
 
     doc.setFillColor(...LIGHT);
     doc.roundedRect(bxX, bxY + 9, 72, 20, 0, 0, 'F');
@@ -88,7 +93,7 @@ async function generateQuotePDF(quote) {
     doc.setFontSize(7);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(...BLUE);
-    doc.text('FACTURAR A:', margin, y);
+    doc.text(isPre ? 'CLIENTE:' : 'FACTURAR A:', margin, y);
 
     doc.setFontSize(9);
     doc.setFont('helvetica', 'bold');
@@ -117,10 +122,10 @@ async function generateQuotePDF(quote) {
     yR += 5;
 
     const details = [
-      ['Proyecto:',    quote.projectName               || '—'],
-      ['Contacto:',    quote.contactName || quote.client?.contactName || '—'],
-      ['Responsable:', quote.creator?.name             || '—'],
-      ['Vendedor:',    quote.seller?.name              || 'No asignado'],
+      ['Proyecto:',              quote.projectName               || '—'],
+      ['Contacto:',              quote.contactName || quote.client?.contactName || '—'],
+      ['Responsable:',           quote.creator?.name             || '—'],
+      [isPre ? 'Asesor:' : 'Vendedor:', quote.seller?.name      || 'No asignado'],
     ];
     doc.setFontSize(7.5);
     details.forEach(([label, val]) => {
@@ -134,8 +139,33 @@ async function generateQuotePDF(quote) {
       yR += Math.max(lines.length * 3.8, 5);
     });
 
+    // ── REQUERIMIENTOS DEL CLIENTE ────────────────────────────────────────────
+    let tableStartY = Math.max(y, yR) + 6;
+
+    if (quote.requirements && quote.requirements.trim()) {
+      const reqText   = quote.requirements.trim();
+      const reqLines  = doc.splitTextToSize(reqText, cW - 10);
+      const reqH      = 9 + reqLines.length * 4.2 + 5;
+
+      doc.setFillColor(240, 246, 255);
+      doc.setDrawColor(...BLUE);
+      doc.setLineWidth(0.3);
+      doc.roundedRect(margin, tableStartY, cW, reqH, 2, 2, 'FD');
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(7);
+      doc.setTextColor(...BLUE);
+      doc.text('REQUERIMIENTOS DEL CLIENTE:', margin + 4, tableStartY + 5.5);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.5);
+      doc.setTextColor(...DARK);
+      doc.text(reqLines, margin + 4, tableStartY + 11);
+
+      tableStartY += reqH + 5;
+    }
+
     // ── TABLA DE CONCEPTOS ────────────────────────────────────────────────────
-    const tableStartY = Math.max(y, yR) + 8;
 
     const tableBody = quote.items.map((item, i) => [
       { content: String(i + 1).padStart(2, '0'), styles: { halign: 'center', fontStyle: 'bold' } },
@@ -179,7 +209,7 @@ async function generateQuotePDF(quote) {
     const rows  = [
       ['Subtotal',       fmtMXN(quote.subtotal   || 0)],
       ['Impuesto (IVA)', fmtMXN(quote.tax        || 0)],
-      ['Ajuste',         fmtMXN(quote.adjustment || 0)],
+      ['Promoción',      fmtMXN(quote.adjustment || 0)],
     ];
     const rowH    = 6.5;
     const headerH = 8;
@@ -220,13 +250,18 @@ async function generateQuotePDF(quote) {
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(7.5);
     doc.setTextColor(255, 255, 255);
-    doc.text('TOTAL GENERAL', totX + 4, ty + 6);
+    doc.text('INVERSIÓN TOTAL', totX + 4, ty + 6);
     doc.setFontSize(9);
     doc.text(fmtMXN(quote.total || 0), totX + totW - 4, ty + 6, { align: 'right' });
 
     const totBottomY = ty + 12;
 
     // Términos (izquierda, junto a totales)
+    const payOpts = [
+      { label: 'Pago en 24 hrs', pct: '5%' },
+      { label: 'Pago en 48 hrs', pct: '3%' },
+      { label: 'Pago en 72 hrs', pct: '1%' },
+    ];
     let termsBottomY = afterTableY;
     if (quote.terms) {
       doc.setFontSize(7);
@@ -240,8 +275,58 @@ async function generateQuotePDF(quote) {
       termsBottomY = afterTableY + 5 + termsLines.length * 3.5;
     }
 
+    // Recuadro de descuentos por pago anticipado (debajo de términos, lado izquierdo)
+    const discW    = totX - margin - 6;
+    const discBoxY = termsBottomY + 5;
+    const discBoxH = 6 + payOpts.length * 5.5;
+    doc.setFillColor(245, 248, 255);
+    doc.setDrawColor(...BLUE);
+    doc.setLineWidth(0.2);
+    doc.roundedRect(margin, discBoxY, discW, discBoxH, 2, 2, 'FD');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(5.5);
+    doc.setTextColor(...BLUE);
+    doc.text('DESCUENTOS POR PAGO ANTICIPADO', margin + discW / 2, discBoxY + 4.5, { align: 'center' });
+    payOpts.forEach((opt, i) => {
+      const ry = discBoxY + 8 + i * 5.5;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(6.5);
+      doc.setTextColor(...GRAY);
+      doc.text(opt.label, margin + 4, ry);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(...BLUE);
+      doc.text(`${opt.pct} desc.`, margin + discW - 4, ry, { align: 'right' });
+    });
+    termsBottomY = discBoxY + discBoxH;
+
+    // ── OBSERVACIONES — recuadro ancho completo debajo de términos e inversión total ──
+    let afterTotalsY = Math.max(totBottomY, termsBottomY);
+    if (quote.observations && quote.observations.trim()) {
+      const obsText  = quote.observations.trim();
+      const obsLines = doc.splitTextToSize(obsText, cW - 10);
+      const obsH     = 9 + obsLines.length * 4.2 + 5;
+      afterTotalsY  += 6;
+
+      doc.setFillColor(248, 248, 250);
+      doc.setDrawColor(200, 200, 210);
+      doc.setLineWidth(0.3);
+      doc.roundedRect(margin, afterTotalsY, cW, obsH, 2, 2, 'FD');
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(7);
+      doc.setTextColor(...GRAY);
+      doc.text('OBSERVACIONES:', margin + 4, afterTotalsY + 5.5);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.5);
+      doc.setTextColor(...DARK);
+      doc.text(obsLines, margin + 4, afterTotalsY + 11);
+
+      afterTotalsY += obsH;
+    }
+
     // ── DATOS BANCARIOS ───────────────────────────────────────────────────────
-    let bankY = Math.max(totBottomY, termsBottomY) + 8;
+    let bankY = afterTotalsY + 8;
 
     // Si no cabe, nueva página
     if (bankY + 42 > pageH - 15) {
@@ -303,33 +388,96 @@ async function generateQuotePDF(quote) {
     doc.setLineWidth(0.3);
     doc.line(margin + cW / 2, bankY + 11, margin + cW / 2, bankY + bankH - 4);
 
+    // ── BENEFICIOS — siempre en hoja nueva ───────────────────────────────────
+    doc.addPage();
+    let benefY = 20;
+
+    // Título elegante
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(13);
+    doc.setTextColor(...BLUE);
+    doc.text('Beneficios', margin, benefY + 6);
+
+    // Línea decorativa bajo el título
+    doc.setDrawColor(...BLUE);
+    doc.setLineWidth(0.6);
+    doc.line(margin, benefY + 9, margin + 38, benefY + 9);
+    doc.setLineWidth(0.2);
+    doc.setDrawColor(210, 220, 235);
+    doc.line(margin + 40, benefY + 9, margin + cW, benefY + 9);
+
+    benefY += 18;
+
+    if (quote.benefits && quote.benefits.trim()) {
+      // Mostrar texto de beneficios en un recuadro elegante
+      const benefLines = doc.splitTextToSize(quote.benefits.trim(), cW - 12);
+      const benefH     = 10 + benefLines.length * 5.2 + 8;
+
+      doc.setFillColor(240, 246, 255);
+      doc.setDrawColor(...BLUE);
+      doc.setLineWidth(0.3);
+      doc.roundedRect(margin, benefY, cW, benefH, 3, 3, 'FD');
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9);
+      doc.setTextColor(...DARK);
+      doc.text(benefLines, margin + 6, benefY + 10);
+
+      benefY += benefH + 14;
+    } else {
+      // Sin beneficios capturados: recuadro con líneas para anotar a mano
+      const benefH      = 120;
+      const lineSpacing = 9;
+      const lineCount   = Math.floor((benefH - 10) / lineSpacing);
+
+      doc.setFillColor(252, 253, 255);
+      doc.setDrawColor(180, 195, 220);
+      doc.setLineWidth(0.4);
+      doc.roundedRect(margin, benefY, cW, benefH, 3, 3, 'FD');
+
+      doc.setDrawColor(215, 225, 240);
+      doc.setLineWidth(0.2);
+      for (let ln = 0; ln < lineCount; ln++) {
+        const ly = benefY + 12 + ln * lineSpacing;
+        doc.line(margin + 6, ly, margin + cW - 6, ly);
+      }
+
+      benefY += benefH + 14;
+    }
+
     // ── IMÁGENES DE PRODUCTOS ─────────────────────────────────────────────────
     const itemsWithImages = (quote.items || []).filter(item => item.imageBase64);
     if (itemsWithImages.length > 0) {
-      let imgSectY = bankY + bankH + 10;
+      let imgSectY = benefY;
 
-      // Calcular espacio necesario: cabecera (12) + filas de imágenes
+      // Calcular espacio necesario: cabecera + filas de imágenes
       const imgW    = 53;
       const imgH    = 44;
       const nameH   = 10;
       const colGap  = 6;
       const cols    = 3;
       const rows    = Math.ceil(itemsWithImages.length / cols);
-      const needed  = 12 + rows * (imgH + nameH + 6);
+      const needed  = 22 + rows * (imgH + nameH + 6);
 
       if (imgSectY + needed > pageH - 15) {
         doc.addPage();
         imgSectY = 20;
       }
 
-      // Encabezado azul
-      doc.setFillColor(...BLUE);
-      doc.roundedRect(margin, imgSectY, cW, 9, 2, 2, 'F');
+      // Encabezado elegante: texto con líneas decorativas
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(8);
-      doc.setTextColor(255, 255, 255);
-      doc.text('IMÁGENES DE PRODUCTOS', margin + cW / 2, imgSectY + 6, { align: 'center' });
-      imgSectY += 12;
+      doc.setFontSize(13);
+      doc.setTextColor(...BLUE);
+      doc.text('Productos', margin, imgSectY + 6);
+
+      doc.setDrawColor(...BLUE);
+      doc.setLineWidth(0.6);
+      doc.line(margin, imgSectY + 9, margin + 30, imgSectY + 9);
+      doc.setLineWidth(0.2);
+      doc.setDrawColor(210, 220, 235);
+      doc.line(margin + 32, imgSectY + 9, margin + cW, imgSectY + 9);
+
+      imgSectY += 16;
 
       let col = 0;
       let rowY = imgSectY;
@@ -383,21 +531,26 @@ async function generateQuotePDF(quote) {
       }
     }
 
-    // ── FOOTER ────────────────────────────────────────────────────────────────
-    const footY = pageH - 8;
-    doc.setDrawColor(200, 200, 200);
-    doc.setLineWidth(0.2);
-    doc.line(margin, footY - 4, pageW - margin, footY - 4);
-    doc.setFontSize(6.5);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(...GRAY);
-    doc.text(
-      'OLEA CONTROLS MÉXICO, S.A. DE C.V.  |  heroes@oleacontrols.com  |  www.oleacontrols.com',
-      pageW / 2, footY, { align: 'center' }
-    );
+    // ── FOOTER EN TODAS LAS PÁGINAS (con número de hoja) ─────────────────────
+    const totalPages = doc.internal.getNumberOfPages();
+    const footY      = pageH - 8;
+    for (let p = 1; p <= totalPages; p++) {
+      doc.setPage(p);
+      doc.setDrawColor(200, 200, 200);
+      doc.setLineWidth(0.2);
+      doc.line(margin, footY - 4, pageW - margin, footY - 4);
+      doc.setFontSize(6.5);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(...GRAY);
+      doc.text(
+        'OLEA CONTROLS MÉXICO, S.A. DE C.V.  |  heroes@oleacontrols.com  |  www.oleacontrols.com',
+        pageW / 2, footY, { align: 'center' }
+      );
+      doc.text(`Página ${p} de ${totalPages}`, pageW - margin, footY, { align: 'right' });
+    }
 
     const pdfOutput = doc.output('arraybuffer');
-    const fileName  = `${quote.quoteNumber}.pdf`;
+    const fileName  = `${quote.quoteNumber}-${Date.now()}.pdf`;
     return await uploadToR2(Buffer.from(pdfOutput), 'quotes', fileName, 'application/pdf');
   } catch (err) {
     console.error('[PDF ERROR]', err);
@@ -474,7 +627,11 @@ export default async function handler(req, res) {
             tax:          original.tax,
             total:        original.total,
             validUntil,
-            terms:        original.terms || '',
+            terms:        original.terms        || '',
+            templateType: original.templateType || 'PRESUPUESTO',
+            requirements: original.requirements || '',
+            observations: original.observations || '',
+            benefits:     original.benefits     || '',
             creatorId:    userId,
             sellerId:     original.sellerId || null,
             status:       'PENDING',
@@ -487,20 +644,24 @@ export default async function handler(req, res) {
       // ── Crear cotización normal ──────────────────────────────────────────────
       const quote = await prisma.quote.create({
         data: {
-          quoteNumber: data.quoteNumber,
-          clientId: data.clientId,
-          projectName: data.projectName || '',
+          quoteNumber:  data.quoteNumber,
+          clientId:     data.clientId,
+          projectName:  data.projectName  || '',
           projectPhase: data.projectPhase || 'INICIAL',
-          contactName: data.contactName || '',
-          items: data.items,
-          subtotal: parseFloat(data.subtotal) || 0,
-          tax: parseFloat(data.tax) || 0,
-          total: parseFloat(data.total) || 0,
-          validUntil: new Date(data.validUntil),
-          terms: data.terms || '',
-          creatorId: data.creatorId || userId,
-          sellerId: data.sellerId || (isSales ? userId : null),
-          status: 'PENDING'
+          contactName:  data.contactName  || '',
+          items:        data.items,
+          subtotal:     parseFloat(data.subtotal) || 0,
+          tax:          parseFloat(data.tax)      || 0,
+          total:        parseFloat(data.total)    || 0,
+          validUntil:   new Date(data.validUntil),
+          terms:        data.terms        || '',
+          templateType: data.templateType || 'PRESUPUESTO',
+          requirements: data.requirements || '',
+          observations: data.observations || '',
+          benefits:     data.benefits     || '',
+          creatorId:    data.creatorId    || userId,
+          sellerId:     data.sellerId     || (isSales ? userId : null),
+          status:       'PENDING'
         },
         include: { client: true, creator: true, seller: true }
       });
@@ -518,15 +679,19 @@ export default async function handler(req, res) {
 
   if (method === 'PUT') {
     try {
-      const { id, status, clientId, sellerId, projectName, contactName, validUntil, terms, items, subtotal, tax, adjustment, total } = req.body;
+      const { id, status, clientId, sellerId, projectName, contactName, validUntil, terms, templateType, requirements, observations, benefits, items, subtotal, tax, adjustment, total } = req.body;
       const updateData = {};
-      if (status !== undefined)      updateData.status = status;
+      if (status !== undefined)        updateData.status = status;
       if (clientId !== undefined && clientId) updateData.clientId = clientId;
-      if (sellerId !== undefined)    updateData.sellerId = sellerId || null;
-      if (projectName !== undefined) updateData.projectName = projectName;
-      if (contactName !== undefined) updateData.contactName = contactName;
-      if (validUntil !== undefined)  updateData.validUntil = new Date(validUntil);
-      if (terms !== undefined)       updateData.terms = terms;
+      if (sellerId !== undefined)      updateData.sellerId = sellerId || null;
+      if (projectName !== undefined)   updateData.projectName = projectName;
+      if (contactName !== undefined)   updateData.contactName = contactName;
+      if (validUntil !== undefined)    updateData.validUntil = new Date(validUntil);
+      if (terms !== undefined)         updateData.terms = terms;
+      if (templateType !== undefined)  updateData.templateType = templateType;
+      if (requirements !== undefined)  updateData.requirements = requirements;
+      if (observations !== undefined)  updateData.observations = observations;
+      if (benefits !== undefined)      updateData.benefits = benefits;
       if (items !== undefined) {
         updateData.items = items;
         updateData.subtotal = parseFloat(subtotal) || 0;
