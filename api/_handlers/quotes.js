@@ -209,32 +209,36 @@ async function generateQuotePDF(quote) {
       { content: fmtMXN(parseFloat(item.price) * parseInt(item.qty || 1)), styles: { halign: 'right', fontStyle: 'bold' } },
     ]);
 
-    autoTable(doc, {
-      startY: tableStartY,
-      head: [['Nº', 'Serie', 'Servicio / Descripción', 'Cantidad', 'Precio Unit.', 'Total']],
-      body: tableBody,
-      theme: 'grid',
-      margin: { left: margin, right: margin },
-      columnStyles: {
-        0: { cellWidth: 9,  halign: 'center' },
-        1: { cellWidth: 22, halign: 'center' },
-        2: { cellWidth: 'auto' },
-        3: { cellWidth: 18, halign: 'center' },
-        4: { cellWidth: 28, halign: 'right' },
-        5: { cellWidth: 28, halign: 'right' },
-      },
-      headStyles: {
-        fillColor: BLUE,
-        textColor: [255, 255, 255],
-        fontStyle: 'bold',
-        fontSize: 7.5,
-        halign: 'center',
-        cellPadding: 3,
-      },
-      bodyStyles:          { fontSize: 7.5, textColor: DARK, cellPadding: 2.5 },
-      alternateRowStyles:  { fillColor: [248, 249, 253] },
-      styles:              { lineColor: [215, 220, 230], lineWidth: 0.2 },
-    });
+    try {
+      autoTable(doc, {
+        startY: tableStartY,
+        head: [['Nº', 'Serie', 'Servicio / Descripción', 'Cantidad', 'Precio Unit.', 'Total']],
+        body: tableBody,
+        theme: 'grid',
+        margin: { left: margin, right: margin },
+        columnStyles: {
+          0: { cellWidth: 9,  halign: 'center' },
+          1: { cellWidth: 22, halign: 'center' },
+          2: { cellWidth: 'auto' },
+          3: { cellWidth: 18, halign: 'center' },
+          4: { cellWidth: 28, halign: 'right' },
+          5: { cellWidth: 28, halign: 'right' },
+        },
+        headStyles: {
+          fillColor: BLUE,
+          textColor: [255, 255, 255],
+          fontStyle: 'bold',
+          fontSize: 7.5,
+          halign: 'center',
+          cellPadding: 3,
+        },
+        bodyStyles:          { fontSize: 7.5, textColor: DARK, cellPadding: 2.5 },
+        alternateRowStyles:  { fillColor: [248, 249, 253] },
+        styles:              { lineColor: [215, 220, 230], lineWidth: 0.2 },
+      });
+    } catch (tableErr) {
+      console.error('[PDF] autoTable error:', tableErr.message);
+    }
 
     // ── BLOQUE TOTALES + TÉRMINOS ─────────────────────────────────────────────
     const totW  = 82;
@@ -248,8 +252,14 @@ async function generateQuotePDF(quote) {
     const headerH = 8;
     const totH    = headerH + rows.length * rowH + 9;
 
+    const payOpts = [
+      { label: 'Pago Inmediato 24Hrs', pct: '5% de descuento' },
+      { label: 'Pago Preferente',      pct: '3% de descuento' },
+      { label: 'Pago Programado',      pct: '1% de descuento' },
+    ];
+
     // Calcular espacio necesario: columna izquierda (términos + descuentos) vs columna derecha (totales)
-    let afterTableY = doc.lastAutoTable.finalY + 6;
+    let afterTableY = (doc.lastAutoTable?.finalY ?? tableStartY) + 6;
     const discBoxH_est = 7 + payOpts.length * 6.2;
     const termsLines_est = quote.terms
       ? doc.splitTextToSize(quote.terms, (pageW - margin * 2) / 2 - 6).length
@@ -295,11 +305,6 @@ async function generateQuotePDF(quote) {
     const totBottomY = ty + 12;
 
     // Términos (izquierda, junto a totales)
-    const payOpts = [
-      { label: 'Pago Inmediato 24Hrs', pct: '5% de descuento' },
-      { label: 'Pago Preferente',      pct: '3% de descuento' },
-      { label: 'Pago Programado',      pct: '1% de descuento' },
-    ];
     const termsColW = totX - margin - 6;
     let termsBottomY = afterTableY;
     if (quote.terms) {

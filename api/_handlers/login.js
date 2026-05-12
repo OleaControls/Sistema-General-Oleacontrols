@@ -17,18 +17,12 @@ export default async function handler(req, res) {
     })
 
     if (credentials) {
-      console.log(`[DEBUG] Intentando login para: ${email}`);
-      console.log(`[DEBUG] Password en DB: ${credentials.password}`);
-      console.log(`[DEBUG] Password recibida: ${password}`);
-
       let isMatch = false;
-      
+
       try {
         isMatch = await comparePassword(password, credentials.password);
-        console.log(`[DEBUG] Resultado Bcrypt: ${isMatch}`);
       } catch (e) {
         isMatch = credentials.password === password;
-        console.log(`[DEBUG] Fallback Texto Plano: ${isMatch}`);
       }
 
       // Segundo intento si el primero fue false (por si acaso la DB tiene texto plano)
