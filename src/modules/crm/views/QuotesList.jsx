@@ -572,6 +572,26 @@ export default function QuotesList() {
         const updated = await res.json();
         setQuotes(prev => prev.map(q => q.id === updated.id ? updated : q));
         setSelectedQuote(updated);
+        setEditQuote({
+          clientId:    updated.clientId    || '',
+          sellerId:    updated.sellerId    || '',
+          projectName: updated.projectName || '',
+          contactName: updated.contactName || '',
+          validUntil:  updated.validUntil ? updated.validUntil.split('T')[0] : '',
+          terms:       updated.terms       || '',
+          templateType: updated.templateType || 'PRESUPUESTO',
+          requirements: updated.requirements || '',
+          observations: updated.observations || '',
+          benefits:    updated.benefits    || '',
+          items:       updated.items ? JSON.parse(JSON.stringify(updated.items)) : [],
+          subtotal:    updated.subtotal    || 0,
+          tax:         updated.tax         || 0,
+          adjustment:  updated.adjustment  || 0,
+          total:       updated.total       || 0,
+          discountPct: (updated.adjustment < 0 && updated.subtotal > 0)
+            ? Math.round(Math.abs(updated.adjustment) / updated.subtotal * 1000) / 10
+            : 0,
+        });
         setDetailTab('preview');
       }
     } catch (err) { console.error(err); }

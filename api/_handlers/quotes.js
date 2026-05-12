@@ -199,7 +199,8 @@ async function generateQuotePDF(quote) {
 
     // ── TABLA DE CONCEPTOS ────────────────────────────────────────────────────
 
-    const tableBody = quote.items.map((item, i) => [
+    const items = Array.isArray(quote.items) ? quote.items : (typeof quote.items === 'string' ? JSON.parse(quote.items) : []);
+    const tableBody = items.map((item, i) => [
       { content: String(i + 1).padStart(2, '0'), styles: { halign: 'center', fontStyle: 'bold' } },
       { content: item.serial || '—', styles: { halign: 'center' } },
       { content: item.desc ? `${item.name}\n${item.desc}` : item.name },
@@ -519,7 +520,7 @@ async function generateQuotePDF(quote) {
     }
 
     // ── IMÁGENES DE PRODUCTOS ─────────────────────────────────────────────────
-    const itemsWithImages = (quote.items || []).filter(item => item.imageBase64);
+    const itemsWithImages = items.filter(item => item.imageBase64);
     if (itemsWithImages.length > 0) {
       let imgSectY = benefY;
 
