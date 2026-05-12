@@ -89,6 +89,19 @@ async function generateQuotePDF(quote) {
     y = 52;
     const colMid = pageW / 2 + 2;
 
+    // Pre-calcular altura de columna derecha para usarla como tope de la izquierda
+    const details = [
+      ['Proyecto:',              quote.projectName               || '—'],
+      ['Elaboró:',               quote.creator?.name             || '—'],
+      [isPre ? 'Asesor:' : 'Vendedor:', quote.seller?.name      || 'No asignado'],
+    ];
+    let yR = 52 + 5; // label "DETALLES DEL PROYECTO:"
+    details.forEach(([, val]) => {
+      const lines = doc.splitTextToSize(val, pageW - margin - colMid - 28);
+      yR += Math.max(lines.length * 3.8, 5);
+    });
+    const maxHeaderY = yR; // columna izquierda no puede superar la altura de la derecha
+
     // — Izquierda: cliente
     doc.setFontSize(7);
     doc.setFont('helvetica', 'bold');
@@ -96,7 +109,6 @@ async function generateQuotePDF(quote) {
     doc.text(isPre ? 'CLIENTE:' : 'FACTURAR A:', margin, y);
 
     y += 5;
-    // Nombre de contacto primero — mayúsculas, negrita, grande
     const contactDisplay = quote.contactName || quote.client?.contactName || '';
     if (contactDisplay) {
       doc.setFontSize(9);
@@ -105,7 +117,6 @@ async function generateQuotePDF(quote) {
       doc.text(contactDisplay.toUpperCase(), margin, y);
       y += 5;
     }
-    // Empresa en segundo lugar — negrita, tamaño ligeramente menor
     doc.setFontSize(8);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(...DARK);
@@ -113,29 +124,35 @@ async function generateQuotePDF(quote) {
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(7.5);
     y += 4;
-    if (quote.client?.rfc) { doc.setTextColor(...GRAY); doc.text(`RFC: ${quote.client.rfc}`, margin, y); y += 4; }
-    if (quote.client?.address) {
+    if (quote.client?.rfc && y < maxHeaderY) {
+      doc.setTextColor(...GRAY);
+      doc.text(`RFC: ${quote.client.rfc}`, margin, y);
+      y += 4;
+    }
+    if (quote.client?.address && y < maxHeaderY) {
       doc.setTextColor(...DARK);
       const addrLines = doc.splitTextToSize(quote.client.address, colMid - margin - 6);
       doc.text(addrLines, margin, y);
       y += addrLines.length * 3.8;
     }
-    if (quote.client?.email)  { doc.setTextColor(...GRAY); doc.text(quote.client.email,  margin, y); y += 4; }
-    if (quote.client?.phone)  { doc.text(quote.client.phone, margin, y); y += 4; }
+    if (quote.client?.email && y < maxHeaderY) {
+      doc.setTextColor(...GRAY);
+      doc.text(quote.client.email, margin, y);
+      y += 4;
+    }
+    if (quote.client?.phone && y < maxHeaderY) {
+      doc.text(quote.client.phone, margin, y);
+      y += 4;
+    }
 
     // — Derecha: proyecto
-    let yR = 52;
+    yR = 52;
     doc.setFontSize(7);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(...BLUE);
     doc.text('DETALLES DEL PROYECTO:', colMid, yR);
     yR += 5;
 
-    const details = [
-      ['Proyecto:',              quote.projectName               || '—'],
-      ['Responsable:',           quote.creator?.name             || '—'],
-      [isPre ? 'Asesor:' : 'Vendedor:', quote.seller?.name      || 'No asignado'],
-    ];
     doc.setFontSize(7.5);
     details.forEach(([label, val]) => {
       doc.setFont('helvetica', 'bold');
@@ -149,7 +166,7 @@ async function generateQuotePDF(quote) {
     });
 
     // ── REQUERIMIENTOS DEL CLIENTE ────────────────────────────────────────────
-    let tableStartY = Math.max(y, yR) + 6;
+    let tableStartY = Math.max(Math.min(y, maxHeaderY), yR) + 6;
 
     if (quote.requirements && quote.requirements.trim()) {
       const reqText  = quote.requirements.trim();
@@ -161,31 +178,38 @@ async function generateQuotePDF(quote) {
       let firstReqChunk = true;
       while (reqLinesLeft.length > 0) {
         const availH    = pageH - 15 - tableStartY;
-        const labelH    = 9;
+        const labelH    = 7;  // alto de la barra de título coloreada
         const padH      = 5;
         const maxLines  = Math.max(1, Math.floor((availH - labelH - padH) / lineH));
         const chunk     = reqLinesLeft.splice(0, maxLines);
-        const reqH      = labelH + chunk.length * lineH + padH;
+        const contentH  = chunk.length * lineH + padH;
+        const reqH      = labelH + contentH;
 
         if (tableStartY + reqH > pageH - 15) {
           doc.addPage();
           tableStartY = 20;
         }
 
-        doc.setFillColor(240, 246, 255);
+        // Barra de título con color de la plantilla (azul o verde)
+        doc.setFillColor(...BLUE);
         doc.setDrawColor(...BLUE);
         doc.setLineWidth(0.3);
-        doc.roundedRect(margin, tableStartY, cW, reqH, 2, 2, 'FD');
+        doc.roundedRect(margin, tableStartY, cW, labelH, 2, 2, 'FD');
 
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(7);
-        doc.setTextColor(...BLUE);
-        doc.text(firstReqChunk ? 'REQUERIMIENTOS DEL CLIENTE:' : 'REQUERIMIENTOS (cont.):', margin + 4, tableStartY + 5.5);
+        doc.setTextColor(255, 255, 255);
+        doc.text(firstReqChunk ? 'REQUERIMIENTOS DEL CLIENTE:' : 'REQUERIMIENTOS (cont.):', margin + cW / 2, tableStartY + 4.8, { align: 'center' });
+
+        // Caja de contenido con fondo claro debajo de la barra
+        doc.setFillColor(...LIGHT);
+        doc.setDrawColor(...BLUE);
+        doc.rect(margin, tableStartY + labelH, cW, contentH, 'FD');
 
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(7.5);
         doc.setTextColor(...DARK);
-        doc.text(chunk, margin + 4, tableStartY + labelH);
+        doc.text(chunk, margin + 4, tableStartY + labelH + 4);
 
         tableStartY += reqH + 5;
         firstReqChunk = false;

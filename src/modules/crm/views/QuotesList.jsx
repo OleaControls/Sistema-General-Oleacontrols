@@ -651,6 +651,7 @@ export default function QuotesList() {
   const downloadPDF = async (quoteId, quoteNumber) => {
     setGeneratingPDF(true);
     const newWin = window.open('', '_blank'); // abrir antes del await para evitar bloqueo del popup blocker
+    newWin.document.write('<html><body style="margin:0;display:flex;align-items:center;justify-content:center;height:100vh;background:#f8fafc;font-family:sans-serif;"><p style="color:#64748b;font-size:15px;font-weight:600;">Generando PDF, espere...</p></body></html>');
     try {
       const res  = await apiFetch(`/api/quotes?id=${quoteId}`);
       const data = await res.json();
