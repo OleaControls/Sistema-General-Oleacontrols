@@ -650,11 +650,17 @@ export default function QuotesList() {
   // ── Descargar / Regenerar PDF ─────────────────────────────────────────────
   const downloadPDF = async (quoteId, quoteNumber) => {
     setGeneratingPDF(true);
+    const newWin = window.open('', '_blank'); // abrir antes del await para evitar bloqueo del popup blocker
     try {
       const res  = await apiFetch(`/api/quotes?id=${quoteId}`);
       const data = await res.json();
-      if (data.pdfUrl) window.open(`${data.pdfUrl}?t=${Date.now()}`, '_blank');
-    } catch (err) { console.error(err); }
+      if (data.pdfUrl) {
+        newWin.location = `${data.pdfUrl}?t=${Date.now()}`;
+      } else {
+        newWin.close();
+        alert('No se pudo generar el PDF. Intenta de nuevo.');
+      }
+    } catch (err) { console.error(err); newWin.close(); }
     finally { setGeneratingPDF(false); }
   };
 
