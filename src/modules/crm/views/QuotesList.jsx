@@ -1152,7 +1152,7 @@ export default function QuotesList() {
                   <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Tipo de Documento *</p>
                   <div className="grid grid-cols-2 gap-3">
                     {[
-                      { id: 'PRESUPUESTO', badge: 'INVERSIÓN ESTIMADA', title: 'Inv. Estimada', sub: 'Cliente · Asesor', color: '#005BBB', bg: '#eff6ff' },
+                      { id: 'PRESUPUESTO', badge: 'REFERENCIAS DE PROYECTO', title: 'Ref. Proyecto', sub: 'Cliente · Asesor', color: '#005BBB', bg: '#eff6ff' },
                       { id: 'PREFACTURA',  badge: 'PREFACTURA',         title: 'Prefactura',   sub: 'Facturar a · Vendedor', color: '#16823c', bg: '#f0fdf4' },
                     ].map(opt => {
                       const active = newQuote.templateType === opt.id;
@@ -1506,10 +1506,10 @@ export default function QuotesList() {
                   </div>
                 </div>
 
-                {/* Beneficios */}
+                {/* Motivos para elegir con confianza */}
                 <RequirementsField
-                  label="Beneficios"
-                  placeholder="Describe los beneficios de esta solución para el cliente..."
+                  label="Motivos para elegir con confianza"
+                  placeholder="Describe los motivos para elegir con confianza esta solución para el cliente..."
                   value={newQuote.benefits || ''}
                   onChange={v => setNewQuote(f => ({ ...f, benefits: v }))}
                   phrases={benefitsPhases}
@@ -1571,7 +1571,7 @@ function QuotePreview({ quote, employees, onStatusChange, onDelete }) {
       <div className="grid grid-cols-2 gap-4">
         <div className="p-4 bg-gray-50 rounded-2xl space-y-2">
           <p className="text-[7px] font-black text-gray-400 uppercase tracking-widest">
-            {isPre ? 'Cliente' : 'Facturar a'}
+            {isPre ? 'Referencias de Proyecto' : 'Facturar a'}
           </p>
           <p className="font-black text-gray-900">{quote.client?.companyName}</p>
           {quote.contactName && (
@@ -1764,7 +1764,7 @@ function QuoteEditForm({ editQuote, setEditQuote, employees, clients, selectedQu
         <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Tipo de Documento</p>
         <div className="grid grid-cols-2 gap-3">
           {[
-            { id: 'PRESUPUESTO', badge: 'INVERSIÓN ESTIMADA', title: 'Inv. Estimada', sub: 'Cliente · Asesor', color: '#005BBB', bg: '#eff6ff' },
+            { id: 'PRESUPUESTO', badge: 'REFERENCIAS DE PROYECTO', title: 'Ref. Proyecto', sub: 'Cliente · Asesor', color: '#005BBB', bg: '#eff6ff' },
             { id: 'PREFACTURA',  badge: 'PREFACTURA',         title: 'Prefactura',   sub: 'Facturar a · Vendedor', color: '#16823c', bg: '#f0fdf4' },
           ].map(opt => {
             const active = (editQuote.templateType || 'PRESUPUESTO') === opt.id;
@@ -1794,9 +1794,19 @@ function QuoteEditForm({ editQuote, setEditQuote, employees, clients, selectedQu
         </div>
       </div>
 
+      {/* ── Contacto ── */}
+      <div>
+        <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest block mb-1.5">Contacto</label>
+        <input
+          className="w-full bg-gray-50 rounded-xl px-4 py-3 font-bold text-sm outline-none"
+          placeholder="Nombre del contacto"
+          value={editQuote.contactName || ''}
+          onChange={e => setEditQuote(f => ({ ...f, contactName: e.target.value }))}
+        />
+      </div>
+
       {/* ── Selector de Cliente ── */}
-      <div className="grid grid-cols-3 gap-3 items-end">
-        <div className="col-span-2">
+      <div>
           <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest block mb-1.5">Cliente</label>
         <div style={{ position: 'relative' }}>
           <button
@@ -1861,17 +1871,7 @@ function QuoteEditForm({ editQuote, setEditQuote, employees, clients, selectedQu
             </div>
           )}
         </div>
-        </div>
-        <div>
-          <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest block mb-1.5">Contacto</label>
-          <input
-            className="w-full bg-gray-50 rounded-xl px-4 py-3 font-bold text-sm outline-none"
-            placeholder="Nombre del contacto"
-            value={editQuote.contactName || ''}
-            onChange={e => setEditQuote(f => ({ ...f, contactName: e.target.value }))}
-          />
-        </div>
-        </div>
+      </div>
 
       {/* Requerimientos del cliente */}
       <RequirementsField
@@ -2027,10 +2027,10 @@ function QuoteEditForm({ editQuote, setEditQuote, employees, clients, selectedQu
         onDeletePhrase={onDeleteTermsPhrase}
       />
 
-      {/* Beneficios */}
+      {/* Motivos para elegir con confianza */}
       <RequirementsField
-        label="Beneficios"
-        placeholder="Describe los beneficios de esta solución para el cliente..."
+        label="Motivos para elegir con confianza"
+        placeholder="Describe los motivos para elegir con confianza esta solución para el cliente..."
         value={editQuote.benefits || ''}
         onChange={v => setEditQuote(f => ({ ...f, benefits: v }))}
         phrases={benefitsPhases || []}

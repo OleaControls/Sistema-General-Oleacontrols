@@ -44,7 +44,7 @@ async function generateQuotePDF(quote) {
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(10.5);
     doc.setTextColor(255, 255, 255);
-    doc.text(isPre ? 'INVERSIÓN ESTIMADA' : 'PREFACTURA', bxX + 36, bxY + 6.3, { align: 'center' });
+    doc.text(isPre ? 'REFERENCIAS DE PROYECTO' : 'PREFACTURA', bxX + 36, bxY + 6.3, { align: 'center' });
 
     doc.setFillColor(...LIGHT);
     doc.roundedRect(bxX, bxY + 9, 72, 20, 0, 0, 'F');
@@ -95,11 +95,21 @@ async function generateQuotePDF(quote) {
     doc.setTextColor(...BLUE);
     doc.text(isPre ? 'CLIENTE:' : 'FACTURAR A:', margin, y);
 
-    doc.setFontSize(9);
+    y += 5;
+    // Nombre de contacto primero — mayúsculas, negrita, grande
+    const contactDisplay = quote.contactName || quote.client?.contactName || '';
+    if (contactDisplay) {
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(...DARK);
+      doc.text(contactDisplay.toUpperCase(), margin, y);
+      y += 5;
+    }
+    // Empresa en segundo lugar — negrita, tamaño ligeramente menor
+    doc.setFontSize(8);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(...DARK);
-    y += 5;
-    doc.text(quote.client?.companyName || 'Cliente', margin, y);
+    doc.text((quote.client?.companyName || 'Cliente').toUpperCase(), margin, y);
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(7.5);
     y += 4;
@@ -111,7 +121,7 @@ async function generateQuotePDF(quote) {
       y += addrLines.length * 3.8;
     }
     if (quote.client?.email)  { doc.setTextColor(...GRAY); doc.text(quote.client.email,  margin, y); y += 4; }
-    if (quote.client?.phone)  { doc.text(quote.client.phone, margin, y); }
+    if (quote.client?.phone)  { doc.text(quote.client.phone, margin, y); y += 4; }
 
     // — Derecha: proyecto
     let yR = 52;
@@ -123,7 +133,6 @@ async function generateQuotePDF(quote) {
 
     const details = [
       ['Proyecto:',              quote.projectName               || '—'],
-      ['Contacto:',              quote.contactName || quote.client?.contactName || '—'],
       ['Responsable:',           quote.creator?.name             || '—'],
       [isPre ? 'Asesor:' : 'Vendedor:', quote.seller?.name      || 'No asignado'],
     ];
@@ -215,8 +224,8 @@ async function generateQuotePDF(quote) {
     const headerH = 8;
     const totH    = headerH + rows.length * rowH + 9;
 
-    // Si el bloque de totales + datos bancarios no cabe, nueva página
-    const spaceNeeded = totH + 42 + 20; // totales + bank + margen
+    // Si el bloque de totales (+ datos bancarios solo en PREFACTURA) no cabe, nueva página
+    const spaceNeeded = totH + (isPre ? 0 : 42) + 20;
     let afterTableY = doc.lastAutoTable.finalY + 6;
     if (afterTableY + spaceNeeded > pageH - 15) {
       doc.addPage();
@@ -325,68 +334,69 @@ async function generateQuotePDF(quote) {
       afterTotalsY += obsH;
     }
 
-    // ── DATOS BANCARIOS ───────────────────────────────────────────────────────
-    let bankY = afterTotalsY + 8;
+    // ── DATOS BANCARIOS (solo PREFACTURA) ────────────────────────────────────
+    if (!isPre) {
+      let bankY = afterTotalsY + 8;
 
-    // Si no cabe, nueva página
-    if (bankY + 42 > pageH - 15) {
-      doc.addPage();
-      bankY = 20;
-    }
+      // Si no cabe, nueva página
+      if (bankY + 42 > pageH - 15) {
+        doc.addPage();
+        bankY = 20;
+      }
 
-    const bankH = 42;
-    doc.setFillColor(237, 244, 255);
-    doc.setDrawColor(...BLUE);
-    doc.setLineWidth(0.4);
-    doc.roundedRect(margin, bankY, cW, bankH, 3, 3, 'FD');
+      const bankH = 42;
+      doc.setFillColor(237, 244, 255);
+      doc.setDrawColor(...BLUE);
+      doc.setLineWidth(0.4);
+      doc.roundedRect(margin, bankY, cW, bankH, 3, 3, 'FD');
 
-    // Header azul
-    doc.setFillColor(...BLUE);
-    doc.roundedRect(margin, bankY, cW, 9, 3, 3, 'F');
-    doc.rect(margin, bankY + 5, cW, 4, 'F');
-
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(8);
-    doc.setTextColor(255, 255, 255);
-    doc.text('DATOS BANCARIOS PARA TRANSFERENCIA', margin + cW / 2, bankY + 6, { align: 'center' });
-
-    // Filas de datos en 2 columnas
-    const bankRows = [
-      ['Razón Social:', 'OLEA CONTROLS MÉXICO, S.A. DE C.V.'],
-      ['RFC:',          'OCM090623GR8'],
-      ['Banco:',        'Banco Nacional de México, S.A. (BANAMEX)'],
-      ['Sucursal:',     '384 – Mariano Escobedo'],
-      ['Cuenta:',       '0384-6105270'],
-      ['CLABE:',        '002180038461052707'],
-    ];
-
-    doc.setFontSize(7.5);
-    const half    = cW / 2 - 4;
-    const c1X     = margin + 5;
-    const c2X     = margin + cW / 2 + 5;
-    let byL       = bankY + 16;
-    let byR       = bankY + 16;
-
-    bankRows.forEach((row, i) => {
-      const xL  = i < 3 ? c1X : c2X;
-      const cur = i < 3 ? byL : byR;
+      // Header azul
+      doc.setFillColor(...BLUE);
+      doc.roundedRect(margin, bankY, cW, 9, 3, 3, 'F');
+      doc.rect(margin, bankY + 5, cW, 4, 'F');
 
       doc.setFont('helvetica', 'bold');
-      doc.setTextColor(...BLUE);
-      doc.text(row[0], xL, cur);
+      doc.setFontSize(8);
+      doc.setTextColor(255, 255, 255);
+      doc.text('DATOS BANCARIOS PARA TRANSFERENCIA', margin + cW / 2, bankY + 6, { align: 'center' });
 
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(...DARK);
-      doc.text(row[1], xL + 23, cur);
+      // Filas de datos en 2 columnas
+      const bankRows = [
+        ['Razón Social:', 'OLEA CONTROLS MÉXICO, S.A. DE C.V.'],
+        ['RFC:',          'OCM090623GR8'],
+        ['Banco:',        'Banco Nacional de México, S.A. (BANAMEX)'],
+        ['Sucursal:',     '384 – Mariano Escobedo'],
+        ['Cuenta:',       '0384-6105270'],
+        ['CLABE:',        '002180038461052707'],
+      ];
 
-      if (i < 3)  byL += 7;
-      else        byR += 7;
-    });
+      doc.setFontSize(7.5);
+      const c1X     = margin + 5;
+      const c2X     = margin + cW / 2 + 5;
+      let byL       = bankY + 16;
+      let byR       = bankY + 16;
 
-    // Línea vertical separadora entre columnas
-    doc.setDrawColor(190, 210, 240);
-    doc.setLineWidth(0.3);
-    doc.line(margin + cW / 2, bankY + 11, margin + cW / 2, bankY + bankH - 4);
+      bankRows.forEach((row, i) => {
+        const xL  = i < 3 ? c1X : c2X;
+        const cur = i < 3 ? byL : byR;
+
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(...BLUE);
+        doc.text(row[0], xL, cur);
+
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(...DARK);
+        doc.text(row[1], xL + 23, cur);
+
+        if (i < 3)  byL += 7;
+        else        byR += 7;
+      });
+
+      // Línea vertical separadora entre columnas
+      doc.setDrawColor(190, 210, 240);
+      doc.setLineWidth(0.3);
+      doc.line(margin + cW / 2, bankY + 11, margin + cW / 2, bankY + bankH - 4);
+    }
 
     // ── BENEFICIOS — siempre en hoja nueva ───────────────────────────────────
     doc.addPage();
@@ -396,7 +406,7 @@ async function generateQuotePDF(quote) {
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(13);
     doc.setTextColor(...BLUE);
-    doc.text('Beneficios', margin, benefY + 6);
+    doc.text('Motivos para elegir con confianza', margin, benefY + 6);
 
     // Línea decorativa bajo el título
     doc.setDrawColor(...BLUE);
