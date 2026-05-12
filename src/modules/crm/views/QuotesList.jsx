@@ -593,8 +593,11 @@ export default function QuotesList() {
             : 0,
         });
         setDetailTab('preview');
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        alert('Error al guardar: ' + (errData.error || res.status));
       }
-    } catch (err) { console.error(err); }
+    } catch (err) { console.error(err); alert('Error de red al guardar la cotización.'); }
     finally { setSavingQuote(false); }
   };
 

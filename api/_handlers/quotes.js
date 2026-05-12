@@ -760,7 +760,7 @@ export default async function handler(req, res) {
       if (sellerId !== undefined)      updateData.sellerId = sellerId || null;
       if (projectName !== undefined)   updateData.projectName = projectName;
       if (contactName !== undefined)   updateData.contactName = contactName;
-      if (validUntil !== undefined)    updateData.validUntil = new Date(validUntil);
+      if (validUntil !== undefined && validUntil) updateData.validUntil = new Date(validUntil);
       if (terms !== undefined)         updateData.terms = terms;
       if (templateType !== undefined)  updateData.templateType = templateType;
       if (requirements !== undefined)  updateData.requirements = requirements;
