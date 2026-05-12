@@ -289,7 +289,7 @@ async function generateQuotePDF(quote) {
       ? doc.splitTextToSize(quote.terms, (pageW - margin * 2) / 2 - 6).length
       : 0;
     const leftColH_est = (termsLines_est > 0 ? 10 + termsLines_est * 3.5 + 5 : 0) + discBoxH_est + 10;
-    const spaceNeeded  = Math.max(totH, leftColH_est) + (isPre ? 0 : 42) + 20;
+    const spaceNeeded  = Math.max(totH, leftColH_est) + 20;
     if (afterTableY + spaceNeeded > pageH - 15) {
       doc.addPage();
       afterTableY = 20;
