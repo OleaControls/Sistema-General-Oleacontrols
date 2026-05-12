@@ -152,26 +152,49 @@ async function generateQuotePDF(quote) {
     let tableStartY = Math.max(y, yR) + 6;
 
     if (quote.requirements && quote.requirements.trim()) {
-      const reqText   = quote.requirements.trim();
-      const reqLines  = doc.splitTextToSize(reqText, cW - 10);
-      const reqH      = 9 + reqLines.length * 4.2 + 5;
+      const reqText  = quote.requirements.trim();
+      const lineH    = 4.2;
+      let reqLines   = doc.splitTextToSize(reqText, cW - 10);
 
-      doc.setFillColor(240, 246, 255);
-      doc.setDrawColor(...BLUE);
-      doc.setLineWidth(0.3);
-      doc.roundedRect(margin, tableStartY, cW, reqH, 2, 2, 'FD');
+      // Paginar requerimientos si son largos
+      let reqLinesLeft = [...reqLines];
+      let firstReqChunk = true;
+      while (reqLinesLeft.length > 0) {
+        const availH    = pageH - 15 - tableStartY;
+        const labelH    = 9;
+        const padH      = 5;
+        const maxLines  = Math.max(1, Math.floor((availH - labelH - padH) / lineH));
+        const chunk     = reqLinesLeft.splice(0, maxLines);
+        const reqH      = labelH + chunk.length * lineH + padH;
 
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(7);
-      doc.setTextColor(...BLUE);
-      doc.text('REQUERIMIENTOS DEL CLIENTE:', margin + 4, tableStartY + 5.5);
+        if (tableStartY + reqH > pageH - 15) {
+          doc.addPage();
+          tableStartY = 20;
+        }
 
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(7.5);
-      doc.setTextColor(...DARK);
-      doc.text(reqLines, margin + 4, tableStartY + 11);
+        doc.setFillColor(240, 246, 255);
+        doc.setDrawColor(...BLUE);
+        doc.setLineWidth(0.3);
+        doc.roundedRect(margin, tableStartY, cW, reqH, 2, 2, 'FD');
 
-      tableStartY += reqH + 5;
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(7);
+        doc.setTextColor(...BLUE);
+        doc.text(firstReqChunk ? 'REQUERIMIENTOS DEL CLIENTE:' : 'REQUERIMIENTOS (cont.):', margin + 4, tableStartY + 5.5);
+
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7.5);
+        doc.setTextColor(...DARK);
+        doc.text(chunk, margin + 4, tableStartY + labelH);
+
+        tableStartY += reqH + 5;
+        firstReqChunk = false;
+
+        if (reqLinesLeft.length > 0) {
+          doc.addPage();
+          tableStartY = 20;
+        }
+      }
     }
 
     // ── TABLA DE CONCEPTOS ────────────────────────────────────────────────────
@@ -224,9 +247,14 @@ async function generateQuotePDF(quote) {
     const headerH = 8;
     const totH    = headerH + rows.length * rowH + 9;
 
-    // Si el bloque de totales (+ datos bancarios solo en PREFACTURA) no cabe, nueva página
-    const spaceNeeded = totH + (isPre ? 0 : 42) + 20;
+    // Calcular espacio necesario: columna izquierda (términos + descuentos) vs columna derecha (totales)
     let afterTableY = doc.lastAutoTable.finalY + 6;
+    const discBoxH_est = 7 + payOpts.length * 6.2;
+    const termsLines_est = quote.terms
+      ? doc.splitTextToSize(quote.terms, (pageW - margin * 2) / 2 - 6).length
+      : 0;
+    const leftColH_est = (termsLines_est > 0 ? 10 + termsLines_est * 3.5 + 5 : 0) + discBoxH_est + 10;
+    const spaceNeeded  = Math.max(totH, leftColH_est) + (isPre ? 0 : 42) + 20;
     if (afterTableY + spaceNeeded > pageH - 15) {
       doc.addPage();
       afterTableY = 20;
@@ -271,17 +299,25 @@ async function generateQuotePDF(quote) {
       { label: 'Pago Preferente',      pct: '3% de descuento' },
       { label: 'Pago Programado',      pct: '1% de descuento' },
     ];
+    const termsColW = totX - margin - 6;
     let termsBottomY = afterTableY;
     if (quote.terms) {
+      const termsLines = doc.splitTextToSize(quote.terms, termsColW);
+      const termsMaxY  = afterTableY + 5 + termsLines.length * 3.5;
+      // Si los términos desbordan la página, truncar al espacio disponible para mantener columnas alineadas
+      const maxTermsY  = pageH - 15;
       doc.setFontSize(7);
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(...GRAY);
       doc.text('TÉRMINOS Y CONDICIONES:', margin, afterTableY);
       doc.setFont('helvetica', 'normal');
       doc.setTextColor(...DARK);
-      const termsLines = doc.splitTextToSize(quote.terms, totX - margin - 6);
-      doc.text(termsLines, margin, afterTableY + 5);
-      termsBottomY = afterTableY + 5 + termsLines.length * 3.5;
+      // Solo renderizar las líneas que caben en la página
+      const lineH3 = 3.5;
+      const availLines = Math.max(1, Math.floor((maxTermsY - (afterTableY + 5)) / lineH3));
+      const visibleTerms = termsLines.slice(0, availLines);
+      doc.text(visibleTerms, margin, afterTableY + 5);
+      termsBottomY = Math.min(afterTableY + 5 + termsLines.length * lineH3, maxTermsY - 2);
     }
 
     // Recuadro de descuentos por pago anticipado (debajo de términos, lado izquierdo)
@@ -311,27 +347,54 @@ async function generateQuotePDF(quote) {
     // ── OBSERVACIONES — recuadro ancho completo debajo de términos e inversión total ──
     let afterTotalsY = Math.max(totBottomY, termsBottomY);
     if (quote.observations && quote.observations.trim()) {
-      const obsText  = quote.observations.trim();
-      const obsLines = doc.splitTextToSize(obsText, cW - 10);
-      const obsH     = 9 + obsLines.length * 4.2 + 5;
-      afterTotalsY  += 6;
+      const obsText    = quote.observations.trim();
+      const lineH      = 4.5;
+      const obsLines   = doc.splitTextToSize(obsText, cW - 10);
+      const headerH    = 9;
+      const footerPad  = 5;
+      const maxLinesPerPage = Math.floor((pageH - 15 - 20 - headerH - footerPad) / lineH);
 
-      doc.setFillColor(248, 248, 250);
-      doc.setDrawColor(200, 200, 210);
-      doc.setLineWidth(0.3);
-      doc.roundedRect(margin, afterTotalsY, cW, obsH, 2, 2, 'FD');
+      afterTotalsY += 6;
 
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(7);
-      doc.setTextColor(...GRAY);
-      doc.text('OBSERVACIONES:', margin + 4, afterTotalsY + 5.5);
+      // Si el bloque no cabe en el espacio restante, saltar a nueva página
+      const fullObsH = headerH + obsLines.length * lineH + footerPad;
+      if (afterTotalsY + fullObsH > pageH - 15) {
+        doc.addPage();
+        afterTotalsY = 20;
+      }
 
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(7.5);
-      doc.setTextColor(...DARK);
-      doc.text(obsLines, margin + 4, afterTotalsY + 11);
+      // Paginar las líneas si son demasiadas para una sola página
+      let linesLeft = [...obsLines];
+      let firstChunk = true;
+      while (linesLeft.length > 0) {
+        const availH   = pageH - 15 - afterTotalsY;
+        const maxLines = Math.max(1, Math.floor((availH - headerH - footerPad) / lineH));
+        const chunk    = linesLeft.splice(0, maxLines);
+        const chunkH   = headerH + chunk.length * lineH + footerPad;
 
-      afterTotalsY += obsH;
+        doc.setFillColor(248, 248, 250);
+        doc.setDrawColor(200, 200, 210);
+        doc.setLineWidth(0.3);
+        doc.roundedRect(margin, afterTotalsY, cW, chunkH, 2, 2, 'FD');
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(7);
+        doc.setTextColor(...GRAY);
+        doc.text(firstChunk ? 'OBSERVACIONES:' : 'OBSERVACIONES (cont.):' , margin + 4, afterTotalsY + 5.5);
+
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7.5);
+        doc.setTextColor(...DARK);
+        doc.text(chunk, margin + 4, afterTotalsY + headerH);
+
+        afterTotalsY += chunkH;
+        firstChunk = false;
+
+        if (linesLeft.length > 0) {
+          doc.addPage();
+          afterTotalsY = 20;
+        }
+      }
     }
 
     // ── DATOS BANCARIOS (solo PREFACTURA) ────────────────────────────────────
