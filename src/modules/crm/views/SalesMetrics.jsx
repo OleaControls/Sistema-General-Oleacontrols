@@ -302,7 +302,7 @@ function SellerDetailModal({ data, color, rank, allDeals, allActivities, allQuot
                             {d.probability ? `${d.probability}%` : '—'}
                           </td>
                           <td style={{ padding:'10px 16px', fontSize:11, fontWeight:700, color:'#64748b', whiteSpace:'nowrap' }}>
-                            {fmtDate(d.expectedCloseDate)}
+                            {fmtDate(d.expectedClose)}
                           </td>
                           <td style={{ padding:'10px 16px', fontWeight:900, fontSize:13, color:'#0f172a', textAlign:'center' }}>
                             {d._count?.activities ?? 0}
