@@ -18,7 +18,8 @@ const SYSTEM_TYPES = [
     { id: 'CCTV', label: 'CCTV: Circuito Cerrado TV' },
     { id: 'SSA', label: 'SSA: Sonido Ambiental' },
     { id: 'RMC', label: 'RMC: Aire Acondicionado' },
-    { id: 'MDE', label: 'MDE: Muro de Electrónica' }
+    { id: 'MDE', label: 'MDE: Muro de Electrónica' },
+    { id: 'SINT', label: 'SINT: Sistema de Interfonia' }
 ];
 
 export default function DeliveryAct() {
