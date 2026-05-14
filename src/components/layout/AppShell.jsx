@@ -41,7 +41,6 @@ const NAV_STRUCTURE = [
     defaultOpen: false,
     items: [
       { name: 'Agenda Ventas',  path: '/crm/calendar',     icon: Calendar,   roles: [ROLES.ADMIN] },
-      { name: 'Seguimientos', path: '/crm/seguimientos', icon: Activity,   roles: [ROLES.ADMIN] },
       { name: 'Cotizaciones', path: '/crm/quotes',       icon: FileText,   roles: [ROLES.ADMIN] },
       { name: 'Métricas CRM', path: '/sales/metricas',   icon: TrendingUp, roles: [ROLES.ADMIN] },
     ]
@@ -60,7 +59,6 @@ const NAV_STRUCTURE = [
       { name: 'Clientes',           path: '/crm/clients',         icon: Users2,     roles: [ROLES.SALES] },
       { name: 'Cotizaciones',       path: '/crm/quotes',          icon: FileText,   roles: [ROLES.SALES] },
       { name: 'Agenda',             path: '/crm/calendar',        icon: Calendar,   roles: [ROLES.SALES] },
-      { name: 'Seguimientos',       path: '/crm/seguimientos',    icon: Activity,   roles: [ROLES.SALES] },
       { name: 'Métricas Ventas',    path: '/sales/metricas',      icon: TrendingUp, roles: [ROLES.SALES] },
       { name: 'Catálogo Productos', path: '/crm/catalog',         icon: Package,    roles: [ROLES.SALES] },
       { name: 'Config. Pipeline',   path: '/crm/settings',        icon: Sliders,    roles: [ROLES.SALES] },

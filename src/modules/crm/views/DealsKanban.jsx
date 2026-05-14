@@ -5,7 +5,8 @@ import {
   MessageSquare, PhoneCall, Send, Coffee, CheckSquare, Clock,
   Edit3, Link2, ChevronDown, Award, AlertCircle, Search, Filter,
   BarChart2, Percent, SlidersHorizontal, ArrowRight, FileText,
-  ClipboardList, Hash, Loader2, MessageCircle, MapPin, ClipboardCheck
+  ClipboardList, Hash, Loader2, MessageCircle, MapPin, ClipboardCheck,
+  LayoutGrid, List, ExternalLink
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
@@ -92,19 +93,9 @@ export default function DealsKanban() {
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [viewMode, setViewMode] = useState('kanban'); // 'kanban' | 'list'
   const [filterStage, setFilterStage] = useState('ALL');
 
-  // Panel lateral
-  const [selectedDeal, setSelectedDeal] = useState(null);
-  const [panelTab, setPanelTab] = useState('info');
-  const [activities, setActivities] = useState([]);
-  const [activitiesLoading, setActivitiesLoading] = useState(false);
-  const [editForm, setEditForm] = useState({});
-  const [saving, setSaving] = useState(false);
-
-  // Actividad nueva
-  const [newActivity, setNewActivity] = useState({ type: 'NOTE', content: '', dueDate: '' });
-  const [addingActivity, setAddingActivity] = useState(false);
 
   // Modal nuevo deal
   const [showAddModal, setShowAddModal] = useState(false);
@@ -115,21 +106,11 @@ export default function DealsKanban() {
   const [draggedDeal, setDraggedDeal] = useState(null);
   const [dragOverStage, setDragOverStage] = useState(null);
 
-  // Modal cotización: confirmar datos cliente
-  const [quoteClientModal, setQuoteClientModal] = useState({ show: false, company: '', contactName: '', email: '', phone: '', rfc: '', address: '', saving: false });
-
-  // Modal razón de cierre (ganado/perdido)
+  // Modal razón de cierre (ganado/perdido — solo para drag & drop)
   const [closeModal, setCloseModal] = useState({ show: false, stage: '', reason: '', saving: false, pendingDrop: null });
 
-  // Seguimientos
+  // Seguimientos (para lista view)
   const [seguimientos, setSeguimientos] = useState([]);
-  const [seguimientosLoading, setSeguimientosLoading] = useState(false);
-  const [newSeg, setNewSeg] = useState({ dealId: '', observations: '', date: new Date().toISOString().split('T')[0] });
-  const [addingSeg, setAddingSeg] = useState(false);
-
-  // Actividades globales (sección independiente)
-  const [newGlobalAct, setNewGlobalAct] = useState({ type: 'NOTE', content: '', dueDate: '', dealId: '' });
-  const [addingGlobalAct, setAddingGlobalAct] = useState(false);
 
   // ── Fetches ──────────────────────────────────────────────────────────────────
   const fetchAll = useCallback(async () => {
@@ -150,63 +131,13 @@ export default function DealsKanban() {
     finally { setLoading(false); }
   }, []);
 
-  const fetchSeguimientos = async () => {
-    setSeguimientosLoading(true);
+  const fetchSeguimientos = useCallback(async () => {
     try {
-      const res = await apiFetch('/api/crm/seguimientos');
+      const res = await apiFetch('/api/crm/activity-feed?limit=1000');
       const data = await res.json();
       setSeguimientos(Array.isArray(data) ? data : []);
     } catch (err) { console.error(err); }
-    finally { setSeguimientosLoading(false); }
-  };
-
-  const addSeguimiento = async (e) => {
-    e.preventDefault();
-    if (!newSeg.dealId || !newSeg.observations.trim()) return;
-    setAddingSeg(true);
-    try {
-      const res = await apiFetch('/api/crm/deal-activities', {
-        method: 'POST',
-        body: JSON.stringify({
-          dealId: newSeg.dealId,
-          type: 'SEGUIMIENTO',
-          content: newSeg.observations,
-          dueDate: newSeg.date ? new Date(newSeg.date).toISOString() : null,
-          authorName: user?.name || 'Usuario',
-          status: 'PENDING',
-        })
-      });
-      if (res.ok) {
-        setNewSeg({ dealId: '', observations: '', date: new Date().toISOString().split('T')[0] });
-        fetchSeguimientos();
-      }
-    } catch (err) { console.error(err); }
-    finally { setAddingSeg(false); }
-  };
-
-  const addGlobalActivity = async (e) => {
-    e.preventDefault();
-    if (!newGlobalAct.content.trim() || !newGlobalAct.dealId) return;
-    setAddingGlobalAct(true);
-    try {
-      const res = await apiFetch('/api/crm/deal-activities', {
-        method: 'POST',
-        body: JSON.stringify({
-          dealId: newGlobalAct.dealId,
-          type: newGlobalAct.type,
-          content: newGlobalAct.content,
-          dueDate: newGlobalAct.dueDate ? new Date(newGlobalAct.dueDate).toISOString() : null,
-          authorName: user?.name || 'Usuario',
-          status: 'PENDING',
-        })
-      });
-      if (res.ok) {
-        setNewGlobalAct({ type: 'NOTE', content: '', dueDate: '', dealId: '' });
-        fetchSeguimientos();
-      }
-    } catch (err) { console.error(err); }
-    finally { setAddingGlobalAct(false); }
-  };
+  }, []);
 
   useEffect(() => {
     fetchAll();
@@ -246,63 +177,14 @@ export default function DealsKanban() {
     setShowAddModal(true);
   };
 
-  const fetchActivities = async (dealId) => {
-    setActivitiesLoading(true);
-    try {
-      const res = await apiFetch(`/api/crm/deal-activities?dealId=${dealId}`);
-      const data = await res.json();
-      setActivities(Array.isArray(data) ? data : []);
-    } catch (err) { console.error(err); }
-    finally { setActivitiesLoading(false); }
-  };
+  // ── Navegar al detalle del deal ──────────────────────────────────────────────
+  const openDeal = (deal) => navigate(`/crm/deals/${deal.id}`);
 
-  // ── Seleccionar deal ─────────────────────────────────────────────────────────
-  const openDeal = (deal) => {
-    setSelectedDeal(deal);
-    setEditForm({
-      title: deal.title || '',
-      value: deal.value || 0,
-      company: deal.company || '',
-      contactName: deal.contactName || '',
-      contactEmail: deal.contactEmail || '',
-      contactPhone: deal.contactPhone || '',
-      clientId: deal.clientId || '',
-      assignedToId: deal.assignedToId || '',
-      stage: deal.stage || 'QUALIFICATION',
-      probability: deal.probability ?? stageMap[deal.stage]?.prob ?? 10,
-      expectedClose: deal.expectedClose ? deal.expectedClose.split('T')[0] : '',
-      source: deal.source || 'Web',
-      description: deal.description || '',
-      notes: deal.notes || ''
-    });
-    setPanelTab('info');
-    fetchActivities(deal.id);
-  };
-
-  const closeDeal = () => { setSelectedDeal(null); setActivities([]); };
-
-  // ── Guardar edición del deal ─────────────────────────────────────────────────
-  const saveDeal = async () => {
-    if (!selectedDeal) return;
-    setSaving(true);
-    try {
-      const res = await apiFetch('/api/crm/deals', {
-        method: 'PUT',
-        body: JSON.stringify({ id: selectedDeal.id, ...editForm })
-      });
-      if (res.ok) {
-        const updated = await res.json();
-        setDeals(prev => prev.map(d => d.id === updated.id ? updated : d));
-        setSelectedDeal(updated);
-      }
-    } catch (err) { console.error(err); }
-    finally { setSaving(false); }
-  };
-
-  // ── Guardar etapa (con razón de cierre opcional) ─────────────────────────────
+  // ── Guardar etapa (drag & drop) ──────────────────────────────────────────────
+  const [savingStage, setSavingStage] = useState(false);
   const applyStageChange = async (dealId, newStage, closeReason = null) => {
-    const prob = stageMap[newStage]?.prob ?? editForm.probability;
-    setSaving(true);
+    const prob = stageMap[newStage]?.prob ?? 0;
+    setSavingStage(true);
     try {
       const body = { id: dealId, stage: newStage, probability: prob };
       if (closeReason) body.closeReason = closeReason;
@@ -310,32 +192,16 @@ export default function DealsKanban() {
       if (res.ok) {
         const deal = await res.json();
         setDeals(prev => prev.map(d => d.id === deal.id ? deal : d));
-        if (selectedDeal?.id === deal.id) {
-          setSelectedDeal(deal);
-          setEditForm(f => ({ ...f, stage: deal.stage, probability: deal.probability }));
-        }
       }
     } catch (err) { console.error(err); }
-    finally { setSaving(false); }
-  };
-
-  // ── Auto-guardar al cambiar etapa en el panel ────────────────────────────────
-  const changeStageInPanel = (newStage) => {
-    setEditForm(f => ({ ...f, stage: newStage, probability: stageMap[newStage]?.prob ?? f.probability }));
-    if (!selectedDeal) return;
-    if (newStage === 'CLOSED_WON' || newStage === 'CLOSED_LOST') {
-      setCloseModal({ show: true, stage: newStage, reason: '', saving: false, pendingDrop: null });
-    } else {
-      applyStageChange(selectedDeal.id, newStage);
-    }
+    finally { setSavingStage(false); }
   };
 
   // ── Submit modal razón de cierre ─────────────────────────────────────────────
   const handleCloseReasonSubmit = async (e) => {
     e.preventDefault();
     setCloseModal(prev => ({ ...prev, saving: true }));
-    const dealId = closeModal.pendingDrop?.id || selectedDeal?.id;
-    await applyStageChange(dealId, closeModal.stage, closeModal.reason);
+    await applyStageChange(closeModal.pendingDrop.id, closeModal.stage, closeModal.reason);
     setCloseModal({ show: false, stage: '', reason: '', saving: false, pendingDrop: null });
   };
 
@@ -363,7 +229,6 @@ export default function DealsKanban() {
       const res = await apiFetch('/api/crm/deals', { method: 'DELETE', body: JSON.stringify({ id: deal.id }) });
       if (res.ok) {
         setDeals(prev => prev.filter(d => d.id !== deal.id));
-        if (selectedDeal?.id === deal.id) closeDeal();
       }
     } catch (err) { console.error(err); }
   };
@@ -381,118 +246,6 @@ export default function DealsKanban() {
     }
   };
 
-  // ── Cambiar estado de actividad (semáforo) ───────────────────────────────────
-  const updateActivityStatus = async (actId, newStatus) => {
-    setActivities(prev => prev.map(a => a.id === actId ? { ...a, status: newStatus } : a));
-    setSeguimientos(prev => prev.map(a => a.id === actId ? { ...a, status: newStatus } : a));
-    try {
-      await apiFetch('/api/crm/deal-activities', {
-        method: 'PUT',
-        body: JSON.stringify({ id: actId, status: newStatus })
-      });
-    } catch (err) { console.error(err); }
-  };
-
-  // ── Agregar actividad ────────────────────────────────────────────────────────
-  const addActivity = async (e) => {
-    e.preventDefault();
-    if (!newActivity.content.trim() || !selectedDeal) return;
-    setAddingActivity(true);
-    try {
-      const res = await apiFetch('/api/crm/deal-activities', {
-        method: 'POST',
-        body: JSON.stringify({
-          dealId: selectedDeal.id, ...newActivity,
-          authorName: user?.name || 'Usuario',
-          status: 'PENDING',
-        })
-      });
-      if (res.ok) {
-        setNewActivity({ type: 'NOTE', content: '', dueDate: '' });
-        fetchActivities(selectedDeal.id);
-        setDeals(prev => prev.map(d => d.id === selectedDeal.id ? { ...d, _count: { activities: (d._count?.activities || 0) + 1 } } : d));
-      }
-    } catch (err) { console.error(err); }
-    finally { setAddingActivity(false); }
-  };
-
-  // ── Generar Cotización desde pipeline ───────────────────────────────────────
-  const openQuoteModal = () => {
-    if (!selectedDeal) return;
-    // Intentar recuperar RFC y dirección desde el cliente vinculado
-    const linkedClient = clients.find(c => c.id === (editForm.clientId || selectedDeal.clientId));
-    setQuoteClientModal({
-      show: true,
-      company:     editForm.company      || selectedDeal.company      || '',
-      contactName: editForm.contactName  || selectedDeal.contactName  || '',
-      email:       editForm.contactEmail || selectedDeal.contactEmail || '',
-      phone:       editForm.contactPhone || selectedDeal.contactPhone || '',
-      rfc:         linkedClient?.rfc     || '',
-      address:     linkedClient?.address || '',
-      saving: false,
-    });
-  };
-
-  const handleConfirmQuoteClient = async (e) => {
-    e.preventDefault();
-    setQuoteClientModal(prev => ({ ...prev, saving: true }));
-    try {
-      // Buscar cliente existente por email o usar el vinculado
-      let clientId = editForm.clientId || selectedDeal.clientId || null;
-
-      if (!clientId && quoteClientModal.email) {
-        const searchRes = await apiFetch(`/api/crm/clients`);
-        const allClients = await searchRes.json();
-        const found = (Array.isArray(allClients) ? allClients : []).find(
-          c => c.email?.toLowerCase() === quoteClientModal.email.toLowerCase()
-        );
-        if (found) {
-          clientId = found.id;
-        } else {
-          // Crear cliente
-          const createRes = await apiFetch('/api/crm/clients', {
-            method: 'POST',
-            body: JSON.stringify({
-              companyName:  quoteClientModal.company || quoteClientModal.contactName || 'Sin nombre',
-              contactName:  quoteClientModal.contactName,
-              email:        quoteClientModal.email,
-              phone:        quoteClientModal.phone,
-              rfc:          quoteClientModal.rfc     || '',
-              address:      quoteClientModal.address || '',
-            })
-          });
-          if (createRes.ok) {
-            const newClient = await createRes.json();
-            clientId = newClient.id;
-            setClients(prev => [...prev, newClient]);
-          }
-        }
-      }
-
-      setQuoteClientModal(prev => ({ ...prev, show: false, saving: false }));
-      navigate('/crm/quotes', {
-        state: {
-          fromDeal: {
-            id:           selectedDeal.id,
-            title:        selectedDeal.title,
-            contactName:  quoteClientModal.contactName,
-            company:      quoteClientModal.company,
-            email:        quoteClientModal.email,
-            phone:        quoteClientModal.phone,
-            rfc:          quoteClientModal.rfc,
-            address:      quoteClientModal.address,
-            value:        selectedDeal.value,
-            assignedToId: selectedDeal.assignedToId || null,
-            stage:        selectedDeal.stage || editForm.stage,
-          },
-          clientId,
-        }
-      });
-    } catch (err) {
-      console.error(err);
-      setQuoteClientModal(prev => ({ ...prev, saving: false }));
-    }
-  };
 
   // ── Filtrado y métricas ──────────────────────────────────────────────────────
   const filteredDeals = deals.filter(d => {
@@ -516,7 +269,7 @@ export default function DealsKanban() {
   return (
     <div className="flex h-full overflow-hidden" style={{ height: 'calc(100vh - 4rem)' }}>
       {/* ── Área principal ────────────────────────────────────────────────── */}
-      <div className={cn("flex flex-col flex-1 overflow-hidden transition-all duration-300", selectedDeal ? 'w-[calc(100%-420px)]' : 'w-full')}>
+      <div className="flex flex-col flex-1 overflow-hidden w-full">
 
         {/* ── Header ──────────────────────────────────────────────────────── */}
         <div className="flex-shrink-0 px-6 pt-6 pb-4 bg-white border-b border-gray-100">
@@ -527,12 +280,37 @@ export default function DealsKanban() {
                 <Target className="h-3 w-3 text-primary" /> Tratos / Oportunidades — OleaControls CRM
               </p>
             </div>
-            <button
-              onClick={() => setShowAddModal(true)}
-              className="flex items-center gap-2 bg-gray-900 text-white px-5 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-primary transition-all shadow-lg"
-            >
-              <Plus className="h-4 w-4" /> Nuevo Trato
-            </button>
+            <div className="flex items-center gap-2">
+              {/* Toggle vista */}
+              <div className="flex items-center bg-gray-100 rounded-xl p-1 gap-1">
+                <button
+                  onClick={() => setViewMode('kanban')}
+                  className={cn(
+                    'flex items-center gap-1.5 px-3 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all',
+                    viewMode === 'kanban' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-400 hover:text-gray-600'
+                  )}
+                  title="Vista Kanban"
+                >
+                  <LayoutGrid className="h-3.5 w-3.5" /> Kanban
+                </button>
+                <button
+                  onClick={() => setViewMode('list')}
+                  className={cn(
+                    'flex items-center gap-1.5 px-3 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all',
+                    viewMode === 'list' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-400 hover:text-gray-600'
+                  )}
+                  title="Vista Lista"
+                >
+                  <List className="h-3.5 w-3.5" /> Lista
+                </button>
+              </div>
+              <button
+                onClick={() => setShowAddModal(true)}
+                className="flex items-center gap-2 bg-gray-900 text-white px-5 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-primary transition-all shadow-lg"
+              >
+                <Plus className="h-4 w-4" /> Nuevo Trato
+              </button>
+            </div>
           </div>
 
           {/* KPIs */}
@@ -578,183 +356,80 @@ export default function DealsKanban() {
           </div>
         </div>
 
-        {/* ── Kanban Board ────────────────────────────────────────────────── */}
-        <div className="flex-1 overflow-y-auto">
-          <div className="h-[56vh] min-h-[380px] overflow-x-auto overflow-y-hidden">
-            <div className="flex gap-3 h-full p-4 pb-6 min-w-max">
-            {dealStages.map((stage) => {
-              const stageDeals = filteredDeals.filter(d => d.stage === stage.id);
-              const stageValue = stageDeals.reduce((s, d) => s + (d.value || 0), 0);
-              const isOver = dragOverStage === stage.id;
+        {/* ── Board / Lista ───────────────────────────────────────────────── */}
+        {viewMode === 'kanban' ? (
+          <div className="flex-1 overflow-hidden">
+            <div className="h-full overflow-x-auto overflow-y-hidden">
+              <div className="flex gap-3 h-full p-4 pb-4 min-w-max">
+              {dealStages.map((stage) => {
+                const stageDeals = filteredDeals.filter(d => d.stage === stage.id);
+                const stageValue = stageDeals.reduce((s, d) => s + (d.value || 0), 0);
+                const isOver = dragOverStage === stage.id;
 
-              return (
-                <div
-                  key={stage.id}
-                  className={cn(
-                    "w-64 flex flex-col flex-shrink-0 rounded-3xl transition-all duration-200",
-                    stage.bg,
-                    isOver ? `ring-2 ${stage.ring} scale-[1.01]` : ''
-                  )}
-                  onDragOver={e => { e.preventDefault(); setDragOverStage(stage.id); }}
-                  onDragLeave={() => setDragOverStage(null)}
-                  onDrop={() => handleDrop(stage.id)}
-                >
-                  {/* Cabecera columna */}
-                  <div className="p-3 space-y-1 sticky top-0 bg-white/80 backdrop-blur-sm rounded-t-3xl border-b border-black/5">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <div className={cn("w-2.5 h-2.5 rounded-full", stage.color)} />
-                        <span className="text-[9px] font-black text-gray-800 uppercase tracking-wider leading-tight">{stage.label}</span>
-                      </div>
-                      <span className="text-[8px] font-black bg-white rounded-lg px-2 py-0.5 text-gray-500 shadow-sm">{stageDeals.length}</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className={cn("text-[8px] font-bold", stage.text)}>{stage.prob}% prob.</span>
-                      <span className="text-[8px] font-black text-gray-700">{fmt(stageValue)}</span>
-                    </div>
-                  </div>
-
-                  {/* Cards */}
-                  <div className="flex-1 overflow-y-auto p-2 space-y-2 min-h-[200px]">
-                    <AnimatePresence>
-                      {stageDeals.map(deal => (
-                        <DealCard
-                          key={deal.id}
-                          deal={deal}
-                          stage={stage}
-                          isSelected={selectedDeal?.id === deal.id}
-                          onClick={() => openDeal(deal)}
-                          onDelete={() => deleteDeal(deal)}
-                          onDragStart={() => setDraggedDeal(deal)}
-                          onDragEnd={() => setDraggedDeal(null)}
-                        />
-                      ))}
-                    </AnimatePresence>
-                    {stageDeals.length === 0 && (
-                      <div className="h-20 flex items-center justify-center rounded-2xl border-2 border-dashed border-black/10">
-                        <p className="text-[8px] font-black text-gray-300 uppercase tracking-widest">Arrastra aquí</p>
-                      </div>
+                return (
+                  <div
+                    key={stage.id}
+                    className={cn(
+                      "w-64 h-full flex flex-col flex-shrink-0 rounded-3xl transition-all duration-200",
+                      stage.bg,
+                      isOver ? `ring-2 ${stage.ring} scale-[1.01]` : ''
                     )}
+                    onDragOver={e => { e.preventDefault(); setDragOverStage(stage.id); }}
+                    onDragLeave={() => setDragOverStage(null)}
+                    onDrop={() => handleDrop(stage.id)}
+                  >
+                    {/* Cabecera columna */}
+                    <div className="p-3 space-y-1 sticky top-0 bg-white/80 backdrop-blur-sm rounded-t-3xl border-b border-black/5">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className={cn("w-2.5 h-2.5 rounded-full", stage.color)} />
+                          <span className="text-[9px] font-black text-gray-800 uppercase tracking-wider leading-tight">{stage.label}</span>
+                        </div>
+                        <span className="text-[8px] font-black bg-white rounded-lg px-2 py-0.5 text-gray-500 shadow-sm">{stageDeals.length}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className={cn("text-[8px] font-bold", stage.text)}>{stage.prob}% prob.</span>
+                        <span className="text-[8px] font-black text-gray-700">{fmt(stageValue)}</span>
+                      </div>
+                    </div>
+
+                    {/* Cards */}
+                    <div className="flex-1 min-h-0 overflow-y-auto p-2 space-y-2">
+                      <AnimatePresence>
+                        {stageDeals.map(deal => (
+                          <DealCard
+                            key={deal.id}
+                            deal={deal}
+                            stage={stage}
+
+                            onClick={() => openDeal(deal)}
+                            onDelete={() => deleteDeal(deal)}
+                            onDragStart={() => setDraggedDeal(deal)}
+                            onDragEnd={() => setDraggedDeal(null)}
+                          />
+                        ))}
+                      </AnimatePresence>
+                      {stageDeals.length === 0 && (
+                        <div className="h-20 flex items-center justify-center rounded-2xl border-2 border-dashed border-black/10">
+                          <p className="text-[8px] font-black text-gray-300 uppercase tracking-widest">Arrastra aquí</p>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
+              </div>
             </div>
           </div>
-
-          {/* ── Seguimientos ─────────────────────────────────────────────── */}
-          <SeguimientosSection
+        ) : (
+          <PipelineListView
+            filteredDeals={filteredDeals}
+            dealStages={dealStages}
             seguimientos={seguimientos}
-            loading={seguimientosLoading}
-            newSeg={newSeg}
-            setNewSeg={setNewSeg}
-            deals={deals.filter(d => !['CLOSED_WON', 'CLOSED_LOST'].includes(d.stage))}
-            onAdd={addSeguimiento}
-            adding={addingSeg}
+            onDeal={openDeal}
           />
-
-          {/* ── Actividades ──────────────────────────────────────────────── */}
-          <ActividadesSection
-            actividades={seguimientos.filter(s => s.type !== 'SEGUIMIENTO' && s.type !== 'STAGE_CHANGE')}
-            loading={seguimientosLoading}
-            newAct={newGlobalAct}
-            setNewAct={setNewGlobalAct}
-            deals={deals}
-            onAdd={addGlobalActivity}
-            adding={addingGlobalAct}
-            onUpdateStatus={updateActivityStatus}
-          />
-        </div>
-      </div>
-
-      {/* ── Panel lateral (deal detail) ───────────────────────────────────── */}
-      <AnimatePresence>
-        {selectedDeal && (
-          <motion.div
-            initial={{ x: 420, opacity: 0 }}
-            animate={{ x: 0, opacity: 1 }}
-            exit={{ x: 420, opacity: 0 }}
-            transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-            className="w-[420px] flex-shrink-0 bg-white border-l border-gray-100 flex flex-col overflow-hidden shadow-2xl"
-          >
-            {/* Panel header */}
-            <div className="p-5 border-b border-gray-100 flex-shrink-0">
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex-1 min-w-0">
-                  <input
-                    className="w-full text-lg font-black text-gray-900 bg-transparent outline-none border-b-2 border-transparent focus:border-primary transition-colors pb-1 truncate"
-                    value={editForm.title || ''}
-                    onChange={e => setEditForm(f => ({ ...f, title: e.target.value }))}
-                    onBlur={saveDeal}
-                  />
-                  <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest mt-1">{editForm.company || 'Sin empresa'}</p>
-                </div>
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  <button
-                    onClick={saveDeal}
-                    disabled={saving}
-                    className="p-2 bg-primary/10 text-primary rounded-xl hover:bg-primary hover:text-white transition-all"
-                    title="Guardar cambios"
-                  >
-                    <Save className="h-4 w-4" />
-                  </button>
-                  <button onClick={closeDeal} className="p-2 hover:bg-gray-100 rounded-xl text-gray-400">
-                    <X className="h-4 w-4" />
-                  </button>
-                </div>
-              </div>
-
-              {/* Stage selector visual */}
-              <div className="mt-3">
-                <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest block mb-1.5">Etapa del Pipeline</label>
-                <select
-                  className={cn(
-                    "w-full text-[10px] font-black uppercase tracking-widest rounded-xl px-4 py-3 border-2 outline-none cursor-pointer transition-all",
-                    stageMap[editForm.stage]?.ring, stageMap[editForm.stage]?.text,
-                    stageMap[editForm.stage]?.bg
-                  )}
-                  value={editForm.stage}
-                  onChange={e => changeStageInPanel(e.target.value)}
-                >
-                  {dealStages.map(s => (
-                    <option key={s.id} value={s.id}>{s.label} ({s.prob}%)</option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Progress bar */}
-              <div className="mt-3">
-                <div className="flex justify-between items-center mb-1">
-                  <span className="text-[8px] font-black text-gray-400 uppercase">Probabilidad</span>
-                  <span className={cn("text-[10px] font-black", stageMap[editForm.stage]?.text)}>{editForm.probability}%</span>
-                </div>
-                <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                  <motion.div
-                    className={cn("h-full rounded-full", stageMap[editForm.stage]?.color)}
-                    animate={{ width: `${editForm.probability}%` }}
-                    transition={{ duration: 0.4 }}
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Panel content */}
-            <div className="flex-1 overflow-y-auto p-5">
-              <DealInfoPanel
-                editForm={editForm}
-                setEditForm={setEditForm}
-                clients={clients}
-                employees={employees}
-                onSave={saveDeal}
-                saving={saving}
-                deal={selectedDeal}
-                onDelete={() => deleteDeal(selectedDeal)}
-                onGenerateQuote={openQuoteModal}
-              />
-            </div>
-          </motion.div>
         )}
-      </AnimatePresence>
+      </div>
 
       {/* ── Modal: Nuevo Trato ──────────────────────────────────────────────── */}
       <AnimatePresence>
@@ -915,7 +590,7 @@ export default function DealsKanban() {
                       {closeModal.stage === 'CLOSED_WON' ? '¿Por qué se ganó?' : '¿Por qué se perdió?'}
                     </h3>
                     <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mt-1">
-                      {closeModal.pendingDrop?.title || selectedDeal?.title}
+                      {closeModal.pendingDrop?.title}
                     </p>
                   </div>
                   <button type="button" onClick={() => setCloseModal(prev => ({ ...prev, show: false }))} className="p-2 hover:bg-gray-100 rounded-full">
@@ -968,116 +643,12 @@ export default function DealsKanban() {
         )}
       </AnimatePresence>
 
-      {/* ── Modal: Confirmar datos de cliente para cotización ───────────────── */}
-      <AnimatePresence>
-        {quoteClientModal.show && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-50 flex items-center justify-center p-6">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-[2rem] shadow-2xl w-full max-w-md"
-            >
-              <form onSubmit={handleConfirmQuoteClient} className="p-7 space-y-5">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <h3 className="text-lg font-black text-gray-900 uppercase italic tracking-tighter flex items-center gap-2">
-                      <FileText className="h-5 w-5 text-emerald-600" /> Generar Cotización
-                    </h3>
-                    <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mt-1">Confirma o completa los datos del cliente</p>
-                  </div>
-                  <button type="button" onClick={() => setQuoteClientModal(prev => ({ ...prev, show: false }))} className="p-2 hover:bg-gray-100 rounded-full">
-                    <X className="h-4 w-4 text-gray-400" />
-                  </button>
-                </div>
-
-                <div className="space-y-3 p-4 bg-emerald-50/50 rounded-2xl border border-emerald-100">
-                  <p className="text-[8px] font-black text-emerald-700 uppercase tracking-widest">Datos del Cliente</p>
-                  <div>
-                    <label className="text-[8px] font-black text-gray-500 uppercase tracking-widest block mb-1">Empresa *</label>
-                    <input
-                      required
-                      className="w-full bg-white rounded-xl px-4 py-3 font-bold text-xs outline-none border border-gray-200 focus:ring-2 ring-emerald-200"
-                      placeholder="Nombre de la empresa"
-                      value={quoteClientModal.company}
-                      onChange={e => setQuoteClientModal(prev => ({ ...prev, company: e.target.value }))}
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[8px] font-black text-gray-500 uppercase tracking-widest block mb-1">Nombre del Contacto</label>
-                    <input
-                      className="w-full bg-white rounded-xl px-4 py-3 font-bold text-xs outline-none border border-gray-200 focus:ring-2 ring-emerald-200"
-                      placeholder="Nombre completo"
-                      value={quoteClientModal.contactName}
-                      onChange={e => setQuoteClientModal(prev => ({ ...prev, contactName: e.target.value }))}
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="text-[8px] font-black text-gray-500 uppercase tracking-widest block mb-1">Email *</label>
-                      <input
-                        required
-                        type="email"
-                        className="w-full bg-white rounded-xl px-4 py-3 font-bold text-xs outline-none border border-gray-200 focus:ring-2 ring-emerald-200"
-                        placeholder="correo@empresa.com"
-                        value={quoteClientModal.email}
-                        onChange={e => setQuoteClientModal(prev => ({ ...prev, email: e.target.value }))}
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[8px] font-black text-gray-500 uppercase tracking-widest block mb-1">Teléfono</label>
-                      <input
-                        className="w-full bg-white rounded-xl px-4 py-3 font-bold text-xs outline-none border border-gray-200 focus:ring-2 ring-emerald-200"
-                        placeholder="+52 55 0000 0000"
-                        value={quoteClientModal.phone}
-                        onChange={e => setQuoteClientModal(prev => ({ ...prev, phone: e.target.value }))}
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="text-[8px] font-black text-gray-500 uppercase tracking-widest block mb-1">RFC</label>
-                    <input
-                      className="w-full bg-white rounded-xl px-4 py-3 font-bold text-xs outline-none border border-gray-200 focus:ring-2 ring-emerald-200 uppercase"
-                      placeholder="XXXX000000XXX"
-                      maxLength={13}
-                      value={quoteClientModal.rfc}
-                      onChange={e => setQuoteClientModal(prev => ({ ...prev, rfc: e.target.value.toUpperCase() }))}
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[8px] font-black text-gray-500 uppercase tracking-widest block mb-1">Dirección</label>
-                    <input
-                      className="w-full bg-white rounded-xl px-4 py-3 font-bold text-xs outline-none border border-gray-200 focus:ring-2 ring-emerald-200"
-                      placeholder="Calle, Colonia, Ciudad, CP"
-                      value={quoteClientModal.address}
-                      onChange={e => setQuoteClientModal(prev => ({ ...prev, address: e.target.value }))}
-                    />
-                  </div>
-                </div>
-
-                <p className="text-[9px] text-gray-500 font-bold">
-                  Si el cliente ya existe (mismo email) se vinculará automáticamente. Si no, se creará uno nuevo.
-                </p>
-
-                <button
-                  type="submit"
-                  disabled={quoteClientModal.saving}
-                  className="w-full bg-emerald-600 text-white py-4 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-emerald-700 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
-                >
-                  <FileText className="h-4 w-4" />
-                  {quoteClientModal.saving ? 'Procesando...' : 'Continuar a Cotización'}
-                </button>
-              </form>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
     </div>
   );
 }
 
 // ── Deal Card ──────────────────────────────────────────────────────────────────
-function DealCard({ deal, stage, isSelected, onClick, onDelete, onDragStart, onDragEnd }) {
+function DealCard({ deal, stage, onClick, onDelete, onDragStart, onDragEnd }) {
   // Días hasta el cierre
   const daysUntilClose = deal.expectedClose
     ? Math.ceil((new Date(deal.expectedClose) - Date.now()) / 86400000)
@@ -1105,7 +676,7 @@ function DealCard({ deal, stage, isSelected, onClick, onDelete, onDragStart, onD
       onClick={onClick}
       className={cn(
         "bg-white rounded-2xl border cursor-pointer transition-all group select-none overflow-hidden",
-        isSelected ? `border-2 ${stage.ring} shadow-lg` : 'border-gray-100 hover:shadow-lg hover:border-gray-200'
+        'border-gray-100 hover:shadow-lg hover:border-gray-200'
       )}
     >
       {/* Barra de color de etapa */}
@@ -1515,6 +1086,181 @@ const TIPO_META = {
   QUOTE:       { label: 'Cotización',  color: 'bg-orange-100 text-orange-700' },
   STAGE_CHANGE:{ label: 'Cambio etapa',color: 'bg-violet-100 text-violet-700' },
 };
+
+// ── Pipeline List View ────────────────────────────────────────────────────────
+function PipelineListView({ filteredDeals, dealStages, seguimientos, onDeal }) {
+  const [openStages, setOpenStages] = React.useState(() => new Set(dealStages.map(s => s.id)));
+
+  const toggleStage = (id) => setOpenStages(prev => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
+
+  const actCountByDeal = React.useMemo(() => {
+    const counts = {};
+    seguimientos.forEach(a => { if (a.dealId) counts[a.dealId] = (counts[a.dealId] || 0) + 1; });
+    return counts;
+  }, [seguimientos]);
+
+  const lastActByDeal = React.useMemo(() => {
+    const last = {};
+    seguimientos.forEach(a => {
+      if (!a.dealId) return;
+      if (!last[a.dealId] || new Date(a.createdAt) > new Date(last[a.dealId].createdAt)) last[a.dealId] = a;
+    });
+    return last;
+  }, [seguimientos]);
+
+  const totalDeals = filteredDeals.length;
+
+  return (
+    <div className="flex-1 overflow-y-auto p-4 space-y-2">
+      {/* Summary bar */}
+      <div className="flex items-center gap-3 px-4 py-2.5 bg-gray-50 rounded-2xl mb-3">
+        <BarChart2 className="h-3.5 w-3.5 text-gray-400" />
+        <span className="text-[9px] font-black text-gray-500 uppercase tracking-widest">
+          {totalDeals} tratos · {fmt(filteredDeals.reduce((s, d) => s + (d.value || 0), 0))} en pipeline
+        </span>
+        <span className="ml-auto text-[8px] font-bold text-gray-400">Clic en un trato para ver detalles</span>
+      </div>
+
+      {dealStages.map(stage => {
+        const stageDeals = filteredDeals.filter(d => d.stage === stage.id);
+        if (stageDeals.length === 0) return null;
+        const isOpen = openStages.has(stage.id);
+        const stageValue = stageDeals.reduce((s, d) => s + (d.value || 0), 0);
+
+        return (
+          <div key={stage.id} className="rounded-2xl overflow-hidden border border-gray-100 bg-white shadow-sm">
+            {/* Stage header */}
+            <button
+              onClick={() => toggleStage(stage.id)}
+              className={cn('w-full flex items-center gap-3 px-4 py-3 text-left transition-all hover:brightness-[0.97]', stage.bg)}
+            >
+              <div className={cn('w-2.5 h-2.5 rounded-full flex-shrink-0', stage.color)} />
+              <span className={cn('text-[9px] font-black uppercase tracking-widest flex-1', stage.text)}>{stage.label}</span>
+              <span className="text-[8px] font-black bg-white/70 backdrop-blur-sm rounded-lg px-2 py-0.5 text-gray-600">
+                {stageDeals.length} {stageDeals.length === 1 ? 'trato' : 'tratos'}
+              </span>
+              <span className={cn('text-[10px] font-black', stage.text)}>{fmt(stageValue)}</span>
+              <span className="text-[8px] font-bold text-gray-400 bg-white/60 rounded-lg px-2 py-0.5">{stage.prob}%</span>
+              <ChevronDown className={cn('h-3.5 w-3.5 transition-transform flex-shrink-0 text-gray-400', !isOpen && '-rotate-90')} />
+            </button>
+
+            {/* Deal rows */}
+            {isOpen && (
+              <div className="divide-y divide-gray-50">
+                {stageDeals.map(deal => {
+                  const actCount = actCountByDeal[deal.id] || 0;
+                  const lastAct = lastActByDeal[deal.id];
+                  const daysUntil = deal.expectedClose
+                    ? Math.ceil((new Date(deal.expectedClose) - Date.now()) / 86400000)
+                    : null;
+                  const closeColor = daysUntil === null ? 'text-gray-400'
+                    : daysUntil < 0 ? 'text-red-500' : daysUntil <= 7 ? 'text-amber-500' : 'text-gray-400';
+
+                  return (
+                    <button
+                      key={deal.id}
+                      onClick={() => onDeal(deal)}
+                      className="w-full text-left px-4 py-3 hover:bg-gray-50/80 transition-colors group flex items-center gap-3"
+                    >
+                      {/* Color strip */}
+                      <div className={cn('w-1 self-stretch rounded-full flex-shrink-0', stage.color)} />
+
+                      {/* Main block */}
+                      <div className="flex-1 min-w-0 grid grid-cols-[1fr_auto] gap-3 items-center">
+                        <div className="min-w-0">
+                          <p className="text-[11px] font-black text-gray-900 leading-tight truncate group-hover:text-primary transition-colors">
+                            {deal.title}
+                          </p>
+                          <div className="flex items-center gap-3 mt-0.5 flex-wrap">
+                            {deal.company && (
+                              <span className="text-[8px] font-bold text-gray-500 flex items-center gap-1 truncate max-w-[140px]">
+                                <Building2 className="h-2 w-2 flex-shrink-0 text-gray-400" />{deal.company}
+                              </span>
+                            )}
+                            {deal.contactName && (
+                              <span className="text-[8px] font-bold text-gray-400 flex items-center gap-1 truncate max-w-[120px]">
+                                <User className="h-2 w-2 flex-shrink-0" />{deal.contactName}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 mt-1 flex-wrap">
+                            {deal.expectedClose && (
+                              <span className={cn('text-[7px] font-black flex items-center gap-0.5', closeColor)}>
+                                <Calendar className="h-2 w-2" />
+                                {fmtDate(deal.expectedClose)}
+                                {daysUntil !== null && (
+                                  <span className="ml-0.5">
+                                    {daysUntil < 0 ? `(vencido ${Math.abs(daysUntil)}d)` : daysUntil === 0 ? '(hoy)' : `(${daysUntil}d)`}
+                                  </span>
+                                )}
+                              </span>
+                            )}
+                            {deal.source && (
+                              <span className="text-[7px] font-black text-gray-300 bg-gray-50 px-1.5 py-0.5 rounded-lg">{deal.source}</span>
+                            )}
+                            {lastAct && (
+                              <span className="text-[7px] text-gray-400 font-bold flex items-center gap-0.5">
+                                <Clock className="h-2 w-2" /> {timeAgo(lastAct.createdAt)}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Right: value + badges */}
+                        <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
+                          <span className={cn('text-sm font-black', stage.text)}>{fmt(deal.value)}</span>
+                          <div className="flex items-center gap-1.5">
+                            {deal.assignedTo && (
+                              <span
+                                className={cn('h-5 w-5 rounded-full flex items-center justify-center text-[7px] font-black text-white flex-shrink-0', stage.color)}
+                                title={deal.assignedTo.name}
+                              >
+                                {deal.assignedTo.name.charAt(0)}
+                              </span>
+                            )}
+                            {actCount > 0 && (
+                              <span className="text-[7px] font-black text-gray-500 flex items-center gap-0.5 bg-gray-100 px-1.5 py-0.5 rounded-lg">
+                                <Activity className="h-2 w-2" />{actCount}
+                              </span>
+                            )}
+                            <span className="text-[7px] font-black text-gray-400 bg-gray-50 px-1.5 py-0.5 rounded-lg">
+                              {deal.probability ?? stage.prob}%
+                            </span>
+                          </div>
+                          {/* Probability mini-bar */}
+                          <div className="h-1 w-16 bg-gray-100 rounded-full overflow-hidden">
+                            <div
+                              className={cn('h-full rounded-full', stage.color)}
+                              style={{ width: `${deal.probability ?? stage.prob}%` }}
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Chevron */}
+                      <ChevronRight className="h-3.5 w-3.5 text-gray-300 group-hover:text-primary transition-colors flex-shrink-0" />
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      })}
+
+      {filteredDeals.length === 0 && (
+        <div className="flex flex-col items-center justify-center py-24 gap-3">
+          <Target className="h-10 w-10 text-gray-200" />
+          <p className="text-[9px] font-black text-gray-300 uppercase tracking-widest">No hay tratos que coincidan</p>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function ActividadesSection({ actividades, loading, newAct, setNewAct, deals, onAdd, adding, onUpdateStatus }) {
   const typeMap = Object.fromEntries(ACTIVITY_TYPES.map(t => [t.id, t]));

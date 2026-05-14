@@ -359,10 +359,13 @@ model Quote {
   benefits      String?  @default("")             // Beneficios
 
   pdfUrl        String?  // Link a R2
-  
+
+  dealId        String?
+  deal          Deal?    @relation(fields: [dealId], references: [id], onDelete: SetNull)
+
   creatorId     String
   creator       Employee @relation("QuoteCreator", fields: [creatorId], references: [id])
-  
+
   sellerId      String?  // El colaborador que cerró la venta
   seller        Employee? @relation("QuoteSeller", fields: [sellerId], references: [id])
 
@@ -419,6 +422,7 @@ model Deal {
   updatedAt     DateTime @updatedAt
 
   activities    DealActivity[]
+  quotes        Quote[]
 
   @@index([assignedToId, createdAt])
   @@index([stage])

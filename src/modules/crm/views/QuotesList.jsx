@@ -684,12 +684,12 @@ export default function QuotesList() {
         clientId = createdClient.id;
       }
 
+      const targetDealId = fromDealMeta?.id || newQuote.linkedDealId || null;
       const res = await apiFetch('/api/quotes', {
-        method: 'POST', body: JSON.stringify({ ...newQuote, clientId, creatorId: user.id })
+        method: 'POST', body: JSON.stringify({ ...newQuote, clientId, creatorId: user.id, dealId: targetDealId })
       });
       if (res.ok) {
         // ── Registrar actividad en el trato vinculado ────────────────────────
-        const targetDealId = fromDealMeta?.id || newQuote.linkedDealId || null;
         if (targetDealId) {
           const linkedDeal = fromDealMeta || deals.find(d => d.id === targetDealId);
           const isRecot = fromDealMeta?.stage === 'RECOTIZACION' || newQuote.projectPhase === 'RECOTIZACION';

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   DollarSign, Target, TrendingUp, Users, Award, Percent,
   BarChart2, Activity, Calendar, ChevronRight, ChevronDown, RefreshCw,
@@ -272,7 +273,7 @@ function SellerDetailModal({ data, color, rank, allDeals, allActivities, allQuot
                 <table style={{ width:'100%', borderCollapse:'collapse' }}>
                   <thead>
                     <tr style={{ background:'#f8fafc', borderBottom:'2px solid #e2e8f0' }}>
-                      {['Trato','Empresa','Etapa','Valor','Prob.','Cierre Esp.','Actividades'].map(h => (
+                      {['Trato','Empresa','Etapa','Valor','Prob.','Cierre Esp.','Actos','Motivo de cierre'].map(h => (
                         <th key={h} style={{ padding:'10px 16px', textAlign:'left', fontSize:8, fontWeight:800, color:'#94a3b8', textTransform:'uppercase', letterSpacing:'0.08em', whiteSpace:'nowrap' }}>{h}</th>
                       ))}
                     </tr>
@@ -281,11 +282,12 @@ function SellerDetailModal({ data, color, rank, allDeals, allActivities, allQuot
                     {sellerDeals.map(d => {
                       const isWon  = d.stage === 'CLOSED_WON';
                       const isLost = d.stage === 'CLOSED_LOST';
+                      const isClosed = isWon || isLost;
                       return (
                         <tr key={d.id} style={{ borderBottom:'1px solid #f8fafc' }}
                           onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'}
                           onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                          <td style={{ padding:'10px 16px', fontWeight:800, color:'#0f172a', fontSize:12 }}>{d.title}</td>
+                          <td style={{ padding:'10px 16px', fontWeight:800, color:'#0f172a', fontSize:12, maxWidth:160, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{d.title}</td>
                           <td style={{ padding:'10px 16px', fontSize:11, color:'#64748b', fontWeight:700 }}>{d.company || '—'}</td>
                           <td style={{ padding:'10px 16px' }}>
                             <span style={{ fontSize:8, fontWeight:800, padding:'3px 8px', borderRadius:7,
@@ -306,6 +308,13 @@ function SellerDetailModal({ data, color, rank, allDeals, allActivities, allQuot
                           </td>
                           <td style={{ padding:'10px 16px', fontWeight:900, fontSize:13, color:'#0f172a', textAlign:'center' }}>
                             {d._count?.activities ?? 0}
+                          </td>
+                          <td style={{ padding:'10px 16px', maxWidth:200 }}>
+                            {isClosed ? (
+                              d.closeReason
+                                ? <span title={d.closeReason} style={{ fontSize:11, fontWeight:600, color: isWon ? '#059669' : '#dc2626', display:'block', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', cursor:'help' }}>{d.closeReason}</span>
+                                : <span style={{ fontSize:10, fontWeight:600, color:'#cbd5e1', fontStyle:'italic' }}>Sin motivo</span>
+                            ) : <span style={{ color:'#e2e8f0' }}>—</span>}
                           </td>
                         </tr>
                       );
@@ -549,27 +558,6 @@ function SellerCard({ data, color, rank }) {
   );
 }
 
-function MiniKPI({ label, value, icon: Icon, hex, bg }) {
-  return (
-    <div style={{ background: bg, borderRadius: 12, padding: '12px 14px', border: `1px solid ${hex}18` }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 8 }}>
-        <Icon style={{ width: 11, height: 11, color: hex }} />
-        <span style={{ fontSize: 8, fontWeight: 700, color: hex, textTransform: 'uppercase', letterSpacing: '0.07em' }}>{label}</span>
-      </div>
-      <p style={{ fontSize: 22, fontWeight: 900, color: '#0a0f1e', letterSpacing: '-0.03em', lineHeight: 1 }}>{value}</p>
-    </div>
-  );
-}
-
-function QuickStat({ label, value }) {
-  return (
-    <div style={{ textAlign: 'center', padding: '6px 4px' }}>
-      <p style={{ fontSize: 17, fontWeight: 900, color: '#0a0f1e', letterSpacing: '-0.03em', lineHeight: 1 }}>{value}</p>
-      <p style={{ fontSize: 8, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.07em', marginTop: 3 }}>{label}</p>
-    </div>
-  );
-}
-
 // ── Tabla comparativa ─────────────────────────────────────────────────────────
 function ComparisonTable({ metrics, colors }) {
   const sorted = [...metrics].sort((a, b) => b.wonValue - a.wonValue);
@@ -649,21 +637,8 @@ function ComparisonTable({ metrics, colors }) {
   );
 }
 
-// ── Tabla de actividad y seguimiento de pipeline ──────────────────────────────
-const STAGE_LABELS = {
-  QUALIFICATION: 'Lead / Prospecto', NEEDS_ANALYSIS: 'Acercamiento',
-  VALUE_PROPOSITION: 'Contacto decisor', IDENTIFY_DECISION_MAKERS: 'Oportunidad detectada',
-  PROPOSAL_PRICE_QUOTE: 'Levantamiento técnico', PROPOSAL_SENT: 'Cotización enviada',
-  NEGOTIATION_1: 'Negociación 1', RECOTIZACION: 'Recotización',
-  NEGOTIATION_2: 'Negociación 2', CLOSED_WON_PENDING: 'En espera de autorización',
-  CLOSED_WON: 'Ganado', CLOSED_LOST: 'Perdido',
-};
-const STAGE_DOT = {
-  CLOSED_WON: '#10b981', CLOSED_LOST: '#ef4444',
-  CLOSED_WON_PENDING: '#f59e0b',
-};
-
-function ActivityTable({ activities, deals, metrics }) {
+// eslint-disable-next-line no-unused-vars
+function ActivityTable_UNUSED({ activities, deals, metrics }) {
   const [tab,          setTab]          = useState('pipeline');
   const [filterSeller, setFilterSeller] = useState('');
   const [filterType,   setFilterType]   = useState('');
@@ -743,18 +718,21 @@ function ActivityTable({ activities, deals, metrics }) {
               <table className="w-full text-xs">
                 <thead>
                   <tr className="border-b border-gray-100">
-                    {['Vendedor','Trato','Empresa','Etapa','Valor','Probabilidad','Cierre Esp.','Actividades'].map(h => (
+                    {['Vendedor','Trato','Empresa','Etapa','Valor','Probabilidad','Cierre Esp.','Actos','Motivo de cierre'].map(h => (
                       <th key={h} className="text-left px-5 py-3 text-[9px] font-black text-gray-400 uppercase tracking-widest whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
                   {filteredDeals.map(deal => {
-                    const stage = STAGE_LABELS[deal.stage] || deal.stage || '—';
-                    const dot   = STAGE_DOT[deal.stage] || '#94a3b8';
-                    const close = deal.expectedClose
+                    const stage   = STAGE_LABELS[deal.stage] || deal.stage || '—';
+                    const dot     = STAGE_DOT[deal.stage] || '#94a3b8';
+                    const close   = deal.expectedClose
                       ? new Date(deal.expectedClose).toLocaleDateString('es-MX', { day:'2-digit', month:'short', year:'numeric' })
                       : '—';
+                    const isWon   = deal.stage === 'CLOSED_WON';
+                    const isLost  = deal.stage === 'CLOSED_LOST';
+                    const isClosed = isWon || isLost;
                     return (
                       <tr key={deal.id} className="hover:bg-amber-50/20 transition-colors">
                         <td className="px-5 py-3 whitespace-nowrap">
@@ -795,6 +773,13 @@ function ActivityTable({ activities, deals, metrics }) {
                         </td>
                         <td className="px-5 py-3 whitespace-nowrap">
                           <span className="font-black text-gray-700 text-[11px]">{deal._count?.activities ?? 0}</span>
+                        </td>
+                        <td className="px-5 py-3" style={{ maxWidth:200 }}>
+                          {isClosed ? (
+                            deal.closeReason
+                              ? <span title={deal.closeReason} style={{ fontSize:11, fontWeight:600, color: isWon ? '#059669' : '#dc2626', display:'block', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', cursor:'help' }}>{deal.closeReason}</span>
+                              : <span className="text-[10px] font-semibold text-gray-300 italic">Sin motivo</span>
+                          ) : <span className="text-gray-200">—</span>}
                         </td>
                       </tr>
                     );
@@ -901,6 +886,7 @@ function ActivityTable({ activities, deals, metrics }) {
 // ═══════════════════════════════════════════════════════════════════════════════
 export default function SalesMetrics() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const isAdmin = user?.roles?.includes('ADMIN') || user?.role === 'ADMIN';
 
   const [period, setPeriod]         = useState('month');
@@ -909,43 +895,24 @@ export default function SalesMetrics() {
   const [deals, setDeals]           = useState([]);
   const [loading, setLoading]       = useState(true);
   const [error, setError]           = useState(null);
-  const [sellerModal, setSellerModal] = useState(null); // { seller, color, data }
+  const [sellerModal, setSellerModal] = useState(null);
 
-  // Gestión de datos: bitácora, reporte diario, cartera
-  const [salesSummary,   setSalesSummary]   = useState([]);
-  const [myReporte,      setMyReporte]      = useState([]);
-  const [myBitacora,     setMyBitacora]     = useState([]);
-  const [myCartera,      setMyCartera]      = useState([]);
-  // Registros detallados para admin
-  const [allBitacora,    setAllBitacora]    = useState([]);
-  const [allReporte,     setAllReporte]     = useState([]);
-  const [allCartera,     setAllCartera]     = useState([]);
-
-  // Razones de cierre
   const [closedDeals, setClosedDeals] = useState([]);
-
-  // Seguimientos
   const [seguimientos,        setSeguimientos]        = useState([]);
   const [seguimientosLoading, setSeguimientosLoading] = useState(false);
   const [newSeg,    setNewSeg]    = useState({ dealId: '', observations: '', date: new Date().toISOString().split('T')[0] });
   const [addingSeg, setAddingSeg] = useState(false);
-
-  // Nuevas secciones admin
-  const [allQuotes,  setAllQuotes]  = useState([]);
-  const [allClients, setAllClients] = useState([]);
-  const [allLeads,   setAllLeads]   = useState([]);
+  const [allQuotes, setAllQuotes] = useState([]);
 
   const fetchMetrics = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const [metricsRes, dealsRes, actsRes, quotesRes, clientsRes, leadsRes] = await Promise.all([
+      const [metricsRes, dealsRes, actsRes, quotesRes] = await Promise.all([
         apiFetch(`/api/crm/sales-metrics?period=${period}`),
         apiFetch('/api/crm/deals'),
         apiFetch('/api/crm/activity-feed?limit=200'),
         isAdmin ? apiFetch('/api/quotes') : Promise.resolve(null),
-        isAdmin ? apiFetch('/api/crm/clients') : Promise.resolve(null),
-        isAdmin ? apiFetch('/api/crm/leads') : Promise.resolve(null),
       ]);
 
       const [metricsData, dealsData] = await Promise.all([
@@ -957,49 +924,19 @@ export default function SalesMetrics() {
       setMetrics(Array.isArray(metricsData) ? metricsData : []);
       setDeals(Array.isArray(dealsData) ? dealsData : []);
 
-      if (actsRes) {
-        const actsData = await actsRes.json();
-        setActivities(Array.isArray(actsData) ? actsData : []);
-      }
-      if (quotesRes)  { const d = await quotesRes.json();  setAllQuotes(Array.isArray(d) ? d : []); }
-      if (clientsRes) { const d = await clientsRes.json(); setAllClients(Array.isArray(d) ? d : []); }
-      if (leadsRes)   { const d = await leadsRes.json();   setAllLeads(Array.isArray(d) ? d : []); }
+      const actsData = await actsRes.json();
+      setActivities(Array.isArray(actsData) ? actsData : []);
+      if (quotesRes) { const d = await quotesRes.json(); setAllQuotes(Array.isArray(d) ? d : []); }
 
-      // Razones de cierre — filtramos del array de deals ya cargado
       const closed = (Array.isArray(dealsData) ? dealsData : [])
-        .filter(d => (d.stage === 'CLOSED_WON' || d.stage === 'CLOSED_LOST') && d.closeReason);
+        .filter(d => d.stage === 'CLOSED_WON' || d.stage === 'CLOSED_LOST');
       setClosedDeals(closed);
 
-      // Seguimientos — todos los usuarios
       setSeguimientosLoading(true);
       try {
         const segRes = await apiFetch('/api/crm/seguimientos');
         if (segRes.ok) { const segData = await segRes.json(); setSeguimientos(Array.isArray(segData) ? segData : []); }
       } catch (_) {} finally { setSeguimientosLoading(false); }
-
-      // Fetch datos de gestión
-      if (isAdmin) {
-        const [summaryRes, bitRes, repRes, carRes] = await Promise.all([
-          apiFetch('/api/sales-data?type=summary'),
-          apiFetch('/api/sales-data?type=bitacora'),
-          apiFetch('/api/sales-data?type=reporte'),
-          apiFetch('/api/sales-data?type=cartera'),
-        ]);
-        if (summaryRes.ok) setSalesSummary(await summaryRes.json());
-        if (bitRes.ok) { const d = await bitRes.json(); setAllBitacora(Array.isArray(d) ? d : []); }
-        if (repRes.ok) { const d = await repRes.json(); setAllReporte(Array.isArray(d) ? d : []); }
-        if (carRes.ok) { const d = await carRes.json(); setAllCartera(Array.isArray(d) ? d : []); }
-      } else {
-        const [repRes, bitRes, carRes] = await Promise.all([
-          apiFetch('/api/sales-data?type=reporte'),
-          apiFetch('/api/sales-data?type=bitacora'),
-          apiFetch('/api/sales-data?type=cartera'),
-        ]);
-        const [rep, bit, car] = await Promise.all([repRes.json(), bitRes.json(), carRes.json()]);
-        setMyReporte(Array.isArray(rep) ? rep : []);
-        setMyBitacora(Array.isArray(bit) ? bit : []);
-        setMyCartera(Array.isArray(car) ? car : []);
-      }
     } catch (err) {
       setError(err.message);
     } finally {
@@ -1009,27 +946,7 @@ export default function SalesMetrics() {
 
   useEffect(() => { fetchMetrics(); }, [fetchMetrics]);
 
-  // ── Datos para gráficas ────────────────────────────────────────────────────
-  const barData = metrics.map((m, i) => ({
-    name: m.seller.name.split(' ')[0],
-    'Valor Ganado $': Math.round(m.wonValue),
-    'Pipeline $':     Math.round(m.pipelineValue),
-    Deals:            m.deals,
-    'Cierre %':       m.closeRate,
-    fill:             SELLER_COLORS[i % SELLER_COLORS.length],
-  }));
-
-  const radarData = metrics.length > 0
-    ? [
-        { metric: 'Deals',      ...Object.fromEntries(metrics.map(m => [m.seller.name.split(' ')[0], m.deals])) },
-        { metric: 'Ganados',    ...Object.fromEntries(metrics.map(m => [m.seller.name.split(' ')[0], m.wonDeals])) },
-        { metric: 'Cotizac.',   ...Object.fromEntries(metrics.map(m => [m.seller.name.split(' ')[0], m.quotes])) },
-        { metric: 'Leads',      ...Object.fromEntries(metrics.map(m => [m.seller.name.split(' ')[0], m.leads])) },
-        { metric: 'Cierre %',   ...Object.fromEntries(metrics.map(m => [m.seller.name.split(' ')[0], m.closeRate])) },
-      ]
-    : [];
-
-  // ── Totales globales (para ADMIN) ──────────────────────────────────────────
+  // ── Totales globales ──────────────────────────────────────────────────────
   const totals = metrics.reduce((acc, m) => ({
     deals:          acc.deals          + m.deals,
     wonDeals:       acc.wonDeals       + m.wonDeals,
@@ -1074,7 +991,6 @@ export default function SalesMetrics() {
   };
 
   const currentPeriod = PERIODS.find(p => p.key === period);
-  const sinceDate = new Date(Date.now() - (currentPeriod?.days || 30) * 24 * 60 * 60 * 1000);
 
   if (loading) return (
     <div className="flex flex-col items-center justify-center h-64 gap-4">
@@ -1093,110 +1009,90 @@ export default function SalesMetrics() {
     </div>
   );
 
+  const activeDeals = deals.filter(d => !['CLOSED_WON','CLOSED_LOST'].includes(d.stage));
+  const overdueCount = activities.filter(a => a.status === 'PENDING' && a.dueDate && new Date(a.dueDate) < new Date()).length;
+
   return (
-    <div className="space-y-8 pb-12 animate-in fade-in duration-500">
+    <div className="space-y-4 pb-12">
 
-      {/* ── HERO HEADER ──────────────────────────────────────────────────────── */}
-      <div style={{
-        background: 'linear-gradient(145deg, #050d1a 0%, #0d1f3c 45%, #0a1628 100%)',
-        borderRadius: 24, padding: '32px 32px 36px', position: 'relative', overflow: 'hidden',
-        boxShadow: '0 20px 60px rgba(0,0,0,0.25), 0 1px 0 rgba(255,255,255,0.04) inset',
-      }}>
-        {/* Fondo con grid sutil */}
-        <div style={{ position:'absolute', inset:0, backgroundImage:'linear-gradient(rgba(255,255,255,0.018) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.018) 1px, transparent 1px)', backgroundSize:'48px 48px', pointerEvents:'none' }} />
-        {/* Orbes de luz */}
-        <div style={{ position:'absolute', top:-80, right:-40, width:280, height:280, borderRadius:'50%', background:'radial-gradient(circle, #1d4ed825, transparent 65%)', pointerEvents:'none' }} />
-        <div style={{ position:'absolute', bottom:-80, left:'30%', width:200, height:200, borderRadius:'50%', background:'radial-gradient(circle, #7c3aed18, transparent 65%)', pointerEvents:'none' }} />
-        <div style={{ position:'absolute', top:'20%', left:-30, width:160, height:160, borderRadius:'50%', background:'radial-gradient(circle, #059669 10, transparent 65%)', pointerEvents:'none' }} />
-
-        <div className="relative">
-          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-5 mb-8">
-            <div>
-              {/* Eyebrow */}
-              <div style={{ display:'inline-flex', alignItems:'center', gap:8, marginBottom:12, background:'rgba(29,78,216,0.2)', border:'1px solid rgba(59,130,246,0.25)', borderRadius:999, padding:'4px 12px 4px 8px' }}>
-                <div style={{ width:6, height:6, borderRadius:'50%', background:'#60a5fa', boxShadow:'0 0 8px #60a5fa' }} />
-                <span style={{ fontSize:10, fontWeight:700, color:'#93c5fd', textTransform:'uppercase', letterSpacing:'0.12em' }}>Panel Comercial · Oleacontrols</span>
-              </div>
-              <h2 style={{ fontSize:36, fontWeight:900, color:'#f0f6ff', lineHeight:1, letterSpacing:'-0.04em', margin:0, marginBottom:10 }}>
-                Métricas <span style={{ background:'linear-gradient(135deg, #60a5fa, #818cf8)', WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent' }}>de Ventas</span>
-              </h2>
-              <p style={{ fontSize:12, color:'rgba(148,163,184,0.8)', fontWeight:500, letterSpacing:'0.02em' }}>
-                {metrics.length} vendedor{metrics.length !== 1 ? 'es' : ''} activos&ensp;·&ensp;Últimos {currentPeriod?.days} días
-              </p>
+      {/* ── HEADER ────────────────────────────────────────────────────────────── */}
+      <div style={{ background:'#fff', borderRadius:20, border:'1px solid #e2e8f0', padding:'20px 24px', boxShadow:'0 1px 4px rgba(0,0,0,0.05)' }}>
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:12 }}>
+          <div>
+            <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:6 }}>
+              <div style={{ width:7, height:7, borderRadius:'50%', background:'#3b82f6', boxShadow:'0 0 6px #3b82f680' }} />
+              <span style={{ fontSize:9, fontWeight:700, color:'#94a3b8', textTransform:'uppercase', letterSpacing:'0.1em' }}>Panel Comercial · Oleacontrols</span>
             </div>
-
-            {/* Controles */}
-            <div style={{ display:'flex', flexDirection:'column', gap:8, alignItems:'flex-end' }}>
-              <div style={{ display:'flex', gap:4, background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:14, padding:4 }}>
-                {PERIODS.map(p => (
-                  <button key={p.key} onClick={() => setPeriod(p.key)} style={{
-                    padding: '7px 18px', borderRadius: 10, fontSize: 11, fontWeight: 700,
-                    transition: 'all 0.18s ease', letterSpacing:'0.04em',
-                    background: period === p.key ? 'rgba(29,78,216,0.9)' : 'transparent',
-                    color: period === p.key ? '#fff' : 'rgba(148,163,184,0.7)',
-                    boxShadow: period === p.key ? '0 2px 12px rgba(29,78,216,0.4)' : 'none',
-                    border: 'none',
-                  }}>
-                    {p.label}
-                  </button>
-                ))}
-              </div>
-              <button onClick={fetchMetrics} style={{
-                width: 34, height: 34, borderRadius: 10, display:'flex', alignItems:'center', justifyContent:'center',
-                background:'rgba(255,255,255,0.06)', border:'1px solid rgba(255,255,255,0.1)',
-                color:'rgba(148,163,184,0.6)', cursor:'pointer', transition:'all 0.15s',
-              }}>
-                <RefreshCw style={{ width: 13, height: 13 }} />
-              </button>
-            </div>
+            <h2 style={{ fontSize:22, fontWeight:900, color:'#0a0f1e', letterSpacing:'-0.03em', margin:0 }}>Pipeline Comercial</h2>
+            <p style={{ fontSize:11, color:'#94a3b8', fontWeight:600, marginTop:3 }}>
+              {metrics.length} vendedor{metrics.length !== 1 ? 'es' : ''}&ensp;·&ensp;Últimos {currentPeriod?.days} días&ensp;·&ensp;{activeDeals.length} tratos activos
+            </p>
           </div>
-
-          {/* KPIs globales (solo ADMIN) */}
-          {isAdmin && (
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-              {[
-                { label: 'Deals totales',    value: totals.deals,              icon: Briefcase,    color: '#60a5fa', glow:'#1d4ed8' },
-                { label: 'Ganados',          value: totals.wonDeals,           icon: CheckCircle2, color: '#34d399', glow:'#059669' },
-                { label: 'Valor ganado',     value: fmt(totals.wonValue),      icon: DollarSign,   color: '#34d399', glow:'#059669' },
-                { label: 'Pipeline activo',  value: fmt(totals.pipelineValue), icon: Activity,     color: '#a78bfa', glow:'#7c3aed' },
-                { label: 'Cotizaciones',     value: totals.quotes,             icon: FileText,     color: '#fbbf24', glow:'#b45309' },
-                { label: 'Actividades',      value: totals.activities,         icon: MessageSquare,color: '#f9a8d4', glow:'#be185d' },
-              ].map(({ label, value, icon: Icon, color, glow }) => (
-                <div key={label} style={{
-                  background: 'rgba(255,255,255,0.05)', borderRadius: 16, padding: '18px 18px 16px',
-                  backdropFilter: 'blur(16px)', border: '1px solid rgba(255,255,255,0.09)',
-                  boxShadow: `0 0 0 0 transparent, inset 0 1px 0 rgba(255,255,255,0.07)`,
-                  transition: 'all 0.2s',
+          <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+            <div style={{ display:'flex', background:'#f8fafc', border:'1px solid #e2e8f0', borderRadius:12, padding:3, gap:2 }}>
+              {PERIODS.map(p => (
+                <button key={p.key} onClick={() => setPeriod(p.key)} style={{
+                  padding:'6px 14px', borderRadius:9, fontSize:11, fontWeight:700, cursor:'pointer', transition:'all 0.15s',
+                  background: period === p.key ? '#fff' : 'transparent',
+                  color: period === p.key ? '#1d4ed8' : '#94a3b8',
+                  border: period === p.key ? '1px solid #dbeafe' : '1px solid transparent',
+                  boxShadow: period === p.key ? '0 1px 4px rgba(0,0,0,0.08)' : 'none',
                 }}>
-                  <div style={{ display:'flex', alignItems:'center', gap:7, marginBottom:12 }}>
-                    <div style={{ width:26, height:26, borderRadius:8, background:`${glow}30`, border:`1px solid ${color}25`, display:'flex', alignItems:'center', justifyContent:'center' }}>
-                      <Icon style={{ width:12, height:12, color }} />
-                    </div>
-                    <span style={{ fontSize:9, fontWeight:700, color:'rgba(148,163,184,0.6)', textTransform:'uppercase', letterSpacing:'0.1em', lineHeight:1.2 }}>{label}</span>
-                  </div>
-                  <p style={{ fontSize:24, fontWeight:900, color:'#f0f6ff', lineHeight:1, letterSpacing:'-0.04em' }}>{value}</p>
-                </div>
+                  {p.label}
+                </button>
               ))}
             </div>
-          )}
+            <button onClick={fetchMetrics} style={{
+              width:34, height:34, borderRadius:10, display:'flex', alignItems:'center', justifyContent:'center',
+              background:'#f8fafc', border:'1px solid #e2e8f0', cursor:'pointer', color:'#94a3b8', transition:'all 0.15s',
+            }}
+              onMouseEnter={e => { e.currentTarget.style.background='#eff6ff'; e.currentTarget.style.color='#1d4ed8'; }}
+              onMouseLeave={e => { e.currentTarget.style.background='#f8fafc'; e.currentTarget.style.color='#94a3b8'; }}
+            >
+              <RefreshCw style={{ width:13, height:13 }} />
+            </button>
+          </div>
+        </div>
+
+        {/* KPIs compactos */}
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(110px, 1fr))', gap:10, marginTop:16, paddingTop:16, borderTop:'1px solid #f1f5f9' }}>
+          {[
+            { label:'Deals activos',  value: activeDeals.length,        icon: Briefcase,    color:'#1d4ed8', bg:'#eff6ff' },
+            { label:'Valor ganado',   value: fmt(totals.wonValue),       icon: DollarSign,   color:'#059669', bg:'#f0fdf4' },
+            { label:'Pipeline',       value: fmt(totals.pipelineValue),  icon: TrendingUp,   color:'#7c3aed', bg:'#faf5ff' },
+            { label:'Cotizaciones',   value: totals.quotes,              icon: FileText,     color:'#0284c7', bg:'#f0f9ff' },
+            { label:'Actividades',    value: totals.activities,          icon: Activity,     color:'#b45309', bg:'#fffbeb' },
+            { label:'Tasa de cierre', value: `${totals.avgCloseRate}%`,  icon: Target,       color:'#059669', bg:'#f0fdf4' },
+          ].map(({ label, value, icon: Icon, color, bg }) => (
+            <div key={label} style={{ background:bg, borderRadius:12, padding:'10px 14px', border:`1px solid ${color}15` }}>
+              <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:7 }}>
+                <Icon style={{ width:10, height:10, color }} />
+                <span style={{ fontSize:8, fontWeight:700, color, textTransform:'uppercase', letterSpacing:'0.07em' }}>{label}</span>
+              </div>
+              <p style={{ fontSize:19, fontWeight:900, color:'#0a0f1e', letterSpacing:'-0.03em', lineHeight:1 }}>{value}</p>
+            </div>
+          ))}
         </div>
       </div>
 
-      {/* ── Sin datos ────────────────────────────────────────────────────────── */}
-      {metrics.length === 0 && (
-        <div className="flex flex-col items-center justify-center py-20 gap-4">
-          <BarChart2 className="w-12 h-12 text-gray-200" />
-          <p className="text-sm font-black text-gray-500">Sin datos para este período</p>
-          <p className="text-[11px] font-bold text-gray-400">Crea deals, leads o cotizaciones para ver métricas</p>
-        </div>
-      )}
+      {/* ══ KANBAN — siempre visible ══════════════════════════════════════════ */}
+      <PipelineKanbanReadOnly deals={deals} metrics={metrics} colors={SELLER_COLORS} onDealClick={(id) => navigate('/crm/deals/' + id)} />
 
-      {/* ══ SECCIONES EN ACORDEÓN ══════════════════════════════════════════════ */}
+      {/* ══ SECCIONES ═════════════════════════════════════════════════════════ */}
       <div className="space-y-3">
 
-        {/* 1 · Desempeño por Vendedor */}
+        {/* 1 · Actividades vencidas — alerta al top */}
+        {overdueCount > 0 && (
+          <AccordionSection icon={AlertTriangle} title="Actividades Vencidas" subtitle={`${overdueCount} actividad${overdueCount > 1 ? 'es' : ''} requiere${overdueCount > 1 ? 'n' : ''} atención`} accent="#dc2626" badge={overdueCount} defaultOpen={true}>
+            <div style={{ padding:'20px' }}>
+              <OverdueActivitiesSection activities={activities} />
+            </div>
+          </AccordionSection>
+        )}
+
+        {/* 3 · Desempeño por Vendedor */}
         {metrics.length > 0 && (
-          <AccordionSection icon={Users} title="Desempeño por Vendedor" subtitle={`Últimos ${currentPeriod?.days} días · clic en card para ver detalle`} accent="#1d4ed8" badge={metrics.length} defaultOpen={true}>
+          <AccordionSection icon={Users} title="Desempeño por Vendedor" subtitle={`${metrics.length} vendedores · clic en card para ver detalle`} accent="#1d4ed8" badge={metrics.length} defaultOpen={false}>
             <div style={{ padding:'20px' }}>
               <div className={cn(
                 'grid gap-4',
@@ -1218,115 +1114,7 @@ export default function SalesMetrics() {
           </AccordionSection>
         )}
 
-        {/* 2 · Comparativa gráficas */}
-        {metrics.length >= 2 && (
-          <AccordionSection icon={BarChart2} title="Comparativa entre Vendedores" subtitle={`Gráficas · período ${currentPeriod?.label}`} accent="#7c3aed" defaultOpen={false}>
-            <div style={{ padding:'20px' }}>
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <div className={D.card}>
-                  <CardAccent color="#1d4ed8" />
-                  <div className="p-5 space-y-4">
-                    <div className="flex items-center gap-2">
-                      <DollarSign style={{ width:13, height:13, color:'#1d4ed8' }} />
-                      <div>
-                        <h4 style={{ fontSize:11, fontWeight:800, color:'#0a0f1e' }}>Valor por Vendedor</h4>
-                        <p style={{ fontSize:9, fontWeight:600, color:'#94a3b8', textTransform:'uppercase', letterSpacing:'0.06em', marginTop:2 }}>Ganado vs Pipeline</p>
-                      </div>
-                    </div>
-                    <ResponsiveContainer width="100%" height={220}>
-                      <BarChart data={barData} margin={{ top:4, right:4, left:0, bottom:0 }} barGap={4}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-                        <XAxis dataKey="name" tick={{ fontSize:10, fontWeight:700, fill:'#64748b' }} axisLine={false} tickLine={false} />
-                        <YAxis tick={{ fontSize:9, fontWeight:700, fill:'#94a3b8' }} axisLine={false} tickLine={false} tickFormatter={v => `$${(v/1000).toFixed(0)}k`} />
-                        <Tooltip content={<RichTooltip />} />
-                        <Legend wrapperStyle={{ fontSize:10, fontWeight:700 }} />
-                        <Bar dataKey="Valor Ganado $" fill="#3b82f6" radius={[6,6,0,0]} maxBarSize={36} />
-                        <Bar dataKey="Pipeline $"     fill="#8b5cf6" radius={[6,6,0,0]} maxBarSize={36} />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                </div>
-                <div className={D.card}>
-                  <CardAccent color="#059669" />
-                  <div className="p-5 space-y-4">
-                    <div className="flex items-center gap-2">
-                      <Target style={{ width:13, height:13, color:'#059669' }} />
-                      <div>
-                        <h4 style={{ fontSize:11, fontWeight:800, color:'#0a0f1e' }}>Deals y Efectividad</h4>
-                        <p style={{ fontSize:9, fontWeight:600, color:'#94a3b8', textTransform:'uppercase', letterSpacing:'0.06em', marginTop:2 }}>Deals totales vs Tasa de cierre</p>
-                      </div>
-                    </div>
-                    <ResponsiveContainer width="100%" height={220}>
-                      <BarChart data={barData} margin={{ top:4, right:4, left:0, bottom:0 }} barGap={4}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-                        <XAxis dataKey="name" tick={{ fontSize:10, fontWeight:700, fill:'#64748b' }} axisLine={false} tickLine={false} />
-                        <YAxis yAxisId="left"  tick={{ fontSize:9, fontWeight:700, fill:'#94a3b8' }} axisLine={false} tickLine={false} />
-                        <YAxis yAxisId="right" orientation="right" tick={{ fontSize:9, fontWeight:700, fill:'#94a3b8' }} axisLine={false} tickLine={false} tickFormatter={v => `${v}%`} />
-                        <Tooltip content={<RichTooltip />} />
-                        <Legend wrapperStyle={{ fontSize:10, fontWeight:700 }} />
-                        <Bar yAxisId="left"  dataKey="Deals"    fill="#10b981" radius={[6,6,0,0]} maxBarSize={36} />
-                        <Bar yAxisId="right" dataKey="Cierre %" fill="#f59e0b" radius={[6,6,0,0]} maxBarSize={36} />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                </div>
-                {metrics.length <= 6 && (
-                  <div className={`${D.card} lg:col-span-2`}>
-                    <CardAccent color="#b45309" />
-                    <div className="p-5 space-y-4">
-                      <div className="flex items-center gap-2">
-                        <Star style={{ width:13, height:13, color:'#b45309' }} />
-                        <div>
-                          <h4 style={{ fontSize:11, fontWeight:800, color:'#0a0f1e' }}>Radar de Desempeño</h4>
-                          <p style={{ fontSize:9, fontWeight:600, color:'#94a3b8', textTransform:'uppercase', letterSpacing:'0.06em', marginTop:2 }}>Comparativa multidimensional</p>
-                        </div>
-                      </div>
-                      <ResponsiveContainer width="100%" height={280}>
-                        <RadarChart data={radarData} margin={{ top:10, right:30, left:30, bottom:10 }}>
-                          <PolarGrid stroke="#f1f5f9" />
-                          <PolarAngleAxis dataKey="metric" tick={{ fontSize:10, fontWeight:800, fill:'#475569' }} />
-                          <PolarRadiusAxis tick={{ fontSize:8, fill:'#94a3b8' }} />
-                          <Tooltip content={<RichTooltip />} />
-                          <Legend wrapperStyle={{ fontSize:10, fontWeight:700 }} />
-                          {metrics.map((m, i) => (
-                            <Radar key={m.seller.id} name={m.seller.name.split(' ')[0]} dataKey={m.seller.name.split(' ')[0]}
-                              stroke={SELLER_COLORS[i % SELLER_COLORS.length]} fill={SELLER_COLORS[i % SELLER_COLORS.length]}
-                              fillOpacity={0.12} strokeWidth={2} />
-                          ))}
-                        </RadarChart>
-                      </ResponsiveContainer>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </AccordionSection>
-        )}
-
-        {/* 3 · Ranking */}
-        {metrics.length >= 2 && isAdmin && (
-          <AccordionSection icon={Award} title="Ranking de Vendedores" subtitle="Ordenado por valor ganado" accent="#059669" defaultOpen={false}>
-            <div style={{ padding:'20px' }}>
-              <div className={D.card}>
-                <CardAccent color="#059669" />
-                <div className="p-6">
-                  <ComparisonTable metrics={metrics} colors={SELLER_COLORS} />
-                </div>
-              </div>
-            </div>
-          </AccordionSection>
-        )}
-
-        {/* 4 · Razones de cierre */}
-        {closedDeals.length > 0 && (
-          <AccordionSection icon={TrendingDown} title="Razones de Cierre" subtitle={`${closedDeals.length} tratos cerrados con razón registrada`} accent="#dc2626" badge={closedDeals.length} defaultOpen={false}>
-            <div style={{ padding:'20px' }}>
-              <CloseReasonsSection deals={closedDeals} colors={SELLER_COLORS} />
-            </div>
-          </AccordionSection>
-        )}
-
-        {/* 5 · Cotizaciones */}
+        {/* 4 · Cotizaciones */}
         {isAdmin && allQuotes.length > 0 && (
           <AccordionSection icon={FileText} title="Cotizaciones" subtitle={`${allQuotes.length} cotizaciones · clic para ver detalle`} accent="#0284c7" badge={allQuotes.length} defaultOpen={false}>
             <div style={{ padding:'20px' }}>
@@ -1335,78 +1123,33 @@ export default function SalesMetrics() {
           </AccordionSection>
         )}
 
-        {/* 6 · Clientes */}
-        {isAdmin && (
-          <AccordionSection icon={Users} title="Análisis de Clientes" subtitle="Nuevos · recuperados · cartera" accent="#059669" defaultOpen={false}>
+        {/* 5 · Razones de cierre */}
+        {closedDeals.length > 0 && (
+          <AccordionSection icon={TrendingDown} title="Razones de Cierre" subtitle={`${closedDeals.length} tratos cerrados con razón registrada`} accent="#dc2626" badge={closedDeals.length} defaultOpen={false}>
             <div style={{ padding:'20px' }}>
-              <ClientInsightsSection clients={allClients} deals={deals} quotes={allQuotes} sinceDate={sinceDate} colors={SELLER_COLORS} />
+              <CloseReasonsSection deals={closedDeals} colors={SELLER_COLORS} />
             </div>
           </AccordionSection>
         )}
 
-        {/* 7 · Productos más cotizados */}
-        {isAdmin && allQuotes.length > 0 && (
-          <AccordionSection icon={Package} title="Venta por Líneas de Producto" subtitle="Top productos en cotizaciones" accent="#b45309" defaultOpen={false}>
-            <div style={{ padding:'20px' }}>
-              <ProductLinesSection quotes={allQuotes} sinceDate={sinceDate} />
-            </div>
-          </AccordionSection>
-        )}
-
-        {/* 8 · Pipeline kanban */}
-        {isAdmin && deals.filter(d => !['CLOSED_WON','CLOSED_LOST'].includes(d.stage)).length > 0 && (
-          <AccordionSection icon={LayoutGrid} title="Pipeline Activo" subtitle={`${deals.filter(d => !['CLOSED_WON','CLOSED_LOST'].includes(d.stage)).length} tratos en curso`} accent="#7c3aed" badge={deals.filter(d => !['CLOSED_WON','CLOSED_LOST'].includes(d.stage)).length} defaultOpen={false}>
-            <div style={{ padding:'20px' }}>
-              <PipelineKanbanReadOnly deals={deals} metrics={metrics} colors={SELLER_COLORS} />
-            </div>
-          </AccordionSection>
-        )}
-
-        {/* 9 · Actividades vencidas */}
-        {isAdmin && activities.filter(a => a.status === 'PENDING' && a.dueDate && new Date(a.dueDate) < new Date()).length > 0 && (
-          <AccordionSection icon={AlertTriangle} title="Actividades Vencidas" subtitle="Requieren atención inmediata" accent="#dc2626" badge={activities.filter(a => a.status === 'PENDING' && a.dueDate && new Date(a.dueDate) < new Date()).length} defaultOpen={true}>
-            <div style={{ padding:'20px' }}>
-              <OverdueActivitiesSection activities={activities} />
-            </div>
-          </AccordionSection>
-        )}
-
-        {/* 10 · Timeline de actividades */}
+        {/* 6 · Registro de actividades */}
         {activities.length > 0 && (
-          <AccordionSection icon={Activity} title="Timeline de Actividades" subtitle={`${activities.length} actividades · historial global`} accent="#b45309" badge={activities.length} defaultOpen={false}>
+          <AccordionSection icon={Activity} title="Registro de Actividades" subtitle={`${activities.length} actividades · historial completo`} accent="#b45309" badge={activities.length} defaultOpen={false}>
             <div style={{ padding:'20px' }}>
               <GlobalActivitiesTimeline activities={activities} deals={deals} metrics={metrics} />
             </div>
           </AccordionSection>
         )}
 
-        {/* 11 · Gestión de datos */}
-        <AccordionSection icon={Layers} title="Gestión de Datos" subtitle="Bitácora · Reporte Diario · Cartera" accent="#a855f7" defaultOpen={false}>
-          <div style={{ padding:'20px' }}>
-            <GestionDatosSection
-              isAdmin={isAdmin}
-              salesSummary={salesSummary}
-              myReporte={myReporte}
-              myBitacora={myBitacora}
-              myCartera={myCartera}
-              allBitacora={allBitacora}
-              allReporte={allReporte}
-              allCartera={allCartera}
-              colors={SELLER_COLORS}
-              sinceDate={sinceDate}
-            />
-          </div>
-        </AccordionSection>
-
-        {/* 12 · Seguimientos */}
-        <AccordionSection icon={ClipboardList} title="Seguimientos" subtitle={`${seguimientos.length} registros · historial de actividades`} accent="#1d4ed8" badge={seguimientos.length} defaultOpen={false}>
+        {/* 7 · Seguimientos */}
+        <AccordionSection icon={ClipboardList} title="Seguimientos" subtitle={`${seguimientos.length} registros`} accent="#1d4ed8" badge={seguimientos.length} defaultOpen={false}>
           <div style={{ padding:'20px' }}>
             <SeguimientosPanel
               seguimientos={seguimientos}
               loading={seguimientosLoading}
               newSeg={newSeg}
               setNewSeg={setNewSeg}
-              deals={deals.filter(d => !['CLOSED_WON', 'CLOSED_LOST'].includes(d.stage))}
+              deals={activeDeals}
               onAdd={addSeguimiento}
               adding={addingSeg}
               isAdmin={isAdmin}
@@ -1416,7 +1159,7 @@ export default function SalesMetrics() {
 
       </div>
 
-      {/* ── MODAL DETALLE VENDEDOR ────────────────────────────────────────────── */}
+      {/* Modal detalle vendedor */}
       {sellerModal && (
         <SellerDetailModal
           data={sellerModal.data}
@@ -1434,10 +1177,8 @@ export default function SalesMetrics() {
   );
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-// ESTATUS DE COTIZACIONES
-// ══════════════════════════════════════════════════════════════════════════════
-function QuoteStatusSection({ quotes, sinceDate, metrics, colors }) {
+// eslint-disable-next-line no-unused-vars
+function QuoteStatusSection_UNUSED({ quotes, sinceDate, metrics, colors }) {
   const [filterSeller, setFilterSeller] = useState('');
 
   const filtered = filterSeller
@@ -2006,115 +1747,210 @@ function ProductLinesSection({ quotes, sinceDate }) {
 // PIPELINE KANBAN SOLO VISUALIZACIÓN (admin)
 // ══════════════════════════════════════════════════════════════════════════════
 const KANBAN_STAGES = [
-  { key: 'QUALIFICATION',            label: 'Prospecto',            color: '#64748b' },
-  { key: 'NEEDS_ANALYSIS',           label: 'Acercamiento',         color: '#0ea5e9' },
-  { key: 'VALUE_PROPOSITION',        label: 'Contacto Decisor',     color: '#3b82f6' },
-  { key: 'IDENTIFY_DECISION_MAKERS', label: 'Oportunidad',          color: '#6366f1' },
-  { key: 'PROPOSAL_PRICE_QUOTE',     label: 'Levantamiento',        color: '#8b5cf6' },
-  { key: 'PROPOSAL_SENT',            label: 'Cotización Enviada',   color: '#a855f7' },
-  { key: 'NEGOTIATION_1',            label: 'Negociación 1',        color: '#f59e0b' },
-  { key: 'RECOTIZACION',             label: 'Recotización',         color: '#fb923c' },
-  { key: 'NEGOTIATION_2',            label: 'Negociación 2',        color: '#f97316' },
-  { key: 'CLOSED_WON_PENDING',       label: 'Autorización',         color: '#22c55e' },
+  { key: 'QUALIFICATION',            label: 'Lead / Prospecto',          prob: 10,  color: 'bg-slate-400',   text: 'text-slate-600',   bg: 'bg-slate-50'   },
+  { key: 'NEEDS_ANALYSIS',           label: 'Acercamiento',              prob: 20,  color: 'bg-blue-400',    text: 'text-blue-600',    bg: 'bg-blue-50'    },
+  { key: 'VALUE_PROPOSITION',        label: 'Contacto Decisor',          prob: 30,  color: 'bg-indigo-500',  text: 'text-indigo-600',  bg: 'bg-indigo-50'  },
+  { key: 'IDENTIFY_DECISION_MAKERS', label: 'Oportunidad',               prob: 40,  color: 'bg-violet-500',  text: 'text-violet-600',  bg: 'bg-violet-50'  },
+  { key: 'PROPOSAL_PRICE_QUOTE',     label: 'Levantamiento',             prob: 50,  color: 'bg-amber-500',   text: 'text-amber-700',   bg: 'bg-amber-50'   },
+  { key: 'PROPOSAL_SENT',            label: 'Cotización Enviada',        prob: 65,  color: 'bg-orange-500',  text: 'text-orange-700',  bg: 'bg-orange-50'  },
+  { key: 'NEGOTIATION_1',            label: 'Negociación 1',             prob: 75,  color: 'bg-purple-500',  text: 'text-purple-600',  bg: 'bg-purple-50'  },
+  { key: 'RECOTIZACION',             label: 'Recotización',              prob: 80,  color: 'bg-pink-500',    text: 'text-pink-600',    bg: 'bg-pink-50'    },
+  { key: 'NEGOTIATION_2',            label: 'Negociación 2',             prob: 90,  color: 'bg-rose-500',    text: 'text-rose-600',    bg: 'bg-rose-50'    },
+  { key: 'CLOSED_WON_PENDING',       label: 'En espera autorización',    prob: 95,  color: 'bg-yellow-500',  text: 'text-yellow-700',  bg: 'bg-yellow-50'  },
+  { key: 'CLOSED_WON',               label: 'Ganado',                    prob: 100, color: 'bg-emerald-500', text: 'text-emerald-700', bg: 'bg-emerald-50' },
+  { key: 'CLOSED_LOST',              label: 'Perdido',                   prob: 0,   color: 'bg-red-500',     text: 'text-red-600',     bg: 'bg-red-50'     },
 ];
 
-function PipelineKanbanReadOnly({ deals, metrics, colors }) {
+function PipelineKanbanReadOnly({ deals, metrics, colors, onDealClick }) {
   const [filterSeller, setFilterSeller] = useState('');
+  const [search, setSearch] = useState('');
   const sellers = metrics.map(m => m.seller);
 
-  const activeDeals = deals.filter(d => !['CLOSED_WON','CLOSED_LOST'].includes(d.stage));
-  const filtered = filterSeller ? activeDeals.filter(d => d.assignedTo?.id === filterSeller) : activeDeals;
+  const filtered = deals.filter(d => {
+    if (filterSeller && d.assignedTo?.id !== filterSeller) return false;
+    if (search) {
+      const s = search.toLowerCase();
+      if (!d.title?.toLowerCase().includes(s) && !d.company?.toLowerCase().includes(s)) return false;
+    }
+    return true;
+  });
 
   const stageMap = {};
   KANBAN_STAGES.forEach(s => { stageMap[s.key] = []; });
   filtered.forEach(d => {
     if (stageMap[d.stage]) stageMap[d.stage].push(d);
-    else stageMap['QUALIFICATION']?.push(d);
+    else stageMap['QUALIFICATION'].push(d);
   });
 
-  const nonEmpty = KANBAN_STAGES.filter(s => stageMap[s.key]?.length > 0);
+  const totalPipeline = deals.filter(d => d.stage !== 'CLOSED_LOST').reduce((s, d) => s + (d.value || 0), 0);
+  const totalWon      = deals.filter(d => d.stage === 'CLOSED_WON').reduce((s, d) => s + (d.value || 0), 0);
+  const totalActive   = deals.filter(d => !['CLOSED_WON','CLOSED_LOST'].includes(d.stage)).length;
 
   return (
-    <section className="space-y-4">
-      <SectionHeader icon={LayoutGrid} title="Pipeline — Vista Kanban" subtitle={`Solo visualización · ${filtered.length} tratos activos`} accent="#0284c7"
-        extra={<div style={{ display:'flex', alignItems:'center', gap:8 }}>
-          <div style={{ display:'flex', alignItems:'center', gap:5, background:'#eff6ff', borderRadius:8, padding:'4px 10px', border:'1px solid #bfdbfe' }}>
-            <Eye style={{ width:10, height:10, color:'#1d4ed8' }} />
-            <span style={{ fontSize:8, fontWeight:800, color:'#1d4ed8', textTransform:'uppercase', letterSpacing:'0.08em' }}>Read only</span>
-          </div>
-          <select style={{ background:'#f8fafc', borderRadius:10, padding:'6px 12px', fontWeight:700, fontSize:11, color:'#334155', outline:'none', cursor:'pointer', border:'1px solid #e2e8f0' }}
-            value={filterSeller} onChange={e => setFilterSeller(e.target.value)}>
-            <option value="">Todos los vendedores</option>
-            {sellers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-          </select>
-        </div>}
-      />
+    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
 
-      <div className={D.card}>
-        <CardAccent color="#0284c7" />
-        <div className="overflow-x-auto p-5">
-          <div style={{ display:'flex', gap:14, minWidth: nonEmpty.length * 228 }}>
-            {nonEmpty.map(stage => {
-              const stageDeals = stageMap[stage.key] || [];
-              const stageValue = stageDeals.reduce((s, d) => s + (d.value || 0), 0);
-              return (
-                <div key={stage.key} style={{ minWidth:214, maxWidth:214, flexShrink:0 }}>
-                  {/* Encabezado columna */}
-                  <div style={{ background:`${stage.color}0d`, border:`1px solid ${stage.color}25`, borderRadius:12, padding:'10px 14px', marginBottom:10 }}>
-                    <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:6 }}>
-                      <div style={{ display:'flex', alignItems:'center', gap:6 }}>
-                        <div style={{ width:6, height:6, borderRadius:'50%', background:stage.color, flexShrink:0 }} />
-                        <span style={{ fontSize:8, fontWeight:800, color: stage.color, textTransform:'uppercase', letterSpacing:'0.08em' }}>{stage.label}</span>
-                      </div>
-                      <span style={{ fontSize:10, fontWeight:900, color: stage.color, background:`${stage.color}18`, borderRadius:6, padding:'1px 7px', border:`1px solid ${stage.color}20` }}>{stageDeals.length}</span>
-                    </div>
-                    <p style={{ fontSize:13, fontWeight:900, color:D.ink, letterSpacing:'-0.02em' }}>{fmt(stageValue)}</p>
-                  </div>
-                  {/* Tarjetas */}
-                  <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-                    {stageDeals.map(deal => {
-                      const sellerIdx = metrics.findIndex(m => m.seller.id === deal.assignedTo?.id);
-                      const color = sellerIdx >= 0 ? colors[sellerIdx % colors.length] : '#94a3b8';
-                      return (
-                        <div key={deal.id} style={{ background:'#fff', border:`1px solid ${D.border}`, borderRadius:12, padding:'11px 13px', cursor:'default', boxShadow:'0 1px 3px rgba(0,0,0,0.04)' }}>
-                          <p style={{ fontSize:11, fontWeight:700, color:D.ink, marginBottom:3, lineHeight:1.35, display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical', overflow:'hidden' }}>{deal.title}</p>
-                          {deal.company && <p style={{ fontSize:9, fontWeight:600, color:D.faint, marginBottom:8 }}>{deal.company}</p>}
-                          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-                            <span style={{ fontSize:12, fontWeight:900, color:'#059669', letterSpacing:'-0.02em' }}>{fmt(deal.value)}</span>
-                            {deal.assignedTo && (
-                              <div style={{ display:'flex', alignItems:'center', gap:5 }}>
-                                <div style={{ width:22, height:22, borderRadius:7, background:`${color}18`, border:`1px solid ${color}25`, display:'flex', alignItems:'center', justifyContent:'center' }}>
-                                  <span style={{ fontSize:9, fontWeight:900, color }}>{deal.assignedTo.name.charAt(0)}</span>
-                                </div>
-                                <span style={{ fontSize:9, fontWeight:600, color:D.faint }}>{deal.assignedTo.name.split(' ')[0]}</span>
-                              </div>
-                            )}
-                          </div>
-                          {deal.probability > 0 && (
-                            <div style={{ marginTop:8 }}>
-                              <div style={{ height:3, background:'#f1f5f9', borderRadius:999, overflow:'hidden' }}>
-                                <div style={{ height:'100%', width:`${deal.probability}%`, background: stage.color, borderRadius:999 }} />
-                              </div>
-                              <span style={{ fontSize:8, fontWeight:600, color:D.faint }}>{deal.probability}% prob.</span>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
+      {/* ── Header ── */}
+      <div className="px-5 pt-5 pb-4 border-b border-gray-100">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <LayoutGrid className="h-4 w-4 text-violet-600" />
+              <h3 className="text-xl font-black text-gray-900 tracking-tighter uppercase italic">Pipeline</h3>
+              <span className="text-[8px] font-black bg-violet-100 text-violet-700 px-2 py-0.5 rounded-lg uppercase tracking-widest">{totalActive} activos</span>
+            </div>
+            <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">
+              Tratos / Oportunidades · Clic en trato para ver detalle
+            </p>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* KPIs mini */}
+            <div className="flex gap-2">
+              {[
+                { label:'Pipeline', value: fmt(totalPipeline), color:'text-blue-600', bg:'bg-blue-50' },
+                { label:'Ganado',   value: fmt(totalWon),      color:'text-emerald-600', bg:'bg-emerald-50' },
+              ].map(({ label, value, color, bg }) => (
+                <div key={label} className={cn('flex flex-col px-3 py-1.5 rounded-xl', bg)}>
+                  <span className="text-[7px] font-black text-gray-400 uppercase tracking-widest">{label}</span>
+                  <span className={cn('text-xs font-black', color)}>{value}</span>
                 </div>
-              );
-            })}
-            {nonEmpty.length === 0 && (
-              <div className="flex flex-col items-center justify-center py-16 w-full gap-3">
-                <LayoutGrid className="w-10 h-10 text-gray-200" />
-                <p className="text-[10px] font-black text-gray-300 uppercase tracking-widest">Sin tratos activos en el pipeline</p>
-              </div>
+              ))}
+            </div>
+            {/* Buscar */}
+            <div className="flex items-center gap-2 bg-gray-50 rounded-xl px-3 py-2 border border-gray-100">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-gray-400"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+              <input
+                type="text"
+                placeholder="Buscar trato..."
+                className="bg-transparent border-none outline-none font-bold text-[11px] text-gray-900 w-28"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+              />
+            </div>
+            {/* Filtro vendedor */}
+            {sellers.length > 1 && (
+              <select
+                className="bg-gray-50 rounded-xl px-3 py-2 font-black text-[10px] uppercase text-gray-600 outline-none border border-gray-100 cursor-pointer"
+                value={filterSeller}
+                onChange={e => setFilterSeller(e.target.value)}
+              >
+                <option value="">Todos los vendedores</option>
+                {sellers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </select>
             )}
           </div>
         </div>
       </div>
-    </section>
+
+      {/* ── Board ── */}
+      <div className="overflow-x-auto overflow-y-auto" style={{ maxHeight: 580 }}>
+        <div className="flex gap-3 p-4 min-w-max" style={{ minHeight: 520 }}>
+          {KANBAN_STAGES.map((stage) => {
+            const stageDeals = stageMap[stage.key] || [];
+            const stageValue = stageDeals.reduce((s, d) => s + (d.value || 0), 0);
+
+            return (
+              <div
+                key={stage.key}
+                className={cn('w-56 flex flex-col flex-shrink-0 rounded-3xl', stage.bg)}
+              >
+                {/* Cabecera columna */}
+                <div className="p-3 space-y-1 sticky top-0 bg-white/80 backdrop-blur-sm rounded-t-3xl border-b border-black/5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className={cn('w-2.5 h-2.5 rounded-full flex-shrink-0', stage.color)} />
+                      <span className="text-[8px] font-black text-gray-800 uppercase tracking-wider leading-tight">{stage.label}</span>
+                    </div>
+                    <span className="text-[8px] font-black bg-white rounded-lg px-2 py-0.5 text-gray-500 shadow-sm">{stageDeals.length}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className={cn('text-[8px] font-bold', stage.text)}>{stage.prob}% prob.</span>
+                    <span className="text-[8px] font-black text-gray-700">{stageValue > 0 ? fmt(stageValue) : '—'}</span>
+                  </div>
+                </div>
+
+                {/* Cards */}
+                <div className="flex-1 overflow-y-auto p-2 space-y-2" style={{ minHeight: 200 }}>
+                  {stageDeals.map(deal => {
+                    const daysUntil = deal.expectedCloseDate
+                      ? Math.ceil((new Date(deal.expectedCloseDate) - Date.now()) / 86400000)
+                      : null;
+                    const closeColor = daysUntil === null ? null
+                      : daysUntil < 0  ? 'text-red-500'
+                      : daysUntil <= 7 ? 'text-amber-500'
+                      : 'text-emerald-600';
+                    const prob = deal.probability ?? stage.prob ?? 0;
+
+                    return (
+                      <div
+                        key={deal.id}
+                        onClick={() => onDealClick?.(deal.id)}
+                        className="bg-white rounded-2xl border border-gray-100 cursor-pointer transition-all hover:shadow-lg hover:border-gray-200 group overflow-hidden"
+                      >
+                        <div className={cn('h-1 w-full', stage.color)} />
+                        <div className="p-3 space-y-2">
+                          <p className="text-[11px] font-black text-gray-900 leading-tight line-clamp-2">{deal.title}</p>
+                          {deal.company && (
+                            <p className="text-[8px] font-bold text-gray-500 flex items-center gap-1 truncate">
+                              <Building2 className="h-2.5 w-2.5 flex-shrink-0 text-gray-400" />
+                              {deal.company}
+                            </p>
+                          )}
+                          <div className="pt-1.5 border-t border-gray-50 space-y-1.5">
+                            <div className="flex items-center justify-between">
+                              <span className={cn('text-sm font-black', stage.text)}>{fmt(deal.value)}</span>
+                              <span className="text-[9px] font-black text-gray-500">{prob}%</span>
+                            </div>
+                            <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                              <div className={cn('h-full rounded-full', stage.color)} style={{ width: `${prob}%` }} />
+                            </div>
+                          </div>
+                          {deal.expectedCloseDate && (
+                            <div className="flex items-center gap-1">
+                              <Calendar className="h-2.5 w-2.5 text-gray-300 flex-shrink-0" />
+                              <span className={cn('text-[8px] font-black', closeColor || 'text-gray-400')}>
+                                {fmtDate(deal.expectedCloseDate)}
+                              </span>
+                              {daysUntil !== null && (
+                                <span className={cn('text-[7px] font-bold', closeColor)}>
+                                  {daysUntil < 0 ? `(vencido ${Math.abs(daysUntil)}d)` : daysUntil === 0 ? '(hoy)' : `(${daysUntil}d)`}
+                                </span>
+                              )}
+                            </div>
+                          )}
+                          <div className="flex items-center justify-between pt-1 border-t border-gray-50">
+                            {deal.assignedTo ? (
+                              <div className="flex items-center gap-1.5">
+                                <div className={cn('h-5 w-5 rounded-full flex items-center justify-center text-[7px] font-black text-white flex-shrink-0', stage.color)}>
+                                  {deal.assignedTo.name.charAt(0)}
+                                </div>
+                                <span className="text-[8px] font-bold text-gray-400 truncate max-w-[70px]">
+                                  {deal.assignedTo.name.split(' ')[0]}
+                                </span>
+                              </div>
+                            ) : <span />}
+                            {deal._count?.activities > 0 && (
+                              <span className="text-[7px] font-black text-gray-400 flex items-center gap-0.5 bg-gray-50 px-1.5 py-0.5 rounded-lg">
+                                <MessageSquare className="h-2 w-2" />
+                                {deal._count.activities}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {stageDeals.length === 0 && (
+                    <div className="h-20 flex items-center justify-center rounded-2xl border-2 border-dashed border-black/10">
+                      <p className="text-[7px] font-black text-gray-300 uppercase tracking-widest">Sin tratos</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -2505,7 +2341,7 @@ function CloseReasonsSection({ deals, colors }) {
             >
               <div style={{ height:3, background: isWon ? '#10b981' : '#ef4444' }} />
               <div className="p-5 space-y-3">
-                {/* Header */}
+                {/* Header: estado + vendedor */}
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
@@ -2517,10 +2353,9 @@ function CloseReasonsSection({ deals, colors }) {
                       }}>
                         {isWon ? '✓ Ganado' : '✗ Perdido'}
                       </span>
-                      <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">{fmt(deal.value)}</span>
                     </div>
-                    <p className="font-black text-gray-900 text-sm truncate">{deal.title}</p>
-                    {deal.company && <p className="text-[10px] font-bold text-gray-400 mt-0.5">{deal.company}</p>}
+                    <p className="font-black text-gray-900 text-sm leading-tight">{deal.title}</p>
+                    {deal.company && <p className="text-[10px] font-bold text-gray-500 mt-0.5">{deal.company}</p>}
                   </div>
                   {seller && (
                     <div className="flex items-center gap-1.5 flex-shrink-0">
@@ -2532,24 +2367,59 @@ function CloseReasonsSection({ deals, colors }) {
                   )}
                 </div>
 
-                {/* Razón */}
-                <div style={{
-                  background: isWon ? '#f0fdf4' : '#fff1f2',
-                  borderRadius:14, padding:'10px 14px',
-                  borderLeft: `3px solid ${isWon ? '#10b981' : '#ef4444'}`,
-                }}>
-                  <p style={{ fontSize:9, fontWeight:800, color: isWon ? '#059669' : '#dc2626', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:4 }}>
-                    {isWon ? 'Motivo del cierre exitoso' : 'Motivo de pérdida'}
-                  </p>
-                  <p style={{ fontSize:12, fontWeight:600, color:'#374151', lineHeight:1.5 }}>{deal.closeReason}</p>
+                {/* Datos del trato */}
+                <div style={{ background:'#f8fafc', borderRadius:12, padding:'10px 14px', display:'flex', flexDirection:'column', gap:6 }}>
+                  <p style={{ fontSize:9, fontWeight:800, color:'#64748b', textTransform:'uppercase', letterSpacing:'0.07em' }}>Datos del trato</p>
+                  <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'4px 12px' }}>
+                    <div>
+                      <p style={{ fontSize:8, fontWeight:700, color:'#94a3b8', textTransform:'uppercase', letterSpacing:'0.06em' }}>Valor</p>
+                      <p style={{ fontSize:12, fontWeight:900, color: isWon ? '#059669' : '#dc2626' }}>{fmt(deal.value)}</p>
+                    </div>
+                    <div>
+                      <p style={{ fontSize:8, fontWeight:700, color:'#94a3b8', textTransform:'uppercase', letterSpacing:'0.06em' }}>Probabilidad</p>
+                      <p style={{ fontSize:12, fontWeight:900, color:'#334155' }}>{deal.probability ?? 0}%</p>
+                    </div>
+                    {deal.contactName && (
+                      <div style={{ gridColumn:'1 / -1' }}>
+                        <p style={{ fontSize:8, fontWeight:700, color:'#94a3b8', textTransform:'uppercase', letterSpacing:'0.06em' }}>Contacto</p>
+                        <p style={{ fontSize:11, fontWeight:700, color:'#334155' }}>{deal.contactName}</p>
+                      </div>
+                    )}
+                    {deal.source && (
+                      <div>
+                        <p style={{ fontSize:8, fontWeight:700, color:'#94a3b8', textTransform:'uppercase', letterSpacing:'0.06em' }}>Fuente</p>
+                        <p style={{ fontSize:11, fontWeight:700, color:'#334155' }}>{deal.source}</p>
+                      </div>
+                    )}
+                    {deal.expectedClose && (
+                      <div>
+                        <p style={{ fontSize:8, fontWeight:700, color:'#94a3b8', textTransform:'uppercase', letterSpacing:'0.06em' }}>Cierre esperado</p>
+                        <p style={{ fontSize:11, fontWeight:700, color:'#334155' }}>{new Date(deal.expectedClose).toLocaleDateString('es-MX', { day:'2-digit', month:'short', year:'numeric' })}</p>
+                      </div>
+                    )}
+                    {deal.updatedAt && (
+                      <div>
+                        <p style={{ fontSize:8, fontWeight:700, color:'#94a3b8', textTransform:'uppercase', letterSpacing:'0.06em' }}>Fecha cierre</p>
+                        <p style={{ fontSize:11, fontWeight:700, color:'#334155' }}>{new Date(deal.updatedAt).toLocaleDateString('es-MX', { day:'2-digit', month:'short', year:'numeric' })}</p>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
-                {/* Fecha */}
-                {deal.updatedAt && (
-                  <p style={{ fontSize:9, fontWeight:700, color:'#94a3b8', textAlign:'right' }}>
-                    {new Date(deal.updatedAt).toLocaleDateString('es-MX', { day:'2-digit', month:'short', year:'numeric' })}
+                {/* Razón de cierre */}
+                <div style={{
+                  background: deal.closeReason ? (isWon ? '#f0fdf4' : '#fff1f2') : '#f8fafc',
+                  borderRadius:14, padding:'10px 14px',
+                  borderLeft: `3px solid ${deal.closeReason ? (isWon ? '#10b981' : '#ef4444') : '#cbd5e1'}`,
+                }}>
+                  <p style={{ fontSize:9, fontWeight:800, color: deal.closeReason ? (isWon ? '#059669' : '#dc2626') : '#94a3b8', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:4 }}>
+                    {isWon ? 'Motivo del cierre exitoso' : 'Motivo de pérdida'}
                   </p>
-                )}
+                  {deal.closeReason
+                    ? <p style={{ fontSize:12, fontWeight:600, color:'#374151', lineHeight:1.5 }}>{deal.closeReason}</p>
+                    : <p style={{ fontSize:11, fontWeight:600, color:'#94a3b8', fontStyle:'italic' }}>Sin motivo registrado</p>
+                  }
+                </div>
               </div>
             </div>
           );
@@ -2569,7 +2439,8 @@ const DETAIL_PERIODS = [
   { key: 'month',     label: 'Mes',      days: 30 },
 ];
 
-function GestionDatosSection({ isAdmin, salesSummary, myReporte, myBitacora, myCartera, allBitacora, allReporte, allCartera, colors, sinceDate }) {
+// eslint-disable-next-line no-unused-vars
+function GestionDatosSection_UNUSED({ isAdmin, salesSummary, myReporte, myBitacora, myCartera, allBitacora, allReporte, allCartera, colors, sinceDate }) {
   const [detailTab,    setDetailTab]    = useState('bitacora');
   const [detailPeriod, setDetailPeriod] = useState('month');
 

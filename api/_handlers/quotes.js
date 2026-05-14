@@ -676,7 +676,7 @@ export default async function handler(req, res) {
 
   if (method === 'GET') {
     try {
-      const { id } = req.query;
+      const { id, dealId } = req.query;
       if (id) {
         const quote = await prisma.quote.findUnique({ where: { id }, include: { client: true, creator: true, seller: true } });
         const url = await generateQuotePDF(quote);
@@ -684,9 +684,12 @@ export default async function handler(req, res) {
         return res.status(200).json({ ...quote, pdfUrl: url || quote.pdfUrl });
       }
       // Si es SALES, solo ve sus propias cotizaciones (como creador o vendedor)
-      const where = isSales
+      const baseWhere = isSales
         ? { OR: [{ creatorId: userId }, { sellerId: userId }] }
         : {};
+      const where = dealId
+        ? { ...baseWhere, dealId }
+        : baseWhere;
       const quotes = await prisma.quote.findMany({
         where,
         include: { client: true, creator: true, seller: true },
@@ -744,6 +747,7 @@ export default async function handler(req, res) {
       }
 
       // ── Crear cotización normal ──────────────────────────────────────────────
+      const defaultValidUntil = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
       const quote = await prisma.quote.create({
         data: {
           quoteNumber:  data.quoteNumber,
@@ -751,11 +755,11 @@ export default async function handler(req, res) {
           projectName:  data.projectName  || '',
           projectPhase: data.projectPhase || 'INICIAL',
           contactName:  data.contactName  || '',
-          items:        data.items,
+          items:        data.items        ?? [],
           subtotal:     parseFloat(data.subtotal) || 0,
           tax:          parseFloat(data.tax)      || 0,
           total:        parseFloat(data.total)    || 0,
-          validUntil:   new Date(data.validUntil),
+          validUntil:   data.validUntil ? new Date(data.validUntil) : defaultValidUntil,
           terms:        data.terms        || '',
           templateType: data.templateType || 'PRESUPUESTO',
           requirements: data.requirements || '',
@@ -763,6 +767,7 @@ export default async function handler(req, res) {
           benefits:     data.benefits     || '',
           creatorId:    data.creatorId    || userId,
           sellerId:     data.sellerId     || (isSales ? userId : null),
+          dealId:       data.dealId       || null,
           status:       'PENDING'
         },
         include: { client: true, creator: true, seller: true }

@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils';
 
 export default function CRMLayout() {
   const location = useLocation();
-  const isFullHeight = ['/crm', '/crm/deals', '/crm/clients', '/crm/calendar'].includes(location.pathname) && !location.pathname.startsWith('/crm/settings');
+  const isFullHeight = ['/crm', '/crm/deals', '/crm/clients', '/crm/calendar'].includes(location.pathname);
 
   return (
     <div className="flex h-[calc(100vh-4rem)] -m-4 md:-m-8 bg-gray-50">
