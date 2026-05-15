@@ -143,17 +143,13 @@ export default async function handler(req, res) {
       if (req.query.getRecommendations === 'true') {
         const recommendations = await prisma.evaluation.findMany({
           where: {
-            OR: [
-              { improvements: { not: null, not: "" } },
-              { comment: { not: null, not: "" } }
-            ]
+            type: { in: ['CUSTOMER_TECH', 'CUSTOMER_EXEC'] }
           },
           include: {
             target: { select: { name: true } },
             workOrder: { select: { otNumber: true, clientName: true } }
           },
-          orderBy: { createdAt: 'desc' },
-          take: 50
+          orderBy: { createdAt: 'desc' }
         });
         return res.status(200).json(recommendations);
       }
@@ -243,10 +239,10 @@ export default async function handler(req, res) {
               evaluatorId, 
               score1: score1 ? parseInt(score1) : 0, 
               score2: score2 ? parseInt(score2) : 0, 
-              score3: score3 && !isNaN(parseInt(score3)) ? parseInt(score3) : null, 
-              materialUsage, 
-              improvements, 
-              comment 
+              score3: score3 && !isNaN(parseInt(score3)) ? parseInt(score3) : null,
+              materialUsage: materialUsage || null,
+              improvements: improvements || null,
+              comment: comment || null
             }
           });
       }));

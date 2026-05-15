@@ -218,19 +218,58 @@ export default function PerformanceDashboard() {
 
           {showRecommendations ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-in slide-in-from-bottom-4 duration-500">
-              {recommendations.length > 0 ? recommendations.map((rec) => (
+              {recommendations.length > 0 ? recommendations.map((rec) => {
+                const scores = [rec.score1, rec.score2, rec.score3].filter(s => s != null && s > 0);
+                const avgScore = scores.length > 0 ? (scores.reduce((a, b) => a + b, 0) / scores.length).toFixed(1) : null;
+                return (
                 <div key={rec.id} className="bg-white border border-gray-100 p-6 rounded-[2.5rem] shadow-sm space-y-4 hover:shadow-md transition-shadow">
                   <div className="flex justify-between items-start">
                     <div className="space-y-1">
                       <p className="text-[10px] font-black text-primary uppercase tracking-widest">{rec.workOrder?.otNumber}</p>
                       <p className="text-xs font-black text-gray-900 line-clamp-1">{rec.workOrder?.clientName}</p>
                     </div>
-                    <div className="flex items-center gap-1 bg-amber-50 text-amber-600 px-2 py-1 rounded-lg">
-                      <Star className="h-3 w-3 fill-current" />
-                      <span className="text-[10px] font-black">{rec.score3 || rec.score1}</span>
-                    </div>
+                    {avgScore && (
+                      <div className="flex items-center gap-1 bg-amber-50 text-amber-600 px-3 py-1.5 rounded-xl">
+                        <Star className="h-3 w-3 fill-current" />
+                        <span className="text-sm font-black">{avgScore}</span>
+                      </div>
+                    )}
                   </div>
-                  
+
+                  {/* Scores individuales */}
+                  <div className="flex gap-2 flex-wrap">
+                    {rec.score1 != null && (
+                      <div className="bg-gray-50 rounded-xl px-3 py-2 text-center">
+                        <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Servicio</p>
+                        <div className="flex items-center gap-0.5 justify-center mt-0.5">
+                          {[1,2,3,4,5].map(s => (
+                            <Star key={s} className={`h-2.5 w-2.5 ${s <= rec.score1 ? 'fill-amber-400 text-amber-400' : 'text-gray-200'}`} />
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {rec.score2 != null && (
+                      <div className="bg-gray-50 rounded-xl px-3 py-2 text-center">
+                        <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Puntualidad</p>
+                        <div className="flex items-center gap-0.5 justify-center mt-0.5">
+                          {[1,2,3,4,5].map(s => (
+                            <Star key={s} className={`h-2.5 w-2.5 ${s <= rec.score2 ? 'fill-amber-400 text-amber-400' : 'text-gray-200'}`} />
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {rec.score3 != null && (
+                      <div className="bg-gray-50 rounded-xl px-3 py-2 text-center">
+                        <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Técnico</p>
+                        <div className="flex items-center gap-0.5 justify-center mt-0.5">
+                          {[1,2,3,4,5].map(s => (
+                            <Star key={s} className={`h-2.5 w-2.5 ${s <= rec.score3 ? 'fill-amber-400 text-amber-400' : 'text-gray-200'}`} />
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
                   <div className="space-y-3">
                     {rec.improvements && (
                       <div className="bg-blue-50/50 p-4 rounded-2xl border border-blue-100/50">
@@ -254,10 +293,10 @@ export default function PerformanceDashboard() {
                     <p className="text-[9px] font-bold text-gray-400">{new Date(rec.createdAt).toLocaleDateString()}</p>
                   </div>
                 </div>
-              )) : (
+              )}) : (
                 <div className="col-span-full py-20 text-center bg-gray-50 rounded-[3rem] border-2 border-dashed border-gray-100">
                   <MessageSquare className="h-12 w-12 text-gray-200 mx-auto mb-4" />
-                  <p className="text-xs font-black text-gray-400 uppercase tracking-[0.2em]">No hay comentarios registrados esta quincena</p>
+                  <p className="text-xs font-black text-gray-400 uppercase tracking-[0.2em]">No hay evaluaciones de clientes esta quincena</p>
                 </div>
               )}
             </div>
@@ -268,8 +307,8 @@ export default function PerformanceDashboard() {
                   <MessageSquare className="h-8 w-8 text-white" />
                 </div>
                 <div>
-                  <p className="text-2xl font-black tracking-tighter">Tienes {recommendations.length} comentarios nuevos</p>
-                  <p className="text-[10px] font-black text-white/60 uppercase tracking-[0.2em] mt-1">Recomendaciones directas de clientes sobre atención y servicio</p>
+                  <p className="text-2xl font-black tracking-tighter">Tienes {recommendations.length} evaluaciones de clientes</p>
+                  <p className="text-[10px] font-black text-white/60 uppercase tracking-[0.2em] mt-1">Respuestas y calificaciones directas de clientes esta quincena</p>
                 </div>
               </div>
               <ChevronRight className="h-8 w-8 text-white/40 group-hover:translate-x-2 transition-transform" />
