@@ -17,23 +17,27 @@ import { cn } from '@/lib/utils';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
-// Custom Marker Icons
-const otIcon = new L.Icon({
-  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
-  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-  popupAnchor: [1, -34],
-  shadowSize: [41, 41]
+// Custom Marker Icons — DivIcon SVG (no external URLs)
+const otIcon = new L.DivIcon({
+  html: `<svg width="22" height="30" viewBox="0 0 22 30" xmlns="http://www.w3.org/2000/svg">
+    <path d="M11 0C4.92 0 0 4.92 0 11C0 19.25 11 30 11 30C11 30 22 19.25 22 11C22 4.92 17.08 0 11 0Z" fill="#3b82f6"/>
+    <circle cx="11" cy="11" r="4.5" fill="white"/>
+  </svg>`,
+  className: '',
+  iconSize: [22, 30],
+  iconAnchor: [11, 30],
+  popupAnchor: [0, -32],
 });
 
-const techIcon = new L.Icon({
-  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
-  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-  popupAnchor: [1, -34],
-  shadowSize: [41, 41]
+const techIcon = new L.DivIcon({
+  html: `<svg width="22" height="30" viewBox="0 0 22 30" xmlns="http://www.w3.org/2000/svg">
+    <path d="M11 0C4.92 0 0 4.92 0 11C0 19.25 11 30 11 30C11 30 22 19.25 22 11C22 4.92 17.08 0 11 0Z" fill="#10b981"/>
+    <circle cx="11" cy="11" r="4.5" fill="white"/>
+  </svg>`,
+  className: '',
+  iconSize: [22, 30],
+  iconAnchor: [11, 30],
+  popupAnchor: [0, -32],
 });
 
 // Fix Leaflet markers
@@ -541,231 +545,224 @@ export default function SupervisorOTs() {
   };
 
   const STATUS_META = {
-    ALL:         { label: 'Todas',        color: 'text-gray-600',   dot: 'bg-gray-400',   badge: 'bg-gray-100 text-gray-600 border-gray-200' },
-    PENDING:     { label: 'Sin Asignar',  color: 'text-gray-500',   dot: 'bg-gray-300',   badge: 'bg-gray-50 text-gray-500 border-gray-100' },
-    ASSIGNED:    { label: 'Asignada',        color: 'text-indigo-600', dot: 'bg-indigo-400', badge: 'bg-indigo-50 text-indigo-600 border-indigo-100' },
-    ACCEPTED:    { label: 'Orden Aceptada', color: 'text-sky-700',    dot: 'bg-sky-500',    badge: 'bg-sky-50 text-sky-700 border-sky-100' },
-    IN_PROGRESS: { label: 'En Proceso',     color: 'text-amber-700',  dot: 'bg-amber-400',  badge: 'bg-amber-50 text-amber-700 border-amber-100' },
-    COMPLETED:   { label: 'Completada',   color: 'text-emerald-700',dot: 'bg-emerald-500',badge: 'bg-emerald-50 text-emerald-700 border-emerald-100' },
-    VALIDATED:   { label: 'Validada',     color: 'text-blue-700',   dot: 'bg-blue-500',   badge: 'bg-blue-50 text-blue-700 border-blue-100' },
+    ALL:         { label: 'Todas',       color: 'text-slate-600',   dot: 'bg-slate-400',   badge: 'bg-slate-100 text-slate-600 border-slate-200' },
+    PENDING:     { label: 'Sin Asignar', color: 'text-slate-500',   dot: 'bg-slate-300',   badge: 'bg-slate-50 text-slate-500 border-slate-200' },
+    ASSIGNED:    { label: 'Asignada',    color: 'text-violet-600',  dot: 'bg-violet-400',  badge: 'bg-violet-50 text-violet-600 border-violet-200' },
+    ACCEPTED:    { label: 'Aceptada',    color: 'text-sky-700',     dot: 'bg-sky-500',     badge: 'bg-sky-50 text-sky-700 border-sky-200' },
+    IN_PROGRESS: { label: 'En Proceso',  color: 'text-amber-700',   dot: 'bg-amber-400',   badge: 'bg-amber-50 text-amber-700 border-amber-200' },
+    COMPLETED:   { label: 'Completada',  color: 'text-emerald-700', dot: 'bg-emerald-500', badge: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+    VALIDATED:   { label: 'Validada',    color: 'text-blue-700',    dot: 'bg-blue-500',    badge: 'bg-blue-50 text-blue-700 border-blue-200' },
   };
 
   const PRIORITY_META = {
-    URGENT: { label: 'Urgente', badge: 'bg-red-100 text-red-700 border-red-200',     bar: 'bg-red-500' },
-    HIGH:   { label: 'Alta',    badge: 'bg-orange-100 text-orange-700 border-orange-200', bar: 'bg-orange-400' },
-    MEDIUM: { label: 'Media',   badge: 'bg-blue-100 text-blue-600 border-blue-200',  bar: 'bg-blue-400' },
-    LOW:    { label: 'Baja',    badge: 'bg-gray-100 text-gray-500 border-gray-200',  bar: 'bg-gray-300' },
+    URGENT: { label: 'Urgente', badge: 'bg-red-50 text-red-700 border-red-200',           bar: 'bg-red-500' },
+    HIGH:   { label: 'Alta',    badge: 'bg-orange-50 text-orange-700 border-orange-200',  bar: 'bg-orange-500' },
+    MEDIUM: { label: 'Media',   badge: 'bg-blue-50 text-blue-600 border-blue-200',        bar: 'bg-blue-400' },
+    LOW:    { label: 'Baja',    badge: 'bg-slate-50 text-slate-500 border-slate-200',     bar: 'bg-slate-300' },
   };
 
   return (
-    <div className="space-y-5 pb-24">
+    <div className="space-y-4 pb-24">
 
-      {/* ══════ HEADER EDITORIAL ══════ */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-1">
-        <div>
-          <p className="text-[9px] font-mono font-bold uppercase tracking-[0.2em] text-gray-400 mb-1">
-            Operaciones · 2026
-          </p>
-          <h1 className="text-[2rem] font-black text-gray-950 leading-none tracking-tight">
-            Control de Operaciones
-          </h1>
-          <p className="text-sm text-gray-400 font-medium mt-1.5">
-            {kpis.total} órdenes totales
-            {kpis.inProgress > 0 && <> · <span className="text-amber-600 font-bold">{kpis.inProgress} en proceso</span></>}
-            {kpis.urgent > 0 && <> · <span className="text-red-600 font-bold">{kpis.urgent} alta prioridad</span></>}
-          </p>
+      {/* HEADER */}
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 pt-1 pb-4 border-b border-gray-100">
+        <div className="flex items-start gap-3">
+          <div className="mt-1 h-9 w-1 rounded-full bg-blue-500 shrink-0" />
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-blue-500 mb-0.5">
+              Operaciones · {new Date().getFullYear()}
+            </p>
+            <h1 className="text-[1.75rem] font-extrabold text-gray-900 leading-none tracking-tight">
+              Control de Operaciones
+            </h1>
+            <p className="text-sm text-gray-400 mt-1">
+              {kpis.total} órdenes totales
+              {kpis.inProgress > 0 && <> · <span className="text-amber-600 font-semibold">{kpis.inProgress} en proceso</span></>}
+              {kpis.urgent > 0 && <> · <span className="text-red-500 font-semibold">{kpis.urgent} alta prioridad</span></>}
+            </p>
+          </div>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-2 shrink-0 pb-1">
           <button
             onClick={() => navigate('/ots/leaderboard')}
-            className="cursor-pointer h-10 px-4 rounded-xl border border-gray-200 bg-white text-gray-600 font-bold text-xs flex items-center gap-2 hover:border-gray-300 hover:bg-gray-50 transition-colors duration-150 shadow-sm"
+            className="cursor-pointer h-9 px-4 rounded-xl border border-gray-200 bg-white text-gray-600 font-semibold text-xs flex items-center gap-2 hover:border-gray-300 hover:bg-gray-50 transition-colors shadow-sm"
           >
             <Trophy className="h-3.5 w-3.5 text-amber-500" /> Ranking
           </button>
           <button
             onClick={openCreateModal}
-            className="cursor-pointer h-10 px-5 rounded-xl bg-gray-950 text-white font-bold text-xs flex items-center gap-2 hover:bg-gray-800 transition-colors duration-150 shadow-sm"
+            className="cursor-pointer h-9 px-5 rounded-xl bg-blue-600 text-white font-semibold text-xs flex items-center gap-2 hover:bg-blue-700 transition-colors shadow-sm"
           >
             <ClipboardList className="h-3.5 w-3.5" /> Nueva OT
           </button>
         </div>
       </div>
 
-      {/* ══════ BENTO KPI GRID ══════ */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-
-        {/* Card grande: Total */}
-        <div className="col-span-2 lg:col-span-1 lg:row-span-2 bg-gray-950 rounded-2xl p-6 flex flex-col justify-between min-h-[140px] lg:min-h-[196px] relative overflow-hidden">
-          <div className="absolute bottom-0 right-0 w-28 h-28 bg-white/[0.03] rounded-tl-full" />
-          <div>
-            <p className="text-[9px] font-mono font-bold uppercase tracking-[0.18em] text-gray-500">Total de OTs</p>
-            <p className="text-6xl font-black text-white mt-2 font-mono leading-none tabular-nums">{kpis.total}</p>
-          </div>
-          <div className="flex items-center gap-2 mt-4">
-            <div className="flex gap-1">
-              {[
-                { w: Math.round((kpis.pending / Math.max(kpis.total,1)) * 60), c: 'bg-gray-600' },
-                { w: Math.round((kpis.inProgress / Math.max(kpis.total,1)) * 60), c: 'bg-amber-400' },
-                { w: Math.round((kpis.completed / Math.max(kpis.total,1)) * 60), c: 'bg-emerald-500' },
-              ].map((bar, i) => (
-                <div key={i} className={cn("h-1 rounded-full", bar.c)} style={{ width: Math.max(bar.w, 4) }} />
-              ))}
+      {/* KPI GRID */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        {[
+          { label: 'Total',         value: kpis.total,      sub: 'todas las órdenes', color: '#3b82f6', bg: '#eff6ff',  icon: <ClipboardList className="h-4 w-4" style={{color:'#3b82f6'}} /> },
+          { label: 'Sin Asignar',   value: kpis.pending,    sub: 'esperando técnico', color: '#94a3b8', bg: '#f8fafc',  icon: <Clock className="h-4 w-4" style={{color:'#94a3b8'}} /> },
+          { label: 'Aceptadas',     value: kpis.accepted,   sub: 'confirmadas',       color: '#0ea5e9', bg: '#f0f9ff',  icon: <Check className="h-4 w-4" style={{color:'#0ea5e9'}} /> },
+          { label: 'En Proceso',    value: kpis.inProgress, sub: 'actualmente',       color: '#d97706', bg: '#fffbeb',  icon: <Zap className="h-4 w-4" style={{color:'#d97706'}} />,  pulse: kpis.inProgress > 0 },
+          { label: 'Completadas',   value: kpis.completed,  sub: 'finalizadas',       color: '#10b981', bg: '#ecfdf5',  icon: <Star className="h-4 w-4" style={{color:'#10b981'}} /> },
+          { label: 'Alta Prioridad',value: kpis.urgent,     sub: 'urgente / alta',    color: '#ef4444', bg: '#fef2f2',  icon: <AlertCircle className="h-4 w-4" style={{color:'#ef4444'}} />, pulse: kpis.urgent > 0 },
+        ].map((card) => (
+          <div key={card.label} className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm flex flex-col gap-2 hover:shadow-md transition-shadow duration-200 relative overflow-hidden">
+            <div className="absolute top-0 left-0 right-0 h-0.5 rounded-t-2xl" style={{background: card.color, opacity: card.value > 0 ? 1 : 0.2}} />
+            <div className="flex items-center justify-between">
+              <div className="h-8 w-8 rounded-xl flex items-center justify-center" style={{background: card.bg}}>
+                {card.icon}
+              </div>
+              {card.pulse && <div className="h-2 w-2 rounded-full animate-pulse" style={{background: card.color}} />}
             </div>
-            <p className="text-[9px] font-mono text-gray-600">distribución</p>
+            <div>
+              <p className="text-2xl font-black tabular-nums leading-none" style={{color: card.value > 0 ? card.color : '#cbd5e1'}}>
+                {card.value}
+              </p>
+              <p className="text-[10px] font-semibold text-gray-500 mt-0.5">{card.label}</p>
+            </div>
           </div>
-        </div>
-
-        {/* Sin asignar */}
-        <div className="bg-white border border-gray-100 rounded-2xl p-5 flex flex-col justify-between shadow-sm hover:shadow-md transition-shadow duration-200">
-          <div className="flex items-center justify-between">
-            <p className="text-[9px] font-mono font-bold uppercase tracking-[0.15em] text-gray-400">Sin asignar</p>
-            <Clock className="h-3.5 w-3.5 text-gray-300" />
-          </div>
-          <p className="text-4xl font-black text-gray-800 font-mono tabular-nums mt-2">{kpis.pending}</p>
-          <div className="h-px bg-gray-100 mt-3" />
-        </div>
-
-        {/* En proceso */}
-        <div className={cn("rounded-2xl p-5 flex flex-col justify-between shadow-sm", kpis.inProgress > 0 ? "bg-amber-50 border border-amber-100" : "bg-white border border-gray-100")}>
-          <div className="flex items-center justify-between">
-            <p className="text-[9px] font-mono font-bold uppercase tracking-[0.15em] text-amber-600/70">En Proceso</p>
-            {kpis.inProgress > 0 && <div className="h-2 w-2 rounded-full bg-amber-400 animate-pulse" />}
-          </div>
-          <p className={cn("text-4xl font-black font-mono tabular-nums mt-2", kpis.inProgress > 0 ? "text-amber-700" : "text-gray-300")}>{kpis.inProgress}</p>
-          <div className={cn("h-px mt-3", kpis.inProgress > 0 ? "bg-amber-100" : "bg-gray-100")} />
-        </div>
-
-        {/* Completadas */}
-        <div className="bg-white border border-gray-100 rounded-2xl p-5 flex flex-col justify-between shadow-sm hover:shadow-md transition-shadow duration-200">
-          <div className="flex items-center justify-between">
-            <p className="text-[9px] font-mono font-bold uppercase tracking-[0.15em] text-gray-400">Completadas</p>
-            <Trophy className="h-3.5 w-3.5 text-emerald-400" />
-          </div>
-          <p className="text-4xl font-black text-emerald-600 font-mono tabular-nums mt-2">{kpis.completed}</p>
-          <div className="h-px bg-gray-100 mt-3" />
-        </div>
-
-        {/* Alta prioridad */}
-        <div className={cn("rounded-2xl p-5 flex flex-col justify-between shadow-sm", kpis.urgent > 0 ? "bg-red-50 border border-red-100" : "bg-white border border-gray-100")}>
-          <div className="flex items-center justify-between">
-            <p className="text-[9px] font-mono font-bold uppercase tracking-[0.15em] text-red-500/70">Alta Prioridad</p>
-            {kpis.urgent > 0 && <AlertCircle className="h-3.5 w-3.5 text-red-400" />}
-          </div>
-          <p className={cn("text-4xl font-black font-mono tabular-nums mt-2", kpis.urgent > 0 ? "text-red-600" : "text-gray-300")}>{kpis.urgent}</p>
-          <div className={cn("h-px mt-3", kpis.urgent > 0 ? "bg-red-100" : "bg-gray-100")} />
-        </div>
-
+        ))}
       </div>
 
-      {/* ══════ MAPA + PANEL LATERAL ══════ */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+      {/* MAPA + PANEL LATERAL */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Mapa */}
-        <div className="lg:col-span-2 rounded-2xl overflow-hidden border border-gray-100 shadow-sm relative z-0 bg-gray-100" style={{ height: 280 }}>
-          <MapContainer center={[19.4326, -99.1332]} zoom={11} style={{ height: '100%', width: '100%' }}>
-            <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-            {ots.filter(o => o.lat && o.lng).map(ot => (
-              <Marker key={ot.id} position={[ot.lat, ot.lng]} icon={otIcon}>
-                <Popup>
-                  <div className="p-1 space-y-0.5">
-                    <p className="font-black text-xs">{ot.otNumber}</p>
-                    <p className="text-[10px] text-gray-500">{ot.title}</p>
-                    {ot.leadTechName && <p className="text-[10px] text-blue-600">{ot.leadTechName}</p>}
-                  </div>
-                </Popup>
-              </Marker>
-            ))}
-            {Object.values(techLocations).map(tech =>
-              tech.lat && tech.lng ? (
-                <Marker key={`tech-${tech.id}`} position={[tech.lat, tech.lng]} icon={techIcon}>
+        <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col">
+          <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between shrink-0">
+            <div className="flex items-center gap-2">
+              <MapPin className="h-3.5 w-3.5 text-blue-500" />
+              <p className="text-xs font-bold text-gray-700">Mapa de Operaciones</p>
+            </div>
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-1.5">
+                <span className="inline-block w-2 h-2 rounded-full bg-blue-500" />
+                <p className="text-[9px] font-semibold text-gray-400">{ots.filter(o => o.lat && o.lng).length} OTs</p>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="inline-block w-2 h-2 rounded-full bg-emerald-500" />
+                <p className="text-[9px] font-semibold text-gray-400">{Object.keys(techLocations).length} técnicos</p>
+              </div>
+            </div>
+          </div>
+          <div className="relative z-0 flex-1 min-h-[240px]">
+            <MapContainer center={[19.4326, -99.1332]} zoom={11} style={{ height: '100%', width: '100%' }}>
+              <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+              {ots.filter(o => o.lat && o.lng).map(ot => (
+                <Marker key={ot.id} position={[ot.lat, ot.lng]} icon={otIcon}>
                   <Popup>
                     <div className="p-1 space-y-0.5">
-                      <p className="font-black text-xs text-green-700">{tech.name}</p>
-                      <p className="text-[10px] text-gray-500">
-                        {tech.lastUpdate
-                          ? new Date(tech.lastUpdate).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })
-                          : 'Ubicación desconocida'}
-                      </p>
+                      <p className="font-black text-xs">{ot.otNumber}</p>
+                      <p className="text-[10px] text-gray-500">{ot.title}</p>
+                      {ot.leadTechName && <p className="text-[10px] text-blue-600">{ot.leadTechName}</p>}
                     </div>
                   </Popup>
                 </Marker>
-              ) : null
-            )}
-          </MapContainer>
-          {/* Overlay corner legend */}
-          <div className="absolute bottom-3 left-3 bg-white/90 backdrop-blur-sm rounded-xl px-3 py-2 border border-white/60 shadow-sm pointer-events-none z-[400] space-y-0.5">
-            <div className="flex items-center gap-1.5">
-              <span className="inline-block w-2 h-2 rounded-full bg-blue-500"></span>
-              <p className="text-[9px] font-mono font-bold text-gray-500 uppercase tracking-widest">{ots.filter(o => o.lat && o.lng).length} OTs</p>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="inline-block w-2 h-2 rounded-full bg-green-500"></span>
-              <p className="text-[9px] font-mono font-bold text-gray-500 uppercase tracking-widest">{Object.keys(techLocations).length} técnicos</p>
-            </div>
+              ))}
+              {Object.values(techLocations).map(tech =>
+                tech.lat && tech.lng ? (
+                  <Marker key={`tech-${tech.id}`} position={[tech.lat, tech.lng]} icon={techIcon}>
+                    <Popup>
+                      <div style={{minWidth:160}} className="p-1 space-y-1.5">
+                        <div className="flex items-center gap-1.5">
+                          <span style={{display:'inline-block',width:8,height:8,borderRadius:'50%',background:'#10b981'}} />
+                          <p className="font-black text-xs text-green-700">{tech.name}</p>
+                        </div>
+                        {tech.lastUpdate ? (() => {
+                          const d = new Date(tech.lastUpdate);
+                          const dia = d.toLocaleDateString('es-MX', { weekday: 'long' });
+                          const fecha = d.toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' });
+                          const hora = d.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                          return (
+                            <div className="space-y-0.5">
+                              <p style={{textTransform:'capitalize'}} className="text-[10px] font-semibold text-gray-700">{dia}</p>
+                              <p className="text-[10px] text-gray-500">{fecha}</p>
+                              <p className="text-[10px] font-mono font-bold" style={{color:'#3b82f6'}}>{hora}</p>
+                            </div>
+                          );
+                        })() : (
+                          <p className="text-[10px] text-gray-400 italic">Sin ubicación registrada</p>
+                        )}
+                      </div>
+                    </Popup>
+                  </Marker>
+                ) : null
+              )}
+            </MapContainer>
           </div>
         </div>
 
         {/* Panel lateral */}
         <div className="flex flex-col gap-3">
           {/* En Proceso ahora */}
-          <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm flex-1">
-            <div className="flex items-center justify-between mb-3">
-              <p className="text-[9px] font-mono font-bold uppercase tracking-[0.15em] text-gray-400">En proceso ahora</p>
-              <span className={cn("text-[9px] font-mono font-black tabular-nums", kpis.inProgress > 0 ? "text-amber-600" : "text-gray-300")}>{kpis.inProgress}</span>
+          <div className="bg-white border border-gray-100 rounded-2xl shadow-sm flex-1 overflow-hidden">
+            <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Zap className="h-3.5 w-3.5 text-amber-500" />
+                <p className="text-xs font-bold text-gray-700">En proceso ahora</p>
+              </div>
+              <span className={cn("text-[10px] font-mono font-black tabular-nums px-2 py-0.5 rounded-lg", kpis.inProgress > 0 ? "bg-amber-50 text-amber-600" : "bg-gray-50 text-gray-300")}>
+                {kpis.inProgress}
+              </span>
             </div>
-            <div className="space-y-1.5">
+            <div className="p-3 space-y-1">
               {ots.filter(o => o.status === 'IN_PROGRESS').slice(0, 5).map(o => (
                 <button
                   key={o.id}
                   onClick={() => navigate(`/ots/${o.id}`)}
-                  className="cursor-pointer w-full flex items-center gap-2.5 text-left hover:bg-gray-50 rounded-xl px-2.5 py-2 transition-colors duration-150 group"
+                  className="cursor-pointer w-full flex items-center gap-2.5 text-left hover:bg-amber-50/60 rounded-xl px-2.5 py-2 transition-colors duration-150 group"
                 >
-                  <div className="h-6 w-6 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center text-[9px] font-black font-mono shrink-0">
+                  <div className="h-7 w-7 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center text-[10px] font-black shrink-0">
                     {o.leadTechName?.charAt(0) || '?'}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="text-[10px] font-mono font-bold text-gray-800 truncate leading-none">{o.otNumber}</p>
+                    <p className="text-[11px] font-bold text-gray-800 truncate leading-none">{o.otNumber}</p>
                     <p className="text-[9px] text-gray-400 truncate mt-0.5">{o.clientName || o.client}</p>
                   </div>
-                  <Eye className="h-3 w-3 text-gray-200 group-hover:text-gray-400 transition-colors shrink-0" />
+                  <Eye className="h-3 w-3 text-gray-200 group-hover:text-amber-400 transition-colors shrink-0" />
                 </button>
               ))}
               {kpis.inProgress === 0 && (
-                <p className="text-[10px] text-gray-300 font-bold text-center py-4">Sin órdenes activas</p>
+                <p className="text-[10px] text-gray-300 font-semibold text-center py-5">Sin órdenes activas</p>
               )}
             </div>
           </div>
 
           {/* Urgentes */}
-          <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm">
-            <div className="flex items-center justify-between mb-3">
-              <p className="text-[9px] font-mono font-bold uppercase tracking-[0.15em] text-gray-400">Alta prioridad</p>
-              {kpis.urgent > 0 && <div className="h-1.5 w-1.5 rounded-full bg-red-400 animate-pulse" />}
+          <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
+            <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="h-3.5 w-3.5 text-red-400" />
+                <p className="text-xs font-bold text-gray-700">Alta prioridad</p>
+              </div>
+              {kpis.urgent > 0 && <div className="h-2 w-2 rounded-full bg-red-400 animate-pulse" />}
             </div>
-            <div className="space-y-1.5">
+            <div className="p-3 space-y-1">
               {ots.filter(o => (o.priority === 'URGENT' || o.priority === 'HIGH') && o.status !== 'COMPLETED' && o.status !== 'VALIDATED').slice(0, 4).map(o => (
-                <div key={o.id} className="flex items-center gap-2.5 px-1">
+                <div key={o.id} className="flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-red-50/40 transition-colors">
                   <div className={cn("h-1.5 w-1.5 rounded-full shrink-0", o.priority === 'URGENT' ? 'bg-red-500' : 'bg-orange-400')} />
-                  <p className="text-[10px] font-mono font-bold text-gray-700 truncate flex-1">{o.otNumber}</p>
-                  <span className={cn("text-[8px] font-mono font-black px-1.5 py-0.5 rounded-lg border shrink-0", PRIORITY_META[o.priority]?.badge)}>
+                  <p className="text-[10px] font-semibold text-gray-700 truncate flex-1">{o.otNumber}</p>
+                  <span className={cn("text-[8px] font-bold px-1.5 py-0.5 rounded-lg border shrink-0", PRIORITY_META[o.priority]?.badge)}>
                     {PRIORITY_META[o.priority]?.label}
                   </span>
                 </div>
               ))}
               {kpis.urgent === 0 && (
-                <p className="text-[10px] text-gray-300 font-bold text-center py-2">Sin alertas</p>
+                <p className="text-[10px] text-gray-300 font-semibold text-center py-3">Sin alertas</p>
               )}
             </div>
           </div>
         </div>
       </div>
 
-      {/* ══════ TABLA DE ÓRDENES ══════ */}
+      {/* TABLA DE ÓRDENES */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
 
         {/* Toolbar */}
         <div className="px-5 pt-4 pb-0 border-b border-gray-100">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-0">
-            {/* Tabs estilo underline */}
+            {/* Tabs */}
             <div className="flex items-end gap-0 overflow-x-auto">
               {['ALL', 'PENDING', 'ASSIGNED', 'ACCEPTED', 'IN_PROGRESS', 'COMPLETED'].map(s => {
                 const meta = STATUS_META[s];
@@ -778,13 +775,13 @@ export default function SupervisorOTs() {
                     className={cn(
                       "cursor-pointer shrink-0 flex items-center gap-1.5 px-4 py-3 text-[10px] font-bold uppercase tracking-wide border-b-2 transition-all duration-150 whitespace-nowrap",
                       isActive
-                        ? "border-gray-950 text-gray-950"
+                        ? "border-blue-500 text-blue-600"
                         : "border-transparent text-gray-400 hover:text-gray-600 hover:border-gray-200"
                     )}
                   >
                     {isActive && <div className={cn("h-1.5 w-1.5 rounded-full shrink-0", meta.dot)} />}
                     {meta.label}
-                    <span className={cn("font-mono text-[9px]", isActive ? "text-gray-500" : "text-gray-300")}>{count}</span>
+                    <span className={cn("font-mono text-[9px]", isActive ? "text-blue-400" : "text-gray-300")}>{count}</span>
                   </button>
                 );
               })}
@@ -795,7 +792,7 @@ export default function SupervisorOTs() {
               <input
                 type="text"
                 placeholder="Buscar folio o cliente..."
-                className="pl-9 pr-4 py-2 bg-gray-50 border border-gray-100 rounded-xl outline-none text-sm font-medium text-gray-700 placeholder:text-gray-300 focus:bg-white focus:border-gray-300 transition-colors duration-150 w-56"
+                className="pl-9 pr-4 py-2 bg-gray-50 border border-gray-100 rounded-xl outline-none text-sm font-medium text-gray-700 placeholder:text-gray-300 focus:bg-white focus:border-blue-200 focus:ring-1 focus:ring-blue-100 transition-all duration-150 w-56"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
@@ -807,22 +804,22 @@ export default function SupervisorOTs() {
         <div className="overflow-x-auto">
           <table className="w-full min-w-[820px]">
             <thead>
-              <tr className="border-b border-gray-50">
+              <tr className="bg-gray-50/60 border-b border-gray-100">
                 <th className="w-10 px-4 py-3" />
                 <th className="px-5 py-3 text-left">
-                  <span className="text-[9px] font-mono font-bold uppercase tracking-[0.15em] text-gray-400">Folio</span>
+                  <span className="text-[9px] font-bold uppercase tracking-[0.15em] text-gray-400">Folio</span>
                 </th>
                 <th className="px-5 py-3 text-left">
-                  <span className="text-[9px] font-mono font-bold uppercase tracking-[0.15em] text-gray-400">Servicio · Cliente</span>
+                  <span className="text-[9px] font-bold uppercase tracking-[0.15em] text-gray-400">Servicio · Cliente</span>
                 </th>
                 <th className="px-5 py-3 text-left">
-                  <span className="text-[9px] font-mono font-bold uppercase tracking-[0.15em] text-gray-400">Técnico · Fondos</span>
+                  <span className="text-[9px] font-bold uppercase tracking-[0.15em] text-gray-400">Técnico · Fondos</span>
                 </th>
                 <th className="px-5 py-3 text-left">
-                  <span className="text-[9px] font-mono font-bold uppercase tracking-[0.15em] text-gray-400">Estado</span>
+                  <span className="text-[9px] font-bold uppercase tracking-[0.15em] text-gray-400">Estado</span>
                 </th>
                 <th className="px-5 py-3 text-right">
-                  <span className="text-[9px] font-mono font-bold uppercase tracking-[0.15em] text-gray-400">Acciones</span>
+                  <span className="text-[9px] font-bold uppercase tracking-[0.15em] text-gray-400">Acciones</span>
                 </th>
               </tr>
             </thead>
@@ -847,7 +844,7 @@ export default function SupervisorOTs() {
                       onClick={() => toggleOtAccordion(ot.id)}
                       className={cn(
                         "cursor-pointer border-b border-gray-50 transition-colors duration-100 group relative",
-                        isExpanded ? "bg-slate-50" : "hover:bg-gray-50/70"
+                        isExpanded ? "bg-blue-50/30" : "hover:bg-gray-50/70"
                       )}
                     >
                       {/* Borde izquierdo de prioridad */}
@@ -856,7 +853,7 @@ export default function SupervisorOTs() {
                         <div className="flex justify-center">
                           <div className={cn(
                             "h-5 w-5 rounded-md flex items-center justify-center transition-colors duration-100",
-                            isExpanded ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-400 group-hover:bg-gray-200"
+                            isExpanded ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-400 group-hover:bg-gray-200"
                           )}>
                             {isExpanded
                               ? <ChevronUp className="h-3 w-3" />
@@ -895,7 +892,7 @@ export default function SupervisorOTs() {
                         <div className="flex items-center gap-2">
                           <div className={cn(
                             "h-8 w-8 rounded-lg flex items-center justify-center font-mono font-black text-xs shrink-0",
-                            ot.leadTechName ? "bg-slate-100 text-slate-600" : "bg-gray-50 text-gray-300"
+                            ot.leadTechName ? "bg-blue-50 text-blue-600" : "bg-gray-50 text-gray-300"
                           )}>
                             {ot.leadTechName?.charAt(0) || '—'}
                           </div>
@@ -936,7 +933,7 @@ export default function SupervisorOTs() {
                           <button
                             onClick={() => navigate(`/ots/${ot.id}`)}
                             aria-label="Ver detalle"
-                            className="cursor-pointer h-8 w-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors duration-150"
+                            className="cursor-pointer h-8 w-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors duration-150"
                           >
                             <Eye className="h-4 w-4" />
                           </button>
@@ -965,7 +962,7 @@ export default function SupervisorOTs() {
 
                     {/* ── Acordeón financiero ── */}
                     {isExpanded && (
-                      <tr className="bg-slate-50 border-b border-gray-100">
+                      <tr className="bg-blue-50/20 border-b border-gray-100">
                         <td colSpan={6} className="px-6 py-5">
                           {loadingFinancials[ot.id] ? (
                             <div className="flex items-center gap-3 py-4">
@@ -977,7 +974,7 @@ export default function SupervisorOTs() {
                               {/* Resumen financiero */}
                               <div className="bg-white rounded-xl border border-gray-100 p-5 space-y-4">
                                 <div className="flex items-center gap-2 border-b border-gray-50 pb-3">
-                                  <DollarSign className="h-4 w-4 text-gray-400" />
+                                  <DollarSign className="h-4 w-4 text-blue-400" />
                                   <p className="text-[9px] font-mono font-bold uppercase tracking-[0.15em] text-gray-500">Estado Financiero</p>
                                 </div>
                                 <div className="space-y-2.5">
