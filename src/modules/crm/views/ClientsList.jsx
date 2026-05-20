@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Plus, Search, Building2, User, Mail, Phone, MapPin, Hash,
   ShieldCheck, X, Save, Trash2, ChevronRight, FileText,
@@ -158,6 +158,29 @@ export default function ClientsList() {
     return matchSearch && matchStatus;
   });
 
+  // ── Carga progresiva (compatible con motion.div y CSS grid) ───────────────
+  const CLIENTS_BATCH = 30;
+  const [visibleCount, setVisibleCount] = useState(CLIENTS_BATCH);
+  const sentinelRef = useRef(null);
+
+  // Resetear al cambiar filtros
+  useEffect(() => { setVisibleCount(CLIENTS_BATCH); }, [searchTerm, filterStatus]);
+
+  // IntersectionObserver: carga más tarjetas cuando el usuario llega al final
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => { if (entry.isIntersecting) setVisibleCount(prev => prev + CLIENTS_BATCH); },
+      { rootMargin: '200px' }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [filtered.length]);
+
+  const displayedClients = filtered.slice(0, visibleCount);
+  const hasMore = visibleCount < filtered.length;
+
   // Métricas
   const totalActive   = clients.filter(c => c.status === 'ACTIVE').length;
   const totalInactive = clients.filter(c => c.status === 'INACTIVE').length;
@@ -255,8 +278,9 @@ export default function ClientsList() {
               </p>
             </div>
           ) : (
+            <>
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-              {filtered.map(client => {
+              {displayedClients.map(client => {
                 const cQuotes  = quotes.filter(q => q.clientId === client.id);
                 const cDeals   = deals.filter(d => d.clientId === client.id);
                 const revenue  = cQuotes.filter(q => q.status === 'ACCEPTED').reduce((s, q) => s + (q.total || 0), 0);
@@ -341,7 +365,23 @@ export default function ClientsList() {
                   </motion.div>
                 );
               })}
+
+              {/* Sentinel — IntersectionObserver carga más tarjetas al llegar aquí */}
+              {hasMore && (
+                <div ref={sentinelRef} className="col-span-full flex justify-center py-6">
+                  <div className="flex items-center gap-2 text-gray-300">
+                    <div className="w-4 h-4 border-2 border-gray-200 border-t-primary rounded-full animate-spin" />
+                    <span className="text-[9px] font-bold uppercase tracking-widest">Cargando más...</span>
+                  </div>
+                </div>
+              )}
             </div>
+
+            {/* Contador total */}
+            <p className="mt-3 text-center text-[9px] font-mono text-gray-300">
+              Mostrando {Math.min(visibleCount, filtered.length)} de {filtered.length} clientes
+            </p>
+            </>
           )}
         </div>
       </div>

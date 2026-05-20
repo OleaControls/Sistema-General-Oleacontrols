@@ -218,6 +218,10 @@ model WorkOrder {
   @@index([supervisorId])
   @@index([createdAt])
   @@index([scheduledDate])
+  // Índices compuestos para las queries más frecuentes del supervisor y técnico
+  @@index([technicianId, status])
+  @@index([supervisorId, status])
+  @@index([supervisorId, createdAt])
 }
 
 model Evidence {
@@ -376,6 +380,7 @@ model Quote {
   @@index([sellerId])
   @@index([status])
   @@index([clientId])
+  @@index([dealId])
 }
 
 model QuoteRequirementPhrase {
@@ -425,6 +430,7 @@ model Deal {
   quotes        Quote[]
 
   @@index([assignedToId, createdAt])
+  @@index([assignedToId, stage])
   @@index([stage])
   @@index([clientId])
 }

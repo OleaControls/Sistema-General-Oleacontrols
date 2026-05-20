@@ -668,9 +668,8 @@ export default async function handler(req, res) {
   if (!caller) return;
   const userId = caller.id;
 
-  // Roles desde la BD (siempre actualizados, no del JWT que puede estar desactualizado)
-  const emp     = await prisma.employee.findUnique({ where: { id: userId }, select: { roles: true } });
-  const roles   = emp?.roles || [];
+  // Roles desde el JWT (ya incluidos en el token al hacer login, evita consulta extra a DB)
+  const roles   = caller.roles || [];
   const isAdmin = roles.includes('ADMIN');
   const isSales = roles.includes('SALES') && !isAdmin;
 
@@ -679,9 +678,18 @@ export default async function handler(req, res) {
       const { id, dealId } = req.query;
       if (id) {
         const quote = await prisma.quote.findUnique({ where: { id }, include: { client: true, creator: true, seller: true } });
-        const url = await generateQuotePDF(quote);
-        if (url) await prisma.quote.update({ where: { id }, data: { pdfUrl: url } });
-        return res.status(200).json({ ...quote, pdfUrl: url || quote.pdfUrl });
+        if (!quote) return res.status(404).json({ error: 'Cotización no encontrada' });
+
+        // Solo regenerar PDF si se solicita explícitamente (?regenerate=1) o no existe aún
+        const forceRegen = req.query.regenerate === '1';
+        if (forceRegen || !quote.pdfUrl) {
+          const url = await generateQuotePDF(quote);
+          if (url) {
+            await prisma.quote.update({ where: { id }, data: { pdfUrl: url } });
+            quote.pdfUrl = url;
+          }
+        }
+        return res.status(200).json(quote);
       }
       // Si es SALES, solo ve sus propias cotizaciones (como creador o vendedor)
       const baseWhere = isSales

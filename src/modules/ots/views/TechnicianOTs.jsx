@@ -7,6 +7,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 import { otService } from '@/api/otService';
 import { useAuth } from '@/store/AuthContext';
 import { cn } from '@/lib/utils';

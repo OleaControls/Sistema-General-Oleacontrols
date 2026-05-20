@@ -13,18 +13,26 @@ export default defineConfig({
       workbox: {
         skipWaiting: true,
         clientsClaim: true,
-        maximumFileSizeToCacheInBytes: 3 * 1024 * 1024, // 3 MiB
+        maximumFileSizeToCacheInBytes: 4 * 1024 * 1024, // 4 MiB
         runtimeCaching: [
           {
-            // NetworkFirst: siempre intenta la red primero para JS/CSS
-            // Si el servidor responde (incluso con 404 porque el hash cambió),
-            // no sirve el chunk viejo en caché → fuerza recarga limpia
-            urlPattern: /\.(?:js|css)$/,
-            handler: 'NetworkFirst',
+            // Chunks de Vite tienen hash en el nombre → son inmutables.
+            // StaleWhileRevalidate: sirve desde caché inmediatamente y actualiza en segundo plano.
+            // Mucho más rápido en móvil que NetworkFirst (sin esperar red).
+            urlPattern: /\/assets\/.*\.[a-f0-9]{8}\.(js|css)$/,
+            handler: 'StaleWhileRevalidate',
             options: {
-              cacheName: 'static-assets',
-              networkTimeoutSeconds: 10,
-              expiration: { maxEntries: 60, maxAgeSeconds: 60 * 60 * 24 * 7 },
+              cacheName: 'vite-chunks',
+              expiration: { maxEntries: 80, maxAgeSeconds: 60 * 60 * 24 * 30 },
+            },
+          },
+          {
+            // Archivos sin hash (fuentes, imágenes, SVG) — CacheFirst es suficiente
+            urlPattern: /\.(?:woff2?|png|svg|webp|avif|ico)$/,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'static-media',
+              expiration: { maxEntries: 60, maxAgeSeconds: 60 * 60 * 24 * 30 },
             },
           },
         ],
@@ -71,6 +79,27 @@ export default defineConfig({
           // Lucide — íconos, mediano tamaño
           if (id.includes('node_modules/lucide-react')) {
             return 'vendor-icons';
+          }
+          // Mapas — Leaflet + react-leaflet, solo en OTs/GPS con mapa
+          if (id.includes('node_modules/leaflet') ||
+              id.includes('node_modules/react-leaflet') ||
+              id.includes('node_modules/@react-leaflet')) {
+            return 'vendor-maps';
+          }
+          // PDF y Excel — solo al generar documentos
+          if (id.includes('node_modules/jspdf') ||
+              id.includes('node_modules/jspdf-autotable') ||
+              id.includes('node_modules/html2canvas') ||
+              id.includes('node_modules/html-to-image')) {
+            return 'vendor-pdf';
+          }
+          if (id.includes('node_modules/xlsx')) {
+            return 'vendor-xlsx';
+          }
+          // Firma digital — solo en vistas de cierre de OT
+          if (id.includes('node_modules/signature_pad') ||
+              id.includes('node_modules/react-signature-canvas')) {
+            return 'vendor-signature';
           }
         },
       },

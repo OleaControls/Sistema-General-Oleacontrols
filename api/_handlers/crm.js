@@ -28,8 +28,15 @@ export default async function handler(req, res) {
         const where = isSales ? { assignedToId: userId } : {};
         const leads = await prisma.lead.findMany({
           where,
-          include: { assignedTo: true },
-          orderBy: { createdAt: 'desc' }
+          // select en lugar de include: trae solo los campos que el frontend necesita
+          select: {
+            id: true, name: true, company: true, email: true, phone: true,
+            source: true, stage: true, estimatedValue: true, notes: true,
+            createdAt: true, updatedAt: true,
+            assignedTo: { select: { id: true, name: true, avatar: true } }
+          },
+          orderBy: { createdAt: 'desc' },
+          take: 200,
         });
         return res.status(200).json(leads || []);
       }
@@ -110,9 +117,12 @@ export default async function handler(req, res) {
           : {};
         const seguimientos = await prisma.dealActivity.findMany({
           where,
-          include: { deal: { select: { id: true, title: true, company: true, stage: true } } },
+          select: {
+            id: true, type: true, description: true, dueDate: true, completedAt: true, createdAt: true,
+            deal: { select: { id: true, title: true, company: true, stage: true } }
+          },
           orderBy: { createdAt: 'desc' },
-          take: 500
+          take: 100
         });
         return res.status(200).json(seguimientos || []);
       }

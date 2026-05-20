@@ -39,12 +39,14 @@ export default async function handler(req, res) {
       if (id) {
           const employee = await prisma.employee.findUnique({
               where: { id },
-              include: { vacationRequests: true }
+              include: {
+                // Limitar a las 24 solicitudes más recientes, no todas
+                vacationRequests: { orderBy: { createdAt: 'desc' }, take: 24 }
+              }
           });
 
           if (!employee) return res.status(404).json({ error: 'Empleado no encontrado' });
 
-          // Campos de documentos que necesitan firma de R2
           const docFields = [
             'avatar', 'ine', 'curp', 'rfc', 'nss', 'birthCertificate', 'proofOfResidency', 'cv', 'ineDoc',
             'contractSigned', 'privacyPolicySigned', 'internalRulesSigned', 'imssHigh',
@@ -53,11 +55,12 @@ export default async function handler(req, res) {
             'resignationLetter', 'settlementOrLiquidation', 'imssLow', 'laborConstancy'
           ];
 
-          for (const field of docFields) {
-            if (employee[field] && typeof employee[field] === 'string' && employee[field].includes('r2.dev')) {
-                employee[field] = await signUrlIfNeeded(employee[field]);
-            }
-          }
+          // Firmar todas las URLs en paralelo en lugar de secuencialmente
+          await Promise.all(
+            docFields
+              .filter(f => employee[f] && typeof employee[f] === 'string' && employee[f].includes('r2.dev'))
+              .map(async (f) => { employee[f] = await signUrlIfNeeded(employee[f]); })
+          );
 
           return res.status(200).json(employee);
       }

@@ -6,7 +6,19 @@ export const otService = {
     const params = new URLSearchParams(filters).toString();
     const response = await apiFetch(`/api/ots?${params}`);
     if (!response.ok) throw new Error('Error al obtener OTs');
-    return response.json();
+    const json = await response.json();
+    // El backend devuelve { data, total, page, ... } — normalizamos para no romper consumidores
+    return Array.isArray(json) ? json : (json.data ?? []);
+  },
+
+  // Versión paginada para consumidores que necesiten el total y la metadata
+  async getOTsPaginated(filters = {}) {
+    const params = new URLSearchParams(filters).toString();
+    const response = await apiFetch(`/api/ots?${params}`);
+    if (!response.ok) throw new Error('Error al obtener OTs');
+    const json = await response.json();
+    if (Array.isArray(json)) return { data: json, total: json.length, page: 1, pages: 1 };
+    return json;
   },
 
   async uploadFile(base64Data, folder = 'uploads') {

@@ -151,53 +151,62 @@ export default async function handler(req, res) {
       if (supervisorId) where.supervisorId = supervisorId;
       if (status && status !== 'ALL') where.status = status;
 
-      const ots = await prisma.workOrder.findMany({
-        where,
-        select: {
-          id: true,
-          otNumber: true,
-          title: true,
-          status: true,
-          priority: true,
-          clientName: true,
-          storeName: true,
-          storeNumber: true,
-          address: true,
-          latitude: true,
-          longitude: true,
-          scheduledDate: true,
-          arrivalTime: true,
-          technicianId: true,
-          supervisorId: true,
-          description: true,
-          assignedFunds: true,
-          deliveryActUrl: true,
-          assistantTechs: true,
-          supportTechs: true,
-          jornadas: true,
-          startedAt: true,
-          createdAt: true,
-          technician: { select: { name: true, avatar: true, position: true } },
-          supervisor: { select: { name: true } },
-          evidences: { select: { url: true } },
-          expenses: {
-            where: { NOT: { status: 'REJECTED' } },
-            select: { amount: true, category: true, description: true, createdAt: true, id: true }
-          },
-          evaluations: {
-            select: {
-              id: true, type: true, score1: true, score2: true, score3: true,
-              materialUsage: true, improvements: true, comment: true, createdAt: true,
-              target: { select: { name: true } }
-            }
-          }
-        },
-        orderBy: { createdAt: 'desc' }
-      });
+      // Paginación: page=1, limit=50 por defecto
+      const page  = Math.max(1, parseInt(req.query.page  || '1',  10));
+      const limit = Math.min(100, Math.max(1, parseInt(req.query.limit || '50', 10)));
+      const skip  = (page - 1) * limit;
 
-      // Procesar cada OT para inyectar financieros y firmar URLs necesarias
+      const [ots, total] = await prisma.$transaction([
+        prisma.workOrder.findMany({
+          where,
+          select: {
+            id: true,
+            otNumber: true,
+            title: true,
+            status: true,
+            priority: true,
+            clientName: true,
+            storeName: true,
+            storeNumber: true,
+            address: true,
+            latitude: true,
+            longitude: true,
+            scheduledDate: true,
+            arrivalTime: true,
+            technicianId: true,
+            supervisorId: true,
+            description: true,
+            assignedFunds: true,
+            deliveryActUrl: true,
+            assistantTechs: true,
+            supportTechs: true,
+            jornadas: true,
+            startedAt: true,
+            createdAt: true,
+            technician: { select: { name: true, avatar: true, position: true } },
+            supervisor: { select: { name: true } },
+            evidences: { select: { url: true } },
+            expenses: {
+              where: { NOT: { status: 'REJECTED' } },
+              select: { amount: true, category: true, description: true, createdAt: true, id: true }
+            },
+            evaluations: {
+              select: {
+                id: true, type: true, score1: true, score2: true, score3: true,
+                materialUsage: true, improvements: true, comment: true, createdAt: true,
+                target: { select: { name: true } }
+              }
+            }
+          },
+          orderBy: { createdAt: 'desc' },
+          skip,
+          take: limit,
+        }),
+        prisma.workOrder.count({ where }),
+      ]);
+
+      // Firmar URLs de actas EN PARALELO (no secuencial) solo para OTs completadas/validadas
       const formattedOts = await Promise.all(ots.map(async (ot) => {
-        // Cálculo de financieros
         const totalSpent = ot.expenses.reduce((sum, e) => sum + e.amount, 0);
         const balance = (ot.assignedFunds || 0) - totalSpent;
         const financials = {
@@ -208,15 +217,14 @@ export default async function handler(req, res) {
             expenses: ot.expenses.map(e => ({ ...e, date: e.createdAt }))
         };
 
-        // FIRMAR URL DEL ACTA solo si existe
-        let signedActUrl = ot.deliveryActUrl;
-        if (ot.deliveryActUrl && (ot.status === 'COMPLETED' || ot.status === 'VALIDATED')) {
-            signedActUrl = await signUrlIfNeeded(ot.deliveryActUrl);
-        }
+        // Solo firmar si la OT está terminada y tiene URL
+        const signedActUrl = (ot.deliveryActUrl && (ot.status === 'COMPLETED' || ot.status === 'VALIDATED'))
+          ? await signUrlIfNeeded(ot.deliveryActUrl)
+          : ot.deliveryActUrl;
 
         return {
           ...ot,
-          id: ot.otNumber, 
+          id: ot.otNumber,
           client: ot.clientName,
           leadTechId: ot.technicianId,
           leadTechName: ot.technician?.name || 'Sin asignar',
@@ -228,14 +236,14 @@ export default async function handler(req, res) {
           evaluations: ot.evaluations || [],
           completionPhotos: ot.evidences.map(e => e.url),
           deliveryActUrl: signedActUrl,
-          assistantTechs: ot.assistantTechs ? (typeof ot.assistantTechs === 'string' ? JSON.parse(ot.assistantTechs) : ot.assistantTechs) : [],
-          supportTechs: ot.supportTechs ? (typeof ot.supportTechs === 'string' ? JSON.parse(ot.supportTechs) : ot.supportTechs) : [],
+          assistantTechs: Array.isArray(ot.assistantTechs) ? ot.assistantTechs : (ot.assistantTechs ? JSON.parse(ot.assistantTechs) : []),
+          supportTechs: Array.isArray(ot.supportTechs) ? ot.supportTechs : (ot.supportTechs ? JSON.parse(ot.supportTechs) : []),
           creatorName: 'Sistema',
           assignedByName: ot.technicianId ? (ot.supervisor?.name || 'Supervisor') : null
         };
       }));
 
-      return res.status(200).json(formattedOts);
+      return res.status(200).json({ data: formattedOts, total, page, limit, pages: Math.ceil(total / limit) });
     } catch (error) {
       console.error(error);
       return res.status(500).json({ error: error.message });

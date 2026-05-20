@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ClipboardList, Search, MoreHorizontal, Clock, Eye,
@@ -87,6 +87,12 @@ export default function SupervisorOTs() {
   const [extraFunds, setExtraFunds] = useState(0);
   const [searchTerm, setSearchTerm] = useState('');
   const [filters, setFilters] = useState({ status: 'ALL', priority: 'ALL' });
+
+  // Paginación server-side
+  const OT_PAGE_SIZE = 50;
+  const [otPage, setOtPage]   = useState(1);
+  const [otTotal, setOtTotal] = useState(0);
+  const searchDebounceRef     = useRef(null);
   const [formStep, setFormStep] = useState(1);
 
   const initialNewOT = {
@@ -100,41 +106,52 @@ export default function SupervisorOTs() {
 
   const [newOT, setNewOT] = useState(initialNewOT);
 
+  // Carga de OTs — recibe el número de página explícitamente para evitar closures obsoletos
+  const loadOTs = async (page, search, status) => {
+    try {
+      const params = { page, limit: OT_PAGE_SIZE };
+      if (search)                     params.search = search;
+      if (status && status !== 'ALL') params.status = status;
+      const result = await otService.getOTsPaginated(params);
+      setOts(result.data ?? []);
+      setOtTotal(result.total ?? 0);
+    } catch (err) { console.error(err); }
+  };
+
   useEffect(() => {
-    loadData();
+    const init = async () => {
+      setLoading(true);
+      try {
+        const [pageResult, c, oc, t, allEmployees] = await Promise.all([
+          otService.getOTsPaginated({ page: 1, limit: OT_PAGE_SIZE }),
+          crmService.getClients(),
+          otService.getOTClients(),
+          otService.getTemplates(),
+          hrService.getEmployees()
+        ]);
+        setOts(pageResult.data ?? []);
+        setOtTotal(pageResult.total ?? 0);
+        setClients(c);
+        setOtClients(oc);
+        setTemplates(t);
+        const techs = allEmployees.filter(emp => emp.roles.includes(ROLES.TECH) || emp.roles.includes('Tech'));
+        setAvailableTechs(techs);
+      } catch (error) { console.error(error); }
+      finally { setLoading(false); }
+    };
+    init();
 
     const fetchTechLocations = async () => {
-      try {
-        const locs = await otService.getTechnicianLocations();
-        setTechLocations(locs);
-      } catch (err) { }
+      try { setTechLocations(await otService.getTechnicianLocations()); } catch (_) {}
     };
-
-    fetchTechLocations(); // carga inicial inmediata
+    fetchTechLocations();
     const interval = setInterval(fetchTechLocations, 10000);
     return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const loadData = async () => {
-    setLoading(true);
-    try {
-      const [o, c, oc, t, allEmployees] = await Promise.all([
-        otService.getOTs(),
-        crmService.getClients(),
-        otService.getOTClients(),
-        otService.getTemplates(),
-        hrService.getEmployees()
-      ]);
-      setOts(o);
-      setClients(c);
-      setOtClients(oc);
-      setTemplates(t);
-      const techs = allEmployees.filter(emp => emp.roles.includes(ROLES.TECH) || emp.roles.includes('Tech'));
-      setAvailableTechs(techs);
-    } catch (error) { console.error(error); }
-    finally { setLoading(false); }
-  };
+  // Alias para que llamadas internas (ej: después de guardar una OT) recarguen la página actual
+  const loadData = () => loadOTs(otPage, searchTerm, filters.status);
 
   /**
    * ✅ EXPORT AER (ARREGLADO):
@@ -523,17 +540,33 @@ export default function SupervisorOTs() {
     });
   };
 
-  const filteredOts = ots.filter(ot => {
-    const searchLower = searchTerm.toLowerCase();
-    const matchesSearch =
-      (ot.id?.toLowerCase() || '').includes(searchLower) ||
-      (ot.title?.toLowerCase() || '').includes(searchLower) ||
-      (ot.client?.toLowerCase() || '').includes(searchLower) ||
-      (ot.clientName?.toLowerCase() || '').includes(searchLower) ||
-      (ot.otNumber?.toLowerCase() || '').includes(searchLower);
-    const matchesStatus = filters.status === 'ALL' || ot.status === filters.status;
-    return matchesSearch && matchesStatus;
-  });
+  // Búsqueda con debounce → recarga desde servidor, resetea a página 1
+  const handleSearchChange = (value) => {
+    setSearchTerm(value);
+    clearTimeout(searchDebounceRef.current);
+    searchDebounceRef.current = setTimeout(() => {
+      setOtPage(1);
+      loadOTs(1, value, filters.status); // pasa el value nuevo directamente, no el state
+    }, 350);
+  };
+
+  // Cambio de filtro de status → recarga inmediata desde servidor
+  const handleStatusFilter = (newStatus) => {
+    setFilters(prev => ({ ...prev, status: newStatus }));
+    setOtPage(1);
+    loadOTs(1, searchTerm, newStatus); // pasa el newStatus directamente, no el state
+  };
+
+  // Navegar de página — llama a loadOTs directamente con el número nuevo
+  const goToPage = (newPage) => {
+    setOtPage(newPage);
+    loadOTs(newPage, searchTerm, filters.status);
+  };
+
+  // Filtrado local solo por priority (no enviado al servidor)
+  const filteredOts = filters.priority === 'ALL'
+    ? ots
+    : ots.filter(ot => ot.priority === filters.priority);
 
   const kpis = {
     total:       ots.length,
@@ -771,7 +804,7 @@ export default function SupervisorOTs() {
                 return (
                   <button
                     key={s}
-                    onClick={() => setFilters({ ...filters, status: s })}
+                    onClick={() => handleStatusFilter(s)}
                     className={cn(
                       "cursor-pointer shrink-0 flex items-center gap-1.5 px-4 py-3 text-[10px] font-bold uppercase tracking-wide border-b-2 transition-all duration-150 whitespace-nowrap",
                       isActive
@@ -794,7 +827,7 @@ export default function SupervisorOTs() {
                 placeholder="Buscar folio o cliente..."
                 className="pl-9 pr-4 py-2 bg-gray-50 border border-gray-100 rounded-xl outline-none text-sm font-medium text-gray-700 placeholder:text-gray-300 focus:bg-white focus:border-blue-200 focus:ring-1 focus:ring-blue-100 transition-all duration-150 w-56"
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                onChange={(e) => handleSearchChange(e.target.value)}
               />
             </div>
           </div>
@@ -1168,6 +1201,61 @@ export default function SupervisorOTs() {
             </tbody>
           </table>
         </div>
+
+        {/* Paginación */}
+        {otTotal > OT_PAGE_SIZE && (
+          <div className="flex items-center justify-between px-5 py-3 border-t border-gray-100 bg-gray-50/40">
+            <p className="text-[10px] font-mono text-gray-400">
+              Mostrando{' '}
+              <span className="font-bold text-gray-600">
+                {(otPage - 1) * OT_PAGE_SIZE + 1}–{Math.min(otPage * OT_PAGE_SIZE, otTotal)}
+              </span>{' '}
+              de <span className="font-bold text-gray-600">{otTotal}</span> OTs
+            </p>
+            <div className="flex items-center gap-1.5">
+              <button
+                disabled={otPage === 1}
+                onClick={() => goToPage(otPage - 1)}
+                className="flex items-center gap-1 px-3 py-1.5 text-[10px] font-bold rounded-lg border border-gray-200 text-gray-500 hover:bg-white hover:border-gray-300 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+              >
+                <ChevronLeft className="h-3 w-3" /> Anterior
+              </button>
+              {Array.from({ length: Math.ceil(otTotal / OT_PAGE_SIZE) }, (_, i) => i + 1)
+                .filter(p => p === 1 || p === Math.ceil(otTotal / OT_PAGE_SIZE) || Math.abs(p - otPage) <= 1)
+                .reduce((acc, p, i, arr) => {
+                  if (i > 0 && p - arr[i - 1] > 1) acc.push('…');
+                  acc.push(p);
+                  return acc;
+                }, [])
+                .map((p, i) =>
+                  p === '…'
+                    ? <span key={`e${i}`} className="px-1 text-gray-300 text-[10px]">…</span>
+                    : (
+                      <button
+                        key={p}
+                        onClick={() => goToPage(p)}
+                        className={cn(
+                          "w-7 h-7 text-[10px] font-bold rounded-lg transition-all",
+                          p === otPage
+                            ? "bg-blue-600 text-white shadow-sm"
+                            : "text-gray-500 hover:bg-white hover:border border-gray-200"
+                        )}
+                      >
+                        {p}
+                      </button>
+                    )
+                )
+              }
+              <button
+                disabled={otPage >= Math.ceil(otTotal / OT_PAGE_SIZE)}
+                onClick={() => goToPage(otPage + 1)}
+                className="flex items-center gap-1 px-3 py-1.5 text-[10px] font-bold rounded-lg border border-gray-200 text-gray-500 hover:bg-white hover:border-gray-300 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+              >
+                Siguiente <ChevronRight className="h-3 w-3" />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ══════ MODAL NUEVA OT — SPLIT PANEL ══════ */}
