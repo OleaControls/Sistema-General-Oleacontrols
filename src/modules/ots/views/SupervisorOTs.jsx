@@ -106,15 +106,24 @@ export default function SupervisorOTs() {
 
   const [newOT, setNewOT] = useState(initialNewOT);
 
+  // Normaliza la respuesta de la API: siempre devuelve { data: T[], total: number }
+  const parseOTsResponse = (json) => {
+    if (Array.isArray(json)) return { data: json, total: json.length };
+    const data = Array.isArray(json?.data) ? json.data : [];
+    const total = typeof json?.total === 'number' ? json.total : data.length;
+    return { data, total };
+  };
+
   // Carga de OTs — recibe el número de página explícitamente para evitar closures obsoletos
   const loadOTs = async (page, search, status) => {
     try {
       const params = { page, limit: OT_PAGE_SIZE };
       if (search)                     params.search = search;
       if (status && status !== 'ALL') params.status = status;
-      const result = await otService.getOTsPaginated(params);
-      setOts(result.data ?? []);
-      setOtTotal(result.total ?? 0);
+      const raw = await otService.getOTsPaginated(params);
+      const { data, total } = parseOTsResponse(raw);
+      setOts(data);
+      setOtTotal(total);
     } catch (err) { console.error(err); }
   };
 
@@ -122,19 +131,22 @@ export default function SupervisorOTs() {
     const init = async () => {
       setLoading(true);
       try {
-        const [pageResult, c, oc, t, allEmployees] = await Promise.all([
+        const [rawOTs, c, oc, t, allEmployees] = await Promise.all([
           otService.getOTsPaginated({ page: 1, limit: OT_PAGE_SIZE }),
           crmService.getClients(),
           otService.getOTClients(),
           otService.getTemplates(),
           hrService.getEmployees()
         ]);
-        setOts(pageResult.data ?? []);
-        setOtTotal(pageResult.total ?? 0);
-        setClients(c);
-        setOtClients(oc);
-        setTemplates(t);
-        const techs = allEmployees.filter(emp => emp.roles.includes(ROLES.TECH) || emp.roles.includes('Tech'));
+        const { data, total } = parseOTsResponse(rawOTs);
+        setOts(data);
+        setOtTotal(total);
+        setClients(Array.isArray(c) ? c : []);
+        setOtClients(Array.isArray(oc) ? oc : []);
+        setTemplates(Array.isArray(t) ? t : []);
+        const techs = Array.isArray(allEmployees)
+          ? allEmployees.filter(emp => emp.roles?.includes(ROLES.TECH) || emp.roles?.includes('Tech'))
+          : [];
         setAvailableTechs(techs);
       } catch (error) { console.error(error); }
       finally { setLoading(false); }

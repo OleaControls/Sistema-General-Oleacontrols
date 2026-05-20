@@ -7,8 +7,9 @@ export const otService = {
     const response = await apiFetch(`/api/ots?${params}`);
     if (!response.ok) throw new Error('Error al obtener OTs');
     const json = await response.json();
-    // El backend devuelve { data, total, page, ... } — normalizamos para no romper consumidores
-    return Array.isArray(json) ? json : (json.data ?? []);
+    // Normaliza: siempre devuelve un array para no romper consumidores existentes
+    if (Array.isArray(json)) return json;
+    return Array.isArray(json?.data) ? json.data : [];
   },
 
   // Versión paginada para consumidores que necesiten el total y la metadata
@@ -17,8 +18,14 @@ export const otService = {
     const response = await apiFetch(`/api/ots?${params}`);
     if (!response.ok) throw new Error('Error al obtener OTs');
     const json = await response.json();
+    // Normaliza siempre a { data: T[], total: number, ... }
     if (Array.isArray(json)) return { data: json, total: json.length, page: 1, pages: 1 };
-    return json;
+    return {
+      data:  Array.isArray(json?.data) ? json.data : [],
+      total: typeof json?.total === 'number' ? json.total : 0,
+      page:  json?.page  ?? 1,
+      pages: json?.pages ?? 1,
+    };
   },
 
   async uploadFile(base64Data, folder = 'uploads') {
