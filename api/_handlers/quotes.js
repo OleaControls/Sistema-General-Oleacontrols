@@ -807,6 +807,13 @@ export default async function handler(req, res) {
       if (requirements !== undefined)  updateData.requirements = requirements;
       if (observations !== undefined)  updateData.observations = observations;
       if (benefits !== undefined)      updateData.benefits = benefits;
+      const hasContentChanges = items !== undefined ||
+        templateType !== undefined || requirements !== undefined ||
+        observations !== undefined || benefits !== undefined ||
+        terms !== undefined || projectName !== undefined ||
+        contactName !== undefined || validUntil !== undefined ||
+        clientId !== undefined || sellerId !== undefined;
+
       if (items !== undefined) {
         updateData.items = items;
         updateData.subtotal = parseFloat(subtotal) || 0;
@@ -819,6 +826,16 @@ export default async function handler(req, res) {
         data: updateData,
         include: { client: true, creator: true, seller: true }
       });
+
+      // Regenerar PDF cuando hay cambios de contenido (no solo de estado)
+      if (hasContentChanges) {
+        const pdfUrl = await generateQuotePDF(updated);
+        if (pdfUrl) {
+          await prisma.quote.update({ where: { id }, data: { pdfUrl } });
+          updated.pdfUrl = pdfUrl;
+        }
+      }
+
       return res.status(200).json(updated);
     } catch (error) {
       return res.status(500).json({ error: error.message });

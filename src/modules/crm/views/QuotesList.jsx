@@ -1145,6 +1145,7 @@ export default function QuotesList() {
                     benefitsPhases={benefitsPhases}
                     onSaveBenefitsPhrase={saveBenefitsPhrase}
                     onDeleteBenefitsPhrase={deleteBenefitsPhrase}
+                    onOpenSearch={setProdSearch}
                   />
                 )}
               </div>
@@ -1780,7 +1781,7 @@ function QuotePreview({ quote, employees, onStatusChange, onDelete }) {
 }
 
 // ── Componente: Formulario de edición de cotización ────────────────────────────
-function QuoteEditForm({ editQuote, setEditQuote, employees, clients, selectedQuote, onAddItem, onRemoveItem, onUpdateItem, onItemImage, onSave, saving, phrases, onSavePhrase, onDeletePhrase, termsPhases, onSaveTermsPhrase, onDeleteTermsPhrase, benefitsPhases, onSaveBenefitsPhrase, onDeleteBenefitsPhrase }) {
+function QuoteEditForm({ editQuote, setEditQuote, employees, clients, selectedQuote, onAddItem, onRemoveItem, onUpdateItem, onItemImage, onSave, saving, phrases, onSavePhrase, onDeletePhrase, termsPhases, onSaveTermsPhrase, onDeleteTermsPhrase, benefitsPhases, onSaveBenefitsPhrase, onDeleteBenefitsPhrase, onOpenSearch }) {
   const [clientSearch, setClientSearch] = React.useState('');
   const [clientOpen,   setClientOpen]   = React.useState(false);
 
@@ -1966,7 +1967,7 @@ function QuoteEditForm({ editQuote, setEditQuote, employees, clients, selectedQu
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={() => setProdSearch({ index: i, mode: 'edit' })}
+                onClick={() => onOpenSearch?.({ index: i, mode: 'edit' })}
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 text-primary rounded-xl text-[8px] font-black uppercase tracking-widest hover:bg-primary hover:text-white transition-all flex-shrink-0"
               >
                 <Search className="h-3 w-3" /> Catálogo
