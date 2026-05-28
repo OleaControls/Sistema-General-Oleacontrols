@@ -30,8 +30,7 @@ const handlers = {
   'quote-phrases': () => import('./_handlers/quote-phrases.js'),
   catalog: () => import('./_handlers/catalog.js'),
   upload: () => import('./_handlers/upload.js'),
-  lms: () => import('./_handlers/lms.js'),
-  'tech-locations': () => import('./_handlers/tech-locations.js')
+'tech-locations': () => import('./_handlers/tech-locations.js')
 };
 
 export default async function handler(req, res) {

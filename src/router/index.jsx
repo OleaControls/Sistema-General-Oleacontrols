@@ -41,7 +41,6 @@ const Announcements     = lazy(() => import('@/modules/human-resources/views/Ann
 const HRReports         = lazy(() => import('@/modules/human-resources/views/HRReports'));
 const HRSettings        = lazy(() => import('@/modules/human-resources/views/HRSettings'));
 const PerformanceDashboard = lazy(() => import('@/modules/human-resources/views/PerformanceDashboard'));
-const AcademyManager    = lazy(() => import('@/modules/human-resources/views/AcademyManager'));
 const RewardManager     = lazy(() => import('@/modules/human-resources/views/RewardManager'));
 const SurveyManager     = lazy(() => import('@/modules/human-resources/views/SurveyManager'));
 
@@ -59,10 +58,6 @@ const CRMActivityFeed   = lazy(() => import('@/modules/crm/views/CRMActivityFeed
 const DealDetail        = lazy(() => import('@/modules/crm/views/DealDetail'));
 const ProductCatalog    = lazy(() => import('@/modules/crm/views/ProductCatalog'));
 const SalesCalendar     = lazy(() => import('@/modules/crm/views/SalesCalendar'));
-
-// Academy / LMS
-const AcademyHome  = lazy(() => import('@/modules/lms/views/AcademyHome'));
-const CoursePlayer = lazy(() => import('@/modules/lms/views/CoursePlayer'));
 
 // Métricas por rol
 const OpsMetrics  = lazy(() => import('@/modules/ops/views/OpsMetrics'));
@@ -156,8 +151,7 @@ export default function AppRouter() {
             <Route path="performance"           element={<Performance />} />
             <Route path="rewards"               element={<RewardManager />} />
             <Route path="assets"                element={<Assets />} />
-            <Route path="academy-admin"         element={<AcademyManager />} />
-            <Route path="surveys"               element={<SurveyManager />} />
+<Route path="surveys"               element={<SurveyManager />} />
             <Route path="announcements"         element={<Announcements />} />
             <Route path="reports"               element={<HRReports />} />
             <Route path="settings"              element={<HRSettings />} />
@@ -187,11 +181,7 @@ export default function AppRouter() {
           <Route path="/ops/metricas"  element={<ProtectedRoute><OpsMetrics /></ProtectedRoute>} />
           <Route path="/tech/metricas" element={<ProtectedRoute><TechMetrics /></ProtectedRoute>} />
 
-          {/* Olea Academy */}
-          <Route path="/academy"             element={<ProtectedRoute noShell><AcademyHome /></ProtectedRoute>} />
-          <Route path="/academy/course/:id"  element={<ProtectedRoute noShell><CoursePlayer /></ProtectedRoute>} />
-
-          {/* Feedback público */}
+{/* Feedback público */}
           <Route path="/feedback/:type/:otId" element={<FeedbackForm />} />
 
           <Route path="*" element={<Navigate to="/" />} />

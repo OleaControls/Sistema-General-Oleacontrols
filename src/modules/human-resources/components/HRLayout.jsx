@@ -12,7 +12,6 @@ import {
   Megaphone,
   BarChart4,
   Settings,
-  GraduationCap,
   ClipboardCheck,
   Gift
 } from 'lucide-react';
@@ -28,8 +27,7 @@ const hrNavItems = [
   { name: 'Desempeño', path: '/hr/performance', icon: Target },
   { name: 'Incentivos y Premios', path: '/hr/rewards', icon: Gift },
   { name: 'EPP e Inventario', path: '/hr/assets', icon: HardHat },
-  { name: 'Gestión Academia', path: '/hr/academy-admin', icon: GraduationCap },
-  { name: 'Encuestas de Clima', path: '/hr/surveys', icon: ClipboardCheck },
+{ name: 'Encuestas de Clima', path: '/hr/surveys', icon: ClipboardCheck },
   { name: 'Comunicados', path: '/hr/announcements', icon: Megaphone },
   { name: 'Reportes', path: '/hr/reports', icon: BarChart4 },
   { name: 'Configuración', path: '/hr/settings', icon: Settings },
