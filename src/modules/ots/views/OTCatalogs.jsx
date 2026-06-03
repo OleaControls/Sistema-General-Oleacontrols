@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   FileText, Plus, Search, Trash2, MapPin, Phone, Mail,
   X, Save, Building2, User, ClipboardList, Loader2, RefreshCw,
-  ExternalLink, Copy, Link2, Check
+  ExternalLink, Copy, Link2, Check, Pencil
 } from 'lucide-react';
 import { otService } from '@/api/otService';
 import { cn } from '@/lib/utils';
@@ -28,8 +28,9 @@ export default function OTCatalogs() {
   const [loadingClients, setLoadingClients]   = useState(!cache.otClients);
   const [loadingTemplates, setLoadingTemplates] = useState(!cache.templates);
   const [refreshing, setRefreshing]   = useState(false);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isSaving, setIsSaving]       = useState(false);
+  const [isModalOpen, setIsModalOpen]   = useState(false);
+  const [editingClient, setEditingClient] = useState(null); // null = crear, objeto = editar
+  const [isSaving, setIsSaving]         = useState(false);
   const [searchTerm, setSearchTerm]   = useState('');
   const abortRef = useRef(null);
 
@@ -78,7 +79,7 @@ export default function OTCatalogs() {
     setRefreshing(false);
   };
 
-  // ── Guardar — optimista: agrega a estado local antes de esperar server ──────
+  // ── Guardar — optimista: agrega/actualiza en estado local antes de esperar server
   const handleSaveItem = async (e) => {
     e.preventDefault();
     if (isSaving) return;
@@ -86,15 +87,24 @@ export default function OTCatalogs() {
 
     try {
       if (activeTab === 'OT_CLIENTS') {
-        // Optimista: agrega placeholder al inicio
-        const temp = { ...newOTClient, id: `__tmp__${Date.now()}`, _saving: true };
-        setOtClients(prev => [temp, ...prev]);
-        setIsModalOpen(false);
-        const saved = await otService.saveOTClient(newOTClient);
-        // Reemplaza placeholder con el registro real
-        setOtClients(prev => prev.map(c => c.id === temp.id ? { ...saved, lat: saved.latitude, lng: saved.longitude } : c));
-        cache.otClients = null; // invalida cache para próxima visita
+        if (editingClient) {
+          // EDITAR: actualiza optimistamente en lugar
+          const optimistic = { ...editingClient, ...newOTClient, _saving: true };
+          setOtClients(prev => prev.map(c => c.id === editingClient.id ? optimistic : c));
+          setIsModalOpen(false);
+          const updated = await otService.updateOTClient(editingClient.id, newOTClient);
+          setOtClients(prev => prev.map(c => c.id === editingClient.id ? { ...updated, lat: updated.latitude, lng: updated.longitude } : c));
+        } else {
+          // CREAR: agrega placeholder al inicio
+          const temp = { ...newOTClient, id: `__tmp__${Date.now()}`, _saving: true };
+          setOtClients(prev => [temp, ...prev]);
+          setIsModalOpen(false);
+          const saved = await otService.saveOTClient(newOTClient);
+          setOtClients(prev => prev.map(c => c.id === temp.id ? { ...saved, lat: saved.latitude, lng: saved.longitude } : c));
+        }
+        cache.otClients = null;
         setNewOTClient(initialNewOTClient);
+        setEditingClient(null);
       } else {
         const temp = { ...newTemplate, id: `__tmp__${Date.now()}`, _saving: true };
         setTemplates(prev => [temp, ...prev]);
@@ -106,12 +116,33 @@ export default function OTCatalogs() {
       }
     } catch (err) {
       alert('Error al guardar: ' + err.message);
-      // Revierte optimista en caso de error
-      if (activeTab === 'OT_CLIENTS') setOtClients(prev => prev.filter(c => !c._saving));
-      else setTemplates(prev => prev.filter(t => !t._saving));
+      if (activeTab === 'OT_CLIENTS') {
+        if (editingClient) fetchClients(true); // revierte edición
+        else setOtClients(prev => prev.filter(c => !c._saving));
+        setEditingClient(null);
+      } else {
+        setTemplates(prev => prev.filter(t => !t._saving));
+      }
     } finally {
       setIsSaving(false);
     }
+  };
+
+  // ── Abrir modal en modo edición ─────────────────────────────────────────────
+  const handleEditClick = (client) => {
+    setEditingClient(client);
+    setNewOTClient({
+      name:        client.name        || '',
+      storeNumber: client.storeNumber || '',
+      storeName:   client.storeName   || '',
+      contact:     client.contact     || '',
+      phone:       client.phone       || '',
+      email:       client.email       || '',
+      address:     client.address     || '',
+      otAddress:   client.otAddress   || '',
+      otReference: client.otReference || '',
+    });
+    setIsModalOpen(true);
   };
 
   // ── Eliminar — optimista: quita de estado antes de esperar server ───────────
@@ -190,7 +221,7 @@ export default function OTCatalogs() {
             <RefreshCw className={cn("h-4 w-4", refreshing && "animate-spin")} />
           </button>
           <button
-            onClick={() => setIsModalOpen(true)}
+            onClick={() => { setEditingClient(null); setNewOTClient(initialNewOTClient); setIsModalOpen(true); }}
             className="bg-primary text-white px-6 py-3 rounded-2xl font-bold flex items-center gap-2 shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all"
           >
             <Plus className="h-4 w-4" /> {addLabel}
@@ -261,12 +292,22 @@ export default function OTCatalogs() {
                     ? <Loader2 className="h-6 w-6 animate-spin" />
                     : <Building2 className="h-6 w-6" />}
                 </div>
-                <button
-                  onClick={() => handleDeleteOTClient(client.id)}
-                  className="p-2 text-gray-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
+                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button
+                    onClick={() => handleEditClick(client)}
+                    className="p-2 text-gray-300 hover:text-blue-500 transition-colors"
+                    title="Editar cliente"
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </button>
+                  <button
+                    onClick={() => handleDeleteOTClient(client.id)}
+                    className="p-2 text-gray-300 hover:text-red-500 transition-colors"
+                    title="Eliminar cliente"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
               </div>
               <h3 className="font-black text-gray-900 text-lg leading-tight">{client.name}</h3>
               {(client.storeNumber || client.storeName) && (
@@ -388,9 +429,11 @@ export default function OTCatalogs() {
             <div className="p-8 overflow-y-auto">
               <div className="flex justify-between items-center mb-6">
                 <h3 className="text-2xl font-black text-gray-900">
-                  {activeTab === 'OT_CLIENTS' ? 'Registrar Cliente OT' : 'Crear Plantilla'}
+                  {activeTab === 'OT_CLIENTS'
+                    ? (editingClient ? 'Editar Cliente OT' : 'Registrar Cliente OT')
+                    : 'Crear Plantilla'}
                 </h3>
-                <button onClick={() => setIsModalOpen(false)} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
+                <button onClick={() => { setIsModalOpen(false); setEditingClient(null); }} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
                   <X className="h-6 w-6 text-gray-400" />
                 </button>
               </div>

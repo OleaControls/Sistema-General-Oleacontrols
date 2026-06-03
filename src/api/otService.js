@@ -125,6 +125,28 @@ export const otService = {
     return response.json();
   },
 
+  async updateOTClient(clientId, clientData) {
+    const body = {
+      name:        clientData.name,
+      storeNumber: clientData.storeNumber || null,
+      storeName:   clientData.storeName   || null,
+      contact:     clientData.contact,
+      phone:       clientData.phone,
+      email:       clientData.email       || null,
+      address:     clientData.address,
+      otAddress:   clientData.otAddress   || null,
+      otReference: clientData.otReference || null,
+      latitude:    clientData.lat         || clientData.latitude  || null,
+      longitude:   clientData.lng         || clientData.longitude || null,
+    };
+    const response = await apiFetch(`/api/ot-clients?id=${clientId}`, {
+      method: 'PUT',
+      body: JSON.stringify(body)
+    });
+    if (!response.ok) throw new Error('Error al actualizar cliente OT');
+    return response.json();
+  },
+
   async deleteOTClient(clientId) {
     const response = await apiFetch(`/api/ot-clients?id=${clientId}`, {
       method: 'DELETE'
