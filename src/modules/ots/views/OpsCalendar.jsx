@@ -153,13 +153,20 @@ export default function OpsCalendar() {
     return days;
   };
 
+  const toLocalDateStr = (d) => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  };
+
   const getEventsForDate = (date) => {
     if (!date) return [];
-    const dateStr = date.toISOString().split('T')[0];
+    const dateStr = toLocalDateStr(date);
     const dayOts = ots.filter(ot => ot.scheduledDate?.startsWith(dateStr)).map(ot => ({
       ...ot, type: 'OT', id: `ot-${ot.id}`, title: ot.title, time: ot.arrivalTime || '—'
     }));
-    const dayEvents = events.filter(e => e.startDate.startsWith(dateStr)).map(e => ({
+    const dayEvents = events.filter(e => toLocalDateStr(new Date(e.startDate)) === dateStr).map(e => ({
       ...e, id: `ev-${e.id}`,
       time: new Date(e.startDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })
     }));
@@ -233,7 +240,7 @@ export default function OpsCalendar() {
       title: raw.title || '',
       description: raw.description || '',
       type: raw.type || 'VISIT',
-      startDate: d.toISOString().split('T')[0],
+      startDate: toLocalDateStr(d),
       startTime: d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }),
       otClientId: raw.otClientId || '',
     });
