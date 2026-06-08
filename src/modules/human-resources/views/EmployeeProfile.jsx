@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { 
+import {
   ChevronLeft, Award, Briefcase, Calendar, ShieldCheck, FileText, Download, User, FileSignature, Palmtree, HardHat, MoreVertical,
-  Zap, Star, CheckCircle, Target, TrendingUp, Users, DollarSign
+  Zap, Star, CheckCircle, Target, TrendingUp, Users, DollarSign,
+  Clock, AlertCircle, CheckCircle2, XCircle, Stethoscope, Umbrella, Plus, Trash2, ChevronLeft as ChevLeft, ChevronRight as ChevRight, Pencil
 } from 'lucide-react';
 
 import { apiFetch } from '@/lib/api';
@@ -362,48 +363,7 @@ export default function EmployeeProfile() {
         )}
 
         {activeTab === 'TIMEOFF' && (
-          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="bg-white rounded-3xl p-6 border shadow-sm">
-                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Días Vacaciones (Bolsa)</p>
-                <p className="text-4xl font-black text-gray-900 mt-2">12 <span className="text-sm text-gray-400">/ 14</span></p>
-                <div className="w-full bg-gray-100 h-2 rounded-full mt-4 overflow-hidden">
-                  <div className="bg-primary h-full rounded-full" style={{ width: '85%' }} />
-                </div>
-              </div>
-              <div className="bg-white rounded-3xl p-6 border shadow-sm">
-                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Faltas Injustificadas (Año)</p>
-                <p className="text-4xl font-black text-gray-900 mt-2">0</p>
-                <p className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest mt-4">Asistencia Perfecta</p>
-              </div>
-              <div className="bg-white rounded-3xl p-6 border shadow-sm">
-                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Retardos Acumulados</p>
-                <p className="text-4xl font-black text-gray-900 mt-2">1</p>
-                <p className="text-[10px] font-bold text-amber-500 uppercase tracking-widest mt-4">Tolerancia: 3 max / mes</p>
-              </div>
-            </div>
-
-            <div className="bg-white rounded-3xl p-8 border border-gray-100 shadow-sm">
-              <h3 className="font-black text-gray-900 uppercase text-xs tracking-widest mb-6">Historial de Incidencias y Permisos</h3>
-              <div className="space-y-4">
-                {[
-                  { date: '12 May 2025', type: 'Vacaciones (5 días)', status: 'APROBADO', by: 'Ana Admin' },
-                  { date: '04 Mar 2025', type: 'Retardo (45 min)', status: 'APLICADO', by: 'Sistema (Reloj)' }
-                ].map((inc, i) => (
-                  <div key={i} className="flex justify-between items-center p-4 border rounded-2xl bg-gray-50/50">
-                    <div>
-                      <p className="text-sm font-black text-gray-900">{inc.type}</p>
-                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{inc.date} • Autoriza: {inc.by}</p>
-                    </div>
-                    <span className={cn(
-                      "text-[10px] font-black px-2 py-1 rounded uppercase tracking-wider border",
-                      inc.status === 'APROBADO' ? "bg-emerald-50 text-emerald-700 border-emerald-100" : "bg-gray-100 text-gray-600 border-gray-200"
-                    )}>{inc.status}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
+          <AttendanceSection employeeId={id} employee={employee} isSupervisor={mainRole === ROLES.ADMIN || mainRole === ROLES.HR || mainRole === ROLES.OPS} />
         )}
 
         {activeTab === 'ASSETS' && (
@@ -416,6 +376,294 @@ export default function EmployeeProfile() {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+// ── Attendance Section ────────────────────────────────────────────────────────
+const ATTENDANCE_TYPES = {
+  PRESENT:    { label: 'Asistencia',  color: 'bg-emerald-50 text-emerald-700 border-emerald-200', dot: 'bg-emerald-500', icon: CheckCircle2 },
+  ABSENT:     { label: 'Falta',       color: 'bg-red-50 text-red-700 border-red-200',             dot: 'bg-red-500',     icon: XCircle },
+  LATE:       { label: 'Retardo',     color: 'bg-amber-50 text-amber-700 border-amber-200',       dot: 'bg-amber-500',   icon: Clock },
+  PERMISSION: { label: 'Permiso',     color: 'bg-blue-50 text-blue-700 border-blue-200',          dot: 'bg-blue-500',    icon: Umbrella },
+  MEDICAL:    { label: 'Incap. Méd.', color: 'bg-purple-50 text-purple-700 border-purple-200',    dot: 'bg-purple-500',  icon: Stethoscope },
+  HOLIDAY:    { label: 'Vacaciones',  color: 'bg-teal-50 text-teal-700 border-teal-200',          dot: 'bg-teal-500',    icon: Palmtree },
+};
+
+function AttendanceSection({ employeeId, employee, isSupervisor }) {
+  const now = new Date();
+  const [viewYear,  setViewYear]  = useState(now.getFullYear());
+  const [viewMonth, setViewMonth] = useState(now.getMonth() + 1);
+  const [records,   setRecords]   = useState([]);
+  const [summary,   setSummary]   = useState({});
+  const [loading,   setLoading]   = useState(true);
+  const [showModal, setShowModal] = useState(false);
+  const [editing,   setEditing]   = useState(null);
+  const [saving,    setSaving]    = useState(false);
+  const [form, setForm] = useState({
+    date: new Date().toISOString().slice(0, 10),
+    type: 'ABSENT',
+    checkIn: '',
+    checkOut: '',
+    minutesLate: '',
+    notes: '',
+  });
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await apiFetch(`/api/attendance?employeeId=${employeeId}&month=${viewMonth}&year=${viewYear}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      setRecords(data.records || []);
+      setSummary(data.summary || {});
+    } catch (e) { console.error(e); }
+    finally { setLoading(false); }
+  }, [employeeId, viewMonth, viewYear]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const prevMonth = () => {
+    if (viewMonth === 1) { setViewMonth(12); setViewYear(y => y - 1); }
+    else setViewMonth(m => m - 1);
+  };
+  const nextMonth = () => {
+    if (viewMonth === 12) { setViewMonth(1); setViewYear(y => y + 1); }
+    else setViewMonth(m => m + 1);
+  };
+
+  const openNew = () => {
+    setEditing(null);
+    setForm({ date: new Date().toISOString().slice(0, 10), type: 'ABSENT', checkIn: '', checkOut: '', minutesLate: '', notes: '' });
+    setShowModal(true);
+  };
+  const openEdit = (r) => {
+    setEditing(r.id);
+    setForm({
+      date: r.date.slice(0, 10),
+      type: r.type,
+      checkIn: r.checkIn || '',
+      checkOut: r.checkOut || '',
+      minutesLate: r.minutesLate ?? '',
+      notes: r.notes || '',
+    });
+    setShowModal(true);
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const body = { ...form, employeeId, minutesLate: form.minutesLate ? Number(form.minutesLate) : null };
+      const method = editing ? 'PUT' : 'POST';
+      if (editing) body.id = editing;
+      const res = await apiFetch('/api/attendance', { method, body: JSON.stringify(body) });
+      if (!res.ok) throw new Error((await res.json()).error || 'Error');
+      setShowModal(false);
+      load();
+    } catch (e) { alert(e.message); }
+    finally { setSaving(false); }
+  };
+
+  const handleDelete = async (id) => {
+    if (!confirm('¿Eliminar este registro?')) return;
+    await apiFetch('/api/attendance', { method: 'DELETE', body: JSON.stringify({ id }) });
+    load();
+  };
+
+  const monthName = new Date(viewYear, viewMonth - 1, 1).toLocaleDateString('es-MX', { month: 'long', year: 'numeric' });
+
+  const stats = [
+    { key: 'PRESENT',    label: 'Asistencias',  color: 'text-emerald-600', bg: 'bg-emerald-50 border-emerald-100' },
+    { key: 'ABSENT',     label: 'Faltas',        color: 'text-red-600',     bg: 'bg-red-50 border-red-100' },
+    { key: 'LATE',       label: 'Retardos',      color: 'text-amber-600',   bg: 'bg-amber-50 border-amber-100' },
+    { key: 'PERMISSION', label: 'Permisos',      color: 'text-blue-600',    bg: 'bg-blue-50 border-blue-100' },
+    { key: 'MEDICAL',    label: 'Incap. Méd.',   color: 'text-purple-600',  bg: 'bg-purple-50 border-purple-100' },
+    { key: 'HOLIDAY',    label: 'Vacaciones',    color: 'text-teal-600',    bg: 'bg-teal-50 border-teal-100' },
+  ];
+
+  return (
+    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+
+      {/* Header: navegación de mes */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <button onClick={prevMonth} className="p-2 rounded-xl border bg-white hover:bg-gray-50 transition-all shadow-sm">
+            <ChevLeft className="h-4 w-4 text-gray-600" />
+          </button>
+          <span className="text-sm font-black text-gray-900 capitalize min-w-[160px] text-center">{monthName}</span>
+          <button onClick={nextMonth} className="p-2 rounded-xl border bg-white hover:bg-gray-50 transition-all shadow-sm">
+            <ChevRight className="h-4 w-4 text-gray-600" />
+          </button>
+        </div>
+        {isSupervisor && (
+          <button
+            onClick={openNew}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-primary text-white text-[10px] font-black uppercase tracking-widest hover:bg-primary/90 transition-all shadow-sm"
+          >
+            <Plus className="h-3.5 w-3.5" /> Registrar Incidencia
+          </button>
+        )}
+      </div>
+
+      {/* Vacaciones balance */}
+      <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="h-10 w-10 rounded-xl bg-teal-50 flex items-center justify-center">
+            <Palmtree className="h-5 w-5 text-teal-600" />
+          </div>
+          <div>
+            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Saldo de Vacaciones</p>
+            <p className="text-2xl font-black text-gray-900 leading-none mt-0.5">
+              {employee.vacationBalance ?? 0} <span className="text-sm text-gray-400 font-bold">días disponibles</span>
+            </p>
+          </div>
+        </div>
+        <div className="text-right">
+          <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Antigüedad</p>
+          <p className="text-xs font-bold text-gray-700">
+            {employee.joinDate ? (() => {
+              const months = Math.floor((Date.now() - new Date(employee.joinDate)) / (1000 * 60 * 60 * 24 * 30.44));
+              return months >= 12 ? `${Math.floor(months / 12)} año(s) ${months % 12} mes(es)` : `${months} mes(es)`;
+            })() : '—'}
+          </p>
+        </div>
+      </div>
+
+      {/* Stats del mes */}
+      <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
+        {stats.map(s => (
+          <div key={s.key} className={cn('rounded-2xl p-4 border text-center', s.bg)}>
+            <p className={cn('text-2xl font-black leading-none', s.color)}>{summary[s.key] || 0}</p>
+            <p className="text-[9px] font-black text-gray-500 uppercase tracking-wider mt-1">{s.label}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Lista de registros */}
+      <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm">
+        <h3 className="font-black text-gray-900 uppercase text-xs tracking-widest mb-5 flex items-center gap-2">
+          <Calendar className="h-4 w-4 text-primary" /> Registros del mes
+        </h3>
+        {loading ? (
+          <div className="space-y-3">
+            {[1,2,3].map(i => <div key={i} className="h-14 bg-gray-100 rounded-2xl animate-pulse" />)}
+          </div>
+        ) : records.length === 0 ? (
+          <div className="text-center py-12">
+            <Calendar className="h-10 w-10 text-gray-200 mx-auto mb-3" />
+            <p className="text-gray-400 font-bold text-sm">Sin registros este mes</p>
+            {isSupervisor && (
+              <p className="text-gray-300 font-bold text-[10px] uppercase tracking-widest mt-1">Usa "Registrar Incidencia" para agregar</p>
+            )}
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {records.map(r => {
+              const cfg = ATTENDANCE_TYPES[r.type] || ATTENDANCE_TYPES.ABSENT;
+              const Icon = cfg.icon;
+              return (
+                <div key={r.id} className="flex items-center justify-between p-4 border rounded-2xl bg-gray-50/50 hover:bg-white transition-all group">
+                  <div className="flex items-center gap-3">
+                    <div className={cn('h-9 w-9 rounded-xl flex items-center justify-center', cfg.color.replace('text-', 'text-').replace('border-', ''))}>
+                      <Icon className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className={cn('text-[9px] font-black px-2 py-0.5 rounded-full border', cfg.color)}>{cfg.label}</span>
+                        {r.minutesLate > 0 && (
+                          <span className="text-[9px] font-bold text-amber-600">{r.minutesLate} min tarde</span>
+                        )}
+                      </div>
+                      <p className="text-[10px] font-bold text-gray-400 mt-0.5">
+                        {new Date(r.date).toLocaleDateString('es-MX', { weekday: 'short', day: '2-digit', month: 'short' })}
+                        {r.checkIn && ` · Entrada: ${r.checkIn}`}
+                        {r.checkOut && ` · Salida: ${r.checkOut}`}
+                        {r.notes && ` · ${r.notes}`}
+                      </p>
+                    </div>
+                  </div>
+                  {isSupervisor && (
+                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button onClick={() => openEdit(r)} className="p-1.5 rounded-lg text-gray-400 hover:text-primary hover:bg-primary/8 transition-all">
+                        <Pencil className="h-3.5 w-3.5" />
+                      </button>
+                      <button onClick={() => handleDelete(r.id)} className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-all">
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Modal registrar/editar */}
+      {showModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowModal(false)}>
+          <div className="bg-white rounded-[2.5rem] p-8 w-full max-w-md shadow-2xl space-y-5" onClick={e => e.stopPropagation()}>
+            <h3 className="font-black text-gray-900 uppercase text-xs tracking-widest">
+              {editing ? 'Editar Registro' : 'Registrar Incidencia'}
+            </h3>
+
+            <div className="space-y-4">
+              <div>
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1">Fecha</label>
+                <input type="date" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))}
+                  className="w-full border rounded-xl px-3 py-2 text-sm font-bold text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary/30" />
+              </div>
+              <div>
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1">Tipo</label>
+                <select value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value }))}
+                  className="w-full border rounded-xl px-3 py-2 text-sm font-bold text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary/30">
+                  {Object.entries(ATTENDANCE_TYPES).map(([k, v]) => (
+                    <option key={k} value={k}>{v.label}</option>
+                  ))}
+                </select>
+              </div>
+              {(form.type === 'PRESENT' || form.type === 'LATE') && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1">Entrada</label>
+                    <input type="time" value={form.checkIn} onChange={e => setForm(f => ({ ...f, checkIn: e.target.value }))}
+                      className="w-full border rounded-xl px-3 py-2 text-sm font-bold text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary/30" />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1">Salida</label>
+                    <input type="time" value={form.checkOut} onChange={e => setForm(f => ({ ...f, checkOut: e.target.value }))}
+                      className="w-full border rounded-xl px-3 py-2 text-sm font-bold text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary/30" />
+                  </div>
+                </div>
+              )}
+              {form.type === 'LATE' && (
+                <div>
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1">Minutos de retardo</label>
+                  <input type="number" min="1" max="480" value={form.minutesLate} onChange={e => setForm(f => ({ ...f, minutesLate: e.target.value }))}
+                    placeholder="ej. 20" className="w-full border rounded-xl px-3 py-2 text-sm font-bold text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary/30" />
+                </div>
+              )}
+              <div>
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1">Notas (opcional)</label>
+                <textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2}
+                  placeholder="Motivo, observación..."
+                  className="w-full border rounded-xl px-3 py-2 text-sm font-bold text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none" />
+              </div>
+            </div>
+
+            <div className="flex gap-3 pt-2">
+              <button onClick={() => setShowModal(false)}
+                className="flex-1 py-3 rounded-2xl border text-[10px] font-black uppercase tracking-widest text-gray-500 hover:bg-gray-50 transition-all">
+                Cancelar
+              </button>
+              <button onClick={handleSave} disabled={saving}
+                className="flex-1 py-3 rounded-2xl bg-primary text-white text-[10px] font-black uppercase tracking-widest hover:bg-primary/90 transition-all disabled:opacity-50">
+                {saving ? 'Guardando...' : editing ? 'Actualizar' : 'Guardar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

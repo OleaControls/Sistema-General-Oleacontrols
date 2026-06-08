@@ -26,6 +26,8 @@ import calendarHandler from './api/_handlers/calendar.js';
 import portalHandler from './api/_handlers/portal.js';
 import catalogHandler from './api/_handlers/catalog.js';
 import quotePhraseHandler from './api/_handlers/quote-phrases.js';
+import attendanceHandler from './api/_handlers/attendance.js';
+import techAttendanceHandler from './api/_handlers/tech-attendance.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -139,6 +141,16 @@ app.delete('/api/sales-data', adaptHandler(salesDataHandler));
 app.get('/api/personal-audits', adaptHandler(personalAuditsHandler));
 app.post('/api/personal-audits', adaptHandler(personalAuditsHandler));
 app.delete('/api/personal-audits', adaptHandler(personalAuditsHandler));
+
+// Attendance (HR general)
+app.get('/api/attendance', adaptHandler(attendanceHandler));
+app.post('/api/attendance', adaptHandler(attendanceHandler));
+app.put('/api/attendance', adaptHandler(attendanceHandler));
+app.delete('/api/attendance', adaptHandler(attendanceHandler));
+
+// Tech Attendance (metas + checklists)
+app.all('/api/tech-attendance/:resource', adaptHandler(techAttendanceHandler));
+app.all('/api/tech-attendance',           adaptHandler(techAttendanceHandler));
 
 // LMS
 app.all('/api/lms', adaptHandler(lmsHandler));

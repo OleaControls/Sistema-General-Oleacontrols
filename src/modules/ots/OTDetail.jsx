@@ -128,8 +128,15 @@ export default function OTDetail() {
   useEffect(() => {
     if (!ot) return;
     const parsed = parseJornadas(ot.jornadas);
+    const isDoneOT = ot.status === 'COMPLETED' || ot.status === 'VALIDATED';
     if (parsed.length === 0 && ot.status === 'IN_PROGRESS' && ot.startedAt) {
       setJornadas([{ id: 'legacy', startedAt: ot.startedAt, endedAt: null, techId: ot.technicianId, status: 'ACTIVE' }]);
+    } else if (isDoneOT) {
+      // Si la OT ya cerró, forzar cualquier jornada que haya quedado ACTIVE a COMPLETED
+      const closeAt = ot.finishedAt || new Date().toISOString();
+      setJornadas(parsed.map(j =>
+        j.status === 'ACTIVE' ? { ...j, status: 'COMPLETED', endedAt: closeAt } : j
+      ));
     } else {
       setJornadas(parsed);
     }
@@ -220,9 +227,17 @@ export default function OTDetail() {
         const update = { status: newStatus };
         if (newStatus === 'IN_PROGRESS') update.startedAt = new Date().toISOString();
         if (newStatus === 'COMPLETED') {
-            update.finishedAt = new Date().toISOString();
+            const finishedAt = new Date().toISOString();
+            update.finishedAt = finishedAt;
             update.report = finishData.report;
             update.signature = finishData.signature;
+            // Cerrar cualquier jornada que haya quedado activa
+            const closedJornadas = jornadas.map(j =>
+              j.status === 'ACTIVE' ? { ...j, status: 'COMPLETED', endedAt: finishedAt } : j
+            );
+            if (closedJornadas.some(j => j.status === 'COMPLETED')) {
+              update.jornadas = closedJornadas;
+            }
         }
         await otService.updateOT(id, update);
         
@@ -422,7 +437,7 @@ export default function OTDetail() {
                   </div>
                   <span className="text-gray-200">·</span>
                   <span className="text-[10px] font-mono text-gray-400">{new Date(ot.updatedAt).toLocaleDateString('es-MX')}</span>
-                  {activeJornada && (
+                  {activeJornada && ot.status === 'IN_PROGRESS' && (
                     <>
                       <span className="text-gray-200">·</span>
                       <span className="text-[10px] font-mono text-amber-500 font-black">{elapsedTime}</span>

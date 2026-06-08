@@ -120,7 +120,11 @@ model Employee {
   // --- ACTIVOS Y EPP ---
   assets          Asset[]      @relation("EmployeeAssets")
 
-  calendarEvents  CalendarEvent[]
+  calendarEvents    CalendarEvent[]
+  attendanceRecords AttendanceRecord[]
+  techGoals         TechDailyGoal[]    @relation("TechGoals")
+  goalsSet          TechDailyGoal[]    @relation("GoalSetBy")
+  techAttendance    TechAttendanceLog[]
 
   @@index([status])
   @@index([department])
@@ -442,6 +446,79 @@ model DealActivity {
   createdAt  DateTime  @default(now())
 
   @@index([dealId, createdAt])
+}
+
+// ── Meta diaria que el supervisor asigna al técnico ─────────────────────────
+model TechDailyGoal {
+  id             String   @id @default(cuid())
+  date           DateTime
+  techId         String
+  tech           Employee @relation("TechGoals", fields: [techId], references: [id])
+  clientName     String
+  clientLocation String?
+  notes          String?
+  setById        String
+  setBy          Employee @relation("GoalSetBy", fields: [setById], references: [id])
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  attendanceLogs TechAttendanceLog[]
+
+  @@unique([techId, date])
+  @@index([date])
+}
+
+// ── Registro diario de asistencia + checklists del técnico ───────────────────
+model TechAttendanceLog {
+  id           String         @id @default(cuid())
+  date         DateTime
+  techId       String
+  tech         Employee       @relation(fields: [techId], references: [id])
+  goalId       String?
+  goal         TechDailyGoal? @relation(fields: [goalId], references: [id])
+
+  checkInTime  String?        // "08:30"
+  checkOutTime String?        // "18:00"
+
+  // Checklist 1 — Equipo personal (JSON)
+  // { uniform, epp, toolsBasic, toolsSpecial, materials } → true/false/null
+  checklistPersonal Json?
+  personalMissing   String?    // descripción de faltantes
+  personalReportSent Boolean  @default(false)
+
+  // Checklist 2 — Vehículo (JSON)
+  // { fuel, cleanInterior, cleanExterior, odometer, functionality } → true/false/null
+  checklistVehicle  Json?
+  vehicleMissing    String?    // descripción de faltantes
+  vehicleReportSent Boolean   @default(false)
+
+  step    String  @default("CHECKIN") // CHECKIN | PERSONAL | VEHICLE | DONE
+  status  String  @default("PENDING") // PENDING | COMPLETE
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([techId, date])
+  @@index([techId])
+  @@index([date])
+}
+
+model AttendanceRecord {
+  id           String   @id @default(cuid())
+  employeeId   String
+  employee     Employee @relation(fields: [employeeId], references: [id])
+  date         DateTime
+  type         String   // PRESENT, ABSENT, LATE, PERMISSION, MEDICAL, HOLIDAY
+  checkIn      String?  // "09:00"
+  checkOut     String?  // "18:00"
+  minutesLate  Int?
+  notes        String?
+  registeredBy String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([employeeId])
+  @@index([date])
 }
 
 model VacationRequest {

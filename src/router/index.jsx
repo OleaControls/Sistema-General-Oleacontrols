@@ -22,7 +22,9 @@ const TechGamification = lazy(() => import('@/modules/ots/views/TechGamification
 const OTValidation     = lazy(() => import('@/modules/ots/views/OTValidation'));
 const OTCatalogs       = lazy(() => import('@/modules/ots/views/OTCatalogs'));
 const DeliveryAct      = lazy(() => import('@/modules/ots/views/DeliveryAct'));
-const OpsCalendar      = lazy(() => import('@/modules/ots/views/OpsCalendar'));
+const OpsCalendar           = lazy(() => import('@/modules/ots/views/OpsCalendar'));
+const TechDailyAttendance   = lazy(() => import('@/modules/ots/views/TechDailyAttendance'));
+const TechAttendanceAdmin   = lazy(() => import('@/modules/ots/views/TechAttendanceAdmin'));
 
 // HR
 const HRLayout          = lazy(() => import('@/modules/human-resources/components/HRLayout'));
@@ -137,6 +139,8 @@ export default function AppRouter() {
           <Route path="/ops/ots/validate/:id"        element={<ProtectedRoute><OTValidation /></ProtectedRoute>} />
           <Route path="/ops/ots/catalogs"            element={<ProtectedRoute><OTCatalogs /></ProtectedRoute>} />
           <Route path="/ops/ots/delivery-act/:id"    element={<ProtectedRoute><DeliveryAct /></ProtectedRoute>} />
+          <Route path="/tech/attendance"             element={<ProtectedRoute><TechDailyAttendance /></ProtectedRoute>} />
+          <Route path="/ops/tech-attendance"         element={<ProtectedRoute><TechAttendanceAdmin /></ProtectedRoute>} />
 
           {/* Módulo RH */}
           <Route path="/hr" element={<ProtectedRoute><HRLayout /></ProtectedRoute>}>

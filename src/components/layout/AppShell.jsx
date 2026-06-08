@@ -4,7 +4,7 @@ import {
   LayoutDashboard, ClipboardList, Receipt, Users, GraduationCap,
   Briefcase, Menu, X, LogOut, Bell, ChevronDown, Trophy, User as UserIcon,
   BarChart3, Wallet, Target, Users2, FileText, Sliders, TrendingUp,
-  Activity, Settings, BarChart4, BookOpen, Calendar, Package, Star
+  Activity, Settings, BarChart4, BookOpen, Calendar, Package, Star, CalendarCheck, ClipboardCheck
 } from 'lucide-react';
 import { useAuth, ROLES } from '@/store/AuthContext';
 import { useTenant } from '@/store/TenantContext';
@@ -29,6 +29,7 @@ const NAV_STRUCTURE = [
       { name: 'Operaciones',  path: '/ops/metricas',   icon: ClipboardList, roles: [ROLES.ADMIN] },
       { name: 'Técnicos',     path: '/tech/metricas',  icon: Trophy,        roles: [ROLES.ADMIN] },
       { name: 'R. Humanos',   path: '/hr',             icon: Users,         roles: [ROLES.ADMIN] },
+      { name: 'Asistencia Técnicos', path: '/ops/tech-attendance',   icon: ClipboardCheck, roles: [ROLES.ADMIN] },
     ]
   },
 
@@ -82,10 +83,18 @@ const NAV_STRUCTURE = [
       { name: 'Aprobaciones',       path: '/ops/approvals/expenses', icon: Wallet,        roles: [ROLES.OPS] },
       { name: 'Métricas Ops',       path: '/ops/metricas',           icon: TrendingUp,    roles: [ROLES.OPS] },
       { name: 'Calificaciones',     path: '/performance',            icon: Star,          roles: [ROLES.OPS] },
+      { name: 'Asistencia Técnicos', path: '/ops/tech-attendance',    icon: ClipboardCheck, roles: [ROLES.OPS] },
     ]
   },
 
   // ── TÉCNICOS ───────────────────────────────────────────────────────────────
+  {
+    type: 'item',
+    name: 'Mi Asistencia',
+    path: '/tech/attendance',
+    icon: ClipboardCheck,
+    roles: [ROLES.TECH],
+  },
   {
     type: 'item',
     name: 'Mis Órdenes',
@@ -128,6 +137,13 @@ const NAV_STRUCTURE = [
     name: 'Recursos Humanos',
     path: '/hr/directory',
     icon: Users,
+    roles: [ROLES.HR],
+  },
+  {
+    type: 'item',
+    name: 'Asistencia',
+    path: '/hr/attendance',
+    icon: CalendarCheck,
     roles: [ROLES.HR],
   },
 
