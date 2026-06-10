@@ -457,6 +457,7 @@ model TechDailyGoal {
   clientName     String
   clientLocation String?
   notes          String?
+  otNumber       String?  // Folio de la OT vinculada (ej. OT-SUCE-001)
   setById        String
   setBy          Employee @relation("GoalSetBy", fields: [setById], references: [id])
   createdAt      DateTime @default(now())
@@ -464,7 +465,7 @@ model TechDailyGoal {
 
   attendanceLogs TechAttendanceLog[]
 
-  @@unique([techId, date])
+  @@index([techId, date])
   @@index([date])
 }
 

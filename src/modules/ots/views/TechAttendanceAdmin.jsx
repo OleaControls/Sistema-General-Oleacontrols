@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   MapPin, User2, Plus, Trash2, AlertTriangle, CheckCircle2, XCircle,
-  Clock, ChevronLeft, ChevronRight, ClipboardList, Car, ShieldCheck, Pencil
+  Clock, ChevronLeft, ChevronRight, ClipboardList, Car, ShieldCheck, Pencil, FileDown
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { apiFetch } from '@/lib/api';
 import { hrService } from '@/api/hrService';
 import { useAuth, ROLES } from '@/store/AuthContext';
+import { generateAttendanceReportPDF } from '../utils/attendanceReportPDF';
 
 const PERSONAL_LABELS = {
   uniform: 'Uniforme', epp: 'EPP', toolsBasic: 'Herr. básicas',
@@ -269,9 +270,17 @@ export default function TechAttendanceAdmin() {
 
                 {log.personalReportSent && (
                   <div className="bg-amber-50 rounded-2xl p-4 border border-amber-200 space-y-2">
-                    <p className="text-[10px] font-black text-amber-700 uppercase tracking-widest flex items-center gap-1.5">
-                      <ShieldCheck className="h-3.5 w-3.5" /> Equipo personal — faltantes
-                    </p>
+                    <div className="flex items-center justify-between">
+                      <p className="text-[10px] font-black text-amber-700 uppercase tracking-widest flex items-center gap-1.5">
+                        <ShieldCheck className="h-3.5 w-3.5" /> Equipo personal — faltantes
+                      </p>
+                      <button
+                        onClick={() => generateAttendanceReportPDF(log, tech?.name || log.techId, log.goal, 'personal')}
+                        className="flex items-center gap-1 text-[9px] font-black text-amber-700 bg-white border border-amber-300 px-2.5 py-1 rounded-xl hover:bg-amber-100 transition-all"
+                      >
+                        <FileDown className="h-3 w-3" /> Ver PDF
+                      </button>
+                    </div>
                     <div className="flex flex-wrap gap-1.5">
                       {Object.entries(log.checklistPersonal || {}).filter(([,v]) => v === false).map(([k]) => (
                         <span key={k} className="text-[9px] font-black bg-red-100 text-red-700 px-2 py-0.5 rounded border border-red-200">
@@ -285,9 +294,17 @@ export default function TechAttendanceAdmin() {
 
                 {log.vehicleReportSent && (
                   <div className="bg-amber-50 rounded-2xl p-4 border border-amber-200 space-y-2">
-                    <p className="text-[10px] font-black text-amber-700 uppercase tracking-widest flex items-center gap-1.5">
-                      <Car className="h-3.5 w-3.5" /> Vehículo — recursos requeridos
-                    </p>
+                    <div className="flex items-center justify-between">
+                      <p className="text-[10px] font-black text-amber-700 uppercase tracking-widest flex items-center gap-1.5">
+                        <Car className="h-3.5 w-3.5" /> Vehículo — recursos requeridos
+                      </p>
+                      <button
+                        onClick={() => generateAttendanceReportPDF(log, tech?.name || log.techId, log.goal, 'vehicle')}
+                        className="flex items-center gap-1 text-[9px] font-black text-amber-700 bg-white border border-amber-300 px-2.5 py-1 rounded-xl hover:bg-amber-100 transition-all"
+                      >
+                        <FileDown className="h-3 w-3" /> Ver PDF
+                      </button>
+                    </div>
                     <div className="flex flex-wrap gap-1.5">
                       {Object.entries(log.checklistVehicle || {}).filter(([,v]) => v === false).map(([k]) => (
                         <span key={k} className="text-[9px] font-black bg-red-100 text-red-700 px-2 py-0.5 rounded border border-red-200">
@@ -333,9 +350,9 @@ export default function TechAttendanceAdmin() {
                   className="w-full border rounded-xl px-3 py-2 text-sm font-bold text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary/30" />
               </div>
               <div>
-                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1">Notas</label>
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1">Metas</label>
                 <textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} rows={2}
-                  placeholder="Instrucciones adicionales..."
+                  placeholder="Objetivos a cumplir, material requerido, verificaciones previas..."
                   className="w-full border rounded-xl px-3 py-2 text-sm font-bold text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none" />
               </div>
             </div>

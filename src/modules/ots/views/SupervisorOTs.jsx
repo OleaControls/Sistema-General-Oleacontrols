@@ -12,6 +12,7 @@ import 'leaflet/dist/leaflet.css';
 import { otService } from '@/api/otService';
 import { crmService } from '@/api/crmService';
 import { hrService } from '@/api/hrService';
+import { apiFetch } from '@/lib/api';
 import { useAuth, ROLES } from '@/store/AuthContext';
 import { cn } from '@/lib/utils';
 import jsPDF from 'jspdf';
@@ -101,7 +102,7 @@ export default function SupervisorOTs() {
     contactName: '', contactEmail: '', contactPhone: '', leadTechId: '', leadTechName: '',
     assistantTechs: [], workDescription: '', arrivalTime: '09:00',
     scheduledDate: new Date().toISOString().split('T')[0],
-    priority: 'MEDIUM', assignedFunds: 0
+    priority: 'MEDIUM', assignedFunds: 0, techMetas: ''
   };
 
   const [newOT, setNewOT] = useState(initialNewOT);
@@ -411,22 +412,41 @@ export default function SupervisorOTs() {
   const handleFormSubmit = async (e) => {
     e.preventDefault();
     if (isSaving) return;
-    
+
     setIsSaving(true);
     try {
       const data = { ...newOT };
       if (extraFunds > 0) data.assignedFunds = (parseFloat(newOT.assignedFunds) || 0) + parseFloat(extraFunds);
-      
+
+      let savedOT;
       if (isEditMode) {
-        await otService.updateOT(editingId, data);
+        savedOT = await otService.updateOT(editingId, data);
       } else {
-        await otService.saveOT({ ...data, supervisorId: currentUser.id });
+        savedOT = await otService.saveOT({ ...data, supervisorId: currentUser.id });
       }
-      
+
+      // Si hay técnico asignado, crear/actualizar la meta diaria para asistencia técnica
+      if (newOT.leadTechId && newOT.scheduledDate) {
+        try {
+          const folio = savedOT?.otNumber || savedOT?.id || (isEditMode ? editingId : null);
+          await apiFetch('/api/tech-attendance/goals', {
+            method: 'POST',
+            body: JSON.stringify({
+              techId:         newOT.leadTechId,
+              date:           newOT.scheduledDate,
+              clientName:     newOT.client || newOT.storeName || 'Sin cliente',
+              clientLocation: newOT.address || '',
+              notes:          newOT.techMetas || '',
+              otNumber:       folio,
+            }),
+          });
+        } catch (_) { /* no bloquear el guardado de la OT si falla la meta */ }
+      }
+
       setIsModalOpen(false);
       await loadData();
-    } catch (err) { 
-      alert("Error al procesar la OT: " + err.message); 
+    } catch (err) {
+      alert("Error al procesar la OT: " + err.message);
     } finally {
       setIsSaving(false);
     }
@@ -581,8 +601,8 @@ export default function SupervisorOTs() {
     : ots.filter(ot => ot.priority === filters.priority);
 
   const kpis = {
-    total:       ots.length,
-    pending:     ots.filter(o => o.status === 'PENDING' || o.status === 'UNASSIGNED').length,
+    total:       otTotal,
+    pending:     ots.filter(o => o.status === 'UNASSIGNED' || o.status === 'PENDING').length,
     accepted:    ots.filter(o => o.status === 'ACCEPTED').length,
     inProgress:  ots.filter(o => o.status === 'IN_PROGRESS').length,
     completed:   ots.filter(o => o.status === 'COMPLETED' || o.status === 'VALIDATED').length,
@@ -592,6 +612,7 @@ export default function SupervisorOTs() {
   const STATUS_META = {
     ALL:         { label: 'Todas',       color: 'text-slate-600',   dot: 'bg-slate-400',   badge: 'bg-slate-100 text-slate-600 border-slate-200' },
     PENDING:     { label: 'Sin Asignar', color: 'text-slate-500',   dot: 'bg-slate-300',   badge: 'bg-slate-50 text-slate-500 border-slate-200' },
+    UNASSIGNED:  { label: 'Sin Asignar', color: 'text-slate-500',   dot: 'bg-slate-300',   badge: 'bg-slate-50 text-slate-500 border-slate-200' },
     ASSIGNED:    { label: 'Asignada',    color: 'text-violet-600',  dot: 'bg-violet-400',  badge: 'bg-violet-50 text-violet-600 border-violet-200' },
     ACCEPTED:    { label: 'Aceptada',    color: 'text-sky-700',     dot: 'bg-sky-500',     badge: 'bg-sky-50 text-sky-700 border-sky-200' },
     IN_PROGRESS: { label: 'En Proceso',  color: 'text-amber-700',   dot: 'bg-amber-400',   badge: 'bg-amber-50 text-amber-700 border-amber-200' },
@@ -809,10 +830,10 @@ export default function SupervisorOTs() {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-0">
             {/* Tabs */}
             <div className="flex items-end gap-0 overflow-x-auto">
-              {['ALL', 'PENDING', 'ASSIGNED', 'ACCEPTED', 'IN_PROGRESS', 'COMPLETED'].map(s => {
+              {['ALL', 'UNASSIGNED', 'ASSIGNED', 'ACCEPTED', 'IN_PROGRESS', 'COMPLETED'].map(s => {
                 const meta = STATUS_META[s];
                 const isActive = filters.status === s;
-                const count = s === 'ALL' ? ots.length : ots.filter(o => o.status === s).length;
+                const count = s === 'ALL' ? otTotal : ots.filter(o => o.status === s).length;
                 return (
                   <button
                     key={s}
@@ -1709,6 +1730,22 @@ export default function SupervisorOTs() {
                           </select>
                         </div>
                       </div>
+
+                      {/* Metas para el técnico */}
+                      {newOT.leadTechId && (
+                        <div>
+                          <label className="text-[9px] font-mono font-bold uppercase tracking-[0.15em] text-gray-500 block mb-2">
+                            Metas <span className="normal-case text-gray-300">(solo visible al supervisor y en asistencia técnica)</span>
+                          </label>
+                          <textarea
+                            rows={3}
+                            className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-900 outline-none focus:border-gray-900 focus:ring-2 focus:ring-gray-900/5 transition-all resize-none placeholder:text-gray-300 leading-relaxed"
+                            value={newOT.techMetas}
+                            onChange={e => setNewOT({ ...newOT, techMetas: e.target.value })}
+                            placeholder="Objetivos a cumplir, material requerido, verificaciones previas, condiciones especiales..."
+                          />
+                        </div>
+                      )}
 
                       {/* Equipo apoyo */}
                       {availableTechs.filter(t => t.id !== newOT.leadTechId).length > 0 && (
