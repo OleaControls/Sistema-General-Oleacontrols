@@ -721,9 +721,20 @@ export default async function handler(req, res) {
         });
         if (!original) return res.status(404).json({ error: 'Cotización original no encontrada' });
 
-        const year  = new Date().getFullYear();
-        const count = await prisma.quote.count();
-        const newQuoteNumber = `COT-${year}-${String(count + 1).padStart(4, '0')}`;
+        const year = new Date().getFullYear();
+        // Buscar el último número de cotización de este año para evitar colisiones con números aleatorios
+        const lastQuote = await prisma.quote.findFirst({
+          where: { quoteNumber: { startsWith: `COT-${year}-` } },
+          orderBy: { createdAt: 'desc' },
+          select: { quoteNumber: true },
+        });
+        let nextNum = 1;
+        if (lastQuote) {
+          const parts = lastQuote.quoteNumber.split('-');
+          const parsed = parseInt(parts[parts.length - 1], 10);
+          if (!isNaN(parsed)) nextNum = parsed + 1;
+        }
+        const newQuoteNumber = `COT-${year}-${String(nextNum).padStart(4, '0')}`;
 
         const validUntil = new Date();
         validUntil.setDate(validUntil.getDate() + 30);
@@ -738,6 +749,7 @@ export default async function handler(req, res) {
             items:        original.items,
             subtotal:     original.subtotal,
             tax:          original.tax,
+            adjustment:   original.adjustment   || 0,
             total:        original.total,
             validUntil,
             terms:        original.terms        || '',

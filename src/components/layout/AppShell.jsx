@@ -312,12 +312,14 @@ export default function AppShell({ children }) {
           {!isCollapsed && (
             <div className="px-5 py-2 border-b border-gray-50">
               <span className="text-[9px] font-black text-primary uppercase tracking-widest">
-                {user?.role === ROLES.ADMIN ? 'Administrador — Solo Métricas' :
-                 user?.role === ROLES.SALES ? 'Ventas' :
-                 user?.role === ROLES.OPS   ? 'Operaciones' :
-                 user?.role === ROLES.TECH  ? 'Técnico' :
-                 user?.role === ROLES.HR    ? 'Recursos Humanos' :
-                 user?.role === ROLES.COLLABORATOR ? 'Colaborador' : user?.role}
+                {userRoles.map(r =>
+                  r === ROLES.ADMIN ? 'Administrador' :
+                  r === ROLES.SALES ? 'Ventas' :
+                  r === ROLES.OPS   ? 'Operaciones' :
+                  r === ROLES.TECH  ? 'Técnico' :
+                  r === ROLES.HR    ? 'R. Humanos' :
+                  r === ROLES.COLLABORATOR ? 'Colaborador' : r
+                ).join(' · ')}
               </span>
             </div>
           )}

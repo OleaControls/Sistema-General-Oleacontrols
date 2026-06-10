@@ -1,8 +1,9 @@
-import React, { Suspense, lazy } from 'react';
+import React, { Suspense, lazy, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth, ROLES } from '@/store/AuthContext';
 import AppShell from '@/components/layout/AppShell';
 import Login from '@/modules/Login';
+import { cn } from '@/lib/utils';
 
 // ── Carga diferida de todos los módulos ───────────────────────────────────────
 // Solo AppShell + Login se cargan de inmediato (siempre necesarios para auth).
@@ -84,8 +85,39 @@ function PageLoader() {
 // ── Selectores condicionales ──────────────────────────────────────────────────
 const OTSelector = () => {
   const { user } = useAuth();
+  const [tab, setTab] = useState('ops');
   const userRoles = user?.roles || [user?.role];
   const isSupervisor = userRoles.includes(ROLES.ADMIN) || userRoles.includes(ROLES.OPS);
+  const isTech = userRoles.includes(ROLES.TECH);
+
+  if (isSupervisor && isTech) {
+    return (
+      <div className="space-y-4">
+        <div className="flex gap-1 bg-gray-100 p-1 rounded-2xl w-fit">
+          <button
+            onClick={() => setTab('ops')}
+            className={cn(
+              'flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all',
+              tab === 'ops' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+            )}
+          >
+            Operaciones
+          </button>
+          <button
+            onClick={() => setTab('tech')}
+            className={cn(
+              'flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all',
+              tab === 'tech' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+            )}
+          >
+            Mis OTs
+          </button>
+        </div>
+        {tab === 'ops' ? <SupervisorOTs /> : <TechnicianOTs />}
+      </div>
+    );
+  }
+
   return isSupervisor ? <SupervisorOTs /> : <TechnicianOTs />;
 };
 
