@@ -1,14 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  MapPin, User2, Clock, CheckCircle2, XCircle, AlertTriangle, ChevronRight, ChevronLeft,
-  Send, Wrench, ShieldCheck, Car, Fuel, Sparkles, Gauge, Zap, HardHat,
+  MapPin, User2, Clock, CheckCircle2, XCircle, AlertTriangle,
+  Wrench, Car, Fuel, Sparkles, Gauge, Zap, HardHat,
   Package, ClipboardList, CheckCheck, RotateCcw, ExternalLink, Target, X
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { apiFetch } from '@/lib/api';
 import { useAuth } from '@/store/AuthContext';
-import { generateAttendanceReportPDF } from '../utils/attendanceReportPDF';
 
 // ── Constantes de checklist ──────────────────────────────────────────────────
 const PERSONAL_ITEMS = [
@@ -371,67 +370,33 @@ export default function TechDailyAttendance() {
   })();
   const navigate = useNavigate();
 
-  const [log,          setLog]          = useState(null);
   const [goals,        setGoals]        = useState([]);
   const [upcoming,     setUpcoming]     = useState([]);
   const [loading,      setLoading]      = useState(true);
-  const [saving,       setSaving]       = useState(false);
   const [confirmingId, setConfirmingId] = useState(null);
-  const [checklistModal, setChecklistModal] = useState(null); // goal object | null
-
-  const [personal,      setPersonal]      = useState({});
-  const [vehicle,       setVehicle]       = useState({});
-  const [personalNotes, setPersonalNotes] = useState('');
-  const [vehicleNotes,  setVehicleNotes]  = useState('');
-  const [vehicleAnswer, setVehicleAnswer] = useState(null); // null=sin responder, true=sí lleva, false=no lleva
+  const [checklistModal, setChecklistModal] = useState(null);
 
   const userId = user?.id;
 
   const load = useCallback(async () => {
-    if (!userId) return { logData: null, allGoals: [] };
+    if (!userId) return;
     setLoading(true);
     try {
-      const [logRes, goalRes, upcomingRes] = await Promise.all([
-        apiFetch(`/api/tech-attendance/log?techId=${userId}&date=${today}`),
+      const [goalRes, upcomingRes] = await Promise.all([
         apiFetch(`/api/tech-attendance/goals?techId=${userId}&date=${today}`),
         apiFetch(`/api/tech-attendance/goals?techId=${userId}&upcoming=true`),
       ]);
-      const logData      = logRes.ok      ? await logRes.json()      : null;
       const allGoals     = goalRes.ok     ? await goalRes.json()     : [];
       const upcomingData = upcomingRes.ok ? await upcomingRes.json() : [];
-      setLog(logData);
       setGoals(Array.isArray(allGoals) ? allGoals : []);
       setUpcoming(Array.isArray(upcomingData) ? upcomingData : []);
-      if (logData) {
-        setPersonal(logData.checklistPersonal || {});
-        setVehicle(logData.checklistVehicle  || {});
-        setPersonalNotes(logData.personalMissing || '');
-        setVehicleNotes(logData.vehicleMissing   || '');
-        // Restaurar respuesta de vehículo: si ya tiene checklistVehicle → sí; si ya está DONE sin checklist → no
-        if (logData.checklistVehicle && Object.keys(logData.checklistVehicle).length > 0) {
-          setVehicleAnswer(true);
-        } else if (logData.step === 'DONE') {
-          setVehicleAnswer(false);
-        }
-      }
-      return { logData, allGoals: Array.isArray(allGoals) ? allGoals : [] };
-    } catch (e) { console.error(e); return { logData: null, allGoals: [] }; }
+    } catch (e) { console.error(e); }
     finally { setLoading(false); }
   }, [userId, today]);
 
   useEffect(() => {
     if (!userId) return;
-    load().then(async ({ logData, allGoals }) => {
-      if (!logData) {
-        try {
-          const res = await apiFetch('/api/tech-attendance/log', {
-            method: 'POST',
-            body: JSON.stringify({ techId: userId, goalId: allGoals[0]?.id || null }),
-          });
-          if (res.ok) setLog(await res.json());
-        } catch { /* silencioso */ }
-      }
-    });
+    load();
   }, [userId, load]);
 
   const confirmGoal = async (goalId, confirmed) => {
@@ -448,80 +413,13 @@ export default function TechDailyAttendance() {
     finally { setConfirmingId(null); }
   };
 
-  const nowHHMM = () => {
-    const n = new Date();
-    return `${String(n.getHours()).padStart(2,'0')}:${String(n.getMinutes()).padStart(2,'0')}`;
-  };
-
-  const buildMissingText = (items, values) =>
-    items.filter(i => values[i.key] === false).map(i => i.label).join(', ');
-
-  const activeGoal         = goals[0] || null;
-  const hasGoals           = goals.length > 0;
-  const hasVehicle         = vehicleAnswer === true;
-  const personalHasMissing = Object.values(personal).some(v => v === false);
-  const vehicleHasMissing  = hasVehicle && VEHICLE_ITEMS.filter(i => !i.isNumber).some(i => vehicle[i.key] === false);
-  const anyMissing         = personalHasMissing || vehicleHasMissing;
-
-  const saveChecklist = async () => {
-    if (!log) return;
-    setSaving(true);
-    try {
-      const personalMissingText = personalNotes || buildMissingText(PERSONAL_ITEMS, personal);
-      const vehicleMissingText  = vehicleNotes  || buildMissingText(VEHICLE_ITEMS.filter(i => !i.isNumber), vehicle);
-      const sendPersonal = personalHasMissing;
-      const sendVehicle  = hasVehicle && vehicleHasMissing;
-
-      const data = {
-        id: log.id,
-        checklistPersonal: personal,
-        step: 'DONE',
-        status: 'COMPLETE',
-        checkInTime: nowHHMM(),
-        ...(sendPersonal && { personalMissing: personalMissingText, personalReportSent: true }),
-        ...(vehicleAnswer === true  && { checklistVehicle: vehicle }),
-        ...(vehicleAnswer === false && { checklistVehicle: null }),
-        ...(sendVehicle  && { vehicleMissing: vehicleMissingText, vehicleReportSent: true }),
-      };
-      const res = await apiFetch('/api/tech-attendance/log', { method: 'PATCH', body: JSON.stringify(data) });
-      if (!res.ok) throw new Error();
-      const updated = await res.json();
-      setLog(updated);
-
-      if (sendPersonal) {
-        await generateAttendanceReportPDF(
-          { ...updated, checklistPersonal: personal, personalMissing: personalMissingText },
-          user.name, activeGoal, 'personal'
-        );
-      }
-      if (sendVehicle) {
-        await generateAttendanceReportPDF(
-          { ...updated, checklistVehicle: vehicle, vehicleMissing: vehicleMissingText },
-          user.name, activeGoal, 'vehicle'
-        );
-      }
-    } catch { alert('Error al guardar'); }
-    finally { setSaving(false); }
-  };
-
-  const allPersonalAnswered = PERSONAL_ITEMS.every(i => personal[i.key] !== undefined);
-  const allVehicleAnswered  = vehicleAnswer === false || (vehicleAnswer === true && VEHICLE_ITEMS.every(i => {
-    const v = vehicle[i.key];
-    if (i.isNumber) return v !== undefined && v !== null && v !== '';
-    return v !== undefined;
-  }));
-  const allAnswered = allPersonalAnswered && vehicleAnswer !== null && allVehicleAnswered;
+  const hasGoals = goals.length > 0;
 
   if (loading) return (
     <div className="min-h-[60vh] flex items-center justify-center">
       <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
     </div>
   );
-
-  const step   = log?.step || 'PERSONAL';
-  const isDone = step === 'DONE';
-  const STEPS  = [{ key: 'PERSONAL', label: 'Equipo' }, { key: 'DONE', label: 'Listo' }];
-  const stepIdx = isDone ? 2 : 0;
 
   return (
     <div className="max-w-lg mx-auto space-y-5 pb-20">
@@ -585,8 +483,7 @@ export default function TechDailyAttendance() {
                   <p className="text-[11px] text-gray-400 font-bold">{g.notes}</p>
                 </div>
               )}
-              {isDone && (
-                <div className="flex gap-2 mt-1">
+              <div className="flex gap-2 mt-1">
                   {g.otNumber && (
                     <button onClick={() => navigate(`/ots/${g.otNumber}`)}
                       className="flex-1 flex items-center justify-center gap-2 py-2 rounded-xl bg-blue-600/20 border border-blue-500/30 text-blue-300 text-[11px] font-black uppercase tracking-widest hover:bg-blue-600/30 transition-all">
@@ -600,253 +497,11 @@ export default function TechDailyAttendance() {
                     Checklist
                   </button>
                 </div>
-              )}
             </div>
           ))}
         </div>
 
-        {log?.checkInTime && (
-          <div className="mt-3 flex items-center gap-2 text-emerald-400">
-            <Clock className="h-4 w-4" />
-            <span className="text-xs font-black">Entrada registrada: {log.checkInTime}</span>
-          </div>
-        )}
       </div>
-
-      {/* ── Stepper ── */}
-      <div className="flex items-center gap-2 px-2">
-        {STEPS.map((s, i) => {
-          const done   = i < stepIdx || isDone;
-          const active = i === stepIdx && !isDone;
-          return (
-            <React.Fragment key={s.key}>
-              <div className={cn('flex flex-col items-center gap-1 flex-1', done || active ? 'opacity-100' : 'opacity-30')}>
-                <div className={cn(
-                  'h-7 w-7 rounded-full flex items-center justify-center text-[10px] font-black border-2 transition-all',
-                  done   ? 'bg-emerald-500 border-emerald-500 text-white' :
-                  active ? 'bg-primary border-primary text-white'         :
-                           'bg-white border-gray-200 text-gray-400'
-                )}>
-                  {done ? <CheckCircle2 className="h-3.5 w-3.5" /> : i + 1}
-                </div>
-                <p className="text-[8px] font-black text-gray-500 uppercase tracking-wider text-center leading-tight">{s.label}</p>
-              </div>
-              {i < STEPS.length - 1 && (
-                <div className={cn('h-0.5 flex-1 -mt-4 transition-all', done ? 'bg-emerald-400' : 'bg-gray-200')} />
-              )}
-            </React.Fragment>
-          );
-        })}
-      </div>
-
-      {/* ── Sin metas ── */}
-      {(step === 'PERSONAL' || step === 'CHECKIN') && !hasGoals && (
-        <div className="bg-white rounded-3xl p-8 border border-gray-100 shadow-sm text-center space-y-4">
-          <div className="h-14 w-14 rounded-2xl bg-gray-100 flex items-center justify-center mx-auto">
-            <ClipboardList className="h-7 w-7 text-gray-400" />
-          </div>
-          <div>
-            <h3 className="text-base font-black text-gray-700">Sin metas asignadas</h3>
-            <p className="text-sm font-bold text-gray-400 mt-1 leading-snug">
-              El registro de asistencia solo está disponible cuando tienes una orden de trabajo o meta asignada.
-            </p>
-          </div>
-          <p className="text-[10px] font-bold text-gray-300 uppercase tracking-widest">Contacta a tu supervisor</p>
-        </div>
-      )}
-
-      {/* ── Checklist principal (registrar entrada) ── */}
-      {(step === 'PERSONAL' || step === 'CHECKIN') && hasGoals && (
-        <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm space-y-5">
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-2xl bg-blue-50 flex items-center justify-center">
-              <ShieldCheck className="h-5 w-5 text-blue-600" />
-            </div>
-            <div>
-              <h2 className="text-base font-black text-gray-900">Uniforme · EPP · Herramientas</h2>
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Equipo personal</p>
-            </div>
-          </div>
-          <div className="space-y-3">
-            {PERSONAL_ITEMS.map(item => (
-              <CheckItem key={item.key} item={item} value={personal[item.key]}
-                onChange={(k, v) => setPersonal(p => ({ ...p, [k]: v }))} disabled={false} />
-            ))}
-          </div>
-
-          {personalHasMissing && (
-            <div className="space-y-2">
-              <div className="flex items-center gap-2 p-3 bg-amber-50 rounded-2xl border border-amber-200">
-                <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
-                <p className="text-xs font-bold text-amber-700">Ítems faltantes. Se enviará reporte al supervisor.</p>
-              </div>
-              <textarea value={personalNotes} onChange={e => setPersonalNotes(e.target.value)}
-                placeholder="Detalla qué falta en el equipo personal..." rows={2}
-                className="w-full border border-amber-200 rounded-2xl px-4 py-3 text-sm font-bold text-gray-800 focus:outline-none focus:ring-2 focus:ring-amber-300 resize-none bg-amber-50/50" />
-            </div>
-          )}
-
-          {/* ── Pregunta: ¿Llevas vehículo hoy? ── */}
-          <div className="border-t border-gray-100 pt-4">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="h-10 w-10 rounded-2xl bg-indigo-50 flex items-center justify-center shrink-0">
-                <Car className="h-5 w-5 text-indigo-600" />
-              </div>
-              <div>
-                <h2 className="text-base font-black text-gray-900">¿Llevas vehículo hoy?</h2>
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Combustible · Limpieza · Funcionalidad</p>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                type="button"
-                onClick={() => setVehicleAnswer(true)}
-                className={cn(
-                  'flex items-center justify-center gap-2 py-3 rounded-2xl border-2 font-black text-sm uppercase tracking-widest transition-all',
-                  vehicleAnswer === true
-                    ? 'bg-indigo-500 border-indigo-500 text-white shadow-lg shadow-indigo-200'
-                    : 'bg-white border-gray-200 text-gray-500 hover:border-indigo-300 hover:text-indigo-600'
-                )}
-              >
-                <Car className="h-4 w-4" /> Sí
-              </button>
-              <button
-                type="button"
-                onClick={() => { setVehicleAnswer(false); setVehicle({}); setVehicleNotes(''); }}
-                className={cn(
-                  'flex items-center justify-center gap-2 py-3 rounded-2xl border-2 font-black text-sm uppercase tracking-widest transition-all',
-                  vehicleAnswer === false
-                    ? 'bg-gray-800 border-gray-800 text-white shadow-lg shadow-gray-200'
-                    : 'bg-white border-gray-200 text-gray-500 hover:border-gray-400 hover:text-gray-700'
-                )}
-              >
-                <XCircle className="h-4 w-4" /> No
-              </button>
-            </div>
-            {vehicleAnswer === false && (
-              <div className="mt-3 flex items-center gap-2 p-3 bg-gray-50 rounded-2xl border border-gray-200">
-                <CheckCircle2 className="h-4 w-4 text-gray-400 shrink-0" />
-                <p className="text-xs font-bold text-gray-500">Sin vehículo — checklist de vehículo omitido.</p>
-              </div>
-            )}
-          </div>
-
-          {hasVehicle && (
-            <>
-              <div className="space-y-3">
-                {VEHICLE_ITEMS.map(item => (
-                  <CheckItem key={item.key} item={item} value={vehicle[item.key]}
-                    onChange={(k, v) => setVehicle(p => ({ ...p, [k]: v }))} disabled={false} />
-                ))}
-              </div>
-              {vehicleHasMissing && (
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2 p-3 bg-amber-50 rounded-2xl border border-amber-200">
-                    <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
-                    <p className="text-xs font-bold text-amber-700">Recursos faltantes. Se generará reporte para operaciones.</p>
-                  </div>
-                  <textarea value={vehicleNotes} onChange={e => setVehicleNotes(e.target.value)}
-                    placeholder="Detalla recursos o reparaciones necesarias..." rows={2}
-                    className="w-full border border-amber-200 rounded-2xl px-4 py-3 text-sm font-bold text-gray-800 focus:outline-none focus:ring-2 focus:ring-amber-300 resize-none bg-amber-50/50" />
-                </div>
-              )}
-            </>
-          )}
-
-          <button onClick={saveChecklist} disabled={!allAnswered || saving}
-            className={cn(
-              'w-full py-4 rounded-2xl font-black text-sm uppercase tracking-widest transition-all disabled:opacity-40',
-              anyMissing
-                ? 'bg-amber-500 text-white hover:bg-amber-600 shadow-lg shadow-amber-200'
-                : 'bg-emerald-500 text-white hover:bg-emerald-600 shadow-lg shadow-emerald-200'
-            )}>
-            <span className="flex items-center justify-center gap-2">
-              {anyMissing ? <Send className="h-4 w-4" /> : <CheckCheck className="h-4 w-4" />}
-              {saving ? 'Guardando...' : anyMissing ? 'Enviar Reportes y Registrar Entrada' : 'Todo OK · Registrar Entrada'}
-            </span>
-          </button>
-        </div>
-      )}
-
-      {/* ── DONE: resumen ── */}
-      {isDone && (
-        <div className="bg-emerald-600 rounded-3xl p-8 text-white text-center space-y-4">
-          <CheckCheck className="h-14 w-14 mx-auto opacity-90" />
-          <div>
-            <h2 className="text-xl font-black">¡Entrada registrada!</h2>
-            <p className="text-sm text-emerald-200 font-bold mt-1">
-              {log?.checkInTime ? `${log.checkInTime} · ${today}` : today}
-            </p>
-          </div>
-
-          {(log?.personalReportSent || log?.vehicleReportSent) && (
-            <div className="bg-white/10 rounded-2xl p-4 text-left space-y-2 border border-white/20">
-              <p className="text-[10px] font-black uppercase tracking-widest text-emerald-200">Reportes enviados a operaciones</p>
-              {log.personalReportSent && (
-                <div className="flex items-start gap-2">
-                  <AlertTriangle className="h-3.5 w-3.5 text-amber-300 shrink-0 mt-0.5" />
-                  <p className="text-xs font-bold text-white/90">Equipo personal: {log.personalMissing}</p>
-                </div>
-              )}
-              {log.vehicleReportSent && (
-                <div className="flex items-start gap-2">
-                  <AlertTriangle className="h-3.5 w-3.5 text-amber-300 shrink-0 mt-0.5" />
-                  <p className="text-xs font-bold text-white/90">Vehículo: {log.vehicleMissing}</p>
-                </div>
-              )}
-            </div>
-          )}
-
-          <div className={cn('gap-3 text-left', (log?.checklistVehicle && Object.keys(log.checklistVehicle).length > 0) ? 'grid grid-cols-2' : 'flex')}>
-            <div className="bg-white/10 rounded-2xl p-3 border border-white/20 flex-1">
-              <p className="text-[9px] font-black uppercase tracking-wider text-emerald-200 mb-2">Equipo personal</p>
-              {PERSONAL_ITEMS.map(i => (
-                <div key={i.key} className="flex items-center gap-1.5 mb-1">
-                  {log?.checklistPersonal?.[i.key]
-                    ? <CheckCircle2 className="h-3 w-3 text-emerald-300" />
-                    : <XCircle className="h-3 w-3 text-red-300" />}
-                  <span className="text-[10px] font-bold text-white/80">{i.label.split(' ')[0]}</span>
-                </div>
-              ))}
-            </div>
-            {log?.checklistVehicle && Object.keys(log.checklistVehicle).length > 0 && (
-              <div className="bg-white/10 rounded-2xl p-3 border border-white/20">
-                <p className="text-[9px] font-black uppercase tracking-wider text-emerald-200 mb-2">Vehículo</p>
-                {VEHICLE_ITEMS.map(i => {
-                  const val = log?.checklistVehicle?.[i.key];
-                  return (
-                    <div key={i.key} className="flex items-center gap-1.5 mb-1">
-                      {i.isNumber
-                        ? <Gauge className="h-3 w-3 text-emerald-300" />
-                        : val ? <CheckCircle2 className="h-3 w-3 text-emerald-300" /> : <XCircle className="h-3 w-3 text-red-300" />}
-                      <span className="text-[10px] font-bold text-white/80">
-                        {i.isNumber
-                          ? `${i.label}: ${val != null && val !== '' ? `${Number(val).toLocaleString()} km` : '—'}`
-                          : i.label.split(' ')[0]}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          <div className="flex flex-col gap-2 pt-2">
-            {log?.personalReportSent && (
-              <button onClick={() => generateAttendanceReportPDF(log, user.name, activeGoal, 'personal')}
-                className="flex items-center justify-center gap-2 w-full py-3 rounded-2xl bg-white/15 border border-white/20 text-white text-[10px] font-black uppercase tracking-widest hover:bg-white/25 transition-all">
-                <ShieldCheck className="h-4 w-4" /> Descargar Reporte Equipo Personal (PDF)
-              </button>
-            )}
-            {log?.vehicleReportSent && (
-              <button onClick={() => generateAttendanceReportPDF(log, user.name, activeGoal, 'vehicle')}
-                className="flex items-center justify-center gap-2 w-full py-3 rounded-2xl bg-white/15 border border-white/20 text-white text-[10px] font-black uppercase tracking-widest hover:bg-white/25 transition-all">
-                <Car className="h-4 w-4" /> Descargar Reporte Vehículo (PDF)
-              </button>
-            )}
-          </div>
-        </div>
-      )}
 
       {/* ── Próximas Órdenes ── */}
       {upcoming.length > 0 && (
