@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  MapPin, User2, Clock, CheckCircle2, XCircle, AlertTriangle,
-  Wrench, Car, Fuel, Sparkles, Gauge, Zap, HardHat,
+  MapPin, User2, Clock, CheckCircle2, XCircle, AlertTriangle, ChevronRight, ChevronLeft,
+  Send, Wrench, ShieldCheck, Car, Fuel, Sparkles, Gauge, Zap, HardHat,
   Package, ClipboardList, CheckCheck, RotateCcw, ExternalLink, Target, X
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -123,6 +123,7 @@ function ChecklistModal({ goal, techName, checkInTime, onClose }) {
   const [mPNotes,      setMPNotes]      = useState('');
   const [mVNotes,      setMVNotes]      = useState('');
   const [generating,   setGenerating]   = useState(false);
+  const [sendStatus,   setSendStatus]   = useState(null); // null | 'sending' | 'sent' | 'error'
 
   const dateLabel = (() => {
     if (!goal?.date) return '';
@@ -145,17 +146,40 @@ function ChecklistModal({ goal, techName, checkInTime, onClose }) {
 
   const handleGenerate = async () => {
     setGenerating(true);
+    setSendStatus(null);
     try {
       const pMissing = mPNotes || PERSONAL_ITEMS.filter(i => mPersonal[i.key] === false).map(i => i.label).join(', ') || null;
       const vMissing = mVNotes || VEHICLE_ITEMS.filter(i => !i.isNumber && mVehicle[i.key] === false).map(i => i.label).join(', ') || null;
-      await generateAttendanceReportPDF(
+      const hasMissing = pHasMissing || vHasMissing;
+
+      const { blob, filename } = await generateAttendanceReportPDF(
         { date: goal.date, checklistPersonal: mPersonal,
           checklistVehicle: goal.hasVehicle ? mVehicle : null,
           personalMissing: pMissing, vehicleMissing: vMissing, checkInTime: checkInTime || null },
         techName, goal, goal?.hasVehicle ? 'both' : 'personal'
       );
-    } catch { alert('Error al generar PDF'); }
-    finally { setGenerating(false); }
+
+      // Enviar PDF al supervisor vía Telegram
+      setSendStatus('sending');
+      const pdfBase64 = await new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result.split(',')[1]);
+        reader.readAsDataURL(blob);
+      });
+
+      const caption = hasMissing
+        ? `⚠️ <b>Reporte de Faltantes</b>\n👷 <b>Técnico:</b> ${techName}${goal?.otNumber ? `\n🔧 <b>OT:</b> ${goal.otNumber}` : ''}\n👤 <b>Cliente:</b> ${goal?.clientName || '—'}`
+        : `✅ <b>Checklist Completado</b>\n👷 <b>Técnico:</b> ${techName}${goal?.otNumber ? `\n🔧 <b>OT:</b> ${goal.otNumber}` : ''}\n👤 <b>Cliente:</b> ${goal?.clientName || '—'}`;
+
+      const res = await apiFetch('/api/tech-attendance/send-report', {
+        method: 'POST',
+        body: JSON.stringify({ pdfBase64, filename, caption }),
+      });
+      setSendStatus(res.ok ? 'sent' : 'error');
+    } catch {
+      alert('Error al generar PDF');
+      setSendStatus('error');
+    } finally { setGenerating(false); }
   };
 
   return (
@@ -323,15 +347,27 @@ function ChecklistModal({ goal, techName, checkInTime, onClose }) {
                 )}
               </div>
 
-              <button onClick={handleGenerate} disabled={generating}
+              <button onClick={handleGenerate} disabled={generating || sendStatus === 'sent'}
                 className={cn(
                   'w-full py-4 rounded-2xl font-black text-sm uppercase tracking-widest flex items-center justify-center gap-2 transition-all disabled:opacity-50',
-                  (pHasMissing || vHasMissing)
-                    ? 'bg-amber-500 text-white hover:bg-amber-600 shadow-lg shadow-amber-200'
-                    : 'bg-blue-600 text-white hover:bg-blue-700 shadow-lg shadow-blue-200'
+                  sendStatus === 'sent'
+                    ? 'bg-emerald-500 text-white'
+                    : (pHasMissing || vHasMissing)
+                      ? 'bg-amber-500 text-white hover:bg-amber-600 shadow-lg shadow-amber-200'
+                      : 'bg-blue-600 text-white hover:bg-blue-700 shadow-lg shadow-blue-200'
                 )}>
                 <Send className="h-4 w-4" />
-                {generating ? 'Generando...' : (pHasMissing || vHasMissing) ? 'Generar Reporte de Faltantes (PDF)' : 'Todo OK · Descargar Reporte (PDF)'}
+                {generating
+                  ? 'Generando PDF...'
+                  : sendStatus === 'sending'
+                  ? 'Enviando a supervisores...'
+                  : sendStatus === 'sent'
+                  ? 'PDF enviado a supervisores ✓'
+                  : sendStatus === 'error'
+                  ? 'Error al enviar — reintentar'
+                  : (pHasMissing || vHasMissing)
+                  ? 'Generar y Enviar Reporte de Faltantes'
+                  : 'Descargar y Enviar Reporte al Supervisor'}
               </button>
             </div>
           )}

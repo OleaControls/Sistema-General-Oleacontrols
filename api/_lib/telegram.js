@@ -62,6 +62,38 @@ export async function notifyOTAssigned(ot, techs) {
   }
 }
 
+export async function sendTelegramDocument(chatId, pdfBuffer, filename, caption) {
+  if (!TELEGRAM_BOT_TOKEN) {
+    console.error('[Telegram] TELEGRAM_BOT_TOKEN no está definido en .env');
+    return;
+  }
+  if (!chatId) {
+    console.warn('[Telegram] chatId vacío, omitiendo envío de documento');
+    return;
+  }
+
+  const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendDocument`;
+  try {
+    const form = new FormData();
+    form.append('chat_id', String(chatId));
+    form.append('document', new Blob([pdfBuffer], { type: 'application/pdf' }), filename);
+    if (caption) {
+      form.append('caption', caption);
+      form.append('parse_mode', 'HTML');
+    }
+
+    const response = await fetch(url, { method: 'POST', body: form });
+    const result   = await response.json();
+    if (result.ok) {
+      console.log(`[Telegram] Documento enviado a chatId ${chatId}: ${filename}`);
+    } else {
+      console.error(`[Telegram] Error enviando documento a ${chatId}:`, result.description);
+    }
+  } catch (err) {
+    console.error(`[Telegram] Excepción enviando documento a ${chatId}:`, err.message);
+  }
+}
+
 export async function notifyOTCompleted(ot, supervisor) {
   if (!supervisor?.telegramChatId) return;
 

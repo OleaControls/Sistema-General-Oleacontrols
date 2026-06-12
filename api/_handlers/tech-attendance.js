@@ -1,5 +1,6 @@
 import prisma from '../_lib/prisma.js';
 import { authMiddleware } from '../_lib/auth.js';
+import { sendTelegramDocument } from '../_lib/telegram.js';
 
 // Medianoche UTC — para attendance logs (necesario por el @@unique([techId, date]))
 const toUTCDay = (str) => {
@@ -201,6 +202,32 @@ export default async function handler(req, res) {
 
       const log = await prisma.techAttendanceLog.update({ where: { id }, data, include: { goal: true } });
       return res.status(200).json(log);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // ENVÍO PDF A SUPERVISORES VÍA TELEGRAM — /api/tech-attendance/send-report
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    if (method === 'POST' && resource === 'send-report') {
+      const { pdfBase64, filename, caption } = body;
+      if (!pdfBase64 || !filename)
+        return res.status(400).json({ error: 'pdfBase64 y filename son requeridos' });
+
+      const supervisors = await prisma.employee.findMany({
+        where: { roles: { has: 'SUPERVISOR' }, telegramChatId: { not: null } },
+        select: { telegramChatId: true, name: true },
+      });
+
+      if (supervisors.length === 0)
+        return res.status(200).json({ sent: 0, message: 'Sin supervisores con Telegram configurado' });
+
+      const pdfBuffer = Buffer.from(pdfBase64, 'base64');
+
+      for (const sup of supervisors) {
+        await sendTelegramDocument(sup.telegramChatId, pdfBuffer, filename, caption || null);
+      }
+
+      return res.status(200).json({ sent: supervisors.length });
     }
 
     return res.status(405).json({ error: 'Method not allowed' });

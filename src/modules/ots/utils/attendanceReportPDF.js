@@ -348,8 +348,10 @@ export async function generateAttendanceReportPDF(log, techName, goal, type = 'b
     doc.text(`${i} / ${pageCount}`, W - M, pH - 6, { align: 'right' });
   }
 
-  // ── Descarga ─────────────────────────────────────────────────────────────────
+  // ── Descarga y devuelve blob ──────────────────────────────────────────────────
   const safeName = (techName || 'tecnico').replace(/\s+/g, '_');
   const dateISO  = new Date(log.date || log.createdAt).toISOString().slice(0, 10);
-  doc.save(`Reporte_Asistencia_${safeName}_${dateISO}.pdf`);
+  const filename = `Reporte_Asistencia_${safeName}_${dateISO}.pdf`;
+  doc.save(filename);
+  return { blob: doc.output('blob'), filename };
 }
