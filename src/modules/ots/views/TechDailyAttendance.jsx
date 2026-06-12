@@ -8,6 +8,7 @@ import {
 import { cn } from '@/lib/utils';
 import { apiFetch } from '@/lib/api';
 import { useAuth } from '@/store/AuthContext';
+import { generateAttendanceReportPDF } from '../utils/attendanceReportPDF';
 
 // ── Constantes de checklist ──────────────────────────────────────────────────
 const PERSONAL_ITEMS = [
@@ -114,7 +115,7 @@ function CheckItem({ item, value, onChange, disabled }) {
 }
 
 // ── ChecklistModal ────────────────────────────────────────────────────────────
-function ChecklistModal({ goal, techName, checkInTime, onClose }) {
+function ChecklistModal({ goal, techName, log: existingLog, onClose }) {
   const STEPS_DEF = ['Equipo Personal', ...(goal?.hasVehicle ? ['Vehículo'] : []), 'Resumen'];
 
   const [modalStep,    setModalStep]    = useState(0);
@@ -148,18 +149,50 @@ function ChecklistModal({ goal, techName, checkInTime, onClose }) {
     setGenerating(true);
     setSendStatus(null);
     try {
-      const pMissing = mPNotes || PERSONAL_ITEMS.filter(i => mPersonal[i.key] === false).map(i => i.label).join(', ') || null;
-      const vMissing = mVNotes || VEHICLE_ITEMS.filter(i => !i.isNumber && mVehicle[i.key] === false).map(i => i.label).join(', ') || null;
+      const pMissing   = mPNotes || PERSONAL_ITEMS.filter(i => mPersonal[i.key] === false).map(i => i.label).join(', ') || null;
+      const vMissing   = mVNotes || VEHICLE_ITEMS.filter(i => !i.isNumber && mVehicle[i.key] === false).map(i => i.label).join(', ') || null;
       const hasMissing = pHasMissing || vHasMissing;
+      const now        = new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', hour12: false });
 
+      // 1. Crear log si no existe y guardar datos del checklist en BD
+      let logId = existingLog?.id;
+      if (!logId) {
+        const createRes = await apiFetch('/api/tech-attendance/log', {
+          method: 'POST',
+          body: JSON.stringify({ techId: goal.techId, goalId: goal.id }),
+        });
+        if (createRes.ok) {
+          const created = await createRes.json();
+          logId = created.id;
+        }
+      }
+      if (logId) {
+        await apiFetch('/api/tech-attendance/log', {
+          method: 'PATCH',
+          body: JSON.stringify({
+            id: logId,
+            checklistPersonal:  mPersonal,
+            checklistVehicle:   goal.hasVehicle ? mVehicle : null,
+            personalMissing:    pMissing,
+            vehicleMissing:     vMissing,
+            personalReportSent: pHasMissing || false,
+            vehicleReportSent:  (goal.hasVehicle && vHasMissing) || false,
+            checkInTime:        existingLog?.checkInTime || now,
+            status:             'COMPLETE',
+          }),
+        });
+      }
+
+      // 2. Generar PDF
+      const checkInTime = existingLog?.checkInTime || now;
       const { blob, filename } = await generateAttendanceReportPDF(
         { date: goal.date, checklistPersonal: mPersonal,
           checklistVehicle: goal.hasVehicle ? mVehicle : null,
-          personalMissing: pMissing, vehicleMissing: vMissing, checkInTime: checkInTime || null },
+          personalMissing: pMissing, vehicleMissing: vMissing, checkInTime },
         techName, goal, goal?.hasVehicle ? 'both' : 'personal'
       );
 
-      // Enviar PDF al supervisor vía Telegram
+      // 3. Enviar PDF al supervisor vía Telegram
       setSendStatus('sending');
       const pdfBase64 = await new Promise((resolve) => {
         const reader = new FileReader();
@@ -216,7 +249,7 @@ function ChecklistModal({ goal, techName, checkInTime, onClose }) {
           <div className="flex items-center gap-2 flex-wrap mb-4">
             <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">{techName}</span>
             {dateLabel && <><span className="text-gray-600">·</span><span className="text-[9px] font-bold text-gray-500">{dateLabel}</span></>}
-            {checkInTime && <><span className="text-gray-600">·</span><span className="text-[9px] font-black text-emerald-400 flex items-center gap-1"><Clock className="h-2.5 w-2.5" />{checkInTime}</span></>}
+            {existingLog?.checkInTime && <><span className="text-gray-600">·</span><span className="text-[9px] font-black text-emerald-400 flex items-center gap-1"><Clock className="h-2.5 w-2.5" />{existingLog.checkInTime}</span></>}
           </div>
 
           {/* Stepper */}
@@ -408,6 +441,7 @@ export default function TechDailyAttendance() {
 
   const [goals,        setGoals]        = useState([]);
   const [upcoming,     setUpcoming]     = useState([]);
+  const [log,          setLog]          = useState(null);
   const [loading,      setLoading]      = useState(true);
   const [confirmingId, setConfirmingId] = useState(null);
   const [checklistModal, setChecklistModal] = useState(null);
@@ -418,14 +452,17 @@ export default function TechDailyAttendance() {
     if (!userId) return;
     setLoading(true);
     try {
-      const [goalRes, upcomingRes] = await Promise.all([
+      const [goalRes, upcomingRes, logRes] = await Promise.all([
         apiFetch(`/api/tech-attendance/goals?techId=${userId}&date=${today}`),
         apiFetch(`/api/tech-attendance/goals?techId=${userId}&upcoming=true`),
+        apiFetch(`/api/tech-attendance/log?techId=${userId}&date=${today}`),
       ]);
       const allGoals     = goalRes.ok     ? await goalRes.json()     : [];
       const upcomingData = upcomingRes.ok ? await upcomingRes.json() : [];
+      const logData      = logRes.ok      ? await logRes.json()      : null;
       setGoals(Array.isArray(allGoals) ? allGoals : []);
       setUpcoming(Array.isArray(upcomingData) ? upcomingData : []);
+      setLog(logData);
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
   }, [userId, today]);
@@ -465,8 +502,8 @@ export default function TechDailyAttendance() {
         <ChecklistModal
           goal={checklistModal}
           techName={user.name}
-          checkInTime={log?.checkInTime || null}
-          onClose={() => setChecklistModal(null)}
+          log={log}
+          onClose={() => { setChecklistModal(null); load(); }}
         />
       )}
 
