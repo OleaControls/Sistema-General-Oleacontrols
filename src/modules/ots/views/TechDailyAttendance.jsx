@@ -378,7 +378,6 @@ export default function TechDailyAttendance() {
   const [saving,       setSaving]       = useState(false);
   const [confirmingId, setConfirmingId] = useState(null);
   const [checklistModal, setChecklistModal] = useState(null); // goal object | null
-  const [initDone,     setInitDone]     = useState(false);
 
   const [personal,      setPersonal]      = useState({});
   const [vehicle,       setVehicle]       = useState({});
@@ -386,13 +385,16 @@ export default function TechDailyAttendance() {
   const [vehicleNotes,  setVehicleNotes]  = useState('');
   const [vehicleAnswer, setVehicleAnswer] = useState(null); // null=sin responder, true=sí lleva, false=no lleva
 
+  const userId = user?.id;
+
   const load = useCallback(async () => {
+    if (!userId) return { logData: null, allGoals: [] };
     setLoading(true);
     try {
       const [logRes, goalRes, upcomingRes] = await Promise.all([
-        apiFetch(`/api/tech-attendance/log?techId=${user.id}&date=${today}`),
-        apiFetch(`/api/tech-attendance/goals?techId=${user.id}&date=${today}`),
-        apiFetch(`/api/tech-attendance/goals?techId=${user.id}&upcoming=true`),
+        apiFetch(`/api/tech-attendance/log?techId=${userId}&date=${today}`),
+        apiFetch(`/api/tech-attendance/goals?techId=${userId}&date=${today}`),
+        apiFetch(`/api/tech-attendance/goals?techId=${userId}&upcoming=true`),
       ]);
       const logData      = logRes.ok      ? await logRes.json()      : null;
       const allGoals     = goalRes.ok     ? await goalRes.json()     : [];
@@ -415,23 +417,22 @@ export default function TechDailyAttendance() {
       return { logData, allGoals: Array.isArray(allGoals) ? allGoals : [] };
     } catch (e) { console.error(e); return { logData: null, allGoals: [] }; }
     finally { setLoading(false); }
-  }, [user.id, today]);
+  }, [userId, today]);
 
   useEffect(() => {
-    if (initDone) return;
-    setInitDone(true);
+    if (!userId) return;
     load().then(async ({ logData, allGoals }) => {
       if (!logData) {
         try {
           const res = await apiFetch('/api/tech-attendance/log', {
             method: 'POST',
-            body: JSON.stringify({ techId: user.id, goalId: allGoals[0]?.id || null }),
+            body: JSON.stringify({ techId: userId, goalId: allGoals[0]?.id || null }),
           });
           if (res.ok) setLog(await res.json());
         } catch { /* silencioso */ }
       }
     });
-  }, [initDone, load, user.id]);
+  }, [userId, load]);
 
   const confirmGoal = async (goalId, confirmed) => {
     setConfirmingId(goalId);

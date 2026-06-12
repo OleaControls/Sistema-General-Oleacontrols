@@ -65,12 +65,13 @@ export default async function handler(req, res) {
   const { techId, supervisorId, status, id: specificId, search } = req.query;
 
   // RUTAS PÚBLICAS: GET por ID (para encuestas de clientes sin login)
+  let auth = null;
   if (method === 'GET' && (specificId || (req.url.includes('/api/ots/') && req.query.id))) {
       // Continuar sin verificar token para este caso específico
   } else {
       // Proteger el resto de las rutas
-      const user = authMiddleware(req, res);
-      if (!user) return; // authMiddleware ya envió la respuesta 401
+      auth = authMiddleware(req, res);
+      if (!auth) return; // authMiddleware ya envió la respuesta 401
   }
 
   // Helper para procesar imágenes de OT a R2
