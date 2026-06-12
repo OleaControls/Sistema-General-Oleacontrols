@@ -28,6 +28,7 @@ import catalogHandler from './api/_handlers/catalog.js';
 import quotePhraseHandler from './api/_handlers/quote-phrases.js';
 import attendanceHandler from './api/_handlers/attendance.js';
 import techAttendanceHandler from './api/_handlers/tech-attendance.js';
+import techLocationsHandler  from './api/_handlers/tech-locations.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -151,6 +152,10 @@ app.delete('/api/attendance', adaptHandler(attendanceHandler));
 // Tech Attendance (metas + checklists)
 app.all('/api/tech-attendance/:resource', adaptHandler(techAttendanceHandler));
 app.all('/api/tech-attendance',           adaptHandler(techAttendanceHandler));
+
+// Tech Locations (GPS de técnicos)
+app.get('/api/tech-locations',  adaptHandler(techLocationsHandler));
+app.post('/api/tech-locations', adaptHandler(techLocationsHandler));
 
 // LMS
 app.all('/api/lms', adaptHandler(lmsHandler));

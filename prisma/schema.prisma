@@ -458,6 +458,8 @@ model TechDailyGoal {
   clientLocation String?
   notes          String?
   otNumber       String?  // Folio de la OT vinculada (ej. OT-SUCE-001)
+  hasVehicle     Boolean  @default(false) // true = técnico lleva vehículo ese día
+  confirmed      Boolean  @default(false) // técnico confirmó asistencia
   setById        String
   setBy          Employee @relation("GoalSetBy", fields: [setById], references: [id])
   createdAt      DateTime @default(now())

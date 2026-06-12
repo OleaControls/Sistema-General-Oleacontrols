@@ -20,7 +20,10 @@ const VEHICLE_LABELS = {
 
 export default function TechAttendanceAdmin() {
   const { user } = useAuth();
-  const today = new Date().toISOString().slice(0, 10);
+  const today = (() => {
+    const n = new Date();
+    return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}`;
+  })();
 
   const [viewDate,   setViewDate]   = useState(today);
   const [technicians,setTechnicians]= useState([]);
@@ -29,7 +32,7 @@ export default function TechAttendanceAdmin() {
   const [loading,    setLoading]    = useState(true);
   const [showModal,  setShowModal]  = useState(false);
   const [saving,     setSaving]     = useState(false);
-  const [form,       setForm]       = useState({ techId: '', clientName: '', clientLocation: '', notes: '' });
+  const [form,       setForm]       = useState({ techId: '', clientName: '', clientLocation: '', notes: '', otNumber: '', hasVehicle: false });
   const [editGoalId, setEditGoalId] = useState(null);
   const [activeTab,  setActiveTab]  = useState('goals'); // 'goals' | 'reports'
 
@@ -56,22 +59,24 @@ export default function TechAttendanceAdmin() {
   useEffect(() => { load(); }, [load]);
 
   const prevDay = () => {
-    const d = new Date(viewDate); d.setDate(d.getDate() - 1);
-    setViewDate(d.toISOString().slice(0, 10));
+    const [y, m, day] = viewDate.split('-').map(Number);
+    const d = new Date(y, m - 1, day - 1);
+    setViewDate(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`);
   };
   const nextDay = () => {
-    const d = new Date(viewDate); d.setDate(d.getDate() + 1);
-    setViewDate(d.toISOString().slice(0, 10));
+    const [y, m, day] = viewDate.split('-').map(Number);
+    const d = new Date(y, m - 1, day + 1);
+    setViewDate(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`);
   };
 
   const openNew = () => {
     setEditGoalId(null);
-    setForm({ techId: '', clientName: '', clientLocation: '', notes: '' });
+    setForm({ techId: '', clientName: '', clientLocation: '', notes: '', otNumber: '', hasVehicle: false });
     setShowModal(true);
   };
   const openEdit = (g) => {
     setEditGoalId(g.id);
-    setForm({ techId: g.techId, clientName: g.clientName, clientLocation: g.clientLocation || '', notes: g.notes || '' });
+    setForm({ techId: g.techId, clientName: g.clientName, clientLocation: g.clientLocation || '', notes: g.notes || '', otNumber: g.otNumber || '', hasVehicle: g.hasVehicle || false });
     setShowModal(true);
   };
   const handleSave = async () => {
@@ -80,7 +85,7 @@ export default function TechAttendanceAdmin() {
     try {
       const res = await apiFetch('/api/tech-attendance/goals', {
         method: 'POST',
-        body: JSON.stringify({ ...form, date: viewDate }),
+        body: JSON.stringify({ ...form, date: viewDate, id: editGoalId || undefined }),
       });
       if (!res.ok) throw new Error((await res.json()).error);
       setShowModal(false);
@@ -324,7 +329,7 @@ export default function TechAttendanceAdmin() {
       {/* Modal — asignar meta */}
       {showModal && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowModal(false)}>
-          <div className="bg-white rounded-[2.5rem] p-8 w-full max-w-md shadow-2xl space-y-5" onClick={e => e.stopPropagation()}>
+          <div className="bg-white rounded-[2.5rem] p-8 w-full max-w-md shadow-2xl space-y-5 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <h3 className="font-black text-gray-900 uppercase text-xs tracking-widest">
               {editGoalId ? 'Editar Meta' : 'Asignar Meta del Día'}
             </h3>
@@ -336,6 +341,12 @@ export default function TechAttendanceAdmin() {
                   <option value="">Selecciona técnico...</option>
                   {technicians.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                 </select>
+              </div>
+              <div>
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1">No. OT <span className="normal-case font-normal text-gray-300">(opcional — vincula a una OT existente)</span></label>
+                <input value={form.otNumber} onChange={e => setForm(f => ({ ...f, otNumber: e.target.value }))}
+                  placeholder="Ej. OT-SUCE-001"
+                  className="w-full border rounded-xl px-3 py-2 text-sm font-bold text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary/30 uppercase" />
               </div>
               <div>
                 <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1">Cliente</label>
@@ -355,6 +366,26 @@ export default function TechAttendanceAdmin() {
                   placeholder="Objetivos a cumplir, material requerido, verificaciones previas..."
                   className="w-full border rounded-xl px-3 py-2 text-sm font-bold text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none" />
               </div>
+              {/* Toggle vehículo */}
+              <button
+                type="button"
+                onClick={() => setForm(f => ({ ...f, hasVehicle: !f.hasVehicle }))}
+                className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border-2 transition-all ${
+                  form.hasVehicle
+                    ? 'bg-indigo-50 border-indigo-400 text-indigo-700'
+                    : 'bg-gray-50 border-gray-200 text-gray-500'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <Car className={`h-4 w-4 ${form.hasVehicle ? 'text-indigo-600' : 'text-gray-400'}`} />
+                  <span className="text-xs font-black uppercase tracking-wider">
+                    {form.hasVehicle ? 'Técnico lleva vehículo' : 'Sin vehículo asignado'}
+                  </span>
+                </div>
+                <div className={`h-5 w-9 rounded-full transition-colors relative ${form.hasVehicle ? 'bg-indigo-500' : 'bg-gray-300'}`}>
+                  <div className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${form.hasVehicle ? 'translate-x-4' : 'translate-x-0.5'}`} />
+                </div>
+              </button>
             </div>
             <div className="flex gap-3 pt-2">
               <button onClick={() => setShowModal(false)}

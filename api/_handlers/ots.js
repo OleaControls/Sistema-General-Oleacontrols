@@ -3,6 +3,55 @@ import { uploadToR2, signUrlIfNeeded } from '../_lib/r2.js'
 import { authMiddleware } from '../_lib/auth.js'
 import { notifyOTAssigned, notifyOTCompleted } from '../_lib/telegram.js'
 
+// ── Helper: crea/actualiza metas de asistencia para todos los técnicos de una OT ──
+const toUTCNoon = (str) => {
+  const dateOnly = str instanceof Date
+    ? str.toISOString().slice(0, 10)
+    : str ? String(str).slice(0, 10) : new Date().toISOString().slice(0, 10);
+  return new Date(dateOnly + 'T12:00:00.000Z');
+};
+
+async function syncOTGoals(ot, setById) {
+  try {
+    if (!ot.technicianId || !ot.scheduledDate) return;
+
+    const date       = toUTCNoon(ot.scheduledDate);
+    const otNumber   = ot.otNumber;
+    const clientName = ot.clientName || 'Sin cliente';
+    const clientLocation = ot.address || null;
+
+    const assistants = Array.isArray(ot.assistantTechs)
+      ? ot.assistantTechs.map(t => (typeof t === 'string' ? t : t?.id)).filter(Boolean)
+      : [];
+    const support = Array.isArray(ot.supportTechs)
+      ? ot.supportTechs.map(t => (typeof t === 'string' ? t : t?.id)).filter(Boolean)
+      : [];
+
+    const allTechIds = [...new Set([ot.technicianId, ...assistants, ...support])];
+
+    for (const techId of allTechIds) {
+      // Buscar meta existente para este técnico+OT (sin importar fecha anterior)
+      const existing = otNumber
+        ? await prisma.techDailyGoal.findFirst({ where: { techId, otNumber } })
+        : null;
+
+      if (existing) {
+        // Actualizar fecha y datos del cliente; conservar notes y hasVehicle
+        await prisma.techDailyGoal.update({
+          where: { id: existing.id },
+          data: { date, clientName, clientLocation },
+        });
+      } else {
+        await prisma.techDailyGoal.create({
+          data: { techId, date, clientName, clientLocation, otNumber: otNumber || null, setById },
+        });
+      }
+    }
+  } catch (err) {
+    console.error('[syncOTGoals] error:', err.message);
+  }
+}
+
 export const config = {
   api: {
     bodyParser: {
@@ -313,6 +362,9 @@ export default async function handler(req, res) {
         await notifyOTAssigned(ot, techs);
       }
 
+      // Crear metas de asistencia para todos los técnicos asignados
+      await syncOTGoals({ ...ot, assistantTechs: data.assistantTechs || [], supportTechs: data.supportTechs || [] }, auth.id);
+
       return res.status(201).json(ot);
     } catch (error) {
       console.error("POST OT Error:", error);
@@ -348,6 +400,30 @@ export default async function handler(req, res) {
       }
 
       const updateData = {};
+
+      // ── Campos básicos de la OT (edición desde SupervisorOTs) ──────────────
+      if (data.title            !== undefined) updateData.title            = data.title;
+      if (data.client           !== undefined) updateData.clientName       = data.client;
+      if (data.clientName       !== undefined) updateData.clientName       = data.clientName;
+      if (data.storeNumber      !== undefined) updateData.storeNumber      = data.storeNumber;
+      if (data.storeName        !== undefined) updateData.storeName        = data.storeName;
+      if (data.address          !== undefined) updateData.address          = data.address;
+      if (data.secondaryAddress !== undefined) updateData.secondaryAddress = data.secondaryAddress;
+      if (data.otAddress        !== undefined) updateData.otAddress        = data.otAddress;
+      if (data.otReference      !== undefined) updateData.otReference      = data.otReference;
+      if (data.lat              !== undefined) updateData.latitude         = data.lat;
+      if (data.lng              !== undefined) updateData.longitude        = data.lng;
+      if (data.workDescription  !== undefined) updateData.description      = data.workDescription;
+      if (data.priority         !== undefined) updateData.priority         = data.priority;
+      if (data.arrivalTime      !== undefined) updateData.arrivalTime      = data.arrivalTime;
+      if (data.scheduledDate    !== undefined) updateData.scheduledDate    = data.scheduledDate ? new Date(data.scheduledDate) : null;
+      if (data.contactName      !== undefined) updateData.contactName      = data.contactName;
+      if (data.contactEmail     !== undefined) updateData.contactEmail     = data.contactEmail;
+      if (data.contactPhone     !== undefined) updateData.contactPhone     = data.contactPhone;
+      if (data.clientEmail      !== undefined) updateData.clientEmail      = data.clientEmail;
+      if (data.clientPhone      !== undefined) updateData.clientPhone      = data.clientPhone;
+
+      // ── Campos de estado / operación ───────────────────────────────────────
       if (status) updateData.status = status;
       if (report !== undefined) updateData.report = report;
       if (signature !== undefined) updateData.signature = signature;
@@ -361,12 +437,9 @@ export default async function handler(req, res) {
       if (assignedFunds !== undefined) updateData.assignedFunds = assignedFunds;
       if (isLocked !== undefined) updateData.isLocked = isLocked;
       if (deliveryActUrl !== undefined) updateData.deliveryActUrl = deliveryActUrl;
-      
-      // Añadir soporte para técnicos auxiliares
       if (data.assistantTechs !== undefined) updateData.assistantTechs = data.assistantTechs;
       if (data.supportTechs !== undefined) updateData.supportTechs = data.supportTechs;
       if (data.jornadas !== undefined) updateData.jornadas = data.jornadas;
-      
       if (startedAt) updateData.startedAt = new Date(startedAt);
       if (finishedAt) updateData.finishedAt = new Date(finishedAt);
 
@@ -422,6 +495,9 @@ export default async function handler(req, res) {
           notifyOTCompleted(updated, ops).catch(console.error);
         }
       }
+
+      // Sincronizar metas de asistencia para todos los técnicos de la OT
+      await syncOTGoals(updated, auth.id);
 
       return res.status(200).json(updated);
     } catch (error) {

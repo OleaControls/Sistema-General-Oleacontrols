@@ -32,7 +32,7 @@ export async function notifyOTAssigned(ot, techs) {
   if (!techs || techs.length === 0) return;
 
   const date = ot.scheduledDate
-    ? new Date(ot.scheduledDate).toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric' })
+    ? new Date(ot.scheduledDate).toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC' })
     : 'Por definir';
 
   const priority = { LOW: 'Baja', MEDIUM: 'Media', HIGH: 'Alta', URGENT: 'URGENTE' }[ot.priority] || ot.priority;

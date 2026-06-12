@@ -1,18 +1,20 @@
 import prisma from '../_lib/prisma.js';
 import { authMiddleware } from '../_lib/auth.js';
 
-// Normaliza cualquier string YYYY-MM-DD o Date a medianoche UTC exacta
+// Medianoche UTC — para attendance logs (necesario por el @@unique([techId, date]))
 const toUTCDay = (str) => {
-  if (!str) {
-    const now = new Date();
-    return new Date(now.toISOString().slice(0, 10) + 'T00:00:00.000Z');
-  }
-  if (str instanceof Date) {
-    return new Date(str.toISOString().slice(0, 10) + 'T00:00:00.000Z');
-  }
-  // Si ya viene como ISO completo, recorta
-  const dateOnly = String(str).slice(0, 10);
+  const dateOnly = str instanceof Date
+    ? str.toISOString().slice(0, 10)
+    : str ? String(str).slice(0, 10) : new Date().toISOString().slice(0, 10);
   return new Date(dateOnly + 'T00:00:00.000Z');
+};
+
+// Mediodía UTC — para goals y OT dates, evita el desfase de zona horaria en visualización
+const toUTCNoon = (str) => {
+  const dateOnly = str instanceof Date
+    ? str.toISOString().slice(0, 10)
+    : str ? String(str).slice(0, 10) : new Date().toISOString().slice(0, 10);
+  return new Date(dateOnly + 'T12:00:00.000Z');
 };
 
 export default async function handler(req, res) {
@@ -32,10 +34,17 @@ export default async function handler(req, res) {
     // ═══════════════════════════════════════════════════════════════════════════
 
     if (method === 'GET' && resource === 'goals') {
-      const { techId, date } = req.query;
+      const { techId, date, otNumber, upcoming } = req.query;
       const where = {};
-      if (techId) where.techId = techId;
-      if (date) {
+      if (techId)   where.techId   = techId;
+      if (otNumber) where.otNumber = otNumber;
+      if (upcoming === 'true') {
+        // Próximas metas: desde mañana hasta 14 días adelante
+        const tomorrow = toUTCDay(new Date(Date.now() + 86400000));
+        const horizon  = new Date(tomorrow); horizon.setUTCDate(horizon.getUTCDate() + 14);
+        where.date = { gte: tomorrow, lt: horizon };
+      } else if (date) {
+        // Rango completo del día en UTC para encontrar metas guardadas a cualquier hora
         const d    = toUTCDay(date);
         const next = new Date(d); next.setUTCDate(next.getUTCDate() + 1);
         where.date = { gte: d, lt: next };
@@ -43,34 +52,68 @@ export default async function handler(req, res) {
       const goals = await prisma.techDailyGoal.findMany({
         where,
         include: { tech: { select: { id: true, name: true, avatar: true, position: true } } },
-        orderBy: { date: 'desc' },
+        orderBy: { date: 'asc' },
       });
       return res.status(200).json(goals);
     }
 
     if (method === 'POST' && resource === 'goals') {
-      const { techId, date, clientName, clientLocation, notes, otNumber } = body;
+      const { id, techId, date, clientName, clientLocation, notes, otNumber, hasVehicle, confirmed } = body;
+
+      // Edición directa por id (desde TechAttendanceAdmin o confirmación del técnico)
+      if (id) {
+        const updateData = {};
+        if (clientName     !== undefined) updateData.clientName     = clientName;
+        if (clientLocation !== undefined) updateData.clientLocation = clientLocation || null;
+        if (notes          !== undefined) updateData.notes          = notes || null;
+        if (hasVehicle     !== undefined) updateData.hasVehicle     = Boolean(hasVehicle);
+        if (confirmed      !== undefined) updateData.confirmed      = Boolean(confirmed);
+        if (date           !== undefined) updateData.date           = toUTCNoon(date);
+        if (otNumber       !== undefined) updateData.otNumber       = otNumber || null;
+
+        console.log('[goals PATCH] body:', JSON.stringify(body), '| updateData:', JSON.stringify(updateData));
+      if (Object.keys(updateData).length === 0)
+          return res.status(400).json({ error: 'Nada que actualizar', received: body });
+
+        const updated = await prisma.techDailyGoal.update({ where: { id }, data: updateData });
+        return res.status(200).json(updated);
+      }
+
       if (!techId || !date || !clientName)
         return res.status(400).json({ error: 'techId, date y clientName son requeridos' });
 
-      const d = toUTCDay(date);
+      const d = toUTCNoon(date); // Mediodía UTC — sin desfase de zona horaria
 
-      // Si viene otNumber, actualizar la meta existente de esa OT si ya existe
+      // Si viene otNumber, buscar meta existente de esa OT (sin importar la fecha anterior)
+      // para actualizar la fecha si la OT fue reprogramada
       if (otNumber) {
         const existing = await prisma.techDailyGoal.findFirst({
-          where: { techId, date: d, otNumber },
+          where: { techId, otNumber },
         });
         if (existing) {
           const updated = await prisma.techDailyGoal.update({
             where: { id: existing.id },
-            data: { clientName, clientLocation: clientLocation || null, notes: notes || null },
+            data: {
+              date: d,   // actualiza la fecha si la OT fue reprogramada
+              clientName,
+              clientLocation: clientLocation || null,
+              notes: notes || null,
+              hasVehicle: hasVehicle !== undefined ? Boolean(hasVehicle) : existing.hasVehicle,
+            },
           });
           return res.status(200).json(updated);
         }
       }
 
       const goal = await prisma.techDailyGoal.create({
-        data: { techId, date: d, clientName, clientLocation: clientLocation || null, notes: notes || null, otNumber: otNumber || null, setById: auth.id },
+        data: {
+          techId, date: d, clientName,
+          clientLocation: clientLocation || null,
+          notes: notes || null,
+          otNumber: otNumber || null,
+          hasVehicle: Boolean(hasVehicle),
+          setById: auth.id,
+        },
       });
       return res.status(200).json(goal);
     }
@@ -121,32 +164,27 @@ export default async function handler(req, res) {
       return res.status(200).json(logs);
     }
 
-    // POST — check-in del técnico
+    // POST — iniciar registro del día (sin checkInTime; se registra al completar checklists)
     if (method === 'POST' && resource === 'log') {
       const { techId, goalId } = body;
       if (!techId) return res.status(400).json({ error: 'techId requerido' });
 
-      const now  = new Date();
-      const date = toUTCDay(now);
-      const checkInTime = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
-
-      console.log(`[tech-attendance POST /log] techId=${techId} date=${date.toISOString()} checkInTime=${checkInTime}`);
+      const date = toUTCDay(new Date());
 
       const log = await prisma.techAttendanceLog.upsert({
         where:  { techId_date: { techId, date } },
-        create: { techId, date, goalId: goalId || null, checkInTime, step: 'PERSONAL' },
-        update: { checkInTime, step: 'PERSONAL', goalId: goalId || null },
+        create: { techId, date, goalId: goalId || null, step: 'PERSONAL' },
+        update: { goalId: goalId || null },
         include: { goal: true },
       });
 
-      console.log(`[tech-attendance POST /log] saved id=${log.id}`);
       return res.status(200).json(log);
     }
 
     // PATCH — actualiza checklists / step / checkout
     if (method === 'PATCH' && resource === 'log') {
       const { id, step, checklistPersonal, checklistVehicle, personalMissing, vehicleMissing,
-              personalReportSent, vehicleReportSent, checkOutTime, status } = body;
+              personalReportSent, vehicleReportSent, checkInTime, checkOutTime, status } = body;
       if (!id) return res.status(400).json({ error: 'id requerido' });
 
       const data = {};
@@ -157,6 +195,7 @@ export default async function handler(req, res) {
       if (vehicleMissing     !== undefined) data.vehicleMissing     = vehicleMissing;
       if (personalReportSent !== undefined) data.personalReportSent = personalReportSent;
       if (vehicleReportSent  !== undefined) data.vehicleReportSent  = vehicleReportSent;
+      if (checkInTime        !== undefined) data.checkInTime        = checkInTime;
       if (checkOutTime       !== undefined) data.checkOutTime       = checkOutTime;
       if (status             !== undefined) data.status             = status;
 

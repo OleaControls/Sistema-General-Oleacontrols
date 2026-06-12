@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  MapPin, User2, Clock, CheckCircle2, XCircle, AlertTriangle, ChevronRight,
+  MapPin, User2, Clock, CheckCircle2, XCircle, AlertTriangle, ChevronRight, ChevronLeft,
   Send, Wrench, ShieldCheck, Car, Fuel, Sparkles, Gauge, Zap, HardHat,
-  Package, ClipboardList, CheckCheck, RotateCcw, ExternalLink, Target
+  Package, ClipboardList, CheckCheck, RotateCcw, ExternalLink, Target, X
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { apiFetch } from '@/lib/api';
@@ -12,11 +12,11 @@ import { generateAttendanceReportPDF } from '../utils/attendanceReportPDF';
 
 // ── Constantes de checklist ──────────────────────────────────────────────────
 const PERSONAL_ITEMS = [
-  { key: 'uniform',     label: 'Uniforme completo',            icon: User2 },
-  { key: 'epp',         label: 'EPP (casco, lentes, guantes, botas)', icon: HardHat },
-  { key: 'toolsBasic',  label: 'Herramientas básicas',          icon: Wrench },
-  { key: 'toolsSpecial',label: 'Herramientas especiales',       icon: Zap },
-  { key: 'materials',   label: 'Materiales / Refacciones',      icon: Package },
+  { key: 'uniform',      label: 'Uniforme completo',                   icon: User2 },
+  { key: 'epp',          label: 'EPP (casco, lentes, guantes, botas)', icon: HardHat },
+  { key: 'toolsBasic',   label: 'Herramientas básicas',                icon: Wrench },
+  { key: 'toolsSpecial', label: 'Herramientas especiales',             icon: Zap },
+  { key: 'materials',    label: 'Materiales / Refacciones',            icon: Package },
 ];
 
 const VEHICLE_ITEMS = [
@@ -27,11 +27,10 @@ const VEHICLE_ITEMS = [
   { key: 'functionality', label: 'Funcionalidad (luces, frenos, motor)', icon: CheckCheck },
 ];
 
-// ── Componente item checklist ────────────────────────────────────────────────
+// ── CheckItem ────────────────────────────────────────────────────────────────
 function CheckItem({ item, value, onChange, disabled }) {
   const Icon = item.icon;
 
-  // Ítem numérico (ej. tacómetro)
   if (item.isNumber) {
     const hasValue = value !== undefined && value !== null && value !== '';
     return (
@@ -53,9 +52,7 @@ function CheckItem({ item, value, onChange, disabled }) {
         </div>
         {!disabled ? (
           <input
-            type="number"
-            min="0"
-            value={value ?? ''}
+            type="number" min="0" value={value ?? ''}
             onChange={e => onChange(item.key, e.target.value === '' ? '' : Number(e.target.value))}
             placeholder="Escribe la lectura del tacómetro (km)"
             className="w-full border rounded-xl px-3 py-2 text-sm font-black text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary/30 bg-white"
@@ -69,7 +66,6 @@ function CheckItem({ item, value, onChange, disabled }) {
     );
   }
 
-  // Ítem booleano estándar
   return (
     <div className={cn(
       'flex items-center justify-between p-4 rounded-2xl border transition-all',
@@ -90,22 +86,18 @@ function CheckItem({ item, value, onChange, disabled }) {
       </div>
       {!disabled && (
         <div className="flex gap-2">
-          <button
-            onClick={() => onChange(item.key, true)}
+          <button onClick={() => onChange(item.key, true)}
             className={cn(
               'h-8 w-8 rounded-xl flex items-center justify-center border transition-all',
               value === true ? 'bg-emerald-500 border-emerald-500 text-white' : 'bg-white border-gray-200 text-gray-400 hover:border-emerald-400 hover:text-emerald-500'
-            )}
-          >
+            )}>
             <CheckCircle2 className="h-4 w-4" />
           </button>
-          <button
-            onClick={() => onChange(item.key, false)}
+          <button onClick={() => onChange(item.key, false)}
             className={cn(
               'h-8 w-8 rounded-xl flex items-center justify-center border transition-all',
               value === false ? 'bg-red-500 border-red-500 text-white' : 'bg-white border-gray-200 text-gray-400 hover:border-red-400 hover:text-red-500'
-            )}
-          >
+            )}>
             <XCircle className="h-4 w-4" />
           </button>
         </div>
@@ -122,151 +114,428 @@ function CheckItem({ item, value, onChange, disabled }) {
   );
 }
 
+// ── ChecklistModal ────────────────────────────────────────────────────────────
+function ChecklistModal({ goal, techName, checkInTime, onClose }) {
+  const STEPS_DEF = ['Equipo Personal', ...(goal?.hasVehicle ? ['Vehículo'] : []), 'Resumen'];
+
+  const [modalStep,    setModalStep]    = useState(0);
+  const [mPersonal,    setMPersonal]    = useState({});
+  const [mVehicle,     setMVehicle]     = useState({});
+  const [mPNotes,      setMPNotes]      = useState('');
+  const [mVNotes,      setMVNotes]      = useState('');
+  const [generating,   setGenerating]   = useState(false);
+
+  const dateLabel = (() => {
+    if (!goal?.date) return '';
+    const dateOnly = new Date(goal.date).toISOString().slice(0, 10);
+    return new Date(dateOnly + 'T12:00:00Z').toLocaleDateString('es-MX', {
+      weekday: 'long', day: '2-digit', month: 'long', year: 'numeric'
+    });
+  })();
+
+  const pHasMissing  = PERSONAL_ITEMS.some(i => mPersonal[i.key] === false);
+  const vHasMissing  = goal?.hasVehicle && VEHICLE_ITEMS.filter(i => !i.isNumber).some(i => mVehicle[i.key] === false);
+  const pAllDone     = PERSONAL_ITEMS.every(i => mPersonal[i.key] !== undefined);
+  const vAllDone     = !goal?.hasVehicle || VEHICLE_ITEMS.every(i => {
+    const v = mVehicle[i.key];
+    return i.isNumber ? (v !== undefined && v !== null && v !== '') : v !== undefined;
+  });
+
+  const canNext = modalStep === 0 ? pAllDone : vAllDone;
+  const isLast  = modalStep === STEPS_DEF.length - 1;
+
+  const handleGenerate = async () => {
+    setGenerating(true);
+    try {
+      const pMissing = mPNotes || PERSONAL_ITEMS.filter(i => mPersonal[i.key] === false).map(i => i.label).join(', ') || null;
+      const vMissing = mVNotes || VEHICLE_ITEMS.filter(i => !i.isNumber && mVehicle[i.key] === false).map(i => i.label).join(', ') || null;
+      await generateAttendanceReportPDF(
+        { date: goal.date, checklistPersonal: mPersonal,
+          checklistVehicle: goal.hasVehicle ? mVehicle : null,
+          personalMissing: pMissing, vehicleMissing: vMissing, checkInTime: checkInTime || null },
+        techName, goal, goal?.hasVehicle ? 'both' : 'personal'
+      );
+    } catch { alert('Error al generar PDF'); }
+    finally { setGenerating(false); }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/60 flex items-end sm:items-center justify-center">
+      <div className="bg-white w-full sm:max-w-lg sm:rounded-3xl rounded-t-3xl max-h-[92vh] flex flex-col overflow-hidden shadow-2xl">
+
+        {/* ── Header identificación ── */}
+        <div className="bg-gray-950 p-6 rounded-t-3xl shrink-0">
+          <div className="flex items-start justify-between gap-3 mb-3">
+            <div className="min-w-0">
+              <p className="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-0.5">Checklist de asistencia</p>
+              <div className="flex items-center gap-2 flex-wrap">
+                {goal?.otNumber && (
+                  <span className="text-[9px] font-black text-blue-400 bg-blue-900/40 px-2 py-0.5 rounded-full border border-blue-800/50 uppercase tracking-widest">
+                    {goal.otNumber}
+                  </span>
+                )}
+                {goal?.hasVehicle && (
+                  <span className="text-[9px] font-black text-indigo-400 bg-indigo-900/40 px-2 py-0.5 rounded-full border border-indigo-800/50 uppercase tracking-widest flex items-center gap-1">
+                    <Car className="h-2.5 w-2.5" /> Vehículo
+                  </span>
+                )}
+              </div>
+              <p className="text-base font-black text-white mt-1 truncate">{goal?.clientName || '—'}</p>
+              {goal?.clientLocation && <p className="text-[11px] font-bold text-gray-400 truncate">{goal.clientLocation}</p>}
+            </div>
+            <button onClick={onClose}
+              className="h-9 w-9 rounded-2xl bg-white/10 flex items-center justify-center text-white hover:bg-white/20 transition-all shrink-0">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+
+          {/* Datos técnico + fecha */}
+          <div className="flex items-center gap-2 flex-wrap mb-4">
+            <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">{techName}</span>
+            {dateLabel && <><span className="text-gray-600">·</span><span className="text-[9px] font-bold text-gray-500">{dateLabel}</span></>}
+            {checkInTime && <><span className="text-gray-600">·</span><span className="text-[9px] font-black text-emerald-400 flex items-center gap-1"><Clock className="h-2.5 w-2.5" />{checkInTime}</span></>}
+          </div>
+
+          {/* Stepper */}
+          <div className="flex items-center gap-2">
+            {STEPS_DEF.map((s, i) => (
+              <React.Fragment key={s}>
+                <div className={cn('flex flex-col items-center gap-0.5', i <= modalStep ? 'opacity-100' : 'opacity-30')}>
+                  <div className={cn(
+                    'h-6 w-6 rounded-full flex items-center justify-center text-[9px] font-black border-2 transition-all',
+                    i < modalStep  ? 'bg-emerald-500 border-emerald-500 text-white' :
+                    i === modalStep ? 'bg-primary border-primary text-white' :
+                                     'bg-white/10 border-white/20 text-white'
+                  )}>
+                    {i < modalStep ? <CheckCircle2 className="h-3 w-3" /> : i + 1}
+                  </div>
+                  <p className="text-[7px] font-black text-gray-400 uppercase tracking-wider whitespace-nowrap">{s}</p>
+                </div>
+                {i < STEPS_DEF.length - 1 && (
+                  <div className={cn('h-0.5 flex-1 -mt-4 transition-all', i < modalStep ? 'bg-emerald-400' : 'bg-white/20')} />
+                )}
+              </React.Fragment>
+            ))}
+          </div>
+        </div>
+
+        {/* ── Contenido scrollable ── */}
+        <div className="flex-1 overflow-y-auto p-5 space-y-3">
+
+          {/* Paso 0: Equipo Personal */}
+          {modalStep === 0 && (
+            <>
+              <div className="flex items-center gap-3 mb-4">
+                <div className="h-10 w-10 rounded-2xl bg-blue-50 flex items-center justify-center shrink-0">
+                  <ShieldCheck className="h-5 w-5 text-blue-600" />
+                </div>
+                <div>
+                  <h2 className="text-base font-black text-gray-900">Equipo Personal</h2>
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Uniforme · EPP · Herramientas</p>
+                </div>
+              </div>
+              <div className="space-y-3">
+                {PERSONAL_ITEMS.map(item => (
+                  <CheckItem key={item.key} item={item} value={mPersonal[item.key]}
+                    onChange={(k, v) => setMPersonal(p => ({ ...p, [k]: v }))} disabled={false} />
+                ))}
+              </div>
+              {pHasMissing && (
+                <div className="space-y-2 pt-1">
+                  <div className="flex items-center gap-2 p-3 bg-amber-50 rounded-2xl border border-amber-200">
+                    <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
+                    <p className="text-xs font-bold text-amber-700">Ítems faltantes — se incluirán en el reporte PDF.</p>
+                  </div>
+                  <textarea value={mPNotes} onChange={e => setMPNotes(e.target.value)}
+                    placeholder="Detalla qué falta en el equipo personal..." rows={2}
+                    className="w-full border border-amber-200 rounded-2xl px-4 py-3 text-sm font-bold text-gray-800 focus:outline-none focus:ring-2 focus:ring-amber-300 resize-none bg-amber-50/50" />
+                </div>
+              )}
+            </>
+          )}
+
+          {/* Paso 1 (vehículo): solo si aplica */}
+          {goal?.hasVehicle && modalStep === 1 && (
+            <>
+              <div className="flex items-center gap-3 mb-4">
+                <div className="h-10 w-10 rounded-2xl bg-indigo-50 flex items-center justify-center shrink-0">
+                  <Car className="h-5 w-5 text-indigo-600" />
+                </div>
+                <div>
+                  <h2 className="text-base font-black text-gray-900">Vehículo</h2>
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Combustible · Limpieza · Funcionalidad</p>
+                </div>
+              </div>
+              <div className="space-y-3">
+                {VEHICLE_ITEMS.map(item => (
+                  <CheckItem key={item.key} item={item} value={mVehicle[item.key]}
+                    onChange={(k, v) => setMVehicle(p => ({ ...p, [k]: v }))} disabled={false} />
+                ))}
+              </div>
+              {vHasMissing && (
+                <div className="space-y-2 pt-1">
+                  <div className="flex items-center gap-2 p-3 bg-amber-50 rounded-2xl border border-amber-200">
+                    <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
+                    <p className="text-xs font-bold text-amber-700">Recursos faltantes — se incluirán en el reporte.</p>
+                  </div>
+                  <textarea value={mVNotes} onChange={e => setMVNotes(e.target.value)}
+                    placeholder="Detalla recursos o reparaciones necesarias..." rows={2}
+                    className="w-full border border-amber-200 rounded-2xl px-4 py-3 text-sm font-bold text-gray-800 focus:outline-none focus:ring-2 focus:ring-amber-300 resize-none bg-amber-50/50" />
+                </div>
+              )}
+            </>
+          )}
+
+          {/* Paso final: Resumen */}
+          {isLast && (
+            <div className="space-y-4">
+              <div className="bg-gray-50 rounded-2xl p-4 border border-gray-100 space-y-3">
+                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Resumen del checklist</p>
+                <div className="space-y-1.5">
+                  <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-2">Equipo personal</p>
+                  {PERSONAL_ITEMS.map(i => (
+                    <div key={i.key} className="flex items-center gap-2">
+                      {mPersonal[i.key] === true
+                        ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                        : <XCircle className="h-3.5 w-3.5 text-red-400 shrink-0" />}
+                      <span className="text-xs font-bold text-gray-700">{i.label}</span>
+                    </div>
+                  ))}
+                </div>
+                {goal?.hasVehicle && (
+                  <div className="border-t border-gray-200 pt-3 space-y-1.5">
+                    <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-2">Vehículo</p>
+                    {VEHICLE_ITEMS.map(i => {
+                      const val = mVehicle[i.key];
+                      return (
+                        <div key={i.key} className="flex items-center gap-2">
+                          {i.isNumber
+                            ? <Gauge className="h-3.5 w-3.5 text-gray-400 shrink-0" />
+                            : val ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0" /> : <XCircle className="h-3.5 w-3.5 text-red-400 shrink-0" />}
+                          <span className="text-xs font-bold text-gray-700">
+                            {i.isNumber
+                              ? `${i.label}: ${val != null && val !== '' ? `${Number(val).toLocaleString()} km` : '—'}`
+                              : i.label}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              <button onClick={handleGenerate} disabled={generating}
+                className={cn(
+                  'w-full py-4 rounded-2xl font-black text-sm uppercase tracking-widest flex items-center justify-center gap-2 transition-all disabled:opacity-50',
+                  (pHasMissing || vHasMissing)
+                    ? 'bg-amber-500 text-white hover:bg-amber-600 shadow-lg shadow-amber-200'
+                    : 'bg-blue-600 text-white hover:bg-blue-700 shadow-lg shadow-blue-200'
+                )}>
+                <Send className="h-4 w-4" />
+                {generating ? 'Generando...' : (pHasMissing || vHasMissing) ? 'Generar Reporte de Faltantes (PDF)' : 'Todo OK · Descargar Reporte (PDF)'}
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* ── Navegación ── */}
+        <div className="p-5 border-t border-gray-100 flex gap-3 shrink-0">
+          {modalStep > 0 && (
+            <button onClick={() => setModalStep(s => s - 1)}
+              className="flex items-center justify-center gap-1.5 px-5 py-3 rounded-2xl border border-gray-200 text-gray-600 text-[11px] font-black uppercase tracking-widest hover:bg-gray-50 transition-all">
+              <ChevronLeft className="h-4 w-4" /> Atrás
+            </button>
+          )}
+          {!isLast && (
+            <button onClick={() => setModalStep(s => s + 1)} disabled={!canNext}
+              className="flex-1 flex items-center justify-center gap-1.5 py-3 rounded-2xl bg-primary text-white text-[11px] font-black uppercase tracking-widest hover:bg-primary/90 transition-all disabled:opacity-40">
+              Siguiente <ChevronRight className="h-4 w-4" />
+            </button>
+          )}
+          {isLast && modalStep === 0 && (
+            // Solo 1 paso (sin vehículo) y ya es el resumen — botón ya está arriba, no necesita nav
+            null
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Vista principal ──────────────────────────────────────────────────────────
 export default function TechDailyAttendance() {
   const { user } = useAuth();
-  const today = new Date().toISOString().slice(0, 10);
-
+  const today = (() => {
+    const n = new Date();
+    return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}`;
+  })();
   const navigate = useNavigate();
 
-  const [log,           setLog]           = useState(null);   // TechAttendanceLog
-  const [goals,         setGoals]         = useState([]);     // TechDailyGoal[]
-  const [loading,       setLoading]       = useState(true);
-  const [saving,        setSaving]        = useState(false);
+  const [log,          setLog]          = useState(null);
+  const [goals,        setGoals]        = useState([]);
+  const [upcoming,     setUpcoming]     = useState([]);
+  const [loading,      setLoading]      = useState(true);
+  const [saving,       setSaving]       = useState(false);
+  const [confirmingId, setConfirmingId] = useState(null);
+  const [checklistModal, setChecklistModal] = useState(null); // goal object | null
+  const [initDone,     setInitDone]     = useState(false);
 
-  // Checklist state
   const [personal,      setPersonal]      = useState({});
   const [vehicle,       setVehicle]       = useState({});
   const [personalNotes, setPersonalNotes] = useState('');
   const [vehicleNotes,  setVehicleNotes]  = useState('');
+  const [vehicleAnswer, setVehicleAnswer] = useState(null); // null=sin responder, true=sí lleva, false=no lleva
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [logRes, goalRes] = await Promise.all([
+      const [logRes, goalRes, upcomingRes] = await Promise.all([
         apiFetch(`/api/tech-attendance/log?techId=${user.id}&date=${today}`),
         apiFetch(`/api/tech-attendance/goals?techId=${user.id}&date=${today}`),
+        apiFetch(`/api/tech-attendance/goals?techId=${user.id}&upcoming=true`),
       ]);
-      const logData   = logRes.ok  ? await logRes.json()  : null;
-      const allGoals  = goalRes.ok ? await goalRes.json() : [];
+      const logData      = logRes.ok      ? await logRes.json()      : null;
+      const allGoals     = goalRes.ok     ? await goalRes.json()     : [];
+      const upcomingData = upcomingRes.ok ? await upcomingRes.json() : [];
       setLog(logData);
       setGoals(Array.isArray(allGoals) ? allGoals : []);
+      setUpcoming(Array.isArray(upcomingData) ? upcomingData : []);
       if (logData) {
         setPersonal(logData.checklistPersonal || {});
         setVehicle(logData.checklistVehicle  || {});
         setPersonalNotes(logData.personalMissing || '');
         setVehicleNotes(logData.vehicleMissing   || '');
+        // Restaurar respuesta de vehículo: si ya tiene checklistVehicle → sí; si ya está DONE sin checklist → no
+        if (logData.checklistVehicle && Object.keys(logData.checklistVehicle).length > 0) {
+          setVehicleAnswer(true);
+        } else if (logData.step === 'DONE') {
+          setVehicleAnswer(false);
+        }
       }
-    } catch (e) { console.error(e); }
+      return { logData, allGoals: Array.isArray(allGoals) ? allGoals : [] };
+    } catch (e) { console.error(e); return { logData: null, allGoals: [] }; }
     finally { setLoading(false); }
   }, [user.id, today]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    if (initDone) return;
+    setInitDone(true);
+    load().then(async ({ logData, allGoals }) => {
+      if (!logData) {
+        try {
+          const res = await apiFetch('/api/tech-attendance/log', {
+            method: 'POST',
+            body: JSON.stringify({ techId: user.id, goalId: allGoals[0]?.id || null }),
+          });
+          if (res.ok) setLog(await res.json());
+        } catch { /* silencioso */ }
+      }
+    });
+  }, [initDone, load, user.id]);
 
-  // ── Check-in ────────────────────────────────────────────────────────────
-  const handleCheckIn = async () => {
-    setSaving(true);
+  const confirmGoal = async (goalId, confirmed) => {
+    setConfirmingId(goalId);
     try {
-      const res = await apiFetch('/api/tech-attendance/log', {
+      const res = await apiFetch('/api/tech-attendance/goals', {
         method: 'POST',
-        body: JSON.stringify({ techId: user.id, goalId: goals[0]?.id || null }),
+        body: JSON.stringify({ id: goalId, confirmed }),
       });
       if (!res.ok) throw new Error();
-      const data = await res.json();
-      setLog(data);
-    } catch { alert('Error al registrar entrada'); }
-    finally { setSaving(false); }
+      const updated = await res.json();
+      setUpcoming(prev => prev.map(g => g.id === goalId ? { ...g, confirmed: updated.confirmed } : g));
+    } catch { alert('Error al confirmar'); }
+    finally { setConfirmingId(null); }
   };
 
-  // ── Guardar checklist personal ───────────────────────────────────────────
-  const savePersonalChecklist = async (sendReport) => {
-    setSaving(true);
-    try {
-      const missingText = personalNotes || buildMissingText(PERSONAL_ITEMS, personal);
-      const data = {
-        id: log.id,
-        checklistPersonal: personal,
-        step: 'VEHICLE',
-        ...(sendReport && {
-          personalMissing: missingText,
-          personalReportSent: true,
-        }),
-      };
-      const res = await apiFetch('/api/tech-attendance/log', { method: 'PATCH', body: JSON.stringify(data) });
-      if (!res.ok) throw new Error();
-      const updated = await res.json();
-      setLog(updated);
-      // Generar y descargar PDF del reporte si hay faltantes
-      if (sendReport) {
-        generateAttendanceReportPDF(
-          { ...updated, checklistPersonal: personal, personalMissing: missingText },
-          user.name,
-          goals[0] || null,
-          'personal'
-        );
-      }
-    } catch { alert('Error al guardar'); }
-    finally { setSaving(false); }
-  };
-
-  // ── Guardar checklist vehículo ───────────────────────────────────────────
-  const saveVehicleChecklist = async (sendReport) => {
-    setSaving(true);
-    try {
-      const missingText = vehicleNotes || buildMissingText(VEHICLE_ITEMS.filter(i => !i.isNumber), vehicle);
-      const data = {
-        id: log.id,
-        checklistVehicle: vehicle,
-        step: 'DONE',
-        status: 'COMPLETE',
-        ...(sendReport && {
-          vehicleMissing: missingText,
-          vehicleReportSent: true,
-        }),
-      };
-      const res = await apiFetch('/api/tech-attendance/log', { method: 'PATCH', body: JSON.stringify(data) });
-      if (!res.ok) throw new Error();
-      const updated = await res.json();
-      setLog(updated);
-      // Generar y descargar PDF del reporte si hay faltantes
-      if (sendReport) {
-        generateAttendanceReportPDF(
-          { ...updated, checklistVehicle: vehicle, vehicleMissing: missingText },
-          user.name,
-          goals[0] || null,
-          'vehicle'
-        );
-      }
-    } catch { alert('Error al guardar'); }
-    finally { setSaving(false); }
+  const nowHHMM = () => {
+    const n = new Date();
+    return `${String(n.getHours()).padStart(2,'0')}:${String(n.getMinutes()).padStart(2,'0')}`;
   };
 
   const buildMissingText = (items, values) =>
     items.filter(i => values[i.key] === false).map(i => i.label).join(', ');
 
+  const activeGoal         = goals[0] || null;
+  const hasGoals           = goals.length > 0;
+  const hasVehicle         = vehicleAnswer === true;
+  const personalHasMissing = Object.values(personal).some(v => v === false);
+  const vehicleHasMissing  = hasVehicle && VEHICLE_ITEMS.filter(i => !i.isNumber).some(i => vehicle[i.key] === false);
+  const anyMissing         = personalHasMissing || vehicleHasMissing;
+
+  const saveChecklist = async () => {
+    if (!log) return;
+    setSaving(true);
+    try {
+      const personalMissingText = personalNotes || buildMissingText(PERSONAL_ITEMS, personal);
+      const vehicleMissingText  = vehicleNotes  || buildMissingText(VEHICLE_ITEMS.filter(i => !i.isNumber), vehicle);
+      const sendPersonal = personalHasMissing;
+      const sendVehicle  = hasVehicle && vehicleHasMissing;
+
+      const data = {
+        id: log.id,
+        checklistPersonal: personal,
+        step: 'DONE',
+        status: 'COMPLETE',
+        checkInTime: nowHHMM(),
+        ...(sendPersonal && { personalMissing: personalMissingText, personalReportSent: true }),
+        ...(vehicleAnswer === true  && { checklistVehicle: vehicle }),
+        ...(vehicleAnswer === false && { checklistVehicle: null }),
+        ...(sendVehicle  && { vehicleMissing: vehicleMissingText, vehicleReportSent: true }),
+      };
+      const res = await apiFetch('/api/tech-attendance/log', { method: 'PATCH', body: JSON.stringify(data) });
+      if (!res.ok) throw new Error();
+      const updated = await res.json();
+      setLog(updated);
+
+      if (sendPersonal) {
+        await generateAttendanceReportPDF(
+          { ...updated, checklistPersonal: personal, personalMissing: personalMissingText },
+          user.name, activeGoal, 'personal'
+        );
+      }
+      if (sendVehicle) {
+        await generateAttendanceReportPDF(
+          { ...updated, checklistVehicle: vehicle, vehicleMissing: vehicleMissingText },
+          user.name, activeGoal, 'vehicle'
+        );
+      }
+    } catch { alert('Error al guardar'); }
+    finally { setSaving(false); }
+  };
+
   const allPersonalAnswered = PERSONAL_ITEMS.every(i => personal[i.key] !== undefined);
-  const allVehicleAnswered  = VEHICLE_ITEMS.every(i => {
+  const allVehicleAnswered  = vehicleAnswer === false || (vehicleAnswer === true && VEHICLE_ITEMS.every(i => {
     const v = vehicle[i.key];
     if (i.isNumber) return v !== undefined && v !== null && v !== '';
     return v !== undefined;
-  });
-  const personalHasMissing  = Object.values(personal).some(v => v === false);
-  const vehicleHasMissing   = VEHICLE_ITEMS.filter(i => !i.isNumber).some(i => vehicle[i.key] === false);
+  }));
+  const allAnswered = allPersonalAnswered && vehicleAnswer !== null && allVehicleAnswered;
 
-  // ── Loading ──────────────────────────────────────────────────────────────
   if (loading) return (
     <div className="min-h-[60vh] flex items-center justify-center">
       <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
     </div>
   );
 
-  const step = log?.step || 'CHECKIN';
+  const step   = log?.step || 'PERSONAL';
   const isDone = step === 'DONE';
+  const STEPS  = [{ key: 'PERSONAL', label: 'Equipo' }, { key: 'DONE', label: 'Listo' }];
+  const stepIdx = isDone ? 2 : 0;
 
   return (
     <div className="max-w-lg mx-auto space-y-5 pb-20">
 
-      {/* Header */}
+      {/* ── Modal checklist ── */}
+      {checklistModal && (
+        <ChecklistModal
+          goal={checklistModal}
+          techName={user.name}
+          checkInTime={log?.checkInTime || null}
+          onClose={() => setChecklistModal(null)}
+        />
+      )}
+
+      {/* ── Header ── */}
       <div className="bg-gray-950 rounded-[2.5rem] p-7 text-white">
         <p className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 mb-1">
           {new Date().toLocaleDateString('es-MX', { weekday: 'long', day: '2-digit', month: 'long' })}
@@ -283,11 +552,18 @@ export default function TechDailyAttendance() {
             <div key={g.id} className="bg-white/8 rounded-2xl p-4 space-y-2 border border-white/10">
               <div className="flex items-center justify-between gap-2">
                 <p className="text-[9px] font-black text-primary uppercase tracking-widest">Meta del día</p>
-                {g.otNumber && (
-                  <span className="text-[9px] font-black text-blue-400 bg-blue-900/40 px-2 py-0.5 rounded-full border border-blue-800/50 uppercase tracking-widest">
-                    {g.otNumber}
-                  </span>
-                )}
+                <div className="flex items-center gap-2">
+                  {g.hasVehicle && (
+                    <span className="text-[9px] font-black text-indigo-400 bg-indigo-900/40 px-2 py-0.5 rounded-full border border-indigo-800/50 uppercase tracking-widest flex items-center gap-1">
+                      <Car className="h-2.5 w-2.5" /> Vehículo
+                    </span>
+                  )}
+                  {g.otNumber && (
+                    <span className="text-[9px] font-black text-blue-400 bg-blue-900/40 px-2 py-0.5 rounded-full border border-blue-800/50 uppercase tracking-widest">
+                      {g.otNumber}
+                    </span>
+                  )}
+                </div>
               </div>
               <div className="flex items-center gap-2">
                 <User2 className="h-4 w-4 text-gray-400 shrink-0" />
@@ -308,41 +584,42 @@ export default function TechDailyAttendance() {
                   <p className="text-[11px] text-gray-400 font-bold">{g.notes}</p>
                 </div>
               )}
-              {g.otNumber && isDone && (
-                <button
-                  onClick={() => navigate(`/ots/${g.otNumber}`)}
-                  className="w-full mt-1 flex items-center justify-center gap-2 py-2 rounded-xl bg-blue-600/20 border border-blue-500/30 text-blue-300 text-[11px] font-black uppercase tracking-widest hover:bg-blue-600/30 transition-all"
-                >
-                  <ExternalLink className="h-3.5 w-3.5" />
-                  Ir a OT {g.otNumber}
-                </button>
+              {isDone && (
+                <div className="flex gap-2 mt-1">
+                  {g.otNumber && (
+                    <button onClick={() => navigate(`/ots/${g.otNumber}`)}
+                      className="flex-1 flex items-center justify-center gap-2 py-2 rounded-xl bg-blue-600/20 border border-blue-500/30 text-blue-300 text-[11px] font-black uppercase tracking-widest hover:bg-blue-600/30 transition-all">
+                      <ExternalLink className="h-3.5 w-3.5" />
+                      Ir a OT {g.otNumber}
+                    </button>
+                  )}
+                  <button onClick={() => setChecklistModal(g)}
+                    className="flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-white/10 border border-white/20 text-white text-[11px] font-black uppercase tracking-widest hover:bg-white/20 transition-all">
+                    <ClipboardList className="h-3.5 w-3.5" />
+                    Checklist
+                  </button>
+                </div>
               )}
             </div>
           ))}
         </div>
 
-        {/* Estado / hora entrada */}
         {log?.checkInTime && (
           <div className="mt-3 flex items-center gap-2 text-emerald-400">
             <Clock className="h-4 w-4" />
-            <span className="text-xs font-black">Día confirmado: {log.checkInTime}</span>
+            <span className="text-xs font-black">Entrada registrada: {log.checkInTime}</span>
           </div>
         )}
       </div>
 
-      {/* Stepper */}
+      {/* ── Stepper ── */}
       <div className="flex items-center gap-2 px-2">
-        {['Entrada', 'Equipo personal', 'Vehículo', 'Listo'].map((s, i) => {
-          const steps = ['CHECKIN', 'PERSONAL', 'VEHICLE', 'DONE'];
-          const idx   = steps.indexOf(step);
-          const done  = i < idx || isDone;
-          const active= i === idx && !isDone;
+        {STEPS.map((s, i) => {
+          const done   = i < stepIdx || isDone;
+          const active = i === stepIdx && !isDone;
           return (
-            <React.Fragment key={s}>
-              <div className={cn(
-                'flex flex-col items-center gap-1 flex-1',
-                done ? 'opacity-100' : active ? 'opacity-100' : 'opacity-30'
-              )}>
+            <React.Fragment key={s.key}>
+              <div className={cn('flex flex-col items-center gap-1 flex-1', done || active ? 'opacity-100' : 'opacity-30')}>
                 <div className={cn(
                   'h-7 w-7 rounded-full flex items-center justify-center text-[10px] font-black border-2 transition-all',
                   done   ? 'bg-emerald-500 border-emerald-500 text-white' :
@@ -351,38 +628,34 @@ export default function TechDailyAttendance() {
                 )}>
                   {done ? <CheckCircle2 className="h-3.5 w-3.5" /> : i + 1}
                 </div>
-                <p className="text-[8px] font-black text-gray-500 uppercase tracking-wider text-center leading-tight">{s}</p>
+                <p className="text-[8px] font-black text-gray-500 uppercase tracking-wider text-center leading-tight">{s.label}</p>
               </div>
-              {i < 3 && <div className={cn('h-0.5 flex-1 -mt-4 transition-all', done ? 'bg-emerald-400' : 'bg-gray-200')} />}
+              {i < STEPS.length - 1 && (
+                <div className={cn('h-0.5 flex-1 -mt-4 transition-all', done ? 'bg-emerald-400' : 'bg-gray-200')} />
+              )}
             </React.Fragment>
           );
         })}
       </div>
 
-      {/* ── STEP: CHECK-IN ─────────────────────────────────────────────────── */}
-      {step === 'CHECKIN' && (
-        <div className="bg-white rounded-3xl p-8 border border-gray-100 shadow-sm text-center space-y-6">
-          <div className="h-16 w-16 rounded-[1.5rem] bg-primary/10 flex items-center justify-center mx-auto">
-            <Clock className="h-8 w-8 text-primary" />
+      {/* ── Sin metas ── */}
+      {(step === 'PERSONAL' || step === 'CHECKIN') && !hasGoals && (
+        <div className="bg-white rounded-3xl p-8 border border-gray-100 shadow-sm text-center space-y-4">
+          <div className="h-14 w-14 rounded-2xl bg-gray-100 flex items-center justify-center mx-auto">
+            <ClipboardList className="h-7 w-7 text-gray-400" />
           </div>
           <div>
-            <h2 className="text-xl font-black text-gray-900">Confirmación de Día</h2>
-            <p className="text-sm text-gray-500 font-medium mt-1">
-              {new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}
+            <h3 className="text-base font-black text-gray-700">Sin metas asignadas</h3>
+            <p className="text-sm font-bold text-gray-400 mt-1 leading-snug">
+              El registro de asistencia solo está disponible cuando tienes una orden de trabajo o meta asignada.
             </p>
           </div>
-          <button
-            onClick={handleCheckIn}
-            disabled={saving}
-            className="w-full py-4 rounded-2xl bg-primary text-white font-black text-sm uppercase tracking-widest hover:bg-primary/90 transition-all shadow-lg shadow-primary/20 disabled:opacity-50"
-          >
-            {saving ? 'Confirmando...' : 'Confirmar Día'}
-          </button>
+          <p className="text-[10px] font-bold text-gray-300 uppercase tracking-widest">Contacta a tu supervisor</p>
         </div>
       )}
 
-      {/* ── STEP: CHECKLIST PERSONAL ────────────────────────────────────────── */}
-      {step === 'PERSONAL' && (
+      {/* ── Checklist principal (registrar entrada) ── */}
+      {(step === 'PERSONAL' || step === 'CHECKIN') && hasGoals && (
         <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm space-y-5">
           <div className="flex items-center gap-3">
             <div className="h-10 w-10 rounded-2xl bg-blue-50 flex items-center justify-center">
@@ -390,19 +663,13 @@ export default function TechDailyAttendance() {
             </div>
             <div>
               <h2 className="text-base font-black text-gray-900">Uniforme · EPP · Herramientas</h2>
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Checklist de equipo personal</p>
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Equipo personal</p>
             </div>
           </div>
-
           <div className="space-y-3">
             {PERSONAL_ITEMS.map(item => (
-              <CheckItem
-                key={item.key}
-                item={item}
-                value={personal[item.key]}
-                onChange={(k, v) => setPersonal(p => ({ ...p, [k]: v }))}
-                disabled={false}
-              />
+              <CheckItem key={item.key} item={item} value={personal[item.key]}
+                onChange={(k, v) => setPersonal(p => ({ ...p, [k]: v }))} disabled={false} />
             ))}
           </div>
 
@@ -410,105 +677,107 @@ export default function TechDailyAttendance() {
             <div className="space-y-2">
               <div className="flex items-center gap-2 p-3 bg-amber-50 rounded-2xl border border-amber-200">
                 <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
-                <p className="text-xs font-bold text-amber-700">Hay ítems faltantes. Se enviará reporte al supervisor.</p>
+                <p className="text-xs font-bold text-amber-700">Ítems faltantes. Se enviará reporte al supervisor.</p>
               </div>
-              <textarea
-                value={personalNotes}
-                onChange={e => setPersonalNotes(e.target.value)}
-                placeholder="Detalla qué falta o cualquier observación adicional..."
-                rows={2}
-                className="w-full border border-amber-200 rounded-2xl px-4 py-3 text-sm font-bold text-gray-800 focus:outline-none focus:ring-2 focus:ring-amber-300 resize-none bg-amber-50/50"
-              />
+              <textarea value={personalNotes} onChange={e => setPersonalNotes(e.target.value)}
+                placeholder="Detalla qué falta en el equipo personal..." rows={2}
+                className="w-full border border-amber-200 rounded-2xl px-4 py-3 text-sm font-bold text-gray-800 focus:outline-none focus:ring-2 focus:ring-amber-300 resize-none bg-amber-50/50" />
             </div>
           )}
 
-          <button
-            onClick={() => savePersonalChecklist(personalHasMissing)}
-            disabled={!allPersonalAnswered || saving}
-            className={cn(
-              'w-full py-4 rounded-2xl font-black text-sm uppercase tracking-widest transition-all disabled:opacity-40',
-              personalHasMissing
-                ? 'bg-amber-500 text-white hover:bg-amber-600 shadow-lg shadow-amber-200'
-                : 'bg-primary text-white hover:bg-primary/90 shadow-lg shadow-primary/20'
+          {/* ── Pregunta: ¿Llevas vehículo hoy? ── */}
+          <div className="border-t border-gray-100 pt-4">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="h-10 w-10 rounded-2xl bg-indigo-50 flex items-center justify-center shrink-0">
+                <Car className="h-5 w-5 text-indigo-600" />
+              </div>
+              <div>
+                <h2 className="text-base font-black text-gray-900">¿Llevas vehículo hoy?</h2>
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Combustible · Limpieza · Funcionalidad</p>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setVehicleAnswer(true)}
+                className={cn(
+                  'flex items-center justify-center gap-2 py-3 rounded-2xl border-2 font-black text-sm uppercase tracking-widest transition-all',
+                  vehicleAnswer === true
+                    ? 'bg-indigo-500 border-indigo-500 text-white shadow-lg shadow-indigo-200'
+                    : 'bg-white border-gray-200 text-gray-500 hover:border-indigo-300 hover:text-indigo-600'
+                )}
+              >
+                <Car className="h-4 w-4" /> Sí
+              </button>
+              <button
+                type="button"
+                onClick={() => { setVehicleAnswer(false); setVehicle({}); setVehicleNotes(''); }}
+                className={cn(
+                  'flex items-center justify-center gap-2 py-3 rounded-2xl border-2 font-black text-sm uppercase tracking-widest transition-all',
+                  vehicleAnswer === false
+                    ? 'bg-gray-800 border-gray-800 text-white shadow-lg shadow-gray-200'
+                    : 'bg-white border-gray-200 text-gray-500 hover:border-gray-400 hover:text-gray-700'
+                )}
+              >
+                <XCircle className="h-4 w-4" /> No
+              </button>
+            </div>
+            {vehicleAnswer === false && (
+              <div className="mt-3 flex items-center gap-2 p-3 bg-gray-50 rounded-2xl border border-gray-200">
+                <CheckCircle2 className="h-4 w-4 text-gray-400 shrink-0" />
+                <p className="text-xs font-bold text-gray-500">Sin vehículo — checklist de vehículo omitido.</p>
+              </div>
             )}
-          >
-            <span className="flex items-center justify-center gap-2">
-              {personalHasMissing ? <Send className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-              {saving ? 'Guardando...' : personalHasMissing ? 'Enviar Reporte y Continuar' : 'Todo en orden · Continuar'}
-            </span>
-          </button>
-        </div>
-      )}
-
-      {/* ── STEP: CHECKLIST VEHÍCULO ─────────────────────────────────────────── */}
-      {step === 'VEHICLE' && (
-        <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm space-y-5">
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-2xl bg-indigo-50 flex items-center justify-center">
-              <Car className="h-5 w-5 text-indigo-600" />
-            </div>
-            <div>
-              <h2 className="text-base font-black text-gray-900">Checklist de Vehículo</h2>
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Combustible · Limpieza · Funcionalidad</p>
-            </div>
           </div>
 
-          <div className="space-y-3">
-            {VEHICLE_ITEMS.map(item => (
-              <CheckItem
-                key={item.key}
-                item={item}
-                value={vehicle[item.key]}
-                onChange={(k, v) => setVehicle(p => ({ ...p, [k]: v }))}
-                disabled={false}
-              />
-            ))}
-          </div>
-
-          {vehicleHasMissing && (
-            <div className="space-y-2">
-              <div className="flex items-center gap-2 p-3 bg-amber-50 rounded-2xl border border-amber-200">
-                <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
-                <p className="text-xs font-bold text-amber-700">Se generará reporte de recursos faltantes para operaciones.</p>
+          {hasVehicle && (
+            <>
+              <div className="space-y-3">
+                {VEHICLE_ITEMS.map(item => (
+                  <CheckItem key={item.key} item={item} value={vehicle[item.key]}
+                    onChange={(k, v) => setVehicle(p => ({ ...p, [k]: v }))} disabled={false} />
+                ))}
               </div>
-              <textarea
-                value={vehicleNotes}
-                onChange={e => setVehicleNotes(e.target.value)}
-                placeholder="Detalla los recursos o reparaciones necesarias..."
-                rows={2}
-                className="w-full border border-amber-200 rounded-2xl px-4 py-3 text-sm font-bold text-gray-800 focus:outline-none focus:ring-2 focus:ring-amber-300 resize-none bg-amber-50/50"
-              />
-            </div>
+              {vehicleHasMissing && (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 p-3 bg-amber-50 rounded-2xl border border-amber-200">
+                    <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
+                    <p className="text-xs font-bold text-amber-700">Recursos faltantes. Se generará reporte para operaciones.</p>
+                  </div>
+                  <textarea value={vehicleNotes} onChange={e => setVehicleNotes(e.target.value)}
+                    placeholder="Detalla recursos o reparaciones necesarias..." rows={2}
+                    className="w-full border border-amber-200 rounded-2xl px-4 py-3 text-sm font-bold text-gray-800 focus:outline-none focus:ring-2 focus:ring-amber-300 resize-none bg-amber-50/50" />
+                </div>
+              )}
+            </>
           )}
 
-          <button
-            onClick={() => saveVehicleChecklist(vehicleHasMissing)}
-            disabled={!allVehicleAnswered || saving}
+          <button onClick={saveChecklist} disabled={!allAnswered || saving}
             className={cn(
               'w-full py-4 rounded-2xl font-black text-sm uppercase tracking-widest transition-all disabled:opacity-40',
-              vehicleHasMissing
+              anyMissing
                 ? 'bg-amber-500 text-white hover:bg-amber-600 shadow-lg shadow-amber-200'
                 : 'bg-emerald-500 text-white hover:bg-emerald-600 shadow-lg shadow-emerald-200'
-            )}
-          >
+            )}>
             <span className="flex items-center justify-center gap-2">
-              {vehicleHasMissing ? <Send className="h-4 w-4" /> : <CheckCheck className="h-4 w-4" />}
-              {saving ? 'Guardando...' : vehicleHasMissing ? 'Enviar Reporte y Finalizar' : 'Todo OK · Completar Registro'}
+              {anyMissing ? <Send className="h-4 w-4" /> : <CheckCheck className="h-4 w-4" />}
+              {saving ? 'Guardando...' : anyMissing ? 'Enviar Reportes y Registrar Entrada' : 'Todo OK · Registrar Entrada'}
             </span>
           </button>
         </div>
       )}
 
-      {/* ── STEP: DONE ───────────────────────────────────────────────────────── */}
+      {/* ── DONE: resumen ── */}
       {isDone && (
         <div className="bg-emerald-600 rounded-3xl p-8 text-white text-center space-y-4">
           <CheckCheck className="h-14 w-14 mx-auto opacity-90" />
           <div>
-            <h2 className="text-xl font-black">¡Día confirmado!</h2>
-            <p className="text-sm text-emerald-200 font-bold mt-1">Confirmación: {log?.checkInTime} · {today}</p>
+            <h2 className="text-xl font-black">¡Entrada registrada!</h2>
+            <p className="text-sm text-emerald-200 font-bold mt-1">
+              {log?.checkInTime ? `${log.checkInTime} · ${today}` : today}
+            </p>
           </div>
 
-          {/* Resumen reportes enviados */}
           {(log?.personalReportSent || log?.vehicleReportSent) && (
             <div className="bg-white/10 rounded-2xl p-4 text-left space-y-2 border border-white/20">
               <p className="text-[10px] font-black uppercase tracking-widest text-emerald-200">Reportes enviados a operaciones</p>
@@ -527,62 +796,155 @@ export default function TechDailyAttendance() {
             </div>
           )}
 
-          {/* Resumen checklists */}
-          <div className="grid grid-cols-2 gap-3 text-left">
-            <div className="bg-white/10 rounded-2xl p-3 border border-white/20">
+          <div className={cn('gap-3 text-left', (log?.checklistVehicle && Object.keys(log.checklistVehicle).length > 0) ? 'grid grid-cols-2' : 'flex')}>
+            <div className="bg-white/10 rounded-2xl p-3 border border-white/20 flex-1">
               <p className="text-[9px] font-black uppercase tracking-wider text-emerald-200 mb-2">Equipo personal</p>
               {PERSONAL_ITEMS.map(i => (
                 <div key={i.key} className="flex items-center gap-1.5 mb-1">
                   {log?.checklistPersonal?.[i.key]
                     ? <CheckCircle2 className="h-3 w-3 text-emerald-300" />
-                    : <XCircle     className="h-3 w-3 text-red-300" />}
+                    : <XCircle className="h-3 w-3 text-red-300" />}
                   <span className="text-[10px] font-bold text-white/80">{i.label.split(' ')[0]}</span>
                 </div>
               ))}
             </div>
-            <div className="bg-white/10 rounded-2xl p-3 border border-white/20">
-              <p className="text-[9px] font-black uppercase tracking-wider text-emerald-200 mb-2">Vehículo</p>
-              {VEHICLE_ITEMS.map(i => {
-                const val = log?.checklistVehicle?.[i.key];
-                return (
-                  <div key={i.key} className="flex items-center gap-1.5 mb-1">
-                    {i.isNumber
-                      ? <Gauge className="h-3 w-3 text-emerald-300" />
-                      : val ? <CheckCircle2 className="h-3 w-3 text-emerald-300" /> : <XCircle className="h-3 w-3 text-red-300" />
-                    }
-                    <span className="text-[10px] font-bold text-white/80">
+            {log?.checklistVehicle && Object.keys(log.checklistVehicle).length > 0 && (
+              <div className="bg-white/10 rounded-2xl p-3 border border-white/20">
+                <p className="text-[9px] font-black uppercase tracking-wider text-emerald-200 mb-2">Vehículo</p>
+                {VEHICLE_ITEMS.map(i => {
+                  const val = log?.checklistVehicle?.[i.key];
+                  return (
+                    <div key={i.key} className="flex items-center gap-1.5 mb-1">
                       {i.isNumber
-                        ? `${i.label}: ${val != null && val !== '' ? `${Number(val).toLocaleString()} km` : '—'}`
-                        : i.label.split(' ')[0]
-                      }
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
+                        ? <Gauge className="h-3 w-3 text-emerald-300" />
+                        : val ? <CheckCircle2 className="h-3 w-3 text-emerald-300" /> : <XCircle className="h-3 w-3 text-red-300" />}
+                      <span className="text-[10px] font-bold text-white/80">
+                        {i.isNumber
+                          ? `${i.label}: ${val != null && val !== '' ? `${Number(val).toLocaleString()} km` : '—'}`
+                          : i.label.split(' ')[0]}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
-          {/* Botones descarga PDF */}
           <div className="flex flex-col gap-2 pt-2">
             {log?.personalReportSent && (
-              <button
-                onClick={() => generateAttendanceReportPDF(log, user.name, goals[0] || null, 'personal')}
-                className="flex items-center justify-center gap-2 w-full py-3 rounded-2xl bg-white/15 border border-white/20 text-white text-[10px] font-black uppercase tracking-widest hover:bg-white/25 transition-all"
-              >
+              <button onClick={() => generateAttendanceReportPDF(log, user.name, activeGoal, 'personal')}
+                className="flex items-center justify-center gap-2 w-full py-3 rounded-2xl bg-white/15 border border-white/20 text-white text-[10px] font-black uppercase tracking-widest hover:bg-white/25 transition-all">
                 <ShieldCheck className="h-4 w-4" /> Descargar Reporte Equipo Personal (PDF)
               </button>
             )}
             {log?.vehicleReportSent && (
-              <button
-                onClick={() => generateAttendanceReportPDF(log, user.name, goals[0] || null, 'vehicle')}
-                className="flex items-center justify-center gap-2 w-full py-3 rounded-2xl bg-white/15 border border-white/20 text-white text-[10px] font-black uppercase tracking-widest hover:bg-white/25 transition-all"
-              >
+              <button onClick={() => generateAttendanceReportPDF(log, user.name, activeGoal, 'vehicle')}
+                className="flex items-center justify-center gap-2 w-full py-3 rounded-2xl bg-white/15 border border-white/20 text-white text-[10px] font-black uppercase tracking-widest hover:bg-white/25 transition-all">
                 <Car className="h-4 w-4" /> Descargar Reporte Vehículo (PDF)
               </button>
             )}
           </div>
         </div>
       )}
+
+      {/* ── Próximas Órdenes ── */}
+      {upcoming.length > 0 && (
+        <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm space-y-4">
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-2xl bg-violet-50 flex items-center justify-center">
+              <ClipboardList className="h-5 w-5 text-violet-600" />
+            </div>
+            <div>
+              <h2 className="text-base font-black text-gray-900">Próximas Órdenes</h2>
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Confirma tu asistencia con anticipación</p>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            {upcoming.map(g => {
+              const dateOnly  = new Date(g.date).toISOString().slice(0, 10);
+              const dateLabel = new Date(dateOnly + 'T12:00:00Z').toLocaleDateString('es-MX', {
+                weekday: 'short', day: '2-digit', month: 'short',
+              });
+              const isConfirming = confirmingId === g.id;
+
+              return (
+                <div key={g.id} className={cn(
+                  'rounded-2xl border p-4 space-y-3 transition-all',
+                  g.confirmed ? 'bg-emerald-50 border-emerald-200' : 'bg-gray-50 border-gray-200'
+                )}>
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <span className={cn(
+                      'text-[9px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full border',
+                      g.confirmed ? 'bg-emerald-100 text-emerald-700 border-emerald-300' : 'bg-violet-100 text-violet-700 border-violet-200'
+                    )}>
+                      {dateLabel}
+                    </span>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {g.hasVehicle && (
+                        <span className="text-[9px] font-black text-indigo-600 bg-indigo-100 px-2 py-0.5 rounded-full border border-indigo-200 uppercase tracking-widest flex items-center gap-1">
+                          <Car className="h-2.5 w-2.5" /> Vehículo
+                        </span>
+                      )}
+                      {g.otNumber && (
+                        <span className="text-[9px] font-black text-blue-600 bg-blue-100 px-2 py-0.5 rounded-full border border-blue-200 uppercase tracking-widest">
+                          {g.otNumber}
+                        </span>
+                      )}
+                      {g.confirmed && (
+                        <span className="text-[9px] font-black text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full border border-emerald-300 uppercase tracking-widest flex items-center gap-1">
+                          <CheckCircle2 className="h-2.5 w-2.5" /> Confirmado
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <User2 className="h-3.5 w-3.5 text-gray-400 shrink-0" />
+                      <p className="text-sm font-black text-gray-900">{g.clientName}</p>
+                    </div>
+                    {g.clientLocation && (
+                      <div className="flex items-center gap-2">
+                        <MapPin className="h-3.5 w-3.5 text-gray-400 shrink-0" />
+                        <p className="text-xs font-bold text-gray-500">{g.clientLocation}</p>
+                      </div>
+                    )}
+                    {g.notes && (
+                      <div className="flex items-start gap-2 pt-1">
+                        <Target className="h-3.5 w-3.5 text-amber-500 shrink-0 mt-0.5" />
+                        <p className="text-xs font-bold text-gray-600">{g.notes}</p>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex gap-2 pt-1">
+                    {!g.confirmed ? (
+                      <button onClick={() => confirmGoal(g.id, true)} disabled={isConfirming}
+                        className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-emerald-500 text-white text-[11px] font-black uppercase tracking-widest hover:bg-emerald-600 transition-all disabled:opacity-50">
+                        <CheckCircle2 className="h-3.5 w-3.5" />
+                        {isConfirming ? 'Guardando...' : 'Confirmar'}
+                      </button>
+                    ) : (
+                      <button onClick={() => confirmGoal(g.id, false)} disabled={isConfirming}
+                        className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-gray-100 text-gray-600 text-[11px] font-black uppercase tracking-widest hover:bg-red-50 hover:text-red-600 border border-gray-200 hover:border-red-200 transition-all disabled:opacity-50">
+                        <RotateCcw className="h-3.5 w-3.5" />
+                        {isConfirming ? 'Guardando...' : 'Cancelar'}
+                      </button>
+                    )}
+                    <button onClick={() => setChecklistModal(g)}
+                      className="flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-white text-blue-600 border border-blue-200 text-[11px] font-black uppercase tracking-widest hover:bg-blue-50 transition-all">
+                      <ClipboardList className="h-3.5 w-3.5" />
+                      Checklist
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

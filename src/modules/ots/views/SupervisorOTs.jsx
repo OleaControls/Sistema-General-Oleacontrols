@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo, memo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ClipboardList, Search, MoreHorizontal, Clock, Eye,
@@ -56,9 +56,58 @@ function MapEvents({ onLocationSelect }) {
 
 function ChangeView({ center }) {
   const map = useMap();
-  map.setView(center, 15);
+  useEffect(() => { map.setView(center, 15); }, [center, map]);
   return null;
 }
+
+// Mapa principal memoizado — no re-renderiza cuando cambia el estado del modal
+const OTsMap = memo(function OTsMap({ ots, techLocations, otIcon, techIcon }) {
+  return (
+    <MapContainer center={[19.4326, -99.1332]} zoom={11} style={{ height: '100%', width: '100%' }}>
+      <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+      {ots.filter(o => o.lat && o.lng).map(ot => (
+        <Marker key={ot.id} position={[ot.lat, ot.lng]} icon={otIcon}>
+          <Popup>
+            <div className="p-1 space-y-0.5">
+              <p className="font-black text-xs">{ot.otNumber}</p>
+              <p className="text-[10px] text-gray-500">{ot.title}</p>
+              {ot.leadTechName && <p className="text-[10px] text-blue-600">{ot.leadTechName}</p>}
+            </div>
+          </Popup>
+        </Marker>
+      ))}
+      {Object.values(techLocations).map(tech =>
+        tech.lat && tech.lng ? (
+          <Marker key={`tech-${tech.id}`} position={[tech.lat, tech.lng]} icon={techIcon}>
+            <Popup>
+              <div style={{minWidth:160}} className="p-1 space-y-1.5">
+                <div className="flex items-center gap-1.5">
+                  <span style={{display:'inline-block',width:8,height:8,borderRadius:'50%',background:'#10b981'}} />
+                  <p className="font-black text-xs text-green-700">{tech.name}</p>
+                </div>
+                {tech.lastUpdate ? (() => {
+                  const d = new Date(tech.lastUpdate);
+                  const dia = d.toLocaleDateString('es-MX', { weekday: 'long' });
+                  const fecha = d.toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' });
+                  const hora = d.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                  return (
+                    <div className="space-y-0.5">
+                      <p style={{textTransform:'capitalize'}} className="text-[10px] font-semibold text-gray-700">{dia}</p>
+                      <p className="text-[10px] text-gray-500">{fecha}</p>
+                      <p className="text-[10px] font-mono font-bold" style={{color:'#3b82f6'}}>{hora}</p>
+                    </div>
+                  );
+                })() : (
+                  <p className="text-[10px] text-gray-400 italic">Sin ubicación registrada</p>
+                )}
+              </div>
+            </Popup>
+          </Marker>
+        ) : null
+      )}
+    </MapContainer>
+  );
+});
 
 export default function SupervisorOTs() {
   const { user: currentUser } = useAuth();
@@ -102,7 +151,7 @@ export default function SupervisorOTs() {
     contactName: '', contactEmail: '', contactPhone: '', leadTechId: '', leadTechName: '',
     assistantTechs: [], workDescription: '', arrivalTime: '09:00',
     scheduledDate: new Date().toISOString().split('T')[0],
-    priority: 'MEDIUM', assignedFunds: 0, techMetas: ''
+    priority: 'MEDIUM', assignedFunds: 0, techMetas: '', techHasVehicle: false
   };
 
   const [newOT, setNewOT] = useState(initialNewOT);
@@ -428,18 +477,30 @@ export default function SupervisorOTs() {
       // Si hay técnico asignado, crear/actualizar la meta diaria para asistencia técnica
       if (newOT.leadTechId && newOT.scheduledDate) {
         try {
-          const folio = savedOT?.otNumber || savedOT?.id || (isEditMode ? editingId : null);
+          const folio      = savedOT?.otNumber || savedOT?.id || (isEditMode ? editingId : null);
+          const goalBase   = {
+            date:           newOT.scheduledDate,
+            clientName:     newOT.client || newOT.storeName || 'Sin cliente',
+            clientLocation: newOT.address || '',
+            notes:          newOT.techMetas || '',
+            otNumber:       folio,
+          };
+
+          // Técnico líder (lleva vehículo si se marcó)
           await apiFetch('/api/tech-attendance/goals', {
             method: 'POST',
-            body: JSON.stringify({
-              techId:         newOT.leadTechId,
-              date:           newOT.scheduledDate,
-              clientName:     newOT.client || newOT.storeName || 'Sin cliente',
-              clientLocation: newOT.address || '',
-              notes:          newOT.techMetas || '',
-              otNumber:       folio,
-            }),
+            body: JSON.stringify({ ...goalBase, techId: newOT.leadTechId, hasVehicle: newOT.techHasVehicle || false }),
           });
+
+          // Técnicos de apoyo — assistantTechs y supportTechs (sin vehículo propio por defecto)
+          for (const at of [...(newOT.assistantTechs || []), ...(newOT.supportTechs || [])]) {
+            if (at?.id) {
+              await apiFetch('/api/tech-attendance/goals', {
+                method: 'POST',
+                body: JSON.stringify({ ...goalBase, techId: at.id, hasVehicle: false }),
+              });
+            }
+          }
         } catch (_) { /* no bloquear el guardado de la OT si falla la meta */ }
       }
 
@@ -461,19 +522,41 @@ export default function SupervisorOTs() {
     setIsModalOpen(true);
   };
 
-  const openEditModal = (ot) => {
+  const openEditModal = async (ot) => {
     setNewOT({
+      ...initialNewOT,
       ...ot,
-      workDescription: ot.description || ot.workDescription || '',
-      scheduledDate: ot.scheduledDate
-        ? ot.scheduledDate.split('T')[0]
-        : new Date().toISOString().split('T')[0]
+      workDescription:  ot.description || ot.workDescription || '',
+      scheduledDate:    ot.scheduledDate ? ot.scheduledDate.split('T')[0] : new Date().toISOString().split('T')[0],
+      arrivalTime:      ot.arrivalTime  || '09:00',
+      techMetas:        '',
+      techHasVehicle:   false,
+      assistantTechs:   Array.isArray(ot.assistantTechs) ? ot.assistantTechs : [],
     });
     setEditingId(ot.id);
     setIsEditMode(true);
     setFormStep(1);
     setMapCenter([ot.lat || 19.4326, ot.lng || -99.1332]);
     setIsModalOpen(true);
+
+    // Cargar techMetas y techHasVehicle desde TechDailyGoal si existe un goal vinculado
+    const otNum = ot.otNumber || ot.id;
+    if (otNum) {
+      try {
+        const res = await apiFetch(`/api/tech-attendance/goals?otNumber=${encodeURIComponent(otNum)}`);
+        if (res.ok) {
+          const goals = await res.json();
+          if (goals?.length > 0) {
+            const goal = goals[0];
+            setNewOT(prev => ({
+              ...prev,
+              techMetas:      goal.notes      || '',
+              techHasVehicle: goal.hasVehicle || false,
+            }));
+          }
+        }
+      } catch { /* no bloquear la apertura del modal */ }
+    }
   };
 
   const handleDelete = async () => {
@@ -543,12 +626,14 @@ export default function SupervisorOTs() {
     setShowOtClientDropdown(false);
   };
 
-  const filteredOtClientSuggestions = otClientSearch.length > 0
-    ? otClients.filter(c => {
-        const q = otClientSearch.toLowerCase();
-        return [c.name, c.storeName, c.storeNumber, c.contact].some(v => v?.toLowerCase().includes(q));
-      }).slice(0, 8)
-    : otClients.slice(0, 8);
+  const filteredOtClientSuggestions = useMemo(() =>
+    otClientSearch.length > 0
+      ? otClients.filter(c => {
+          const q = otClientSearch.toLowerCase();
+          return [c.name, c.storeName, c.storeNumber, c.contact].some(v => v?.toLowerCase().includes(q));
+        }).slice(0, 8)
+      : otClients.slice(0, 8),
+  [otClientSearch, otClients]);
 
   const handleTemplateSelect = (templateId) => {
     if (!templateId) return;
@@ -596,9 +681,9 @@ export default function SupervisorOTs() {
   };
 
   // Filtrado local solo por priority (no enviado al servidor)
-  const filteredOts = filters.priority === 'ALL'
-    ? ots
-    : ots.filter(ot => ot.priority === filters.priority);
+  const filteredOts = useMemo(() =>
+    filters.priority === 'ALL' ? ots : ots.filter(ot => ot.priority === filters.priority),
+  [ots, filters.priority]);
 
   const kpis = {
     total:       otTotal,
@@ -713,49 +798,7 @@ export default function SupervisorOTs() {
             </div>
           </div>
           <div className="relative z-0 flex-1 min-h-[240px]">
-            <MapContainer center={[19.4326, -99.1332]} zoom={11} style={{ height: '100%', width: '100%' }}>
-              <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-              {ots.filter(o => o.lat && o.lng).map(ot => (
-                <Marker key={ot.id} position={[ot.lat, ot.lng]} icon={otIcon}>
-                  <Popup>
-                    <div className="p-1 space-y-0.5">
-                      <p className="font-black text-xs">{ot.otNumber}</p>
-                      <p className="text-[10px] text-gray-500">{ot.title}</p>
-                      {ot.leadTechName && <p className="text-[10px] text-blue-600">{ot.leadTechName}</p>}
-                    </div>
-                  </Popup>
-                </Marker>
-              ))}
-              {Object.values(techLocations).map(tech =>
-                tech.lat && tech.lng ? (
-                  <Marker key={`tech-${tech.id}`} position={[tech.lat, tech.lng]} icon={techIcon}>
-                    <Popup>
-                      <div style={{minWidth:160}} className="p-1 space-y-1.5">
-                        <div className="flex items-center gap-1.5">
-                          <span style={{display:'inline-block',width:8,height:8,borderRadius:'50%',background:'#10b981'}} />
-                          <p className="font-black text-xs text-green-700">{tech.name}</p>
-                        </div>
-                        {tech.lastUpdate ? (() => {
-                          const d = new Date(tech.lastUpdate);
-                          const dia = d.toLocaleDateString('es-MX', { weekday: 'long' });
-                          const fecha = d.toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' });
-                          const hora = d.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-                          return (
-                            <div className="space-y-0.5">
-                              <p style={{textTransform:'capitalize'}} className="text-[10px] font-semibold text-gray-700">{dia}</p>
-                              <p className="text-[10px] text-gray-500">{fecha}</p>
-                              <p className="text-[10px] font-mono font-bold" style={{color:'#3b82f6'}}>{hora}</p>
-                            </div>
-                          );
-                        })() : (
-                          <p className="text-[10px] text-gray-400 italic">Sin ubicación registrada</p>
-                        )}
-                      </div>
-                    </Popup>
-                  </Marker>
-                ) : null
-              )}
-            </MapContainer>
+            <OTsMap ots={ots} techLocations={techLocations} otIcon={otIcon} techIcon={techIcon} />
           </div>
         </div>
 
@@ -1731,21 +1774,45 @@ export default function SupervisorOTs() {
                         </div>
                       </div>
 
-                      {/* Metas para el técnico */}
-                      {newOT.leadTechId && (
-                        <div>
-                          <label className="text-[9px] font-mono font-bold uppercase tracking-[0.15em] text-gray-500 block mb-2">
-                            Metas <span className="normal-case text-gray-300">(solo visible al supervisor y en asistencia técnica)</span>
-                          </label>
-                          <textarea
-                            rows={3}
-                            className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-900 outline-none focus:border-gray-900 focus:ring-2 focus:ring-gray-900/5 transition-all resize-none placeholder:text-gray-300 leading-relaxed"
-                            value={newOT.techMetas}
-                            onChange={e => setNewOT({ ...newOT, techMetas: e.target.value })}
-                            placeholder="Objetivos a cumplir, material requerido, verificaciones previas, condiciones especiales..."
-                          />
+                      {/* Vehículo del técnico */}
+                      <button
+                        type="button"
+                        onClick={() => setNewOT({ ...newOT, techHasVehicle: !newOT.techHasVehicle })}
+                        className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border-2 transition-all ${
+                          newOT.techHasVehicle
+                            ? 'bg-indigo-50 border-indigo-400 text-indigo-700'
+                            : 'bg-gray-50 border-gray-200 text-gray-500'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <span className="text-base">🚗</span>
+                          <div className="text-left">
+                            <p className="text-xs font-black uppercase tracking-wider">
+                              {newOT.techHasVehicle ? 'Técnico lleva vehículo' : 'Sin vehículo asignado'}
+                            </p>
+                            <p className="text-[10px] font-medium opacity-60 normal-case">
+                              {newOT.techHasVehicle ? 'Se solicitará checklist de vehículo al técnico' : 'Solo se pedirá checklist de equipo personal'}
+                            </p>
+                          </div>
                         </div>
-                      )}
+                        <div className={`h-6 w-10 rounded-full transition-colors relative shrink-0 ${newOT.techHasVehicle ? 'bg-indigo-500' : 'bg-gray-300'}`}>
+                          <div className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${newOT.techHasVehicle ? 'translate-x-4' : 'translate-x-0.5'}`} />
+                        </div>
+                      </button>
+
+                      {/* Metas para el técnico */}
+                      <div>
+                        <label className="text-[9px] font-mono font-bold uppercase tracking-[0.15em] text-gray-500 block mb-2">
+                          Metas del técnico <span className="normal-case text-gray-300">(visible en asistencia técnica)</span>
+                        </label>
+                        <textarea
+                          rows={3}
+                          className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-900 outline-none focus:border-gray-900 focus:ring-2 focus:ring-gray-900/5 transition-all resize-none placeholder:text-gray-300 leading-relaxed"
+                          value={newOT.techMetas}
+                          onChange={e => setNewOT({ ...newOT, techMetas: e.target.value })}
+                          placeholder="Objetivos a cumplir, material requerido, verificaciones previas, condiciones especiales..."
+                        />
+                      </div>
 
                       {/* Equipo apoyo */}
                       {availableTechs.filter(t => t.id !== newOT.leadTechId).length > 0 && (

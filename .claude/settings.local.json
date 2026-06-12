@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx prisma:*)",
+      "Bash(2)",
+      "Bash(node -e \":*)"
+    ]
+  }
+}
