@@ -41,7 +41,7 @@ function EppVisualStep({ values, onChange }) {
     <div className="space-y-5">
       {/* Imagen técnico con indicadores de estado */}
       <div className="flex justify-center">
-        <div className="relative" style={{ width: 220, height: 220 }}>
+        <div className="relative w-full max-w-[240px] aspect-square mx-auto">
           <img
             src="/tecnicos/svgtec.svg"
             className="w-full h-full object-contain select-none pointer-events-none"
@@ -76,7 +76,7 @@ function EppVisualStep({ values, onChange }) {
                 key={key}
                 onClick={() => onChange(key, v === true ? false : true)}
                 style={{ top, left, transform: 'translate(-50%, -50%)' }}
-                className="absolute z-10 flex flex-col items-center gap-0.5 active:scale-95 transition-transform"
+                className="absolute z-10 flex flex-col items-center gap-0.5 active:scale-95 transition-transform touch-manipulation"
               >
                 <div className="relative flex items-center">
                   {labelLeft && (
@@ -131,24 +131,24 @@ function EppVisualStep({ values, onChange }) {
                 <button
                   onClick={() => onChange(key, true)}
                   className={cn(
-                    'h-9 w-9 rounded-xl flex items-center justify-center border transition-all',
+                    'min-h-[44px] min-w-[44px] rounded-xl flex items-center justify-center border transition-all touch-manipulation',
                     v === true
                       ? 'bg-emerald-500 border-emerald-500 text-white shadow-sm'
-                      : 'bg-white border-gray-200 text-gray-400 hover:border-emerald-400 hover:text-emerald-500'
+                      : 'bg-white border-gray-200 text-gray-400 active:border-emerald-400 active:text-emerald-500'
                   )}
                 >
-                  <CheckCircle2 className="h-4 w-4" />
+                  <CheckCircle2 className="h-5 w-5" />
                 </button>
                 <button
                   onClick={() => onChange(key, false)}
                   className={cn(
-                    'h-9 w-9 rounded-xl flex items-center justify-center border transition-all',
+                    'min-h-[44px] min-w-[44px] rounded-xl flex items-center justify-center border transition-all touch-manipulation',
                     v === false
                       ? 'bg-red-500 border-red-500 text-white shadow-sm'
-                      : 'bg-white border-gray-200 text-gray-400 hover:border-red-400 hover:text-red-500'
+                      : 'bg-white border-gray-200 text-gray-400 active:border-red-400 active:text-red-500'
                   )}
                 >
-                  <XCircle className="h-4 w-4" />
+                  <XCircle className="h-5 w-5" />
                 </button>
               </div>
             </div>
@@ -188,24 +188,24 @@ function EppVisualStep({ values, onChange }) {
                 <button
                   onClick={() => onChange(key, true)}
                   className={cn(
-                    'h-9 w-9 rounded-xl flex items-center justify-center border transition-all',
+                    'min-h-[44px] min-w-[44px] rounded-xl flex items-center justify-center border transition-all touch-manipulation',
                     v === true
                       ? 'bg-emerald-500 border-emerald-500 text-white shadow-sm'
-                      : 'bg-white border-gray-200 text-gray-400 hover:border-emerald-400 hover:text-emerald-500'
+                      : 'bg-white border-gray-200 text-gray-400 active:border-emerald-400 active:text-emerald-500'
                   )}
                 >
-                  <CheckCircle2 className="h-4 w-4" />
+                  <CheckCircle2 className="h-5 w-5" />
                 </button>
                 <button
                   onClick={() => onChange(key, false)}
                   className={cn(
-                    'h-9 w-9 rounded-xl flex items-center justify-center border transition-all',
+                    'min-h-[44px] min-w-[44px] rounded-xl flex items-center justify-center border transition-all touch-manipulation',
                     v === false
                       ? 'bg-red-500 border-red-500 text-white shadow-sm'
-                      : 'bg-white border-gray-200 text-gray-400 hover:border-red-400 hover:text-red-500'
+                      : 'bg-white border-gray-200 text-gray-400 active:border-red-400 active:text-red-500'
                   )}
                 >
-                  <XCircle className="h-4 w-4" />
+                  <XCircle className="h-5 w-5" />
                 </button>
               </div>
             </div>
@@ -407,8 +407,11 @@ function ChecklistModal({ goal, techName, log: existingLog, onClose }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 flex items-end sm:items-center justify-center">
-      <div className="bg-white w-full sm:max-w-lg sm:rounded-3xl rounded-t-3xl max-h-[92vh] flex flex-col overflow-hidden shadow-2xl">
+    <div className="fixed inset-0 z-50 bg-black/60 flex items-end sm:items-center justify-center touch-none">
+      <div
+        className="bg-white w-full sm:max-w-lg sm:rounded-3xl rounded-t-3xl flex flex-col overflow-hidden shadow-2xl"
+        style={{ maxHeight: 'min(92dvh, 92svh, 92vh)' }}
+      >
 
         {/* ── Header comprimible ── */}
         <div className="bg-gray-950 px-4 pt-4 pb-3 rounded-t-3xl shrink-0">
@@ -430,13 +433,13 @@ function ChecklistModal({ goal, techName, log: existingLog, onClose }) {
             </div>
             <button
               onClick={() => setHeaderExpanded(e => !e)}
-              className="h-7 w-7 rounded-xl bg-white/10 flex items-center justify-center text-white/60 hover:bg-white/20 transition-all shrink-0"
+              className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl text-white/60 hover:text-white active:bg-white/20 transition-all shrink-0 touch-manipulation"
             >
-              <ChevronDown className={cn('h-3.5 w-3.5 transition-transform duration-200', headerExpanded ? 'rotate-180' : '')} />
+              <ChevronDown className={cn('h-4 w-4 transition-transform duration-200', headerExpanded ? 'rotate-180' : '')} />
             </button>
             <button onClick={onClose}
-              className="h-7 w-7 rounded-xl bg-white/10 flex items-center justify-center text-white hover:bg-white/20 transition-all shrink-0">
-              <X className="h-3.5 w-3.5" />
+              className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl text-white hover:text-white/70 active:bg-white/20 transition-all shrink-0 touch-manipulation">
+              <X className="h-4 w-4" />
             </button>
           </div>
 
@@ -486,7 +489,7 @@ function ChecklistModal({ goal, techName, log: existingLog, onClose }) {
         </div>
 
         {/* ── Contenido scrollable ── */}
-        <div className="flex-1 overflow-y-auto p-5 space-y-3">
+        <div className="flex-1 overflow-y-auto overscroll-contain p-4 space-y-3" style={{ WebkitOverflowScrolling: 'touch' }}>
 
           {/* Paso 0: EPP — Equipo de Protección Personal */}
           {modalStep === 0 && (
@@ -624,16 +627,19 @@ function ChecklistModal({ goal, techName, log: existingLog, onClose }) {
         </div>
 
         {/* ── Navegación ── */}
-        <div className="p-5 border-t border-gray-100 flex gap-3 shrink-0">
+        <div
+          className="px-4 pt-3 border-t border-gray-100 flex gap-3 shrink-0"
+          style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}
+        >
           {modalStep > 0 && (
             <button onClick={() => setModalStep(s => s - 1)}
-              className="flex items-center justify-center gap-1.5 px-5 py-3 rounded-2xl border border-gray-200 text-gray-600 text-[11px] font-black uppercase tracking-widest hover:bg-gray-50 transition-all">
+              className="flex items-center justify-center gap-1.5 px-5 min-h-[48px] rounded-2xl border border-gray-200 text-gray-600 text-[11px] font-black uppercase tracking-widest active:bg-gray-50 transition-all touch-manipulation">
               <ChevronLeft className="h-4 w-4" /> Atrás
             </button>
           )}
           {!isLast && (
             <button onClick={() => setModalStep(s => s + 1)} disabled={!canNext}
-              className="flex-1 flex items-center justify-center gap-1.5 py-3 rounded-2xl bg-primary text-white text-[11px] font-black uppercase tracking-widest hover:bg-primary/90 transition-all disabled:opacity-40">
+              className="flex-1 flex items-center justify-center gap-1.5 min-h-[48px] rounded-2xl bg-primary text-white text-[11px] font-black uppercase tracking-widest active:bg-primary/90 transition-all disabled:opacity-40 touch-manipulation">
               Siguiente <ChevronRight className="h-4 w-4" />
             </button>
           )}
