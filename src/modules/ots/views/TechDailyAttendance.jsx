@@ -712,12 +712,13 @@ export default function TechDailyAttendance() {
   })();
   const navigate = useNavigate();
 
-  const [goals,        setGoals]        = useState([]);
-  const [upcoming,     setUpcoming]     = useState([]);
-  const [log,          setLog]          = useState(null);
-  const [loading,      setLoading]      = useState(true);
-  const [confirmingId, setConfirmingId] = useState(null);
-  const [checklistModal, setChecklistModal] = useState(null);
+  const [goals,               setGoals]               = useState([]);
+  const [upcoming,            setUpcoming]            = useState([]);
+  const [log,                 setLog]                 = useState(null);
+  const [loading,             setLoading]             = useState(true);
+  const [confirmingId,        setConfirmingId]        = useState(null);
+  const [confirmingAttend,    setConfirmingAttend]    = useState(false);
+  const [checklistModal,      setChecklistModal]      = useState(null);
 
   const userId = user?.id;
 
@@ -744,6 +745,36 @@ export default function TechDailyAttendance() {
     if (!userId) return;
     load();
   }, [userId, load]);
+
+  const confirmAttendance = async () => {
+    if (!goals.length || !userId) return;
+    setConfirmingAttend(true);
+    try {
+      const now = new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', hour12: false });
+      // Crear o recuperar el log del día
+      let logId = log?.id;
+      if (!logId) {
+        const r = await apiFetch('/api/tech-attendance/log', {
+          method: 'POST',
+          body: JSON.stringify({ techId: userId, goalId: goals[0].id }),
+        });
+        if (!r.ok) throw new Error('No se pudo crear el log');
+        logId = (await r.json()).id;
+      }
+      // Registrar hora de entrada
+      const r2 = await apiFetch('/api/tech-attendance/log', {
+        method: 'PATCH',
+        body: JSON.stringify({ id: logId, checkInTime: now, status: 'CHECKED_IN' }),
+      });
+      if (!r2.ok) throw new Error('No se pudo registrar la hora');
+      const updated = await r2.json();
+      setLog(updated);
+    } catch (e) {
+      alert('Error al confirmar asistencia');
+    } finally {
+      setConfirmingAttend(false);
+    }
+  };
 
   const confirmGoal = async (goalId, confirmed) => {
     setConfirmingId(goalId);
@@ -846,6 +877,27 @@ export default function TechDailyAttendance() {
             </div>
           ))}
         </div>
+
+        {/* ── Botón Confirmar Asistencia ── */}
+        {goals.length > 0 && (
+          <div className="mt-4">
+            {log?.checkInTime ? (
+              <div className="flex items-center justify-center gap-2 py-3 rounded-2xl bg-emerald-500/20 border border-emerald-500/40">
+                <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
+                <span className="text-sm font-black text-emerald-300">Asistencia confirmada — {log.checkInTime}</span>
+              </div>
+            ) : (
+              <button
+                onClick={confirmAttendance}
+                disabled={confirmingAttend}
+                className="w-full min-h-[52px] rounded-2xl bg-emerald-500 text-white font-black text-sm uppercase tracking-widest flex items-center justify-center gap-2 active:bg-emerald-600 disabled:opacity-50 shadow-lg shadow-emerald-900/40 touch-manipulation transition-all"
+              >
+                <CheckCheck className="h-4 w-4" />
+                {confirmingAttend ? 'Registrando...' : 'Confirmar Asistencia'}
+              </button>
+            )}
+          </div>
+        )}
 
       </div>
 
