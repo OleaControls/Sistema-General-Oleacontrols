@@ -2,11 +2,13 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
 const PERSONAL_LABELS = {
-  uniform:      'Uniforme completo',
-  epp:          'EPP (casco, lentes, guantes, botas)',
-  toolsBasic:   'Herramientas básicas',
+  casco:        'Casco de seguridad',
+  lentes:       'Lentes de protección',
+  chaleco:      'Chaleco reflectante',
+  guantes:      'Guantes de trabajo',
+  botas:        'Botas de seguridad',
+  toolsGeneral: 'Herramientas generales',
   toolsSpecial: 'Herramientas especiales',
-  materials:    'Materiales / Refacciones',
 };
 
 const VEHICLE_LABELS = {
@@ -300,7 +302,7 @@ export async function generateAttendanceReportPDF(log, techName, goal, type = 'b
   // ── Sección Equipo Personal ─────────────────────────────────────────────────
   if ((type === 'personal' || type === 'both') && log.checklistPersonal) {
     renderChecklistSection(
-      'Checklist — Uniforme · EPP · Herramientas',
+      'Checklist — Equipo de Protección Personal (EPP)',
       [29, 78, 216],
       log.checklistPersonal,
       PERSONAL_LABELS,

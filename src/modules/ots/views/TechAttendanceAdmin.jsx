@@ -10,8 +10,9 @@ import { useAuth, ROLES } from '@/store/AuthContext';
 import { generateAttendanceReportPDF } from '../utils/attendanceReportPDF';
 
 const PERSONAL_LABELS = {
-  uniform: 'Uniforme', epp: 'EPP', toolsBasic: 'Herr. básicas',
-  toolsSpecial: 'Herr. especiales', materials: 'Materiales',
+  casco: 'Casco', lentes: 'Lentes', chaleco: 'Chaleco',
+  guantes: 'Guantes', botas: 'Botas',
+  toolsGeneral: 'Herr. generales', toolsSpecial: 'Herr. especiales',
 };
 const VEHICLE_LABELS = {
   fuel: 'Combustible', cleanInterior: 'Limp. interior',

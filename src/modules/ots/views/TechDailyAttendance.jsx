@@ -2,21 +2,27 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   MapPin, User2, Clock, CheckCircle2, XCircle, AlertTriangle, ChevronRight, ChevronLeft,
-  Send, Wrench, ShieldCheck, Car, Fuel, Sparkles, Gauge, Zap, HardHat,
-  Package, ClipboardList, CheckCheck, RotateCcw, ExternalLink, Target, X
+  Send, ShieldCheck, Car, Fuel, Sparkles, Gauge, HardHat, Glasses, Hand, Footprints,
+  Wrench, Zap, ClipboardList, CheckCheck, RotateCcw, ExternalLink, Target, X, ChevronDown
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { apiFetch } from '@/lib/api';
 import { useAuth } from '@/store/AuthContext';
 import { generateAttendanceReportPDF } from '../utils/attendanceReportPDF';
 
-// ── Constantes de checklist ──────────────────────────────────────────────────
-const PERSONAL_ITEMS = [
-  { key: 'uniform',      label: 'Uniforme completo',                   icon: User2 },
-  { key: 'epp',          label: 'EPP (casco, lentes, guantes, botas)', icon: HardHat },
-  { key: 'toolsBasic',   label: 'Herramientas básicas',                icon: Wrench },
-  { key: 'toolsSpecial', label: 'Herramientas especiales',             icon: Zap },
-  { key: 'materials',    label: 'Materiales / Refacciones',            icon: Package },
+// ── EPP — posiciones sobre la imagen corporal del técnico ────────────────────
+const EPP_SPOTS = [
+  { key: 'casco',   label: 'Casco',   icon: HardHat,    top: '9%',  left: '50%', labelLeft: true },
+  { key: 'lentes',  label: 'Lentes',  icon: Glasses,    top: '17%', left: '67%' },
+  { key: 'chaleco', label: 'Chaleco', icon: ShieldCheck, top: '35%', left: '50%' },
+  { key: 'guantes', label: 'Guantes', icon: Hand,       top: '57%', left: '76%' },
+  { key: 'botas',   label: 'Botas',   icon: Footprints, top: '87%', left: '50%' },
+];
+
+// ── Herramientas — sin hotspot en imagen ─────────────────────────────────────
+const TOOLS_ITEMS = [
+  { key: 'toolsGeneral', label: 'Herramientas generales',  icon: Wrench },
+  { key: 'toolsSpecial', label: 'Herramientas especiales', icon: Zap    },
 ];
 
 const VEHICLE_ITEMS = [
@@ -26,6 +32,189 @@ const VEHICLE_ITEMS = [
   { key: 'odometer',      label: 'Tacómetro',  icon: Gauge, isNumber: true },
   { key: 'functionality', label: 'Funcionalidad (luces, frenos, motor)', icon: CheckCheck },
 ];
+
+// ── EppVisualStep — imagen + hotspots + tarjetas ─────────────────────────────
+function EppVisualStep({ values, onChange }) {
+  const doneCount = EPP_SPOTS.filter(s => values[s.key] !== undefined).length;
+
+  return (
+    <div className="space-y-5">
+      {/* Imagen técnico con indicadores de estado */}
+      <div className="flex justify-center">
+        <div className="relative" style={{ width: 220, height: 220 }}>
+          <img
+            src="/tecnicos/svgtec.svg"
+            className="w-full h-full object-contain select-none pointer-events-none"
+            alt="Técnico EPP"
+            draggable={false}
+          />
+          {EPP_SPOTS.map(({ key, label, top, left, labelLeft }) => {
+            const v = values[key];
+            const pill = (
+              <span className={cn(
+                'text-[7px] font-black uppercase tracking-wide px-1.5 py-0.5 rounded-full whitespace-nowrap shadow-sm',
+                v === true  ? 'bg-emerald-500 text-white' :
+                v === false ? 'bg-red-500 text-white' :
+                              'bg-gray-900/80 text-white'
+              )}>
+                {label}
+              </span>
+            );
+            const dot = (
+              <div className={cn(
+                'h-6 w-6 rounded-full border-2 border-white shadow-lg transition-all duration-300 flex items-center justify-center shrink-0',
+                v === true  ? 'bg-emerald-500' :
+                v === false ? 'bg-red-500' :
+                              'bg-gray-500/80 animate-pulse'
+              )}>
+                {v === true  && <CheckCircle2 className="h-3.5 w-3.5 text-white" />}
+                {v === false && <XCircle       className="h-3.5 w-3.5 text-white" />}
+              </div>
+            );
+            return (
+              <button
+                key={key}
+                onClick={() => onChange(key, v === true ? false : true)}
+                style={{ top, left, transform: 'translate(-50%, -50%)' }}
+                className="absolute z-10 flex flex-col items-center gap-0.5 active:scale-95 transition-transform"
+              >
+                <div className="relative flex items-center">
+                  {labelLeft && (
+                    <span className="absolute right-full mr-1.5">{pill}</span>
+                  )}
+                  {dot}
+                </div>
+                {!labelLeft && pill}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Barra de progreso */}
+      <div className="flex items-center gap-3">
+        <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+          <div
+            className="h-full bg-emerald-500 rounded-full transition-all duration-500"
+            style={{ width: `${(doneCount / EPP_SPOTS.length) * 100}%` }}
+          />
+        </div>
+        <span className="text-[10px] font-black text-gray-500 tabular-nums shrink-0">
+          {doneCount}/{EPP_SPOTS.length}
+        </span>
+      </div>
+
+      {/* Tarjetas de verificación */}
+      <div className="space-y-2">
+        {EPP_SPOTS.map(({ key, label, icon: Icon }) => {
+          const v = values[key];
+          return (
+            <div
+              key={key}
+              className={cn(
+                'flex items-center gap-3 p-3 rounded-2xl border transition-all',
+                v === true  ? 'bg-emerald-50 border-emerald-200' :
+                v === false ? 'bg-red-50 border-red-200' :
+                              'bg-gray-50 border-gray-100'
+              )}
+            >
+              <div className={cn(
+                'h-9 w-9 rounded-xl flex items-center justify-center shrink-0',
+                v === true  ? 'bg-emerald-100 text-emerald-600' :
+                v === false ? 'bg-red-100 text-red-600' :
+                              'bg-white text-gray-400 border border-gray-200'
+              )}>
+                <Icon className="h-4 w-4" />
+              </div>
+              <p className="text-sm font-bold text-gray-800 flex-1">{label}</p>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => onChange(key, true)}
+                  className={cn(
+                    'h-9 w-9 rounded-xl flex items-center justify-center border transition-all',
+                    v === true
+                      ? 'bg-emerald-500 border-emerald-500 text-white shadow-sm'
+                      : 'bg-white border-gray-200 text-gray-400 hover:border-emerald-400 hover:text-emerald-500'
+                  )}
+                >
+                  <CheckCircle2 className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={() => onChange(key, false)}
+                  className={cn(
+                    'h-9 w-9 rounded-xl flex items-center justify-center border transition-all',
+                    v === false
+                      ? 'bg-red-500 border-red-500 text-white shadow-sm'
+                      : 'bg-white border-gray-200 text-gray-400 hover:border-red-400 hover:text-red-500'
+                  )}
+                >
+                  <XCircle className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* ── Herramientas (sin hotspot) ── */}
+      <div className="space-y-2 pt-1">
+        <div className="flex items-center gap-2 px-1">
+          <div className="h-px flex-1 bg-gray-200" />
+          <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Herramientas</p>
+          <div className="h-px flex-1 bg-gray-200" />
+        </div>
+        {TOOLS_ITEMS.map(({ key, label, icon: Icon }) => {
+          const v = values[key];
+          return (
+            <div
+              key={key}
+              className={cn(
+                'flex items-center gap-3 p-3 rounded-2xl border transition-all',
+                v === true  ? 'bg-emerald-50 border-emerald-200' :
+                v === false ? 'bg-red-50 border-red-200' :
+                              'bg-gray-50 border-gray-100'
+              )}
+            >
+              <div className={cn(
+                'h-9 w-9 rounded-xl flex items-center justify-center shrink-0',
+                v === true  ? 'bg-emerald-100 text-emerald-600' :
+                v === false ? 'bg-red-100 text-red-600' :
+                              'bg-white text-gray-400 border border-gray-200'
+              )}>
+                <Icon className="h-4 w-4" />
+              </div>
+              <p className="text-sm font-bold text-gray-800 flex-1">{label}</p>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => onChange(key, true)}
+                  className={cn(
+                    'h-9 w-9 rounded-xl flex items-center justify-center border transition-all',
+                    v === true
+                      ? 'bg-emerald-500 border-emerald-500 text-white shadow-sm'
+                      : 'bg-white border-gray-200 text-gray-400 hover:border-emerald-400 hover:text-emerald-500'
+                  )}
+                >
+                  <CheckCircle2 className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={() => onChange(key, false)}
+                  className={cn(
+                    'h-9 w-9 rounded-xl flex items-center justify-center border transition-all',
+                    v === false
+                      ? 'bg-red-500 border-red-500 text-white shadow-sm'
+                      : 'bg-white border-gray-200 text-gray-400 hover:border-red-400 hover:text-red-500'
+                  )}
+                >
+                  <XCircle className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 // ── CheckItem ────────────────────────────────────────────────────────────────
 function CheckItem({ item, value, onChange, disabled }) {
@@ -118,13 +307,14 @@ function CheckItem({ item, value, onChange, disabled }) {
 function ChecklistModal({ goal, techName, log: existingLog, onClose }) {
   const STEPS_DEF = ['Equipo Personal', ...(goal?.hasVehicle ? ['Vehículo'] : []), 'Resumen'];
 
-  const [modalStep,    setModalStep]    = useState(0);
-  const [mPersonal,    setMPersonal]    = useState({});
-  const [mVehicle,     setMVehicle]     = useState({});
-  const [mPNotes,      setMPNotes]      = useState('');
-  const [mVNotes,      setMVNotes]      = useState('');
-  const [generating,   setGenerating]   = useState(false);
-  const [sendStatus,   setSendStatus]   = useState(null); // null | 'sending' | 'sent' | 'error'
+  const [modalStep,       setModalStep]       = useState(0);
+  const [mPersonal,       setMPersonal]       = useState({});
+  const [mVehicle,        setMVehicle]        = useState({});
+  const [mPNotes,         setMPNotes]         = useState('');
+  const [mVNotes,         setMVNotes]         = useState('');
+  const [generating,      setGenerating]      = useState(false);
+  const [sendStatus,      setSendStatus]      = useState(null);
+  const [headerExpanded,  setHeaderExpanded]  = useState(false);
 
   const dateLabel = (() => {
     if (!goal?.date) return '';
@@ -134,9 +324,10 @@ function ChecklistModal({ goal, techName, log: existingLog, onClose }) {
     });
   })();
 
-  const pHasMissing  = PERSONAL_ITEMS.some(i => mPersonal[i.key] === false);
+  const ALL_PERSONAL = [...EPP_SPOTS, ...TOOLS_ITEMS];
+  const pHasMissing  = ALL_PERSONAL.some(i => mPersonal[i.key] === false);
   const vHasMissing  = goal?.hasVehicle && VEHICLE_ITEMS.filter(i => !i.isNumber).some(i => mVehicle[i.key] === false);
-  const pAllDone     = PERSONAL_ITEMS.every(i => mPersonal[i.key] !== undefined);
+  const pAllDone     = ALL_PERSONAL.every(i => mPersonal[i.key] !== undefined);
   const vAllDone     = !goal?.hasVehicle || VEHICLE_ITEMS.every(i => {
     const v = mVehicle[i.key];
     return i.isNumber ? (v !== undefined && v !== null && v !== '') : v !== undefined;
@@ -149,7 +340,7 @@ function ChecklistModal({ goal, techName, log: existingLog, onClose }) {
     setGenerating(true);
     setSendStatus(null);
     try {
-      const pMissing   = mPNotes || PERSONAL_ITEMS.filter(i => mPersonal[i.key] === false).map(i => i.label).join(', ') || null;
+      const pMissing   = mPNotes || ALL_PERSONAL.filter(i => mPersonal[i.key] === false).map(i => i.label).join(', ') || null;
       const vMissing   = mVNotes || VEHICLE_ITEMS.filter(i => !i.isNumber && mVehicle[i.key] === false).map(i => i.label).join(', ') || null;
       const hasMissing = pHasMissing || vHasMissing;
       const now        = new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', hour12: false });
@@ -219,49 +410,68 @@ function ChecklistModal({ goal, techName, log: existingLog, onClose }) {
     <div className="fixed inset-0 z-50 bg-black/60 flex items-end sm:items-center justify-center">
       <div className="bg-white w-full sm:max-w-lg sm:rounded-3xl rounded-t-3xl max-h-[92vh] flex flex-col overflow-hidden shadow-2xl">
 
-        {/* ── Header identificación ── */}
-        <div className="bg-gray-950 p-6 rounded-t-3xl shrink-0">
-          <div className="flex items-start justify-between gap-3 mb-3">
-            <div className="min-w-0">
-              <p className="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-0.5">Checklist de asistencia</p>
-              <div className="flex items-center gap-2 flex-wrap">
-                {goal?.otNumber && (
-                  <span className="text-[9px] font-black text-blue-400 bg-blue-900/40 px-2 py-0.5 rounded-full border border-blue-800/50 uppercase tracking-widest">
-                    {goal.otNumber}
-                  </span>
-                )}
-                {goal?.hasVehicle && (
-                  <span className="text-[9px] font-black text-indigo-400 bg-indigo-900/40 px-2 py-0.5 rounded-full border border-indigo-800/50 uppercase tracking-widest flex items-center gap-1">
-                    <Car className="h-2.5 w-2.5" /> Vehículo
-                  </span>
-                )}
-              </div>
-              <p className="text-base font-black text-white mt-1 truncate">{goal?.clientName || '—'}</p>
-              {goal?.clientLocation && <p className="text-[11px] font-bold text-gray-400 truncate">{goal.clientLocation}</p>}
+        {/* ── Header comprimible ── */}
+        <div className="bg-gray-950 px-4 pt-4 pb-3 rounded-t-3xl shrink-0">
+
+          {/* Fila principal — siempre visible */}
+          <div className="flex items-center gap-2 mb-3">
+            <div className="flex items-center gap-1.5 flex-1 min-w-0 flex-wrap">
+              {goal?.otNumber && (
+                <span className="text-[8px] font-black text-blue-400 bg-blue-900/40 px-2 py-0.5 rounded-full border border-blue-800/50 uppercase tracking-widest shrink-0">
+                  {goal.otNumber}
+                </span>
+              )}
+              {goal?.hasVehicle && (
+                <span className="text-[8px] font-black text-indigo-400 bg-indigo-900/40 px-2 py-0.5 rounded-full border border-indigo-800/50 uppercase tracking-widest flex items-center gap-1 shrink-0">
+                  <Car className="h-2.5 w-2.5" /> Vehículo
+                </span>
+              )}
+              <p className="text-sm font-black text-white truncate">{goal?.clientName || '—'}</p>
             </div>
+            <button
+              onClick={() => setHeaderExpanded(e => !e)}
+              className="h-7 w-7 rounded-xl bg-white/10 flex items-center justify-center text-white/60 hover:bg-white/20 transition-all shrink-0"
+            >
+              <ChevronDown className={cn('h-3.5 w-3.5 transition-transform duration-200', headerExpanded ? 'rotate-180' : '')} />
+            </button>
             <button onClick={onClose}
-              className="h-9 w-9 rounded-2xl bg-white/10 flex items-center justify-center text-white hover:bg-white/20 transition-all shrink-0">
-              <X className="h-4 w-4" />
+              className="h-7 w-7 rounded-xl bg-white/10 flex items-center justify-center text-white hover:bg-white/20 transition-all shrink-0">
+              <X className="h-3.5 w-3.5" />
             </button>
           </div>
 
-          {/* Datos técnico + fecha */}
-          <div className="flex items-center gap-2 flex-wrap mb-4">
-            <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">{techName}</span>
-            {dateLabel && <><span className="text-gray-600">·</span><span className="text-[9px] font-bold text-gray-500">{dateLabel}</span></>}
-            {existingLog?.checkInTime && <><span className="text-gray-600">·</span><span className="text-[9px] font-black text-emerald-400 flex items-center gap-1"><Clock className="h-2.5 w-2.5" />{existingLog.checkInTime}</span></>}
-          </div>
+          {/* Detalles expandibles */}
+          {headerExpanded && (
+            <div className="mb-3 pb-3 border-b border-white/10 space-y-1">
+              {goal?.clientLocation && (
+                <p className="text-[10px] font-bold text-gray-400 truncate">{goal.clientLocation}</p>
+              )}
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest">{techName}</span>
+                {dateLabel && (
+                  <><span className="text-gray-600">·</span>
+                  <span className="text-[8px] font-bold text-gray-500">{dateLabel}</span></>
+                )}
+                {existingLog?.checkInTime && (
+                  <><span className="text-gray-600">·</span>
+                  <span className="text-[8px] font-black text-emerald-400 flex items-center gap-1">
+                    <Clock className="h-2.5 w-2.5" />{existingLog.checkInTime}
+                  </span></>
+                )}
+              </div>
+            </div>
+          )}
 
-          {/* Stepper */}
+          {/* Stepper — siempre visible */}
           <div className="flex items-center gap-2">
             {STEPS_DEF.map((s, i) => (
               <React.Fragment key={s}>
                 <div className={cn('flex flex-col items-center gap-0.5', i <= modalStep ? 'opacity-100' : 'opacity-30')}>
                   <div className={cn(
                     'h-6 w-6 rounded-full flex items-center justify-center text-[9px] font-black border-2 transition-all',
-                    i < modalStep  ? 'bg-emerald-500 border-emerald-500 text-white' :
+                    i < modalStep   ? 'bg-emerald-500 border-emerald-500 text-white' :
                     i === modalStep ? 'bg-primary border-primary text-white' :
-                                     'bg-white/10 border-white/20 text-white'
+                                      'bg-white/10 border-white/20 text-white'
                   )}>
                     {i < modalStep ? <CheckCircle2 className="h-3 w-3" /> : i + 1}
                   </div>
@@ -278,26 +488,24 @@ function ChecklistModal({ goal, techName, log: existingLog, onClose }) {
         {/* ── Contenido scrollable ── */}
         <div className="flex-1 overflow-y-auto p-5 space-y-3">
 
-          {/* Paso 0: Equipo Personal */}
+          {/* Paso 0: EPP — Equipo de Protección Personal */}
           {modalStep === 0 && (
             <>
-              <div className="flex items-center gap-3 mb-4">
+              <div className="flex items-center gap-3 mb-5">
                 <div className="h-10 w-10 rounded-2xl bg-blue-50 flex items-center justify-center shrink-0">
                   <ShieldCheck className="h-5 w-5 text-blue-600" />
                 </div>
                 <div>
                   <h2 className="text-base font-black text-gray-900">Equipo Personal</h2>
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Uniforme · EPP · Herramientas</p>
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Casco · Lentes · Chaleco · Guantes · Botas</p>
                 </div>
               </div>
-              <div className="space-y-3">
-                {PERSONAL_ITEMS.map(item => (
-                  <CheckItem key={item.key} item={item} value={mPersonal[item.key]}
-                    onChange={(k, v) => setMPersonal(p => ({ ...p, [k]: v }))} disabled={false} />
-                ))}
-              </div>
+              <EppVisualStep
+                values={mPersonal}
+                onChange={(k, v) => setMPersonal(p => ({ ...p, [k]: v }))}
+              />
               {pHasMissing && (
-                <div className="space-y-2 pt-1">
+                <div className="space-y-2 pt-2">
                   <div className="flex items-center gap-2 p-3 bg-amber-50 rounded-2xl border border-amber-200">
                     <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
                     <p className="text-xs font-bold text-amber-700">Ítems faltantes — se incluirán en el reporte PDF.</p>
@@ -348,13 +556,22 @@ function ChecklistModal({ goal, techName, log: existingLog, onClose }) {
               <div className="bg-gray-50 rounded-2xl p-4 border border-gray-100 space-y-3">
                 <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Resumen del checklist</p>
                 <div className="space-y-1.5">
-                  <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-2">Equipo personal</p>
-                  {PERSONAL_ITEMS.map(i => (
-                    <div key={i.key} className="flex items-center gap-2">
-                      {mPersonal[i.key] === true
+                  <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-2">EPP</p>
+                  {EPP_SPOTS.map(s => (
+                    <div key={s.key} className="flex items-center gap-2">
+                      {mPersonal[s.key] === true
                         ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
                         : <XCircle className="h-3.5 w-3.5 text-red-400 shrink-0" />}
-                      <span className="text-xs font-bold text-gray-700">{i.label}</span>
+                      <span className="text-xs font-bold text-gray-700">{s.label}</span>
+                    </div>
+                  ))}
+                  <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mt-2 mb-1">Herramientas</p>
+                  {TOOLS_ITEMS.map(t => (
+                    <div key={t.key} className="flex items-center gap-2">
+                      {mPersonal[t.key] === true
+                        ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                        : <XCircle className="h-3.5 w-3.5 text-red-400 shrink-0" />}
+                      <span className="text-xs font-bold text-gray-700">{t.label}</span>
                     </div>
                   ))}
                 </div>
