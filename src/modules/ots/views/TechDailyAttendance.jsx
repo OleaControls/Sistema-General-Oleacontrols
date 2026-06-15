@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   MapPin, User2, Clock, CheckCircle2, XCircle, AlertTriangle, ChevronRight, ChevronLeft,
   Send, ShieldCheck, Car, Fuel, Sparkles, Gauge, HardHat, Glasses, Hand, Footprints,
-  Wrench, Zap, ClipboardList, CheckCheck, RotateCcw, ExternalLink, Target, X, ChevronDown
+  Wrench, Zap, ClipboardList, CheckCheck, RotateCcw, ExternalLink, Target, X, ChevronDown, Download
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { apiFetch } from '@/lib/api';
@@ -313,6 +313,7 @@ function ChecklistModal({ goal, techName, log: existingLog, onClose }) {
   const [mPNotes,         setMPNotes]         = useState('');
   const [mVNotes,         setMVNotes]         = useState('');
   const [generating,      setGenerating]      = useState(false);
+  const [downloading,     setDownloading]     = useState(false);
   const [sendStatus,      setSendStatus]      = useState(null);
   const [headerExpanded,  setHeaderExpanded]  = useState(false);
 
@@ -336,54 +337,62 @@ function ChecklistModal({ goal, techName, log: existingLog, onClose }) {
   const canNext = modalStep === 0 ? pAllDone : vAllDone;
   const isLast  = modalStep === STEPS_DEF.length - 1;
 
-  const handleGenerate = async () => {
+  // PDF solo se genera cuando todo está respondido y si hay faltantes, las notas están llenas
+  const pNotesRequired = pHasMissing && mPNotes.trim() === '';
+  const vNotesRequired = goal?.hasVehicle && vHasMissing && mVNotes.trim() === '';
+  const canGenerate = pAllDone && vAllDone && !pNotesRequired && !vNotesRequired;
+
+  const buildPdfParams = () => {
+    const now         = new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', hour12: false });
+    const pMissing    = mPNotes || ALL_PERSONAL.filter(i => mPersonal[i.key] === false).map(i => i.label).join(', ') || null;
+    const vMissing    = mVNotes || VEHICLE_ITEMS.filter(i => !i.isNumber && mVehicle[i.key] === false).map(i => i.label).join(', ') || null;
+    const checkInTime = existingLog?.checkInTime || now;
+    const type        = goal?.hasVehicle ? 'both' : 'personal';
+    const logData     = { date: goal.date, checklistPersonal: mPersonal,
+                          checklistVehicle: goal.hasVehicle ? mVehicle : null,
+                          personalMissing: pMissing, vehicleMissing: vMissing, checkInTime };
+    return { now, pMissing, vMissing, checkInTime, type, logData };
+  };
+
+  const saveLog = async (pMissing, vMissing, now) => {
+    let logId = existingLog?.id;
+    if (!logId) {
+      const r = await apiFetch('/api/tech-attendance/log', {
+        method: 'POST',
+        body: JSON.stringify({ techId: goal.techId, goalId: goal.id }),
+      });
+      if (r.ok) logId = (await r.json()).id;
+    }
+    if (logId) {
+      await apiFetch('/api/tech-attendance/log', {
+        method: 'PATCH',
+        body: JSON.stringify({
+          id: logId,
+          checklistPersonal:  mPersonal,
+          checklistVehicle:   goal.hasVehicle ? mVehicle : null,
+          personalMissing:    pMissing,
+          vehicleMissing:     vMissing,
+          personalReportSent: pHasMissing || false,
+          vehicleReportSent:  (goal.hasVehicle && vHasMissing) || false,
+          checkInTime:        existingLog?.checkInTime || now,
+          status:             'COMPLETE',
+        }),
+      });
+    }
+  };
+
+  // Botón principal: guarda en BD + envía PDF a supervisores (sin descarga local)
+  const handleSend = async () => {
     setGenerating(true);
     setSendStatus(null);
     try {
-      const pMissing   = mPNotes || ALL_PERSONAL.filter(i => mPersonal[i.key] === false).map(i => i.label).join(', ') || null;
-      const vMissing   = mVNotes || VEHICLE_ITEMS.filter(i => !i.isNumber && mVehicle[i.key] === false).map(i => i.label).join(', ') || null;
-      const hasMissing = pHasMissing || vHasMissing;
-      const now        = new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', hour12: false });
+      const { now, pMissing, vMissing, type, logData } = buildPdfParams();
+      await saveLog(pMissing, vMissing, now);
 
-      // 1. Crear log si no existe y guardar datos del checklist en BD
-      let logId = existingLog?.id;
-      if (!logId) {
-        const createRes = await apiFetch('/api/tech-attendance/log', {
-          method: 'POST',
-          body: JSON.stringify({ techId: goal.techId, goalId: goal.id }),
-        });
-        if (createRes.ok) {
-          const created = await createRes.json();
-          logId = created.id;
-        }
-      }
-      if (logId) {
-        await apiFetch('/api/tech-attendance/log', {
-          method: 'PATCH',
-          body: JSON.stringify({
-            id: logId,
-            checklistPersonal:  mPersonal,
-            checklistVehicle:   goal.hasVehicle ? mVehicle : null,
-            personalMissing:    pMissing,
-            vehicleMissing:     vMissing,
-            personalReportSent: pHasMissing || false,
-            vehicleReportSent:  (goal.hasVehicle && vHasMissing) || false,
-            checkInTime:        existingLog?.checkInTime || now,
-            status:             'COMPLETE',
-          }),
-        });
-      }
-
-      // 2. Generar PDF
-      const checkInTime = existingLog?.checkInTime || now;
       const { blob, filename } = await generateAttendanceReportPDF(
-        { date: goal.date, checklistPersonal: mPersonal,
-          checklistVehicle: goal.hasVehicle ? mVehicle : null,
-          personalMissing: pMissing, vehicleMissing: vMissing, checkInTime },
-        techName, goal, goal?.hasVehicle ? 'both' : 'personal'
+        logData, techName, goal, type, { download: false }
       );
 
-      // 3. Enviar PDF al supervisor vía Telegram
       setSendStatus('sending');
       const pdfBase64 = await new Promise((resolve) => {
         const reader = new FileReader();
@@ -391,6 +400,7 @@ function ChecklistModal({ goal, techName, log: existingLog, onClose }) {
         reader.readAsDataURL(blob);
       });
 
+      const hasMissing = pHasMissing || vHasMissing;
       const caption = hasMissing
         ? `⚠️ <b>Reporte de Faltantes</b>\n👷 <b>Técnico:</b> ${techName}${goal?.otNumber ? `\n🔧 <b>OT:</b> ${goal.otNumber}` : ''}\n👤 <b>Cliente:</b> ${goal?.clientName || '—'}`
         : `✅ <b>Checklist Completado</b>\n👷 <b>Técnico:</b> ${techName}${goal?.otNumber ? `\n🔧 <b>OT:</b> ${goal.otNumber}` : ''}\n👤 <b>Cliente:</b> ${goal?.clientName || '—'}`;
@@ -401,9 +411,21 @@ function ChecklistModal({ goal, techName, log: existingLog, onClose }) {
       });
       setSendStatus(res.ok ? 'sent' : 'error');
     } catch {
-      alert('Error al generar PDF');
+      alert('Error al enviar reporte');
       setSendStatus('error');
     } finally { setGenerating(false); }
+  };
+
+  // Botón opcional: descarga PDF localmente
+  const handleDownload = async () => {
+    setDownloading(true);
+    try {
+      const { now, pMissing, vMissing, type, logData } = buildPdfParams();
+      await saveLog(pMissing, vMissing, now);
+      await generateAttendanceReportPDF(logData, techName, goal, type, { download: true });
+    } catch {
+      alert('Error al descargar PDF');
+    } finally { setDownloading(false); }
   };
 
   return (
@@ -600,27 +622,55 @@ function ChecklistModal({ goal, techName, log: existingLog, onClose }) {
                 )}
               </div>
 
-              <button onClick={handleGenerate} disabled={generating || sendStatus === 'sent'}
+              {/* Aviso cuando faltan notas de recursos faltantes */}
+              {(pNotesRequired || vNotesRequired) && (
+                <div className="flex items-start gap-2 p-3 bg-amber-50 rounded-2xl border border-amber-200">
+                  <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                  <p className="text-xs font-bold text-amber-700">
+                    {pNotesRequired && vNotesRequired
+                      ? 'Describe los recursos faltantes del equipo personal y del vehículo para poder generar el reporte.'
+                      : pNotesRequired
+                      ? 'Describe qué falta en el equipo personal para poder generar el reporte.'
+                      : 'Describe los recursos faltantes del vehículo para poder generar el reporte.'}
+                  </p>
+                </div>
+              )}
+
+              {/* Botón principal: Enviar a supervisores */}
+              <button
+                onClick={handleSend}
+                disabled={!canGenerate || generating || sendStatus === 'sent'}
                 className={cn(
-                  'w-full py-4 rounded-2xl font-black text-sm uppercase tracking-widest flex items-center justify-center gap-2 transition-all disabled:opacity-50',
+                  'w-full min-h-[52px] rounded-2xl font-black text-sm uppercase tracking-widest flex items-center justify-center gap-2 transition-all disabled:opacity-50 touch-manipulation',
                   sendStatus === 'sent'
                     ? 'bg-emerald-500 text-white'
                     : (pHasMissing || vHasMissing)
-                      ? 'bg-amber-500 text-white hover:bg-amber-600 shadow-lg shadow-amber-200'
-                      : 'bg-blue-600 text-white hover:bg-blue-700 shadow-lg shadow-blue-200'
-                )}>
+                      ? 'bg-amber-500 text-white active:bg-amber-600 shadow-lg shadow-amber-200'
+                      : 'bg-blue-600 text-white active:bg-blue-700 shadow-lg shadow-blue-200'
+                )}
+              >
                 <Send className="h-4 w-4" />
                 {generating
-                  ? 'Generando PDF...'
+                  ? 'Generando...'
                   : sendStatus === 'sending'
                   ? 'Enviando a supervisores...'
                   : sendStatus === 'sent'
-                  ? 'PDF enviado a supervisores ✓'
+                  ? 'Reporte enviado a supervisores ✓'
                   : sendStatus === 'error'
                   ? 'Error al enviar — reintentar'
                   : (pHasMissing || vHasMissing)
-                  ? 'Generar y Enviar Reporte de Faltantes'
-                  : 'Descargar y Enviar Reporte al Supervisor'}
+                  ? 'Enviar Reporte de Faltantes'
+                  : 'Enviar Reporte al Supervisor'}
+              </button>
+
+              {/* Botón secundario: Descargar PDF (opcional) */}
+              <button
+                onClick={handleDownload}
+                disabled={!canGenerate || downloading || generating}
+                className="w-full min-h-[44px] rounded-2xl border border-gray-200 text-gray-500 text-[11px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all active:bg-gray-50 disabled:opacity-40 touch-manipulation"
+              >
+                <Download className="h-3.5 w-3.5" />
+                {downloading ? 'Generando PDF...' : 'Descargar PDF (opcional)'}
               </button>
             </div>
           )}

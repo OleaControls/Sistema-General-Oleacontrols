@@ -43,7 +43,7 @@ const loadPngAsBase64 = async (url) => {
  * @param {object} goal      - TechDailyGoal (puede ser null)
  * @param {'personal'|'vehicle'|'both'} type - qué secciones incluir
  */
-export async function generateAttendanceReportPDF(log, techName, goal, type = 'both') {
+export async function generateAttendanceReportPDF(log, techName, goal, type = 'both', { download = true } = {}) {
 
   // ── Carga de logo ───────────────────────────────────────────────────────────
   const insigniaUrl = await loadPngAsBase64('/img/Insignia.png');
@@ -354,6 +354,6 @@ export async function generateAttendanceReportPDF(log, techName, goal, type = 'b
   const safeName = (techName || 'tecnico').replace(/\s+/g, '_');
   const dateISO  = new Date(log.date || log.createdAt).toISOString().slice(0, 10);
   const filename = `Reporte_Asistencia_${safeName}_${dateISO}.pdf`;
-  doc.save(filename);
+  if (download) doc.save(filename);
   return { blob: doc.output('blob'), filename };
 }
