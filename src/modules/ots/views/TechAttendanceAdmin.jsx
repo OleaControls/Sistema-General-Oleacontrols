@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   MapPin, User2, Plus, Trash2, AlertTriangle, CheckCircle2, XCircle,
-  Clock, ChevronLeft, ChevronRight, ClipboardList, Car, ShieldCheck, Pencil, FileDown
+  Clock, ChevronLeft, ChevronRight, ClipboardList, Car, ShieldCheck, Pencil, FileDown,
+  ScanSearch
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { apiFetch } from '@/lib/api';
@@ -35,7 +36,9 @@ export default function TechAttendanceAdmin() {
   const [saving,     setSaving]     = useState(false);
   const [form,       setForm]       = useState({ techId: '', clientName: '', clientLocation: '', notes: '', otNumber: '', hasVehicle: false });
   const [editGoalId, setEditGoalId] = useState(null);
-  const [activeTab,  setActiveTab]  = useState('goals'); // 'goals' | 'reports'
+  const [activeTab,       setActiveTab]       = useState('goals'); // 'goals' | 'reports' | 'panoramizacion'
+  const [panoramizaciones, setPanoramizaciones] = useState([]);
+  const [loadingPanora,   setLoadingPanora]   = useState(false);
 
   useEffect(() => {
     hrService.getEmployees().then(data => {
@@ -58,6 +61,19 @@ export default function TechAttendanceAdmin() {
   }, [viewDate]);
 
   useEffect(() => { load(); }, [load]);
+
+  const loadPanoramizaciones = useCallback(async () => {
+    setLoadingPanora(true);
+    try {
+      const r = await apiFetch('/api/tech-attendance/panoramizacion');
+      setPanoramizaciones(r.ok ? await r.json() : []);
+    } catch { /* silencioso */ }
+    finally { setLoadingPanora(false); }
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === 'panoramizacion') loadPanoramizaciones();
+  }, [activeTab, loadPanoramizaciones]);
 
   const prevDay = () => {
     const [y, m, day] = viewDate.split('-').map(Number);
@@ -141,8 +157,9 @@ export default function TechAttendanceAdmin() {
       {/* Tabs */}
       <div className="flex gap-1 bg-gray-100 p-1 rounded-2xl w-fit">
         {[
-          { id: 'goals',   label: 'Metas del día',  icon: ClipboardList },
-          { id: 'reports', label: `Reportes (${reports.length})`, icon: AlertTriangle },
+          { id: 'goals',           label: 'Metas del día',      icon: ClipboardList },
+          { id: 'reports',         label: `Reportes (${reports.length})`, icon: AlertTriangle },
+          { id: 'panoramizacion',  label: 'Panoramización',     icon: ScanSearch },
         ].map(t => (
           <button
             key={t.id}
@@ -321,6 +338,65 @@ export default function TechAttendanceAdmin() {
                     {log.vehicleMissing && <p className="text-xs font-bold text-amber-800 italic">"{log.vehicleMissing}"</p>}
                   </div>
                 )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ── TAB: PANORAMIZACIÓN ─────────────────────────────────────────────── */}
+      {activeTab === 'panoramizacion' && (
+        <div className="space-y-4">
+          {loadingPanora ? (
+            <div className="flex justify-center py-12">
+              <div className="w-7 h-7 border-2 border-violet-400 border-t-transparent rounded-full animate-spin" />
+            </div>
+          ) : panoramizaciones.length === 0 ? (
+            <div className="bg-white rounded-3xl p-10 border border-gray-100 shadow-sm text-center">
+              <ScanSearch className="h-10 w-10 text-violet-200 mx-auto mb-3" />
+              <p className="font-black text-gray-400 text-sm">Sin panoramizaciones registradas</p>
+              <p className="text-gray-300 text-[10px] font-bold uppercase tracking-widest mt-1">Los técnicos las completan al llegar al sitio</p>
+            </div>
+          ) : panoramizaciones.map(p => {
+            const tech = p.tech;
+            const dateStr = new Date(p.createdAt).toLocaleDateString('es-MX', {
+              weekday: 'short', day: '2-digit', month: 'short', year: 'numeric',
+              hour: '2-digit', minute: '2-digit'
+            });
+            const FIELDS = [
+              { key: 'condicionesSitio', label: 'Condiciones del sitio' },
+              { key: 'planEjecucion',    label: 'Plan de ejecución' },
+              { key: 'requerimientos',   label: 'Requerimientos' },
+              { key: 'bloqueos',         label: 'Bloqueos o riesgos' },
+            ];
+            return (
+              <div key={p.id} className="bg-white rounded-3xl p-6 border border-violet-100 shadow-sm space-y-4">
+                {/* Header */}
+                <div className="flex items-center gap-3">
+                  {tech?.avatar
+                    ? <img src={tech.avatar} className="h-10 w-10 rounded-2xl object-cover border" alt="" />
+                    : <div className="h-10 w-10 rounded-2xl bg-violet-100 flex items-center justify-center text-sm font-black text-violet-600">{(tech?.name || '?').charAt(0)}</div>
+                  }
+                  <div className="flex-1 min-w-0">
+                    <p className="font-black text-gray-900 text-sm">{tech?.name || p.techId}</p>
+                    <p className="text-[10px] font-bold text-gray-400 truncate">{dateStr}</p>
+                  </div>
+                  <span className="text-[9px] font-black text-violet-700 bg-violet-100 border border-violet-200 px-2.5 py-1 rounded-full uppercase tracking-widest shrink-0">
+                    {p.otNumber}
+                  </span>
+                </div>
+
+                {/* Respuestas */}
+                <div className="space-y-3">
+                  {FIELDS.map(f => (
+                    <div key={f.key} className="rounded-2xl bg-gray-50 border border-gray-100 p-4">
+                      <p className="text-[9px] font-black text-violet-600 uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
+                        <ScanSearch className="h-3 w-3" /> {f.label}
+                      </p>
+                      <p className="text-sm font-bold text-gray-800 leading-relaxed">{p[f.key]}</p>
+                    </div>
+                  ))}
+                </div>
               </div>
             );
           })}

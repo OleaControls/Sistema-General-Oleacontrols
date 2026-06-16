@@ -97,6 +97,7 @@ export default function OTDetail() {
   const { user } = useAuth();
   const [ot, setOt] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false);
   const [activeTab, setActiveTab] = useState('INFO');
   const [isFinishModalOpen, setIsFinishModalOpen] = useState(false);
   const [isFundsModalOpen, setIsFundsModalOpen] = useState(false);
@@ -175,11 +176,13 @@ export default function OTDetail() {
 
   const loadOT = async () => {
     setLoading(true);
+    setNotFound(false);
     try {
         const data = await otService.getOTDetail(id);
+        if (!data) { setNotFound(true); return; }
         setOt(data);
     } catch (err) {
-        console.error(err);
+        setNotFound(true);
     } finally {
         setLoading(false);
     }
@@ -370,7 +373,19 @@ export default function OTDetail() {
       <div className="bg-white border border-gray-100 rounded-[2rem] h-64" />
     </div>
   );
-  if (!ot) return <div className="p-10 text-center font-bold text-red-400 italic">Orden no encontrada.</div>;
+  if (notFound || !ot) return (
+    <div className="max-w-lg mx-auto pt-20 text-center space-y-4 px-6">
+      <div className="h-16 w-16 rounded-3xl bg-gray-100 flex items-center justify-center mx-auto">
+        <AlertTriangle className="h-8 w-8 text-gray-400" />
+      </div>
+      <h2 className="text-xl font-black text-gray-800">OT no encontrada</h2>
+      <p className="text-sm font-bold text-gray-400">La orden <span className="text-gray-600">{id}</span> fue eliminada o no existe.</p>
+      <button onClick={() => navigate(-1)}
+        className="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-gray-900 text-white font-black text-sm uppercase tracking-widest">
+        <ChevronLeft className="h-4 w-4" /> Regresar
+      </button>
+    </div>
+  );
 
   // ── Meta helpers ─────────────────────────────────────────────────────────
   const STATUS_MAP = {

@@ -526,6 +526,22 @@ export default async function handler(req, res) {
           // 3. Evaluaciones vinculadas a esta OT
           await prisma.evaluation.deleteMany({ where: { otId: targetOT.id } });
 
+          // 4. Datos de asistencia vinculados al otNumber
+          if (targetOT.otNumber) {
+            // Logs de asistencia cuyo goal tenga este otNumber
+            const goals = await prisma.techDailyGoal.findMany({
+              where: { otNumber: targetOT.otNumber },
+              select: { id: true },
+            });
+            if (goals.length > 0) {
+              const goalIds = goals.map(g => g.id);
+              await prisma.techAttendanceLog.deleteMany({ where: { goalId: { in: goalIds } } });
+              await prisma.techDailyGoal.deleteMany({ where: { id: { in: goalIds } } });
+            }
+            // Panoramización del sitio
+            await prisma.otPanoramizacion.deleteMany({ where: { otNumber: targetOT.otNumber } });
+          }
+
           // Finalmente eliminar la OT
           await prisma.workOrder.delete({ where: { id: targetOT.id } });
           

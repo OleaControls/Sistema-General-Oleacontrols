@@ -125,6 +125,7 @@ model Employee {
   techGoals         TechDailyGoal[]    @relation("TechGoals")
   goalsSet          TechDailyGoal[]    @relation("GoalSetBy")
   techAttendance    TechAttendanceLog[]
+  panoramizaciones  OtPanoramizacion[]
 
   @@index([status])
   @@index([department])
@@ -697,6 +698,25 @@ model PersonalAudit {
   createdAt   DateTime @default(now())
 
   @@index([employeeId])
+}
+
+// ── Panoramización de sitio — una por OT ────────────────────────────────────
+model OtPanoramizacion {
+  id               String   @id @default(cuid())
+  otNumber         String   @unique   // Una sola panoramización por OT
+  techId           String
+  tech             Employee @relation(fields: [techId], references: [id])
+  goalId           String?
+
+  condicionesSitio String   // Estado físico del área al llegar
+  planEjecucion    String   // Estrategia, ruta o método de instalación
+  requerimientos   String   // Materiales, herramientas, equipo de apoyo
+  bloqueos         String   // Obstáculos, falta de acceso, riesgos
+
+  createdAt        DateTime @default(now())
+
+  @@index([techId])
+  @@index([createdAt])
 }
 
 model CalendarEvent {

@@ -205,6 +205,48 @@ export default async function handler(req, res) {
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
+    // PANORAMIZACIÓN DE SITIO — /api/tech-attendance/panoramizacion
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    // GET — consultar por otNumber (o listar todas para supervisor)
+    if (method === 'GET' && resource === 'panoramizacion') {
+      const { otNumber, techId, limit } = req.query;
+      if (otNumber) {
+        const p = await prisma.otPanoramizacion.findUnique({
+          where: { otNumber },
+          include: { tech: { select: { id: true, name: true, avatar: true } } },
+        });
+        return res.status(200).json(p || null);
+      }
+      const where = {};
+      if (techId) where.techId = techId;
+      const panoramizaciones = await prisma.otPanoramizacion.findMany({
+        where,
+        include: { tech: { select: { id: true, name: true, avatar: true } } },
+        orderBy: { createdAt: 'desc' },
+        take: limit ? Number(limit) : 100,
+      });
+      return res.status(200).json(panoramizaciones);
+    }
+
+    // POST — guardar panoramización (una por OT, upsert seguro)
+    if (method === 'POST' && resource === 'panoramizacion') {
+      const { otNumber, techId, goalId, condicionesSitio, planEjecucion, requerimientos, bloqueos } = body;
+      if (!otNumber || !techId || !condicionesSitio || !planEjecucion || !requerimientos || !bloqueos)
+        return res.status(400).json({ error: 'Todos los campos son requeridos' });
+
+      // Si ya existe, no sobreescribir (solo una por OT)
+      const existing = await prisma.otPanoramizacion.findUnique({ where: { otNumber } });
+      if (existing) return res.status(200).json(existing);
+
+      const panoramizacion = await prisma.otPanoramizacion.create({
+        data: { otNumber, techId, goalId: goalId || null, condicionesSitio, planEjecucion, requerimientos, bloqueos },
+        include: { tech: { select: { id: true, name: true, avatar: true } } },
+      });
+      return res.status(200).json(panoramizacion);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
     // ENVÍO PDF A SUPERVISORES VÍA TELEGRAM — /api/tech-attendance/send-report
     // ═══════════════════════════════════════════════════════════════════════════
 

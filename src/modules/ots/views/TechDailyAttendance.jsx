@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import {
   MapPin, User2, Clock, CheckCircle2, XCircle, AlertTriangle, ChevronRight, ChevronLeft,
   Send, ShieldCheck, Car, Fuel, Sparkles, Gauge, HardHat, Glasses, Hand, Footprints,
-  Wrench, Zap, ClipboardList, CheckCheck, RotateCcw, ExternalLink, Target, X, ChevronDown, Download
+  Wrench, Zap, ClipboardList, CheckCheck, RotateCcw, ExternalLink, Target, X, ChevronDown, Download,
+  ScanSearch, HardDriveUpload, Boxes, TriangleAlert
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { apiFetch } from '@/lib/api';
@@ -299,6 +300,143 @@ function CheckItem({ item, value, onChange, disabled }) {
           {value ? 'OK' : 'Faltante'}
         </span>
       )}
+    </div>
+  );
+}
+
+// ── PanoramizacionModal ───────────────────────────────────────────────────────
+const PANORAMIZACION_FIELDS = [
+  {
+    key: 'condicionesSitio',
+    icon: ScanSearch,
+    label: 'Condiciones del sitio',
+    placeholder: '¿En qué estado físico se encuentra el área de trabajo y qué detalles importantes encontraste al llegar?',
+  },
+  {
+    key: 'planEjecucion',
+    icon: HardDriveUpload,
+    label: 'Plan de ejecución',
+    placeholder: '¿Cuál va a ser tu estrategia, ruta o método general para realizar la instalación en este lugar?',
+  },
+  {
+    key: 'requerimientos',
+    icon: Boxes,
+    label: 'Requerimientos',
+    placeholder: '¿Qué materiales, herramientas o equipo de apoyo (escaleras, andamios…) vas a necesitar exactamente?',
+  },
+  {
+    key: 'bloqueos',
+    icon: TriangleAlert,
+    label: 'Bloqueos o riesgos',
+    placeholder: '¿Existe algún obstáculo, falta de acceso o problema en el sitio que pueda impedir o retrasar el trabajo?',
+  },
+];
+
+function PanoramizacionModal({ goal, techName, onClose, onSaved }) {
+  const [form,   setForm]   = useState({ condicionesSitio: '', planEjecucion: '', requerimientos: '', bloqueos: '' });
+  const [saving, setSaving] = useState(false);
+
+  const canSave = PANORAMIZACION_FIELDS.every(f => form[f.key].trim().length >= 10);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const res = await apiFetch('/api/tech-attendance/panoramizacion', {
+        method: 'POST',
+        body: JSON.stringify({
+          otNumber: goal.otNumber,
+          techId:   goal.techId,
+          goalId:   goal.id,
+          ...form,
+        }),
+      });
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      onSaved(data);
+    } catch {
+      alert('Error al guardar panoramización');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/70 flex items-end sm:items-center justify-center touch-none">
+      <div
+        className="bg-white w-full sm:max-w-lg sm:rounded-3xl rounded-t-3xl flex flex-col overflow-hidden shadow-2xl"
+        style={{ maxHeight: 'min(92dvh, 92svh, 92vh)' }}
+      >
+        {/* Header */}
+        <div className="bg-gray-950 px-5 py-4 rounded-t-3xl shrink-0">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="h-9 w-9 rounded-xl bg-violet-500/20 flex items-center justify-center shrink-0">
+                <ScanSearch className="h-4 w-4 text-violet-400" />
+              </div>
+              <div>
+                <h2 className="text-sm font-black text-white">Panoramización del sitio</h2>
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{goal.otNumber} · {goal.clientName}</p>
+              </div>
+            </div>
+            <button onClick={onClose}
+              className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl text-white/60 active:bg-white/10 touch-manipulation">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+          <p className="mt-3 text-[11px] font-bold text-gray-400 leading-relaxed">
+            Responde las 4 preguntas para desbloquear la jornada. Se registra una sola vez por OT.
+          </p>
+        </div>
+
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto overscroll-contain p-4 space-y-4"
+             style={{ WebkitOverflowScrolling: 'touch' }}>
+          {PANORAMIZACION_FIELDS.map(f => {
+            const Icon = f.icon;
+            const val  = form[f.key];
+            const ok   = val.trim().length >= 10;
+            return (
+              <div key={f.key} className={cn(
+                'rounded-2xl border p-4 space-y-2 transition-all',
+                ok ? 'border-violet-200 bg-violet-50/50' : 'border-gray-200 bg-gray-50'
+              )}>
+                <div className="flex items-center gap-2">
+                  <Icon className={cn('h-4 w-4 shrink-0', ok ? 'text-violet-600' : 'text-gray-400')} />
+                  <span className={cn('text-[11px] font-black uppercase tracking-widest', ok ? 'text-violet-700' : 'text-gray-500')}>
+                    {f.label}
+                  </span>
+                  {ok && <CheckCircle2 className="h-3.5 w-3.5 text-violet-500 ml-auto shrink-0" />}
+                </div>
+                <textarea
+                  value={val}
+                  onChange={e => setForm(p => ({ ...p, [f.key]: e.target.value }))}
+                  placeholder={f.placeholder}
+                  rows={3}
+                  className="w-full bg-transparent border-0 text-sm font-bold text-gray-800 placeholder:text-gray-400 placeholder:font-normal focus:outline-none resize-none"
+                />
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Footer */}
+        <div className="px-4 pt-3 border-t border-gray-100 pb-4 shrink-0"
+             style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
+          <button
+            onClick={handleSave}
+            disabled={!canSave || saving}
+            className="w-full min-h-[52px] rounded-2xl bg-violet-600 text-white font-black text-sm uppercase tracking-widest flex items-center justify-center gap-2 active:bg-violet-700 disabled:opacity-40 shadow-lg shadow-violet-200 touch-manipulation transition-all"
+          >
+            <CheckCheck className="h-4 w-4" />
+            {saving ? 'Guardando...' : 'Guardar Panoramización'}
+          </button>
+          {!canSave && (
+            <p className="text-center text-[10px] font-bold text-gray-400 mt-2">
+              Completa todas las respuestas (mín. 10 caracteres cada una)
+            </p>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -719,6 +857,9 @@ export default function TechDailyAttendance() {
   const [confirmingId,        setConfirmingId]        = useState(null);
   const [confirmingAttend,    setConfirmingAttend]    = useState(false);
   const [checklistModal,      setChecklistModal]      = useState(null);
+  // panoramizacion: { [otNumber]: objeto | null }
+  const [panoramizaciones,    setPanoramizaciones]    = useState({});
+  const [panoraModal,         setPanoraModal]         = useState(null); // goal
 
   const userId = user?.id;
 
@@ -734,9 +875,21 @@ export default function TechDailyAttendance() {
       const allGoals     = goalRes.ok     ? await goalRes.json()     : [];
       const upcomingData = upcomingRes.ok ? await upcomingRes.json() : [];
       const logData      = logRes.ok      ? await logRes.json()      : null;
-      setGoals(Array.isArray(allGoals) ? allGoals : []);
+      const todayGoals   = Array.isArray(allGoals) ? allGoals : [];
+      setGoals(todayGoals);
       setUpcoming(Array.isArray(upcomingData) ? upcomingData : []);
       setLog(logData);
+
+      // Cargar panoramizaciones para OTs del día que tengan otNumber
+      const otNumbers = todayGoals.map(g => g.otNumber).filter(Boolean);
+      if (otNumbers.length > 0) {
+        const pMap = {};
+        await Promise.all(otNumbers.map(async (ot) => {
+          const r = await apiFetch(`/api/tech-attendance/panoramizacion?otNumber=${encodeURIComponent(ot)}`);
+          pMap[ot] = r.ok ? await r.json() : null;
+        }));
+        setPanoramizaciones(pMap);
+      }
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
   }, [userId, today]);
@@ -801,6 +954,19 @@ export default function TechDailyAttendance() {
   return (
     <div className="max-w-lg mx-auto space-y-5 pb-20">
 
+      {/* ── Modal Panoramización ── */}
+      {panoraModal && (
+        <PanoramizacionModal
+          goal={panoraModal}
+          techName={user.name}
+          onClose={() => setPanoraModal(null)}
+          onSaved={(data) => {
+            setPanoramizaciones(p => ({ ...p, [panoraModal.otNumber]: data }));
+            setPanoraModal(null);
+          }}
+        />
+      )}
+
       {/* ── Modal checklist ── */}
       {checklistModal && (
         <ChecklistModal
@@ -860,16 +1026,43 @@ export default function TechDailyAttendance() {
                   <p className="text-[11px] text-gray-400 font-bold">{g.notes}</p>
                 </div>
               )}
+              {/* Panoramización — solo si la OT tiene otNumber */}
+              {g.otNumber && (() => {
+                const panora = panoramizaciones[g.otNumber];
+                // Si aún no está cargada la info (undefined) no mostramos nada
+                if (panora === undefined) return null;
+                if (panora) {
+                  return (
+                    <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-violet-500/15 border border-violet-500/30">
+                      <ScanSearch className="h-3.5 w-3.5 text-violet-400 shrink-0" />
+                      <span className="text-[10px] font-black text-violet-300 uppercase tracking-widest">Panoramización completada</span>
+                      <CheckCircle2 className="h-3 w-3 text-violet-400 ml-auto shrink-0" />
+                    </div>
+                  );
+                }
+                return (
+                  <button
+                    onClick={() => setPanoraModal(g)}
+                    className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-violet-600/25 border border-violet-500/40 text-violet-300 text-[11px] font-black uppercase tracking-widest active:bg-violet-600/40 touch-manipulation transition-all"
+                  >
+                    <ScanSearch className="h-3.5 w-3.5" />
+                    Iniciar Panoramización
+                  </button>
+                );
+              })()}
+
               <div className="flex gap-2 mt-1">
                   {g.otNumber && (
                     <button onClick={() => navigate(`/ots/${g.otNumber}`)}
-                      className="flex-1 flex items-center justify-center gap-2 py-2 rounded-xl bg-blue-600/20 border border-blue-500/30 text-blue-300 text-[11px] font-black uppercase tracking-widest hover:bg-blue-600/30 transition-all">
+                      className="flex-1 flex items-center justify-center gap-2 py-2 rounded-xl bg-blue-600/20 border border-blue-500/30 text-blue-300 text-[11px] font-black uppercase tracking-widest active:bg-blue-600/30 touch-manipulation transition-all">
                       <ExternalLink className="h-3.5 w-3.5" />
                       Ir a OT {g.otNumber}
                     </button>
                   )}
-                  <button onClick={() => setChecklistModal(g)}
-                    className="flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-white/10 border border-white/20 text-white text-[11px] font-black uppercase tracking-widest hover:bg-white/20 transition-all">
+                  <button
+                    onClick={() => setChecklistModal(g)}
+                    className="flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-white/10 border border-white/20 text-white text-[11px] font-black uppercase tracking-widest active:bg-white/20 touch-manipulation transition-all"
+                  >
                     <ClipboardList className="h-3.5 w-3.5" />
                     Checklist
                   </button>
@@ -921,6 +1114,7 @@ export default function TechDailyAttendance() {
                 weekday: 'short', day: '2-digit', month: 'short',
               });
               const isConfirming = confirmingId === g.id;
+              const isToday = dateOnly === today;
 
               return (
                 <div key={g.id} className={cn(
@@ -974,8 +1168,17 @@ export default function TechDailyAttendance() {
 
                   <div className="flex gap-2 pt-1">
                     {!g.confirmed ? (
-                      <button onClick={() => confirmGoal(g.id, true)} disabled={isConfirming}
-                        className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-emerald-500 text-white text-[11px] font-black uppercase tracking-widest hover:bg-emerald-600 transition-all disabled:opacity-50">
+                      <button
+                        onClick={() => isToday && confirmGoal(g.id, true)}
+                        disabled={isConfirming || !isToday}
+                        title={!isToday ? 'Solo puedes confirmar el día de la asignación' : ''}
+                        className={cn(
+                          'flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all',
+                          isToday
+                            ? 'bg-emerald-500 text-white active:bg-emerald-600 disabled:opacity-50'
+                            : 'bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed'
+                        )}
+                      >
                         <CheckCircle2 className="h-3.5 w-3.5" />
                         {isConfirming ? 'Guardando...' : 'Confirmar'}
                       </button>
