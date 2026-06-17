@@ -19,8 +19,10 @@ if (!global.__prisma) {
     connectionString: process.env.DATABASE_URL,
     ssl: { rejectUnauthorized: false },
     max: poolMax,
-    idleTimeoutMillis: 10_000,
-    connectionTimeoutMillis: 10_000,
+    idleTimeoutMillis: 60_000,
+    connectionTimeoutMillis: 15_000,
+    keepAlive: true,
+    keepAliveInitialDelayMillis: 10_000,
   })
   const adapter = new PrismaPg(pool)
   global.__prisma = new PrismaClient({ adapter })

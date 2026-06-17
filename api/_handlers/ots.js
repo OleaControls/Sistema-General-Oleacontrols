@@ -307,46 +307,51 @@ export default async function handler(req, res) {
       const cleanName = (data.storeName || 'NA').toUpperCase().replace(/[^A-Z0-9]/g, '').substring(0, 4);
       const cleanNum = (data.storeNumber || '000').toUpperCase().replace(/[^A-Z0-9]/g, '');
       const baseId = `OT-${cleanName}-${cleanNum}`;
-      
-      const existingCount = await prisma.workOrder.count({ where: { otNumber: { startsWith: baseId } } });
-      const otNumber = existingCount > 0 ? `${baseId}-${String.fromCharCode(65 + existingCount)}` : baseId;
 
-      const ot = await prisma.workOrder.create({
-        data: {
-          otNumber,
-          title: data.title,
-          description: data.workDescription,
-          status: data.leadTechId ? 'ASSIGNED' : 'UNASSIGNED',
-          priority: data.priority || 'MEDIUM',
+      const otFields = {
+        title: data.title,
+        description: data.workDescription,
+        status: data.leadTechId ? 'ASSIGNED' : 'UNASSIGNED',
+        priority: data.priority || 'MEDIUM',
+        storeNumber: data.storeNumber,
+        storeName: data.storeName,
+        clientName: data.client,
+        clientEmail: data.clientEmail,
+        clientPhone: data.clientPhone,
+        contactName: data.contactName,
+        contactEmail: data.contactEmail,
+        contactPhone: data.contactPhone,
+        address: data.address,
+        secondaryAddress: data.secondaryAddress,
+        otAddress: data.otAddress,
+        otReference: data.otReference,
+        latitude: data.lat,
+        longitude: data.lng,
+        arrivalTime: data.arrivalTime,
+        scheduledDate: data.scheduledDate ? new Date(data.scheduledDate) : null,
+        assignedFunds: parseFloat(data.assignedFunds) || 0,
+        supervisorId: data.supervisorId,
+        technicianId: data.leadTechId,
+        creatorId: data.supervisorId,
+        assignedById: data.leadTechId ? data.supervisorId : null,
+        assistantTechs: data.assistantTechs || [],
+        supportTechs: data.supportTechs || [],
+      };
 
-          storeNumber: data.storeNumber,
-          storeName: data.storeName,
-          clientName: data.client,
-          clientEmail: data.clientEmail,
-          clientPhone: data.clientPhone,
-          contactName: data.contactName,
-          contactEmail: data.contactEmail,
-          contactPhone: data.contactPhone,
-          address: data.address,
-          secondaryAddress: data.secondaryAddress,
-          otAddress: data.otAddress,
-          otReference: data.otReference,
-          latitude: data.lat,
-          longitude: data.lng,
-
-          arrivalTime: data.arrivalTime,
-          scheduledDate: data.scheduledDate ? new Date(data.scheduledDate) : null,
-          assignedFunds: parseFloat(data.assignedFunds) || 0,
-
-          supervisorId: data.supervisorId,
-          technicianId: data.leadTechId,
-          creatorId: data.supervisorId,
-          assignedById: data.leadTechId ? data.supervisorId : null,
-
-          assistantTechs: data.assistantTechs || [],
-          supportTechs: data.supportTechs || [],
+      // Generate unique otNumber with retry — handles concurrent requests and stale counts
+      let ot = null;
+      for (let attempt = 0; attempt < 30 && !ot; attempt++) {
+        const existingCount = await prisma.workOrder.count({ where: { otNumber: { startsWith: baseId } } });
+        const index = existingCount + attempt;
+        const otNumber = index === 0 ? baseId : `${baseId}-${String.fromCharCode(64 + index)}`;
+        try {
+          ot = await prisma.workOrder.create({ data: { otNumber, ...otFields } });
+        } catch (err) {
+          if (err.code !== 'P2002') throw err;
+          // Concurrent request grabbed this otNumber — retry with next suffix
         }
-      });
+      }
+      if (!ot) throw new Error('No se pudo generar un número de OT único');
 
       // Notificar por Telegram si la OT ya viene asignada
       if (data.leadTechId) {
