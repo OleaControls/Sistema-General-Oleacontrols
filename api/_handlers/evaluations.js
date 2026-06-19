@@ -94,11 +94,12 @@ export default async function handler(req, res) {
         const sortedBonusConfig = [...bonusConfig].sort((a, b) => (b.min || 0) - (a.min || 0));
 
         const techIds = technicians.map(t => t.id);
+        const TECH_EVAL_TYPES = ['OPS_TECH', 'CUSTOMER_TECH', 'CUSTOMER_SERVICE'];
         const [currAllEvals, prevAllEvals] = await Promise.all([
           prisma.evaluation.findMany({
             where: {
               targetId: { in: techIds },
-              type: { in: ['OPS_TECH', 'CUSTOMER_TECH'] },
+              type: { in: TECH_EVAL_TYPES },
               createdAt: { gte: currentQ.start, lte: currentQ.end }
             },
             select: { targetId: true, score1: true, score2: true, score3: true }
@@ -106,7 +107,7 @@ export default async function handler(req, res) {
           prisma.evaluation.findMany({
             where: {
               targetId: { in: techIds },
-              type: { in: ['OPS_TECH', 'CUSTOMER_TECH'] },
+              type: { in: TECH_EVAL_TYPES },
               createdAt: { gte: prevQ.start, lte: prevQ.end }
             },
             select: { targetId: true, score1: true, score2: true, score3: true }
@@ -156,18 +157,19 @@ export default async function handler(req, res) {
 
       // 2. Métricas Individuales con Comparativa Quincenal
       if (targetId) {
+        const TECH_EVAL_TYPES = ['OPS_TECH', 'CUSTOMER_TECH', 'CUSTOMER_SERVICE'];
         const currEvals = await prisma.evaluation.findMany({
-          where: { 
-            targetId, 
-            type: { in: ['OPS_TECH', 'CUSTOMER_TECH'] },
-            createdAt: { gte: currentQ.start, lte: currentQ.end } 
+          where: {
+            targetId,
+            type: { in: TECH_EVAL_TYPES },
+            createdAt: { gte: currentQ.start, lte: currentQ.end }
           }
         });
         const prevEvals = await prisma.evaluation.findMany({
-          where: { 
-            targetId, 
-            type: { in: ['OPS_TECH', 'CUSTOMER_TECH'] },
-            createdAt: { gte: prevQ.start, lte: prevQ.end } 
+          where: {
+            targetId,
+            type: { in: TECH_EVAL_TYPES },
+            createdAt: { gte: prevQ.start, lte: prevQ.end }
           }
         });
 
@@ -208,7 +210,7 @@ export default async function handler(req, res) {
 
       // Determinar a quiénes evaluar
       let targets = [];
-      if (type === 'CUSTOMER_TECH' || type === 'OPS_TECH') {
+      if (type === 'CUSTOMER_TECH' || type === 'OPS_TECH' || type === 'CUSTOMER_SERVICE') {
           // Evaluar a todo el equipo técnico involucrado
           if (targetOT.technicianId) targets.push(targetOT.technicianId);
           

@@ -708,45 +708,23 @@ export default function OTDetail() {
                 </div>
               </div>
 
-              {/* Evaluaciones (solo supervisor) */}
+              {/* Evaluación de Servicio (solo supervisor) */}
               {isSupervisor && (
                 <div className="bg-white border border-gray-100 rounded-[1.75rem] overflow-hidden shadow-sm">
                   <div className="px-6 py-5 border-b border-gray-50">
-                    <h3 className="text-[10px] font-black text-gray-700 uppercase tracking-widest">Evaluaciones</h3>
+                    <h3 className="text-[10px] font-black text-gray-700 uppercase tracking-widest">Evaluación de Servicio</h3>
                   </div>
-                  <div className="p-5 space-y-3">
-                    <div>
-                      <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-2">Satisfacción · Técnico</p>
-                      <div className="flex gap-1.5">
-                        <button onClick={() => copyToClipboard(generateFeedbackLink('CUSTOMER_TECH'), 'Link')}
-                          className="cursor-pointer flex-1 bg-gray-50 border border-gray-100 py-2.5 rounded-xl text-[9px] font-black uppercase hover:bg-gray-100 flex items-center justify-center gap-1.5 transition-colors">
-                          <Hash className="h-3 w-3" /> Copiar
-                        </button>
-                        <button onClick={() => shareByWhatsApp(generateFeedbackLink('CUSTOMER_TECH'), `Evaluar servicio OT ${ot.otNumber}`)}
-                          className="cursor-pointer flex-1 bg-emerald-500 text-white py-2.5 rounded-xl text-[9px] font-black uppercase hover:bg-emerald-600 flex items-center justify-center gap-1.5 transition-colors">
-                          <MessageCircle className="h-3 w-3" /> WA
-                        </button>
-                      </div>
-                    </div>
-                    <div>
-                      <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-2">Eficiencia · Operativa</p>
-                      <button onClick={() => window.open(generateFeedbackLink('OPS_TECH'), '_blank')}
-                        className="cursor-pointer w-full bg-gray-950 text-white py-2.5 rounded-xl text-[9px] font-black uppercase hover:bg-gray-800 flex items-center justify-center gap-1.5 transition-colors">
-                        <Activity className="h-3 w-3" /> Evaluar Ahora
+                  <div className="p-5">
+                    <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-2">Enviar al Cliente</p>
+                    <div className="flex gap-1.5">
+                      <button onClick={() => copyToClipboard(generateFeedbackLink('CUSTOMER_SERVICE'), 'Link')}
+                        className="cursor-pointer flex-1 bg-gray-50 border border-gray-100 py-2.5 rounded-xl text-[9px] font-black uppercase hover:bg-gray-100 flex items-center justify-center gap-1.5 transition-colors">
+                        <Hash className="h-3 w-3" /> Copiar
                       </button>
-                    </div>
-                    <div>
-                      <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-2">Experiencia · Ejecutivo</p>
-                      <div className="flex gap-1.5">
-                        <button onClick={() => copyToClipboard(generateFeedbackLink('CUSTOMER_EXEC'), 'Link')}
-                          className="cursor-pointer flex-1 bg-gray-50 border border-gray-100 py-2.5 rounded-xl text-[9px] font-black uppercase hover:bg-gray-100 flex items-center justify-center gap-1.5 transition-colors">
-                          <Hash className="h-3 w-3" /> Copiar
-                        </button>
-                        <button onClick={() => shareByWhatsApp(generateFeedbackLink('CUSTOMER_EXEC'), `Evaluar ejecutivo OT ${ot.otNumber}`)}
-                          className="cursor-pointer flex-1 bg-emerald-500 text-white py-2.5 rounded-xl text-[9px] font-black uppercase hover:bg-emerald-600 flex items-center justify-center gap-1.5 transition-colors">
-                          <MessageCircle className="h-3 w-3" /> WA
-                        </button>
-                      </div>
+                      <button onClick={() => shareByWhatsApp(generateFeedbackLink('CUSTOMER_SERVICE'), `Evalúa nuestro servicio OT ${ot.otNumber}`)}
+                        className="cursor-pointer flex-1 bg-emerald-500 text-white py-2.5 rounded-xl text-[9px] font-black uppercase hover:bg-emerald-600 flex items-center justify-center gap-1.5 transition-colors">
+                        <MessageCircle className="h-3 w-3" /> WA
+                      </button>
                     </div>
                   </div>
                 </div>

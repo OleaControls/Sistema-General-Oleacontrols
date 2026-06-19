@@ -4,6 +4,16 @@ import { Star, Send, CheckCircle, AlertCircle, Award, Zap, ShieldCheck, MessageS
 import { motion, AnimatePresence } from 'framer-motion';
 
 const EVALUATION_TYPES = {
+  CUSTOMER_SERVICE: {
+    title: 'Evaluación de Servicio',
+    subtitle: 'Tu opinión nos ayuda a mejorar cada día',
+    icon: <Award className="w-8 h-8 text-blue-600" />,
+    q1: '¿Cómo nos fue contigo hoy?',
+    q2: '¿Fuimos puntuales?',
+    q3: '¿Tu ejecutivo te brindó una atención amable y oportuna?',
+    showQ3: true
+  },
+  // Tipos legacy — mantener para links ya enviados
   CUSTOMER_TECH: {
     title: 'Evaluación de Servicio Técnico',
     subtitle: 'Gracias por responder, así mejoramos tu experiencia',
@@ -192,7 +202,6 @@ export default function FeedbackForm() {
                   />
                 </motion.div>
                 <div className="space-y-1">
-                    <h2 className="text-[11px] font-black uppercase tracking-[0.5em] text-blue-600">OleaControls México</h2>
                     <h1 className="text-4xl font-black tracking-tighter text-gray-900">
                       {config.title}
                     </h1>
@@ -272,7 +281,7 @@ export default function FeedbackForm() {
 
                 <motion.button
                   type="submit"
-                  disabled={!formData.score1 || !formData.score2 || loading}
+                  disabled={!formData.score1 || !formData.score2 || (config.showQ3 && !config.isTextQ3 && !formData.score3) || loading}
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                   className="w-full bg-blue-600 text-white font-black text-[13px] uppercase tracking-[0.3em] py-7 rounded-[2.5rem] shadow-2xl shadow-blue-200 hover:bg-blue-700 transition-all disabled:opacity-30 disabled:grayscale flex items-center justify-center gap-4 mt-8"
