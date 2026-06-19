@@ -128,7 +128,7 @@ const NAV_STRUCTURE = [
     name: 'Mis Ventas Directas',
     path: '/crm/indirect-sales',
     icon: Target,
-    roles: [ROLES.TECH],
+    roles: [ROLES.TECH, ROLES.COLLABORATOR],
   },
 
   // ── RH ────────────────────────────────────────────────────────────────────
@@ -145,15 +145,6 @@ const NAV_STRUCTURE = [
     path: '/hr/attendance',
     icon: CalendarCheck,
     roles: [ROLES.HR],
-  },
-
-  // ── COLABORADOR ───────────────────────────────────────────────────────────
-  {
-    type: 'item',
-    name: 'Mis Ventas Directas',
-    path: '/crm/indirect-sales',
-    icon: Target,
-    roles: [ROLES.COLLABORATOR],
   },
 
   // ── COMÚN: Mi Perfil ──────────────────────────────────────────────────────

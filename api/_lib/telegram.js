@@ -62,6 +62,42 @@ export async function notifyOTAssigned(ot, techs) {
   }
 }
 
+export async function sendTelegramPhoto(chatId, photoBuffer, caption) {
+  if (!TELEGRAM_BOT_TOKEN || !chatId) return;
+  const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`;
+  try {
+    const form = new FormData();
+    form.append('chat_id', String(chatId));
+    form.append('photo', new Blob([photoBuffer], { type: 'image/jpeg' }), 'evidencia.jpg');
+    if (caption) { form.append('caption', caption); form.append('parse_mode', 'HTML'); }
+    const response = await fetch(url, { method: 'POST', body: form });
+    const result   = await response.json();
+    if (!result.ok) console.error(`[Telegram] Error enviando foto a ${chatId}:`, result.description);
+  } catch (err) {
+    console.error(`[Telegram] Excepción enviando foto a ${chatId}:`, err.message);
+  }
+}
+
+export async function sendTelegramPhotoUrl(chatId, photoUrl, caption) {
+  if (!TELEGRAM_BOT_TOKEN || !chatId) return;
+  const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendPhoto`;
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: chatId,
+        photo: photoUrl,
+        ...(caption ? { caption, parse_mode: 'HTML' } : {}),
+      }),
+    });
+    const result = await response.json();
+    if (!result.ok) console.error(`[Telegram] Error enviando foto URL a ${chatId}:`, result.description);
+  } catch (err) {
+    console.error(`[Telegram] Excepción enviando foto URL a ${chatId}:`, err.message);
+  }
+}
+
 export async function sendTelegramDocument(chatId, pdfBuffer, filename, caption) {
   if (!TELEGRAM_BOT_TOKEN) {
     console.error('[Telegram] TELEGRAM_BOT_TOKEN no está definido en .env');

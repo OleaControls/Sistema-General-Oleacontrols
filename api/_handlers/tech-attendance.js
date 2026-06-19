@@ -1,6 +1,7 @@
 import prisma from '../_lib/prisma.js';
 import { authMiddleware } from '../_lib/auth.js';
-import { sendTelegramDocument } from '../_lib/telegram.js';
+import { sendTelegramDocument, sendTelegramPhoto, sendTelegramPhotoUrl } from '../_lib/telegram.js';
+import { uploadToR2 } from '../_lib/r2.js';
 
 // Medianoche UTC — para attendance logs (necesario por el @@unique([techId, date]))
 const toUTCDay = (str) => {
@@ -250,8 +251,20 @@ export default async function handler(req, res) {
     // ENVÍO PDF A SUPERVISORES VÍA TELEGRAM — /api/tech-attendance/send-report
     // ═══════════════════════════════════════════════════════════════════════════
 
+    // ═══════════════════════════════════════════════════════════════════════════
+    // SUBIDA DE FOTO A R2 — /api/tech-attendance/upload-photo
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    if (method === 'POST' && resource === 'upload-photo') {
+      const { photo } = body; // base64 data URI (ya comprimida desde el cliente)
+      if (!photo) return res.status(400).json({ error: 'photo requerida' });
+      const url = await uploadToR2(photo, 'attendance/vehicle');
+      return res.status(200).json({ url });
+    }
+
     if (method === 'POST' && resource === 'send-report') {
-      const { pdfBase64, filename, caption } = body;
+      const { pdfBase64, filename, caption, carPhotos } = body;
+      console.log('[send-report] carPhotos recibidas:', Array.isArray(carPhotos) ? carPhotos.length : 'ninguna');
       if (!pdfBase64 || !filename)
         return res.status(400).json({ error: 'pdfBase64 y filename son requeridos' });
 
@@ -267,6 +280,27 @@ export default async function handler(req, res) {
 
       for (const sup of supervisors) {
         await sendTelegramDocument(sup.telegramChatId, pdfBuffer, filename, caption || null);
+        // Enviar fotos de evidencia del vehículo si las hay
+        if (Array.isArray(carPhotos) && carPhotos.length > 0) {
+          for (let i = 0; i < carPhotos.length; i++) {
+            const photoCaption = i === 0 ? `📸 <b>Evidencia vehículo (${carPhotos.length} foto${carPhotos.length > 1 ? 's' : ''})</b>` : null;
+            try {
+              let photoBuffer;
+              if (carPhotos[i].startsWith('http')) {
+                // Descargar desde R2 y enviar como buffer (más confiable que URL directa)
+                const photoResp = await fetch(carPhotos[i]);
+                photoBuffer = Buffer.from(await photoResp.arrayBuffer());
+              } else {
+                // Fallback base64
+                const base64Data = carPhotos[i].replace(/^data:image\/\w+;base64,/, '');
+                photoBuffer = Buffer.from(base64Data, 'base64');
+              }
+              await sendTelegramPhoto(sup.telegramChatId, photoBuffer, photoCaption);
+            } catch (photoErr) {
+              console.error('[send-report] Error enviando foto:', photoErr.message);
+            }
+          }
+        }
       }
 
       return res.status(200).json({ sent: supervisors.length });

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   MapPin, User2, Plus, Trash2, AlertTriangle, CheckCircle2, XCircle,
   Clock, ChevronLeft, ChevronRight, ClipboardList, Car, ShieldCheck, Pencil, FileDown,
-  ScanSearch
+  ScanSearch, Camera, X, ZoomIn
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { apiFetch } from '@/lib/api';
@@ -36,9 +36,10 @@ export default function TechAttendanceAdmin() {
   const [saving,     setSaving]     = useState(false);
   const [form,       setForm]       = useState({ techId: '', clientName: '', clientLocation: '', notes: '', otNumber: '', hasVehicle: false });
   const [editGoalId, setEditGoalId] = useState(null);
-  const [activeTab,       setActiveTab]       = useState('goals'); // 'goals' | 'reports' | 'panoramizacion'
+  const [activeTab,        setActiveTab]        = useState('goals'); // 'goals' | 'reports' | 'panoramizacion' | 'vehiculos'
   const [panoramizaciones, setPanoramizaciones] = useState([]);
-  const [loadingPanora,   setLoadingPanora]   = useState(false);
+  const [loadingPanora,    setLoadingPanora]    = useState(false);
+  const [photoModal,       setPhotoModal]       = useState(null); // { photos, index }
 
   useEffect(() => {
     hrService.getEmployees().then(data => {
@@ -159,6 +160,7 @@ export default function TechAttendanceAdmin() {
         {[
           { id: 'goals',           label: 'Metas del día',      icon: ClipboardList },
           { id: 'reports',         label: `Reportes (${reports.length})`, icon: AlertTriangle },
+          { id: 'vehiculos',       label: 'Vehículos',          icon: Car },
           { id: 'panoramizacion',  label: 'Panoramización',     icon: ScanSearch },
         ].map(t => (
           <button
@@ -400,6 +402,155 @@ export default function TechAttendanceAdmin() {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* ── TAB: VEHÍCULOS ──────────────────────────────────────────────────── */}
+      {activeTab === 'vehiculos' && (() => {
+        const vehicleLogs = logs.filter(l => l.checklistVehicle?.carDamage);
+        const CAR_ZONE_LABELS = {
+          frontal: 'Frontal', techo: 'Techo', interior: 'Interior',
+          trasero: 'Trasero', ladoIzq: 'Lado Izq.', ladoDer: 'Lado Der.',
+        };
+        return (
+          <div className="space-y-4">
+            {vehicleLogs.length === 0 ? (
+              <div className="bg-white rounded-3xl p-10 border border-gray-100 shadow-sm text-center">
+                <Car className="h-10 w-10 text-gray-200 mx-auto mb-3" />
+                <p className="font-black text-gray-400 text-sm">Sin inspecciones de vehículo registradas hoy</p>
+                <p className="text-gray-300 text-[10px] font-bold uppercase tracking-widest mt-1">Los técnicos las completan al hacer el checklist</p>
+              </div>
+            ) : vehicleLogs.map(log => {
+              const tech = techMap[log.techId] || log.tech;
+              const carDamage  = log.checklistVehicle?.carDamage  || {};
+              const carPhotos  = log.checklistVehicle?.carPhotos  || [];
+              const damagedZones = Object.entries(carDamage).filter(([,v]) => v === true).map(([k]) => CAR_ZONE_LABELS[k] || k);
+              return (
+                <div key={log.id} className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm space-y-4">
+                  {/* Header */}
+                  <div className="flex items-center gap-3">
+                    {tech?.avatar
+                      ? <img src={tech.avatar} className="h-10 w-10 rounded-2xl object-cover border" alt="" />
+                      : <div className="h-10 w-10 rounded-2xl bg-indigo-100 flex items-center justify-center text-sm font-black text-indigo-600">{(tech?.name || '?').charAt(0)}</div>
+                    }
+                    <div className="flex-1 min-w-0">
+                      <p className="font-black text-gray-900 text-sm">{tech?.name || log.techId}</p>
+                      <p className="text-[10px] font-bold text-gray-400">Entrada: {log.checkInTime || '—'}</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {damagedZones.length > 0 ? (
+                        <span className="text-[9px] font-black text-red-600 bg-red-50 border border-red-200 px-2 py-1 rounded-full uppercase tracking-wider">
+                          {damagedZones.length} zona{damagedZones.length > 1 ? 's' : ''} con detalle
+                        </span>
+                      ) : (
+                        <span className="text-[9px] font-black text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-1 rounded-full uppercase tracking-wider">
+                          Sin daños
+                        </span>
+                      )}
+                      {carPhotos.length > 0 && (
+                        <span className="text-[9px] font-black text-indigo-600 bg-indigo-50 border border-indigo-200 px-2 py-1 rounded-full uppercase tracking-wider flex items-center gap-1">
+                          <Camera className="h-3 w-3" /> {carPhotos.length}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Zonas */}
+                  <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                    {Object.entries(carDamage).map(([zone, val]) => (
+                      <div key={zone} className={cn(
+                        'rounded-2xl p-2 border text-center',
+                        val === false ? 'bg-emerald-50 border-emerald-200' :
+                        val === true  ? 'bg-red-50 border-red-200' :
+                                        'bg-gray-50 border-gray-100'
+                      )}>
+                        <div className={cn(
+                          'h-5 w-5 rounded-full mx-auto mb-1 flex items-center justify-center',
+                          val === false ? 'bg-emerald-500' : val === true ? 'bg-red-500' : 'bg-gray-300'
+                        )}>
+                          {val === false
+                            ? <CheckCircle2 className="h-3 w-3 text-white" />
+                            : val === true
+                            ? <XCircle className="h-3 w-3 text-white" />
+                            : null}
+                        </div>
+                        <p className={cn(
+                          'text-[8px] font-black uppercase tracking-wide',
+                          val === true ? 'text-red-600' : val === false ? 'text-emerald-600' : 'text-gray-400'
+                        )}>
+                          {CAR_ZONE_LABELS[zone] || zone}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+
+                  {log.vehicleMissing && (
+                    <p className="text-xs font-bold text-amber-800 italic bg-amber-50 rounded-xl px-3 py-2 border border-amber-100">
+                      "{log.vehicleMissing}"
+                    </p>
+                  )}
+
+                  {/* Galería de fotos */}
+                  {carPhotos.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1.5">
+                        <Camera className="h-3.5 w-3.5" /> Evidencia ({carPhotos.length} foto{carPhotos.length > 1 ? 's' : ''})
+                      </p>
+                      <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
+                        {carPhotos.map((url, i) => (
+                          <button
+                            key={i}
+                            onClick={() => setPhotoModal({ photos: carPhotos, index: i })}
+                            className="relative aspect-square rounded-2xl overflow-hidden border border-gray-200 shadow-sm hover:shadow-md transition-all group"
+                          >
+                            <img src={url} alt={`evidencia ${i+1}`} className="w-full h-full object-cover" />
+                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 flex items-center justify-center transition-all">
+                              <ZoomIn className="h-5 w-5 text-white opacity-0 group-hover:opacity-100 transition-all" />
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        );
+      })()}
+
+      {/* Modal lightbox fotos */}
+      {photoModal && (
+        <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4" onClick={() => setPhotoModal(null)}>
+          <div className="relative max-w-2xl w-full" onClick={e => e.stopPropagation()}>
+            <img
+              src={photoModal.photos[photoModal.index]}
+              alt="evidencia"
+              className="w-full rounded-3xl object-contain max-h-[80vh]"
+            />
+            <button
+              onClick={() => setPhotoModal(null)}
+              className="absolute top-3 right-3 h-9 w-9 rounded-full bg-black/60 flex items-center justify-center text-white hover:bg-black/80 transition-all"
+            >
+              <X className="h-4 w-4" />
+            </button>
+            {photoModal.photos.length > 1 && (
+              <div className="flex justify-center gap-2 mt-4">
+                {photoModal.photos.map((url, i) => (
+                  <button
+                    key={i}
+                    onClick={() => setPhotoModal(m => ({ ...m, index: i }))}
+                    className={cn(
+                      'h-12 w-12 rounded-xl overflow-hidden border-2 transition-all',
+                      i === photoModal.index ? 'border-white' : 'border-transparent opacity-50 hover:opacity-75'
+                    )}
+                  >
+                    <img src={url} alt="" className="w-full h-full object-cover" />
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
 
