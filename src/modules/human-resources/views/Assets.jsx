@@ -26,8 +26,9 @@ export default function Assets() {
   const [filterCategory, setFilterCategory] = useState('ALL');
 
   const [formData, setFormData] = useState({
-    name: '', category: 'Herramienta', serialNumber: '', condition: 'NEW', notes: ''
+    name: '', category: 'Herramienta', serialNumber: '', condition: 'NEW', conditionPercent: 100, notes: ''
   });
+  const [editingPercent, setEditingPercent] = useState(null); // id del activo en edición inline
 
   useEffect(() => { loadData(); }, []);
 
@@ -52,8 +53,16 @@ export default function Assets() {
     try {
       await hrService.saveAsset(formData);
       setShowAddModal(false);
-      setFormData({ name: '', category: 'Herramienta', serialNumber: '', condition: 'NEW', notes: '' });
+      setFormData({ name: '', category: 'Herramienta', serialNumber: '', condition: 'NEW', conditionPercent: 100, notes: '' });
       loadData();
+    } catch (err) { alert(err.message); }
+  };
+
+  const handleUpdatePercent = async (id, percent) => {
+    try {
+      await hrService.updateAsset(id, { conditionPercent: percent });
+      setAssets(prev => prev.map(a => a.id === id ? { ...a, conditionPercent: percent } : a));
+      setEditingPercent(null);
     } catch (err) { alert(err.message); }
   };
 
@@ -188,6 +197,56 @@ export default function Assets() {
               <p className="text-[10px] font-mono text-gray-400">S/N: {asset.serialNumber || 'SIN SERIE'}</p>
             </div>
 
+            {/* Barra de estado en porcentaje */}
+            <div className="mt-4">
+              <div className="flex justify-between items-center mb-1.5">
+                <span className="text-[9px] font-black uppercase tracking-widest text-gray-400">Estado</span>
+                <span className={cn(
+                  "text-[11px] font-black tabular-nums",
+                  (asset.conditionPercent ?? 100) >= 70 ? "text-emerald-600" :
+                  (asset.conditionPercent ?? 100) >= 40 ? "text-amber-500" : "text-rose-500"
+                )}>
+                  {asset.conditionPercent ?? 100}%
+                </span>
+              </div>
+              {editingPercent === asset.id ? (
+                <div className="flex items-center gap-2">
+                  <input
+                    type="range"
+                    min={0}
+                    max={100}
+                    step={5}
+                    defaultValue={asset.conditionPercent ?? 100}
+                    className="flex-1 accent-primary h-1.5 cursor-pointer"
+                    onMouseUp={e => handleUpdatePercent(asset.id, Number(e.target.value))}
+                    onTouchEnd={e => handleUpdatePercent(asset.id, Number(e.target.value))}
+                    onChange={e => setAssets(prev => prev.map(a => a.id === asset.id ? { ...a, conditionPercent: Number(e.target.value) } : a))}
+                  />
+                  <button
+                    onClick={() => setEditingPercent(null)}
+                    className="text-[9px] font-black text-gray-400 hover:text-gray-600 px-1"
+                  >✕</button>
+                </div>
+              ) : (
+                <button
+                  className="w-full group/bar"
+                  title="Click para editar"
+                  onClick={() => setEditingPercent(asset.id)}
+                >
+                  <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
+                    <div
+                      className={cn(
+                        "h-2 rounded-full transition-all duration-500",
+                        (asset.conditionPercent ?? 100) >= 70 ? "bg-emerald-500" :
+                        (asset.conditionPercent ?? 100) >= 40 ? "bg-amber-400" : "bg-rose-500"
+                      )}
+                      style={{ width: `${asset.conditionPercent ?? 100}%` }}
+                    />
+                  </div>
+                </button>
+              )}
+            </div>
+
             <div className="mt-6 pt-6 border-t border-dashed flex flex-col gap-4">
               {asset.status === 'ASSIGNED' ? (
                 <div className="flex items-center justify-between">
@@ -247,6 +306,35 @@ export default function Assets() {
                   </div>
                 </div>
                 <InputField label="Número de Serie / Folio" value={formData.serialNumber} onChange={v => setFormData({...formData, serialNumber: v})} />
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center">
+                    <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">Estado de la Herramienta</label>
+                    <span className={cn(
+                      "text-sm font-black tabular-nums",
+                      formData.conditionPercent >= 70 ? "text-emerald-600" :
+                      formData.conditionPercent >= 40 ? "text-amber-500" : "text-rose-500"
+                    )}>{formData.conditionPercent}%</span>
+                  </div>
+                  <input
+                    type="range"
+                    min={0}
+                    max={100}
+                    step={5}
+                    value={formData.conditionPercent}
+                    onChange={e => setFormData({...formData, conditionPercent: Number(e.target.value)})}
+                    className="w-full accent-primary h-2 cursor-pointer"
+                  />
+                  <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
+                    <div
+                      className={cn(
+                        "h-2 rounded-full transition-all duration-300",
+                        formData.conditionPercent >= 70 ? "bg-emerald-500" :
+                        formData.conditionPercent >= 40 ? "bg-amber-400" : "bg-rose-500"
+                      )}
+                      style={{ width: `${formData.conditionPercent}%` }}
+                    />
+                  </div>
+                </div>
                 <div className="space-y-1.5">
                   <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">Notas / Observaciones</label>
                   <textarea className="w-full px-5 py-3.5 bg-gray-50 border border-transparent rounded-2xl font-bold text-sm outline-none focus:bg-white focus:border-primary/30 h-24 resize-none" value={formData.notes} onChange={e => setFormData({...formData, notes: e.target.value})} />

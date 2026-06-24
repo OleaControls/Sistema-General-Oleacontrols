@@ -25,7 +25,7 @@ export default async function handler(req, res) {
     }
 
     if (method === 'POST') {
-      const { name, category, serialNumber, condition, assignedToId, notes } = req.body;
+      const { name, category, serialNumber, condition, conditionPercent, assignedToId, notes } = req.body;
       
       if (!name || !category) {
         return res.status(400).json({ error: 'Nombre y categoría son requeridos' });
@@ -37,6 +37,7 @@ export default async function handler(req, res) {
           category,
           serialNumber,
           condition: condition || 'NEW',
+          conditionPercent: conditionPercent !== undefined ? Number(conditionPercent) : 100,
           status: assignedToId ? 'ASSIGNED' : 'AVAILABLE',
           assignedToId: assignedToId || null,
           assignedDate: assignedToId ? new Date() : null,

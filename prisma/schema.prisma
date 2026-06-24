@@ -561,7 +561,8 @@ model Asset {
   category      String   // Herramienta, Vehículo, Cómputo, EPP, etc.
   serialNumber  String?  @unique
   status        String   @default("AVAILABLE") // AVAILABLE, ASSIGNED, MAINTENANCE, REPIRED
-  condition     String   @default("NEW") // NEW, GOOD, FAIR, POOR
+  condition        String   @default("NEW") // NEW, GOOD, FAIR, POOR
+  conditionPercent Int      @default(100)   // 0-100 estado de la herramienta
   assignedToId  String?
   assignedTo    Employee? @relation("EmployeeAssets", fields: [assignedToId], references: [id])
   assignedDate  DateTime?
