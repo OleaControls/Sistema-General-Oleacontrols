@@ -107,18 +107,42 @@ export default function NewExpenseForm({ isOpen, onClose, onSave, prefilledOtId,
 
   const handleFileChange = (e) => {
     const file = e.target.files[0];
-    if (file) {
-        if (file.size > 10 * 1024 * 1024) {
-            alert('El archivo es demasiado grande (máx 10MB)');
-            return;
-        }
-        
-        const reader = new FileReader();
-        reader.readAsDataURL(file);
-        reader.onload = () => {
-            setFormData({ ...formData, evidence: reader.result });
-        };
+    if (!file) return;
+
+    if (file.size > 20 * 1024 * 1024) {
+      alert('El archivo es demasiado grande (máx 20MB)');
+      return;
     }
+
+    // PDF: leer directo sin comprimir
+    if (file.type === 'application/pdf') {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => setFormData(prev => ({ ...prev, evidence: reader.result }));
+      return;
+    }
+
+    // Imagen: comprimir con canvas antes de guardar
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (ev) => {
+      const img = new Image();
+      img.onload = () => {
+        const MAX_SIDE = 1600;
+        const ratio = Math.min(1, MAX_SIDE / Math.max(img.width, img.height));
+        const canvas = document.createElement('canvas');
+        canvas.width  = Math.round(img.width  * ratio);
+        canvas.height = Math.round(img.height * ratio);
+        const ctx = canvas.getContext('2d');
+
+        // Corregir orientación EXIF en Safari/iOS
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+        const compressed = canvas.toDataURL('image/jpeg', 0.78);
+        setFormData(prev => ({ ...prev, evidence: compressed }));
+      };
+      img.src = ev.target.result;
+    };
   };
 
   if (!isOpen) return null;
@@ -380,11 +404,12 @@ export default function NewExpenseForm({ isOpen, onClose, onSave, prefilledOtId,
             <div className="space-y-6 animate-in zoom-in-95 duration-300">
               <div className="text-center space-y-3">
                 <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Evidencia del Comprobante</label>
-                <input 
-                    type="file" 
-                    id="expense-file" 
-                    accept="image/*,application/pdf" 
-                    className="hidden" 
+                <input
+                    type="file"
+                    id="expense-file"
+                    accept="image/*,application/pdf"
+                    capture="environment"
+                    className="hidden"
                     onChange={handleFileChange}
                 />
                 <label 
