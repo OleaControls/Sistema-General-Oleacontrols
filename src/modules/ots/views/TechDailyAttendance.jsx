@@ -4,7 +4,8 @@ import {
   MapPin, User2, Clock, CheckCircle2, XCircle, AlertTriangle, ChevronRight, ChevronLeft,
   Send, ShieldCheck, Car, Fuel, Sparkles, Gauge, HardHat, Glasses, Hand, Footprints,
   Wrench, Zap, ClipboardList, CheckCheck, RotateCcw, ExternalLink, Target, X, ChevronDown, Download,
-  ScanSearch, HardDriveUpload, Boxes, TriangleAlert, Camera, ImagePlus
+  ScanSearch, HardDriveUpload, Boxes, TriangleAlert, GitBranch, Camera, ImagePlus,
+  Shirt, CreditCard, Ruler, Scissors, Hammer, Briefcase, Layers, BadgeCheck, Tag
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { apiFetch } from '@/lib/api';
@@ -13,17 +14,33 @@ import { generateAttendanceReportPDF } from '../utils/attendanceReportPDF';
 
 // ── EPP — posiciones sobre la imagen corporal del técnico ────────────────────
 const EPP_SPOTS = [
-  { key: 'casco',   label: 'Casco',   icon: HardHat,    top: '9%',  left: '50%', labelLeft: true },
-  { key: 'lentes',  label: 'Lentes',  icon: Glasses,    top: '17%', left: '67%' },
-  { key: 'chaleco', label: 'Chaleco', icon: ShieldCheck, top: '35%', left: '50%' },
-  { key: 'guantes', label: 'Guantes', icon: Hand,       top: '57%', left: '76%' },
-  { key: 'botas',   label: 'Botas',   icon: Footprints, top: '87%', left: '50%' },
+  { key: 'casco',      label: 'Casco',                          icon: HardHat,    top: '7%',  left: '50%', labelLeft: true  },
+  { key: 'gafas',      label: 'Gafas protectoras',              icon: Glasses,    top: '16%', left: '68%', labelLeft: false },
+  { key: 'chaleco',    label: 'Chaleco multibolsas reflejante', icon: ShieldCheck, top: '30%', left: '28%', labelLeft: true },
+  { key: 'camisa',     label: 'Camisa',                         icon: Shirt,      top: '40%', left: '68%', labelLeft: false },
+  { key: 'guantes',    label: 'Guantes de trabajo',             icon: Hand,       top: '55%', left: '75%', labelLeft: false },
+  { key: 'rodilleras', label: 'Rodilleras',                     icon: BadgeCheck, top: '71%', left: '72%', labelLeft: false },
+  { key: 'pantalon',   label: 'Pantalón',                       icon: Tag,        top: '60%', left: '28%', labelLeft: true  },
+  { key: 'zapatos',    label: 'Zapatos con casquillo',           icon: Footprints, top: '87%', left: '50%', labelLeft: true  },
 ];
 
 // ── Herramientas — sin hotspot en imagen ─────────────────────────────────────
 const TOOLS_ITEMS = [
-  { key: 'toolsGeneral', label: 'Herramientas generales',  icon: Wrench },
-  { key: 'toolsSpecial', label: 'Herramientas especiales', icon: Zap    },
+  { key: 'multimetro',       label: 'Multímetro',                        icon: Gauge     },
+  { key: 'desPlanoChico',    label: 'Desarmador plano chico',            icon: Wrench    },
+  { key: 'desPlanoMed',      label: 'Desarmador plano mediano',          icon: Wrench    },
+  { key: 'desCruzChico',     label: 'Desarmador de cruz chico',          icon: Wrench    },
+  { key: 'desCruzMed',       label: 'Desarmador de cruz mediano',        icon: Wrench    },
+  { key: 'kitPerilleros',    label: 'Kit de desarmadores perilleros (6)', icon: Wrench    },
+  { key: 'pinzasElec',       label: 'Pinzas electricista',               icon: Zap       },
+  { key: 'pinzasPela',       label: 'Pinzas pelacables generales',       icon: Scissors  },
+  { key: 'pinzasPunta',      label: 'Pinzas de punta',                   icon: Zap       },
+  { key: 'pinzasRas',        label: 'Pinzas corte al ras',               icon: Scissors  },
+  { key: 'flexometro',       label: 'Flexómetro',                        icon: Ruler     },
+  { key: 'portaHerramienta', label: 'Porta herramienta de cinturón',     icon: Briefcase },
+  { key: 'navaja',           label: 'Navaja',                            icon: Scissors  },
+  { key: 'martillo',         label: 'Martillo pequeño',                  icon: Hammer    },
+  { key: 'cintasAislar',     label: 'Cintas de aislar',                  icon: Layers    },
 ];
 
 const VEHICLE_ITEMS = [
@@ -269,15 +286,21 @@ const PANORAMIZACION_FIELDS = [
     placeholder: '¿Cuáles son los objetivos concretos a lograr hoy en este sitio? Lista las metas que deben quedar completadas.',
   },
   {
-    key: 'bloqueos',
+    key: 'obstaculos',
     icon: TriangleAlert,
-    label: 'Obstáculos y algoritmos',
-    placeholder: '¿Qué obstáculos o bloqueos encontraste? ¿Qué pasos o algoritmo vas a seguir para resolverlos?',
+    label: 'Obstáculos',
+    placeholder: '¿Qué obstáculos o bloqueos encontraste en el sitio? Describe cualquier impedimento, falta de acceso o riesgo identificado.',
+  },
+  {
+    key: 'algoritmos',
+    icon: GitBranch,
+    label: 'Algoritmos',
+    placeholder: '¿Qué pasos o algoritmo vas a seguir para resolver los obstáculos? Describe tu plan de acción paso a paso.',
   },
 ];
 
 function PanoramizacionModal({ goal, techName, onClose, onSaved }) {
-  const [form,   setForm]   = useState({ condicionesSitio: '', planEjecucion: '', requerimientos: '', bloqueos: '' });
+  const [form,   setForm]   = useState({ condicionesSitio: '', planEjecucion: '', requerimientos: '', obstaculos: '', algoritmos: '' });
   const [saving, setSaving] = useState(false);
   const [saved,  setSaved]  = useState(false);
 
@@ -406,9 +429,8 @@ function PanoramizacionModal({ goal, techName, onClose, onSaved }) {
 
 // ── Zonas del vehículo para inspección visual ─────────────────────────────────
 const CAR_SPOTS = [
-  { key: 'frontal',  label: 'Frontal',   top: '14%', left: '50%' },
-  { key: 'techo',    label: 'Techo',     top: '42%', left: '50%' },
-  { key: 'interior', label: 'Interior', top: '60%', left: '50%' },
+  { key: 'frontal',  label: 'Frontal',  top: '14%', left: '50%' },
+  { key: 'interior', label: 'Interior', top: '50%', left: '50%' },
   { key: 'trasero',  label: 'Trasero',  top: '83%', left: '50%' },
   { key: 'ladoIzq',  label: 'Lado Izq.', top: '50%', left: '12%', labelRight: true },
   { key: 'ladoDer',  label: 'Lado Der.', top: '50%', left: '88%', labelLeft: true  },
@@ -666,6 +688,7 @@ function ChecklistModal({ goal, techName, log: existingLog, onClose }) {
 
   const [modalStep,       setModalStep]       = useState(0);
   const [mPersonal,       setMPersonal]       = useState({});
+  const [mToolLife,       setMToolLife]       = useState({});
   const [mVehicle,        setMVehicle]        = useState({});
   const [carDamage,       setCarDamage]       = useState({});
   const [carPhotos,       setCarPhotos]       = useState([]);
@@ -718,7 +741,7 @@ function ChecklistModal({ goal, techName, log: existingLog, onClose }) {
     const vMissing    = mVNotes || VEHICLE_ITEMS.filter(i => !i.isNumber && mVehicle[i.key] === false).map(i => i.label).join(', ') || null;
     const checkInTime = existingLog?.checkInTime || now;
     const type        = goal?.hasVehicle ? 'both' : 'personal';
-    const logData     = { date: goal.date, checklistPersonal: mPersonal,
+    const logData     = { date: goal.date, checklistPersonal: { ...mPersonal, toolsLife: mToolLife },
                           checklistVehicle: goal.hasVehicle ? mVehicle : null,
                           carDamage: goal.hasVehicle ? carDamage : null,
                           carPhotos: goal.hasVehicle ? carPhotos : null,
@@ -740,7 +763,7 @@ function ChecklistModal({ goal, techName, log: existingLog, onClose }) {
         method: 'PATCH',
         body: JSON.stringify({
           id: logId,
-          checklistPersonal:  mPersonal,
+          checklistPersonal:  { ...mPersonal, toolsLife: mToolLife },
           checklistVehicle:   goal.hasVehicle ? { ...mVehicle, carDamage, carPhotos: carPhotos.map(p => p.url) } : null,
           personalMissing:    pMissing,
           vehicleMissing:     vMissing,
@@ -897,7 +920,7 @@ function ChecklistModal({ goal, techName, log: existingLog, onClose }) {
                 </div>
                 <div>
                   <h2 className="text-base font-black text-gray-900">Equipo Personal</h2>
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Casco · Lentes · Chaleco · Guantes · Botas</p>
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Casco · Gafas · Chaleco · Camisa · Guantes · Rodilleras · Zapatos</p>
                 </div>
               </div>
               <EppVisualStep
@@ -927,50 +950,83 @@ function ChecklistModal({ goal, techName, log: existingLog, onClose }) {
                 </div>
                 <div>
                   <h2 className="text-base font-black text-gray-900">Herramientas</h2>
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">General · Especiales</p>
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">15 herramientas · Vida útil por herramienta</p>
                 </div>
               </div>
               <div className="space-y-2">
                 {TOOLS_ITEMS.map(({ key, label, icon: Icon }) => {
-                  const v = mPersonal[key];
+                  const v    = mPersonal[key];
+                  const life = mToolLife[key] ?? 100;
                   return (
                     <div key={key} className={cn(
-                      'flex items-center gap-3 p-3 rounded-2xl border transition-all',
+                      'p-3 rounded-2xl border transition-all',
                       v === true  ? 'bg-emerald-50 border-emerald-200' :
                       v === false ? 'bg-red-50 border-red-200' :
                                     'bg-gray-50 border-gray-100'
                     )}>
-                      <div className={cn(
-                        'h-9 w-9 rounded-xl flex items-center justify-center shrink-0',
-                        v === true  ? 'bg-emerald-100 text-emerald-600' :
-                        v === false ? 'bg-red-100 text-red-600' :
-                                      'bg-white text-gray-400 border border-gray-200'
-                      )}>
-                        <Icon className="h-4 w-4" />
+                      {/* Fila: icono + nombre + botones */}
+                      <div className="flex items-center gap-3">
+                        <div className={cn(
+                          'h-9 w-9 rounded-xl flex items-center justify-center shrink-0',
+                          v === true  ? 'bg-emerald-100 text-emerald-600' :
+                          v === false ? 'bg-red-100 text-red-600' :
+                                        'bg-white text-gray-400 border border-gray-200'
+                        )}>
+                          <Icon className="h-4 w-4" />
+                        </div>
+                        <p className="text-sm font-bold text-gray-800 flex-1 leading-tight">{label}</p>
+                        <div className="flex gap-2 shrink-0">
+                          <button
+                            onClick={() => {
+                              setMPersonal(p => ({ ...p, [key]: true }));
+                              if (mToolLife[key] === undefined) setMToolLife(p => ({ ...p, [key]: 100 }));
+                            }}
+                            className={cn(
+                              'min-h-[44px] min-w-[44px] rounded-xl flex items-center justify-center border transition-all touch-manipulation',
+                              v === true
+                                ? 'bg-emerald-500 border-emerald-500 text-white shadow-sm'
+                                : 'bg-white border-gray-200 text-gray-400 active:border-emerald-400 active:text-emerald-500'
+                            )}>
+                            <CheckCircle2 className="h-5 w-5" />
+                          </button>
+                          <button
+                            onClick={() => setMPersonal(p => ({ ...p, [key]: false }))}
+                            className={cn(
+                              'min-h-[44px] min-w-[44px] rounded-xl flex items-center justify-center border transition-all touch-manipulation',
+                              v === false
+                                ? 'bg-red-500 border-red-500 text-white shadow-sm'
+                                : 'bg-white border-gray-200 text-gray-400 active:border-red-400 active:text-red-500'
+                            )}>
+                            <XCircle className="h-5 w-5" />
+                          </button>
+                        </div>
                       </div>
-                      <p className="text-sm font-bold text-gray-800 flex-1">{label}</p>
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => setMPersonal(p => ({ ...p, [key]: true }))}
-                          className={cn(
-                            'min-h-[44px] min-w-[44px] rounded-xl flex items-center justify-center border transition-all touch-manipulation',
-                            v === true
-                              ? 'bg-emerald-500 border-emerald-500 text-white shadow-sm'
-                              : 'bg-white border-gray-200 text-gray-400 active:border-emerald-400 active:text-emerald-500'
-                          )}>
-                          <CheckCircle2 className="h-5 w-5" />
-                        </button>
-                        <button
-                          onClick={() => setMPersonal(p => ({ ...p, [key]: false }))}
-                          className={cn(
-                            'min-h-[44px] min-w-[44px] rounded-xl flex items-center justify-center border transition-all touch-manipulation',
-                            v === false
-                              ? 'bg-red-500 border-red-500 text-white shadow-sm'
-                              : 'bg-white border-gray-200 text-gray-400 active:border-red-400 active:text-red-500'
-                          )}>
-                          <XCircle className="h-5 w-5" />
-                        </button>
-                      </div>
+
+                      {/* Slider de vida útil — solo si herramienta presente */}
+                      {v === true && (
+                        <div className="mt-3 pt-2 border-t border-emerald-100">
+                          <div className="flex justify-between items-center mb-1.5">
+                            <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Vida útil</span>
+                            <span className={cn(
+                              'text-[11px] font-black tabular-nums',
+                              life >= 70 ? 'text-emerald-600' : life >= 40 ? 'text-amber-500' : 'text-rose-500'
+                            )}>{life}%</span>
+                          </div>
+                          <input
+                            type="range" min={0} max={100} step={5} value={life}
+                            onChange={e => setMToolLife(p => ({ ...p, [key]: Number(e.target.value) }))}
+                            className="w-full accent-violet-600 h-1.5 cursor-pointer touch-manipulation"
+                          />
+                          <div className="w-full bg-white/60 rounded-full h-1.5 mt-1.5 overflow-hidden border border-emerald-100">
+                            <div
+                              className={cn('h-1.5 rounded-full transition-all duration-300',
+                                life >= 70 ? 'bg-emerald-500' : life >= 40 ? 'bg-amber-400' : 'bg-rose-500'
+                              )}
+                              style={{ width: `${life}%` }}
+                            />
+                          </div>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -1060,14 +1116,25 @@ function ChecklistModal({ goal, techName, log: existingLog, onClose }) {
                     </div>
                   ))}
                   <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mt-2 mb-1">Herramientas</p>
-                  {TOOLS_ITEMS.map(t => (
-                    <div key={t.key} className="flex items-center gap-2">
-                      {mPersonal[t.key] === true
-                        ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
-                        : <XCircle className="h-3.5 w-3.5 text-red-400 shrink-0" />}
-                      <span className="text-xs font-bold text-gray-700">{t.label}</span>
-                    </div>
-                  ))}
+                  {TOOLS_ITEMS.map(t => {
+                    const life = mToolLife[t.key];
+                    return (
+                      <div key={t.key} className="flex items-center gap-2">
+                        {mPersonal[t.key] === true
+                          ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                          : <XCircle className="h-3.5 w-3.5 text-red-400 shrink-0" />}
+                        <span className="text-xs font-bold text-gray-700 flex-1">{t.label}</span>
+                        {mPersonal[t.key] === true && life !== undefined && (
+                          <span className={cn(
+                            'text-[9px] font-black px-1.5 py-0.5 rounded-full tabular-nums',
+                            life >= 70 ? 'bg-emerald-100 text-emerald-600' :
+                            life >= 40 ? 'bg-amber-100 text-amber-600' :
+                                         'bg-rose-100 text-rose-600'
+                          )}>{life}%</span>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
                 {goal?.hasVehicle && (
                   <div className="border-t border-gray-200 pt-3 space-y-1.5">

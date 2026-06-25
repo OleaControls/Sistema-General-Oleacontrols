@@ -65,6 +65,7 @@ export default async function handler(req, res) {
       // Edición directa por id (desde TechAttendanceAdmin o confirmación del técnico)
       if (id) {
         const updateData = {};
+        if (techId         !== undefined) updateData.techId         = techId;
         if (clientName     !== undefined) updateData.clientName     = clientName;
         if (clientLocation !== undefined) updateData.clientLocation = clientLocation || null;
         if (notes          !== undefined) updateData.notes          = notes || null;
@@ -232,8 +233,8 @@ export default async function handler(req, res) {
 
     // POST — guardar panoramización (una por OT, upsert seguro)
     if (method === 'POST' && resource === 'panoramizacion') {
-      const { otNumber, techId, goalId, condicionesSitio, planEjecucion, requerimientos, bloqueos } = body;
-      if (!otNumber || !techId || !condicionesSitio || !planEjecucion || !requerimientos || !bloqueos)
+      const { otNumber, techId, goalId, condicionesSitio, planEjecucion, requerimientos, obstaculos, algoritmos } = body;
+      if (!otNumber || !techId || !condicionesSitio || !planEjecucion || !requerimientos || !obstaculos || !algoritmos)
         return res.status(400).json({ error: 'Todos los campos son requeridos' });
 
       // Si ya existe, no sobreescribir (solo una por OT)
@@ -241,7 +242,7 @@ export default async function handler(req, res) {
       if (existing) return res.status(200).json(existing);
 
       const panoramizacion = await prisma.otPanoramizacion.create({
-        data: { otNumber, techId, goalId: goalId || null, condicionesSitio, planEjecucion, requerimientos, bloqueos },
+        data: { otNumber, techId, goalId: goalId || null, condicionesSitio, planEjecucion, requerimientos, obstaculos, algoritmos },
         include: { tech: { select: { id: true, name: true, avatar: true } } },
       });
       return res.status(200).json(panoramizacion);

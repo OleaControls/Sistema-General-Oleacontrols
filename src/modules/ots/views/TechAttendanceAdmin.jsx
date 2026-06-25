@@ -11,10 +11,26 @@ import { useAuth, ROLES } from '@/store/AuthContext';
 import { generateAttendanceReportPDF } from '../utils/attendanceReportPDF';
 
 const PERSONAL_LABELS = {
-  casco: 'Casco', lentes: 'Lentes', chaleco: 'Chaleco',
-  guantes: 'Guantes', botas: 'Botas',
-  toolsGeneral: 'Herr. generales', toolsSpecial: 'Herr. especiales',
+  // EPP
+  casco: 'Casco', gafas: 'Gafas protectoras', chaleco: 'Chaleco multibolsas reflejante',
+  camisa: 'Camisa', guantes: 'Guantes de trabajo', rodilleras: 'Rodilleras',
+  pantalon: 'Pantalón', zapatos: 'Zapatos con casquillo',
+  // Herramientas
+  multimetro: 'Multímetro', desPlanoChico: 'Desarmador plano chico',
+  desPlanoMed: 'Desarmador plano mediano', desCruzChico: 'Desarmador de cruz chico',
+  desCruzMed: 'Desarmador de cruz mediano', kitPerilleros: 'Kit perilleros (6)',
+  pinzasElec: 'Pinzas electricista', pinzasPela: 'Pinzas pelacables',
+  pinzasPunta: 'Pinzas de punta', pinzasRas: 'Pinzas corte al ras',
+  flexometro: 'Flexómetro', portaHerramienta: 'Porta herramienta',
+  navaja: 'Navaja', martillo: 'Martillo pequeño', cintasAislar: 'Cintas de aislar',
+  // legacy
+  lentes: 'Lentes', botas: 'Botas', toolsGeneral: 'Herr. generales', toolsSpecial: 'Herr. especiales',
 };
+const TOOLS_KEYS = [
+  'multimetro','desPlanoChico','desPlanoMed','desCruzChico','desCruzMed','kitPerilleros',
+  'pinzasElec','pinzasPela','pinzasPunta','pinzasRas','flexometro',
+  'portaHerramienta','navaja','martillo','cintasAislar',
+];
 const VEHICLE_LABELS = {
   fuel: 'Combustible', cleanInterior: 'Limp. interior',
   cleanExterior: 'Estética', odometer: 'Tacómetro', functionality: 'Funcionalidad',
@@ -255,6 +271,50 @@ export default function TechAttendanceAdmin() {
                       )}
                     </div>
                   )}
+
+                  {/* Checklist completo — visible cuando está completado */}
+                  {log?.status === 'COMPLETE' && log?.checklistPersonal && (
+                    <div className="mt-3 pt-3 border-t border-gray-100 space-y-3">
+                      {/* EPP */}
+                      <div>
+                        <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Equipo Personal</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {Object.entries(log.checklistPersonal)
+                            .filter(([k, v]) => k !== 'toolsLife' && !TOOLS_KEYS.includes(k) && v !== undefined)
+                            .map(([k, v]) => (
+                              <span key={k} className={`text-[8px] font-black px-2 py-0.5 rounded border ${v ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-red-50 text-red-700 border-red-200'}`}>
+                                {v ? '✓' : '✗'} {PERSONAL_LABELS[k] || k}
+                              </span>
+                            ))}
+                        </div>
+                      </div>
+
+                      {/* Herramientas */}
+                      <div>
+                        <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Herramientas</p>
+                        <div className="space-y-1">
+                          {TOOLS_KEYS.filter(k => log.checklistPersonal[k] !== undefined).map(k => {
+                            const present = log.checklistPersonal[k];
+                            const life    = log.checklistPersonal?.toolsLife?.[k];
+                            return (
+                              <div key={k} className="flex items-center gap-2">
+                                <span className={`text-[8px] font-black shrink-0 ${present ? 'text-emerald-600' : 'text-red-500'}`}>{present ? '✓' : '✗'}</span>
+                                <span className="text-[10px] font-bold text-gray-700 flex-1">{PERSONAL_LABELS[k] || k}</span>
+                                {present && life !== undefined && (
+                                  <div className="flex items-center gap-1.5 shrink-0">
+                                    <div className="w-12 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                                      <div className={`h-full rounded-full ${life >= 70 ? 'bg-emerald-500' : life >= 40 ? 'bg-amber-400' : 'bg-rose-500'}`} style={{ width: `${life}%` }} />
+                                    </div>
+                                    <span className={`text-[9px] font-black tabular-nums w-6 text-right ${life >= 70 ? 'text-emerald-600' : life >= 40 ? 'text-amber-500' : 'text-rose-500'}`}>{life}%</span>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               );
             })
@@ -294,7 +354,7 @@ export default function TechAttendanceAdmin() {
                 </div>
 
                 {log.personalReportSent && (
-                  <div className="bg-amber-50 rounded-2xl p-4 border border-amber-200 space-y-2">
+                  <div className="bg-amber-50 rounded-2xl p-4 border border-amber-200 space-y-3">
                     <div className="flex items-center justify-between">
                       <p className="text-[10px] font-black text-amber-700 uppercase tracking-widest flex items-center gap-1.5">
                         <ShieldCheck className="h-3.5 w-3.5" /> Equipo personal — faltantes
@@ -307,13 +367,38 @@ export default function TechAttendanceAdmin() {
                       </button>
                     </div>
                     <div className="flex flex-wrap gap-1.5">
-                      {Object.entries(log.checklistPersonal || {}).filter(([,v]) => v === false).map(([k]) => (
-                        <span key={k} className="text-[9px] font-black bg-red-100 text-red-700 px-2 py-0.5 rounded border border-red-200">
-                          {PERSONAL_LABELS[k] || k}
-                        </span>
-                      ))}
+                      {Object.entries(log.checklistPersonal || {})
+                        .filter(([k, v]) => v === false && k !== 'toolsLife')
+                        .map(([k]) => (
+                          <span key={k} className="text-[9px] font-black bg-red-100 text-red-700 px-2 py-0.5 rounded border border-red-200">
+                            {PERSONAL_LABELS[k] || k}
+                          </span>
+                        ))}
                     </div>
                     {log.personalMissing && <p className="text-xs font-bold text-amber-800 italic">"{log.personalMissing}"</p>}
+
+                    {/* Vida útil de herramientas */}
+                    {log.checklistPersonal?.toolsLife && Object.keys(log.checklistPersonal.toolsLife).length > 0 && (
+                      <div className="pt-3 border-t border-amber-200 space-y-1.5">
+                        <p className="text-[9px] font-black text-amber-700 uppercase tracking-widest">Vida útil herramientas</p>
+                        <div className="space-y-1.5">
+                          {Object.entries(log.checklistPersonal.toolsLife).map(([k, pct]) => (
+                            <div key={k} className="flex items-center gap-2">
+                              <span className="text-xs font-bold text-gray-700 flex-1">{PERSONAL_LABELS[k] || k}</span>
+                              <div className="flex items-center gap-1.5">
+                                <div className="w-16 h-1.5 bg-white rounded-full overflow-hidden border border-amber-200">
+                                  <div
+                                    className={`h-full rounded-full ${pct >= 70 ? 'bg-emerald-500' : pct >= 40 ? 'bg-amber-400' : 'bg-rose-500'}`}
+                                    style={{ width: `${pct}%` }}
+                                  />
+                                </div>
+                                <span className={`text-[9px] font-black tabular-nums w-7 text-right ${pct >= 70 ? 'text-emerald-600' : pct >= 40 ? 'text-amber-600' : 'text-rose-600'}`}>{pct}%</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -366,10 +451,11 @@ export default function TechAttendanceAdmin() {
               hour: '2-digit', minute: '2-digit'
             });
             const FIELDS = [
-              { key: 'condicionesSitio', label: 'Condiciones del sitio' },
+              { key: 'condicionesSitio', label: 'Plática casual' },
               { key: 'planEjecucion',    label: 'Plan de ejecución' },
-              { key: 'requerimientos',   label: 'Requerimientos' },
-              { key: 'bloqueos',         label: 'Bloqueos o riesgos' },
+              { key: 'requerimientos',   label: 'Objetivos' },
+              { key: 'obstaculos',       label: 'Obstáculos' },
+              { key: 'algoritmos',       label: 'Algoritmos' },
             ];
             return (
               <div key={p.id} className="bg-white rounded-3xl p-6 border border-violet-100 shadow-sm space-y-4">
@@ -409,7 +495,7 @@ export default function TechAttendanceAdmin() {
       {activeTab === 'vehiculos' && (() => {
         const vehicleLogs = logs.filter(l => l.checklistVehicle?.carDamage);
         const CAR_ZONE_LABELS = {
-          frontal: 'Frontal', techo: 'Techo', interior: 'Interior',
+          frontal: 'Frontal', interior: 'Interior',
           trasero: 'Trasero', ladoIzq: 'Lado Izq.', ladoDer: 'Lado Der.',
         };
         return (

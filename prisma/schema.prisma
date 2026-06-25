@@ -712,7 +712,9 @@ model OtPanoramizacion {
   condicionesSitio String   // Estado físico del área al llegar
   planEjecucion    String   // Estrategia, ruta o método de instalación
   requerimientos   String   // Materiales, herramientas, equipo de apoyo
-  bloqueos         String   // Obstáculos, falta de acceso, riesgos
+  bloqueos         String?  // Legado — reemplazado por obstaculos + algoritmos
+  obstaculos       String   @default("") // Obstáculos o bloqueos encontrados
+  algoritmos       String   @default("") // Pasos o algoritmo para resolverlos
 
   createdAt        DateTime @default(now())
 
