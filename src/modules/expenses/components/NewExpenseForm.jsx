@@ -105,7 +105,7 @@ export default function NewExpenseForm({ isOpen, onClose, onSave, prefilledOtId,
     setShowOtResults(false);
   };
 
-  const handleFileChange = (e) => {
+  const handleFileChange = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
@@ -119,30 +119,37 @@ export default function NewExpenseForm({ isOpen, onClose, onSave, prefilledOtId,
       const reader = new FileReader();
       reader.readAsDataURL(file);
       reader.onload = () => setFormData(prev => ({ ...prev, evidence: reader.result }));
+      reader.onerror = () => alert('Error al leer el PDF.');
       return;
     }
 
-    // Imagen: comprimir con canvas antes de guardar
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = (ev) => {
-      const img = new Image();
-      img.onload = () => {
-        const MAX_SIDE = 1600;
-        const ratio = Math.min(1, MAX_SIDE / Math.max(img.width, img.height));
-        const canvas = document.createElement('canvas');
-        canvas.width  = Math.round(img.width  * ratio);
-        canvas.height = Math.round(img.height * ratio);
-        const ctx = canvas.getContext('2d');
-
-        // Corregir orientación EXIF en Safari/iOS
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-
-        const compressed = canvas.toDataURL('image/jpeg', 0.78);
-        setFormData(prev => ({ ...prev, evidence: compressed }));
-      };
-      img.src = ev.target.result;
+    const compressToJpeg = (source) => {
+      const MAX_SIDE = 1600;
+      const ratio = Math.min(1, MAX_SIDE / Math.max(source.width, source.height));
+      const canvas = document.createElement('canvas');
+      canvas.width  = Math.round(source.width  * ratio);
+      canvas.height = Math.round(source.height * ratio);
+      canvas.getContext('2d').drawImage(source, 0, 0, canvas.width, canvas.height);
+      if (source.close) source.close();
+      return canvas.toDataURL('image/jpeg', 0.78);
     };
+
+    try {
+      // createImageBitmap aplica la orientación EXIF automáticamente (iOS/Android portrait)
+      const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
+      setFormData(prev => ({ ...prev, evidence: compressToJpeg(bitmap) }));
+    } catch {
+      // Fallback para navegadores sin soporte de imageOrientation
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = (ev) => {
+        const img = new Image();
+        img.onload = () => setFormData(prev => ({ ...prev, evidence: compressToJpeg(img) }));
+        img.onerror = () => alert('No se pudo cargar la imagen. Intenta con JPG o PNG.');
+        img.src = ev.target.result;
+      };
+      reader.onerror = () => alert('Error al leer el archivo.');
+    }
   };
 
   if (!isOpen) return null;
@@ -434,7 +441,7 @@ export default function NewExpenseForm({ isOpen, onClose, onSave, prefilledOtId,
                       <>
                         <Camera className="h-12 w-12 text-gray-300 mb-2 group-hover:scale-110 transition-transform group-hover:text-primary" />
                         <p className="text-[11px] font-black text-gray-400 uppercase tracking-widest group-hover:text-primary transition-colors">Capturar Ticket / PDF</p>
-                        <p className="text-[9px] text-gray-300 font-bold mt-1">Formatos: JPG, PNG, PDF • Máx 10MB</p>
+                        <p className="text-[9px] text-gray-300 font-bold mt-1">Formatos: JPG, PNG, PDF • Máx 20MB</p>
                       </>
                   )}
                 </label>

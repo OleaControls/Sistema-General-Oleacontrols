@@ -46,21 +46,25 @@ export default function ExpensesList({ otId = null, hideHeader = false, refreshT
   };
 
   const handleSaveExpense = async (formData, isUpdate = false) => {
-    if (isUpdate && editingExpense) {
-      await expenseService.update(editingExpense.id, {
-        ...formData,
-        amount: parseFloat(formData.amount)
-      });
-    } else {
-      await expenseService.save({
-        ...formData,
-        userId: user.id,
-        tenantId: 'olea-mx', // Por ahora mock
-        amount: parseFloat(formData.amount)
-      });
+    try {
+      if (isUpdate && editingExpense) {
+        await expenseService.update(editingExpense.id, {
+          ...formData,
+          amount: parseFloat(formData.amount)
+        });
+      } else {
+        await expenseService.save({
+          ...formData,
+          userId: user.id,
+          tenantId: 'olea-mx',
+          amount: parseFloat(formData.amount)
+        });
+      }
+      loadExpenses();
+      setEditingExpense(null);
+    } catch (error) {
+      alert(`Error al guardar el gasto: ${error.message}`);
     }
-    loadExpenses();
-    setEditingExpense(null);
   };
 
   const handleEditClick = (exp) => {
