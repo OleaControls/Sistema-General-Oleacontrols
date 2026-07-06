@@ -1,6 +1,42 @@
 import prisma from '../_lib/prisma.js'
 import { authMiddleware } from '../_lib/auth.js'
 
+// Catálogo por defecto de Cultura (percepciones y escarmientos con su costo unitario).
+// Se usa solo si aún no se ha guardado un catálogo personalizado en SystemConfig.
+const DEFAULT_CULTURA_CATALOG = {
+  percepciones: [
+    { key: 'club6am',    label: 'Club 6am',                              costo: 39.47 },
+    { key: 'gigas',      label: 'Gigas ilimitados celular',              costo: 9.87  },
+    { key: 'meta',       label: 'Meta alcanzada',                        costo: 22.00 },
+    { key: 'gimnasio',   label: 'Gimnasio (comprobante mensual)',        costo: 18.09 },
+    { key: 'limpieza',   label: 'Limpieza dental (comprobante semestral)', costo: 6.58 },
+    { key: 'lectura',    label: 'Lectura Reto libro',                    costo: 18.09 },
+    { key: 'cmp',        label: 'Consulta médica Preventiva - CMP',      costo: 21.38 },
+    { key: 'cpp',        label: 'Consulta Psicológica Preventiva - CPP', costo: 21.31 },
+    { key: 'imagen',     label: 'Comisión por imagen personal',          costo: 11.00 },
+    { key: 'herr',       label: 'Comisión por cuidar herramientas',      costo: 5.50  },
+    { key: 'llevarHerr', label: 'Comi por llevar herramientas',          costo: 5.50  },
+  ],
+  escarmientos: [
+    { key: 'proex',   label: 'ProEx',                 costo: 22.00 },
+    { key: 'mad',     label: 'M.A.D.',                costo: 7.00  },
+    { key: 'gumby',   label: 'S. Gumby',              costo: 7.00  },
+    { key: 'humild',  label: 'Humildad',              costo: 7.00  },
+    { key: 'panora',  label: 'La Panoramización',     costo: 5.00  },
+    { key: 'audit',   label: 'La Auditoría',          costo: 5.00  },
+    { key: 'reiter',  label: 'La Reiteración',        costo: 3.00  },
+    { key: 'zapes',   label: 'ZAPES',                 costo: 9.00  },
+    { key: 'ooda',    label: 'Ciclo OODA',            costo: 9.00  },
+    { key: 'std',     label: 'S.T.D.',                costo: 6.00  },
+    { key: 'visual',  label: 'Visualización',         costo: 22.00 },
+    { key: 'respir',  label: 'Respiración',           costo: 22.00 },
+    { key: 'mimm',    label: 'MiMMOOTs',              costo: 22.00 },
+    { key: 'posit',   label: 'Positividad',           costo: 22.00 },
+    { key: 'cdh',     label: 'Código de Honor - CDH', costo: 33.00 },
+    { key: 'zoho',    label: 'Zoho FSM',              costo: 9.00  },
+  ],
+};
+
 export default async function handler(req, res) {
   const { method } = req;
 
@@ -39,6 +75,10 @@ export default async function handler(req, res) {
           { label: 'Bueno',     min: 4.0, amount: 500,  color: 'emerald' }
         ];
         return res.status(200).json(defaultBonus);
+      }
+
+      if (!config && key === 'CULTURA_CATALOG') {
+        return res.status(200).json(DEFAULT_CULTURA_CATALOG);
       }
 
       return res.status(200).json(config?.value || []);

@@ -29,6 +29,10 @@ import quotePhraseHandler from './api/_handlers/quote-phrases.js';
 import attendanceHandler from './api/_handlers/attendance.js';
 import techAttendanceHandler from './api/_handlers/tech-attendance.js';
 import techLocationsHandler  from './api/_handlers/tech-locations.js';
+import performanceHandler    from './api/_handlers/performance.js';
+import announcementsHandler  from './api/_handlers/announcements.js';
+import surveysHandler        from './api/_handlers/surveys.js';
+import payrollHandler        from './api/_handlers/payroll.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -177,6 +181,27 @@ app.get('/api/catalog', adaptHandler(catalogHandler));
 app.post('/api/catalog', adaptHandler(catalogHandler));
 app.put('/api/catalog', adaptHandler(catalogHandler));
 app.delete('/api/catalog', adaptHandler(catalogHandler));
+
+// Performance / KPIs
+app.get('/api/performance', adaptHandler(performanceHandler));
+
+// Announcements
+app.get('/api/announcements',    adaptHandler(announcementsHandler));
+app.post('/api/announcements',   adaptHandler(announcementsHandler));
+app.put('/api/announcements',    adaptHandler(announcementsHandler));
+app.delete('/api/announcements', adaptHandler(announcementsHandler));
+
+// Surveys
+app.get('/api/surveys',    adaptHandler(surveysHandler));
+app.post('/api/surveys',   adaptHandler(surveysHandler));
+app.put('/api/surveys',    adaptHandler(surveysHandler));
+app.delete('/api/surveys', adaptHandler(surveysHandler));
+
+// Payroll / Nómina
+app.get('/api/payroll',    adaptHandler(payrollHandler));
+app.post('/api/payroll',   adaptHandler(payrollHandler));
+app.put('/api/payroll',    adaptHandler(payrollHandler));
+app.delete('/api/payroll', adaptHandler(payrollHandler));
 
 // Calendar
 app.get('/api/calendar', adaptHandler(calendarHandler));

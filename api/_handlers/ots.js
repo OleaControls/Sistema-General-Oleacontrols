@@ -21,15 +21,16 @@ async function syncOTGoals(ot, setById) {
     const clientLocation = ot.address || null;
 
     const assistants = Array.isArray(ot.assistantTechs)
-      ? ot.assistantTechs.map(t => (typeof t === 'string' ? t : t?.id)).filter(Boolean)
+      ? ot.assistantTechs.flatMap(t => { const v = typeof t === 'string' ? t : t?.id; return v ? [v] : []; })
       : [];
     const support = Array.isArray(ot.supportTechs)
-      ? ot.supportTechs.map(t => (typeof t === 'string' ? t : t?.id)).filter(Boolean)
+      ? ot.supportTechs.flatMap(t => { const v = typeof t === 'string' ? t : t?.id; return v ? [v] : []; })
       : [];
 
     const allTechIds = [...new Set([ot.technicianId, ...assistants, ...support])];
 
-    for (const techId of allTechIds) {
+    // Cada técnico se procesa de forma independiente → en paralelo
+    await Promise.all(allTechIds.map(async (techId) => {
       // Buscar meta existente para este técnico+OT (sin importar fecha anterior)
       const existing = otNumber
         ? await prisma.techDailyGoal.findFirst({ where: { techId, otNumber } })
@@ -46,7 +47,7 @@ async function syncOTGoals(ot, setById) {
           data: { techId, date, clientName, clientLocation, otNumber: otNumber || null, setById },
         });
       }
-    }
+    }));
   } catch (err) {
     console.error('[syncOTGoals] error:', err.message);
   }
@@ -95,21 +96,18 @@ export default async function handler(req, res) {
     }
 
     // 2. Procesar fotos de evidencia (evidences / completionPhotos / photos)
+    // Ambos campos y todas sus fotos se suben en paralelo (uploads independientes)
     const photoFields = ['completionPhotos', 'photos'];
-    for (const field of photoFields) {
+    await Promise.all(photoFields.map(async (field) => {
         if (Array.isArray(updated[field])) {
-            const uploaded = [];
-            for (const item of updated[field]) {
-                if (typeof item === 'string' && item.startsWith('data:')) {
-                    const url = await uploadToR2(item, 'evidences');
-                    uploaded.push(url);
-                } else {
-                    uploaded.push(item);
-                }
-            }
-            updated[field] = uploaded;
+            // Promise.all preserva el orden original de cada arreglo de fotos
+            updated[field] = await Promise.all(updated[field].map(async (item) =>
+                (typeof item === 'string' && item.startsWith('data:'))
+                    ? await uploadToR2(item, 'evidences')
+                    : item
+            ));
         }
-    }
+    }));
 
     return updated;
   };
@@ -138,9 +136,7 @@ export default async function handler(req, res) {
           ot.clientSignature = await signUrlIfNeeded(ot.clientSignature);
           ot.deliveryActUrl = await signUrlIfNeeded(ot.deliveryActUrl);
           if (ot.evidences) {
-              for (let ev of ot.evidences) {
-                  ev.url = await signUrlIfNeeded(ev.url);
-              }
+              await Promise.all(ot.evidences.map(async (ev) => { ev.url = await signUrlIfNeeded(ev.url); }));
           }
 
           // Normalizar campos para que el frontend los reciba igual que en el listado
@@ -355,8 +351,8 @@ export default async function handler(req, res) {
 
       // Notificar por Telegram si la OT ya viene asignada
       if (data.leadTechId) {
-        const assistants = Array.isArray(data.assistantTechs) ? data.assistantTechs.map(t => t.id).filter(Boolean) : [];
-        const support = Array.isArray(data.supportTechs) ? data.supportTechs.map(t => t.id).filter(Boolean) : [];
+        const assistants = Array.isArray(data.assistantTechs) ? data.assistantTechs.flatMap(t => t.id ? [t.id] : []) : [];
+        const support = Array.isArray(data.supportTechs) ? data.supportTechs.flatMap(t => t.id ? [t.id] : []) : [];
         const allIds = [...new Set([data.leadTechId, ...assistants, ...support])];
 
         console.log('[Telegram] POST OT asignada, buscando técnicos:', allIds);
@@ -476,8 +472,8 @@ export default async function handler(req, res) {
         const leadId = updateData.technicianId || targetOT.technicianId;
         const rawAssistants = updateData.assistantTechs ?? targetOT.assistantTechs;
         const rawSupport   = updateData.supportTechs   ?? targetOT.supportTechs;
-        const assistants = Array.isArray(rawAssistants) ? rawAssistants.map(t => t.id).filter(Boolean) : [];
-        const support    = Array.isArray(rawSupport)    ? rawSupport.map(t => t.id).filter(Boolean)    : [];
+        const assistants = Array.isArray(rawAssistants) ? rawAssistants.flatMap(t => t.id ? [t.id] : []) : [];
+        const support    = Array.isArray(rawSupport)    ? rawSupport.flatMap(t => t.id ? [t.id] : []) : [];
         const allIds = [...new Set([leadId, ...assistants, ...support].filter(Boolean))];
 
         console.log('[Telegram] PUT OT asignada, buscando técnicos:', allIds);

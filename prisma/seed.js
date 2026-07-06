@@ -16,13 +16,13 @@ async function main() {
     "Coordinador CRM"
   ]
 
-  for (const cat of initialCategories) {
-    await prisma.category.upsert({
+  await Promise.all(initialCategories.map((cat) =>
+    prisma.category.upsert({
       where: { name: cat },
       update: {},
       create: { name: cat }
     })
-  }
+  ))
 
   // Inicializar Empleados y sus Credenciales con ARRAYS de roles
   const initialEmployees = [
@@ -50,9 +50,9 @@ async function main() {
     }
   ]
 
-  for (const emp of initialEmployees) {
+  await Promise.all(initialEmployees.map((emp) => {
     const { password, roles, ...empData } = emp
-    await prisma.employee.upsert({
+    return prisma.employee.upsert({
       where: { email: emp.email },
       update: {
         roles: roles
@@ -70,7 +70,7 @@ async function main() {
         }
       }
     })
-  }
+  }))
 
   console.log('✅ Seed finished successfully.')
 }

@@ -118,7 +118,7 @@ export default async function handler(req, res) {
         const seguimientos = await prisma.dealActivity.findMany({
           where,
           select: {
-            id: true, type: true, description: true, dueDate: true, completedAt: true, createdAt: true,
+            id: true, type: true, content: true, authorName: true, status: true, dueDate: true, createdAt: true,
             deal: { select: { id: true, title: true, company: true, stage: true } }
           },
           orderBy: { createdAt: 'desc' },

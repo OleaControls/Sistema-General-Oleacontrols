@@ -149,7 +149,7 @@ export default function EmployeeProfile() {
       <div className="bg-white rounded-[2.5rem] p-8 border border-gray-100 shadow-sm flex flex-col md:flex-row gap-8 items-center md:items-start text-center md:text-left relative overflow-hidden">
         <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-primary/10 to-transparent blur-[80px]" />
         
-        <img src={employee.avatar} className="h-32 w-32 rounded-[2rem] object-cover border-4 border-white shadow-2xl relative z-10" />
+        <img src={employee.avatar} alt={`Foto de ${employee.name}`} className="h-32 w-32 rounded-[2rem] object-cover border-4 border-white shadow-2xl relative z-10" />
         
         <div className="flex-1 space-y-4 relative z-10">
           <div className="space-y-1">

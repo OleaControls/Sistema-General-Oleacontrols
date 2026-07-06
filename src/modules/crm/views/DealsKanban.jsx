@@ -1504,7 +1504,7 @@ function SeguimientosSection({ seguimientos, loading, newSeg, setNewSeg, deals, 
 
   // Tratos que tienen al menos un seguimiento
   const dealsWithSeg = React.useMemo(() => {
-    const ids = new Set(seguimientos.map(s => s.deal?.id).filter(Boolean));
+    const ids = new Set(seguimientos.flatMap(s => s.deal?.id ? [s.deal.id] : []));
     return deals.filter(d => ids.has(d.id));
   }, [seguimientos, deals]);
 

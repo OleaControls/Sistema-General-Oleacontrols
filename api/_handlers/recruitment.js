@@ -1,6 +1,10 @@
 import prisma from '../_lib/prisma.js'
+import { authMiddleware } from '../_lib/auth.js'
 
 export default async function handler(req, res) {
+  const auth = authMiddleware(req, res);
+  if (!auth) return; // authMiddleware ya respondió 401
+
   const method = req.method.toUpperCase();
 
   try {

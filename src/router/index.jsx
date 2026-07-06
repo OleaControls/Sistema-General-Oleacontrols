@@ -46,6 +46,7 @@ const HRSettings        = lazy(() => import('@/modules/human-resources/views/HRS
 const PerformanceDashboard = lazy(() => import('@/modules/human-resources/views/PerformanceDashboard'));
 const RewardManager     = lazy(() => import('@/modules/human-resources/views/RewardManager'));
 const SurveyManager     = lazy(() => import('@/modules/human-resources/views/SurveyManager'));
+const Payroll           = lazy(() => import('@/modules/human-resources/views/Payroll'));
 
 // CRM
 const CRMLayout       = lazy(() => import('@/modules/crm/components/CRMLayout'));
@@ -187,8 +188,9 @@ export default function AppRouter() {
             <Route path="performance"           element={<Performance />} />
             <Route path="rewards"               element={<RewardManager />} />
             <Route path="assets"                element={<Assets />} />
-<Route path="surveys"               element={<SurveyManager />} />
+            <Route path="surveys"               element={<SurveyManager />} />
             <Route path="announcements"         element={<Announcements />} />
+            <Route path="payroll"               element={<Payroll />} />
             <Route path="reports"               element={<HRReports />} />
             <Route path="settings"              element={<HRSettings />} />
           </Route>

@@ -627,7 +627,7 @@ export default function DeliveryAct() {
                 <div className="grid grid-cols-2 gap-3">
                     {formData.photos.map((photo, i) => (
                         <div key={i} className="relative aspect-square rounded-2xl overflow-hidden border group shadow-sm">
-                            <img src={photo} className="w-full h-full object-cover" />
+                            <img src={photo} alt={`Evidencia ${i + 1}`} className="w-full h-full object-cover" />
                             <button onClick={() => setFormData({...formData, photos: formData.photos.filter((_, idx) => idx !== i)})} className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-all shadow-lg">
                                 <X className="h-3 w-3" />
                             </button>

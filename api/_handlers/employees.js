@@ -1,7 +1,11 @@
 import prisma from '../_lib/prisma.js'
 import { uploadToR2, signUrlIfNeeded } from '../_lib/r2.js'
+import { authMiddleware } from '../_lib/auth.js'
 
 export default async function handler(req, res) {
+  const auth = authMiddleware(req, res);
+  if (!auth) return; // authMiddleware ya respondió 401
+
   // Helper para procesar múltiples documentos a R2
   const processDocs = async (body) => {
     const docFields = [
@@ -15,7 +19,8 @@ export default async function handler(req, res) {
     const updatedBody = { ...body };
     console.log(`[R2] Iniciando procesamiento de ${docFields.length} campos para documentos.`);
     
-    for (const field of docFields) {
+    // Subir todos los documentos en paralelo (uploads independientes por campo)
+    await Promise.all(docFields.map(async (field) => {
       const value = updatedBody[field];
       if (value && typeof value === 'string' && value.startsWith('data:')) {
         try {
@@ -27,7 +32,7 @@ export default async function handler(req, res) {
           console.error(`[R2] Error crítico subiendo ${field}:`, e.message);
         }
       }
-    }
+    }));
     return updatedBody;
   };
 
@@ -55,33 +60,40 @@ export default async function handler(req, res) {
             'resignationLetter', 'settlementOrLiquidation', 'imssLow', 'laborConstancy'
           ];
 
-          // Firmar todas las URLs en paralelo en lugar de secuencialmente
+          // Firmar todas las URLs en paralelo en lugar de secuencialmente (una sola pasada)
           await Promise.all(
-            docFields
-              .filter(f => employee[f] && typeof employee[f] === 'string' && employee[f].includes('r2.dev'))
-              .map(async (f) => { employee[f] = await signUrlIfNeeded(employee[f]); })
+            docFields.map(async (f) => {
+              if (employee[f] && typeof employee[f] === 'string' && employee[f].includes('r2.dev')) {
+                employee[f] = await signUrlIfNeeded(employee[f]);
+              }
+            })
           );
 
           return res.status(200).json(employee);
       }
 
-      // LISTADO GENERAL (Ligero para ahorrar Egress)
+      // LISTADO GENERAL
       const employees = await prisma.employee.findMany({
         orderBy: { employeeId: 'asc' },
         select: {
-            id: true,
-            employeeId: true,
-            name: true,
-            email: true,
-            roles: true,
-            avatar: true,
-            position: true,
-            department: true,
-            status: true,
-            location: true,
-            phone: true,
-            reportsTo: true,
-            telegramChatId: true,
+            id: true, employeeId: true, name: true, email: true,
+            roles: true, avatar: true, position: true, department: true,
+            status: true, location: true, phone: true, reportsTo: true,
+            telegramChatId: true, joinDate: true, contractType: true,
+            vacationBalance: true,
+            vacationRequests: { orderBy: { createdAt: 'desc' }, take: 12 },
+            // Campos de documentos (solo indicador de existencia para el expediente)
+            ineDoc: true, curp: true, rfc: true, nss: true,
+            birthCertificate: true, proofOfResidency: true, cv: true,
+            contractSigned: true, privacyPolicySigned: true,
+            internalRulesSigned: true, imssHigh: true,
+            studyCertificate: true, degreeOrProfessionalId: true,
+            diplomasOrCourses: true, laborCertifications: true,
+            recommendationLetter: true, performanceEvaluations: true,
+            receivedTraining: true, administrativeActs: true,
+            disciplinaryReports: true, permitsOrLicenses: true,
+            resignationLetter: true, settlementOrLiquidation: true,
+            imssLow: true, laborConstancy: true,
         }
       });
 

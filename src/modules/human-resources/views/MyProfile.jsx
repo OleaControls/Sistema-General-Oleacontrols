@@ -254,9 +254,9 @@ export default function MyProfile() {
         auditDate: auditForm.auditDate,
         isLeader: auditForm.isLeader,
         actionArea: auditForm.actionArea,
-        didWell:       auditForm.didWell.map(i => i.desc).filter(Boolean),
-        didPoor:       auditForm.didPoor.map(i => i.desc).filter(Boolean),
-        improvements:  auditForm.improvements.map(i => i.desc).filter(Boolean),
+        didWell:       auditForm.didWell.flatMap(i => i.desc ? [i.desc] : []),
+        didPoor:       auditForm.didPoor.flatMap(i => i.desc ? [i.desc] : []),
+        improvements:  auditForm.improvements.flatMap(i => i.desc ? [i.desc] : []),
       };
       const res = await apiFetch('/api/personal-audits', {
         method: 'POST',

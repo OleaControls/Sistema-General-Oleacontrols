@@ -1529,8 +1529,8 @@ function ClientInsightsSection({ clients, deals, quotes, sinceDate, colors }) {
 
   // Recuperados: tienen deals recientes pero su cliente es anterior al período
   const activeClientIdsInPeriod = new Set([
-    ...deals.filter(d => new Date(d.createdAt || d.updatedAt) >= sinceDate).map(d => d.clientId).filter(Boolean),
-    ...quotes.filter(q => new Date(q.createdAt) >= sinceDate).map(q => q.clientId).filter(Boolean),
+    ...deals.flatMap(d => (new Date(d.createdAt || d.updatedAt) >= sinceDate && d.clientId) ? [d.clientId] : []),
+    ...quotes.flatMap(q => (new Date(q.createdAt) >= sinceDate && q.clientId) ? [q.clientId] : []),
   ]);
   const recoveredClients = clients.filter(c =>
     new Date(c.createdAt) < sinceDate && activeClientIdsInPeriod.has(c.id)

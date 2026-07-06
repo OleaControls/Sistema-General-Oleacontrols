@@ -193,13 +193,15 @@ function NavItem({ item, user, isCollapsed, onClick }) {
 function NavGroup({ group, user, userRoles, isCollapsed, closeSidebar }) {
   const location = useLocation();
   const visibleItems = filterItems(group.items, userRoles);
-  if (visibleItems.length === 0) return null;
 
   const isGroupActive = visibleItems.some(i =>
     i.path === location.pathname || location.pathname.startsWith(i.path + '/')
   );
 
   const [open, setOpen] = useState(group.defaultOpen || isGroupActive);
+
+  // Los hooks deben ir antes de cualquier return condicional para no romper el orden de hooks.
+  if (visibleItems.length === 0) return null;
 
   if (isCollapsed) {
     return (

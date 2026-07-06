@@ -21,10 +21,13 @@ export async function apiFetch(url, options = {}) {
     });
 
     if (response.status === 401) {
-        // Opcional: Manejar expiración de token
-        // localStorage.removeItem('olea_user');
-        // localStorage.removeItem('olea_token');
-        // window.location.href = '/login';
+        // Token expirado o inválido: limpiar sesión y redirigir al login.
+        // Evitamos el redirect si ya estamos en /login para no crear un bucle.
+        localStorage.removeItem('olea_user');
+        localStorage.removeItem('olea_token');
+        if (window.location.pathname !== '/login') {
+            window.location.href = '/login';
+        }
     }
 
     return response;

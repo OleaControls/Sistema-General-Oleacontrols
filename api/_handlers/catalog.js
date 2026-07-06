@@ -43,7 +43,7 @@ export default async function handler(req, res) {
         products,
         total,
         categories: cats.map(c => ({ name: c.category, count: c._count.id })),
-        brands: brands.map(b => b.brand).filter(Boolean).sort(),
+        brands: brands.flatMap(b => b.brand ? [b.brand] : []).sort(),
       });
     }
 

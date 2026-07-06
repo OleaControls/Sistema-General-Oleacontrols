@@ -1,84 +1,24 @@
-const GAMIFICATION_KEY = 'olea_gamification_db';
-const REWARDS_KEY = 'olea_rewards_db';
+import { apiFetch } from '../lib/api';
 
-const initialPlayers = [
-  { id: 'user-123', name: 'Gabriel Técnico (Pruebas)', xp: 1250, level: 14, completedOTs: 45, perfectServices: 38, avgCompletionTime: 2.5, rank: 1, avatar: 'https://i.pravatar.cc/150?u=user-123' },
-  { id: 'user-tech-02', name: 'Juan Pérez', xp: 980, level: 11, completedOTs: 32, perfectServices: 25, avgCompletionTime: 3.1, rank: 2, avatar: 'https://i.pravatar.cc/150?u=user-tech-02' },
-  { id: 'user-tech-03', name: 'Luis Gómez', xp: 850, level: 9, completedOTs: 28, perfectServices: 20, avgCompletionTime: 2.8, rank: 3, avatar: 'https://i.pravatar.cc/150?u=user-tech-03' },
-  { id: 'user-tech-04', name: 'Ana Martínez', xp: 1100, level: 12, completedOTs: 40, perfectServices: 30, avgCompletionTime: 2.2, rank: 2, avatar: 'https://i.pravatar.cc/150?u=user-tech-04' }
-];
+const REWARDS_KEY = 'olea_rewards_db';
 
 const initialRewards = [
   {
     id: 'REW-001',
     title: 'Bono de Excelencia Q1',
     description: 'Bono en efectivo por mantener racha de 30 días.',
-    image: 'https://images.unsplash.com/photo-1579621970563-ebec7560ff3e?auto=format&fit=crop&q=80&w=400',
     xpRequired: 2000,
     status: 'ACTIVE',
-    winners: []
-  }
+    winners: [],
+  },
 ];
 
 export const gamificationService = {
-  async getLeaderboard() {
-    const data = localStorage.getItem(GAMIFICATION_KEY);
-    const players = data ? JSON.parse(data) : initialPlayers;
-    return players.sort((a, b) => b.xp - a.xp).map((p, i) => ({ ...p, rank: i + 1 }));
-  },
-
-  async getPlayerStats(userId) {
-    const players = await this.getLeaderboard();
-    const player = players.find(p => p.id === userId);
-    if (!player) {
-      return { id: userId, name: 'Nuevo Recluta', xp: 0, level: 1, completedOTs: 0, perfectServices: 0, avgCompletionTime: 0, rank: players.length + 1, avatar: 'https://i.pravatar.cc/150' };
-    }
-    return player;
-  },
-
-  async addXP(userId, amount, reason, extra = {}) {
-    const players = await this.getLeaderboard();
-    let found = false;
-    const updated = players.map(p => {
-      if (p.id === userId) {
-        found = true;
-        const newXP = p.xp + amount;
-        
-        let newAvgTime = p.avgCompletionTime || 0;
-        if (reason === 'OT_COMPLETED' && extra.completionTime) {
-            // Promedio móvil simple
-            newAvgTime = p.completedOTs === 0 
-                ? extra.completionTime 
-                : ((p.avgCompletionTime * p.completedOTs) + extra.completionTime) / (p.completedOTs + 1);
-        }
-
-        return { 
-          ...p, 
-          xp: newXP, 
-          level: Math.floor(newXP / 100) + 1,
-          completedOTs: reason === 'OT_COMPLETED' ? p.completedOTs + 1 : p.completedOTs,
-          perfectServices: reason === 'PERFECT_SCORE' ? p.perfectServices + 1 : p.perfectServices,
-          avgCompletionTime: Number(newAvgTime.toFixed(1))
-        };
-      }
-      return p;
-    });
-
-    if (!found) {
-      updated.push({
-        id: userId,
-        name: 'Técnico',
-        xp: amount,
-        level: 1,
-        completedOTs: reason === 'OT_COMPLETED' ? 1 : 0,
-        perfectServices: 0,
-        avgCompletionTime: extra.completionTime || 0,
-        avatar: 'https://i.pravatar.cc/150'
-      });
-    }
-
-    localStorage.setItem(GAMIFICATION_KEY, JSON.stringify(updated));
-    return true;
+  async getLeaderboard(period = 'month') {
+    const res = await apiFetch(`/api/gamification?period=${period}`);
+    if (!res.ok) throw new Error('Error al obtener ranking');
+    const data = await res.json();
+    return Array.isArray(data) ? data : [];
   },
 
   async getRewards() {
@@ -91,24 +31,44 @@ export const gamificationService = {
     const newReward = {
       ...rewardData,
       id: `REW-${Math.floor(1000 + Math.random() * 9000)}`,
-      winners: []
+      winners: [],
+      createdAt: new Date().toISOString(),
     };
     localStorage.setItem(REWARDS_KEY, JSON.stringify([newReward, ...rewards]));
     return newReward;
   },
 
+  async updateReward(id, data) {
+    const rewards = await this.getRewards();
+    const updated = rewards.map(r => r.id === id ? { ...r, ...data } : r);
+    localStorage.setItem(REWARDS_KEY, JSON.stringify(updated));
+    return true;
+  },
+
+  async deleteReward(id) {
+    const rewards = await this.getRewards();
+    localStorage.setItem(REWARDS_KEY, JSON.stringify(rewards.filter(r => r.id !== id)));
+    return true;
+  },
+
   async assignWinner(rewardId, userId, userName) {
     const rewards = await this.getRewards();
     const updated = rewards.map(r => {
-      if (r.id === rewardId) {
-        const alreadyWinner = r.winners?.some(w => w.id === userId);
-        if (alreadyWinner) return r;
-        const winners = r.winners || [];
-        return { ...r, winners: [...winners, { id: userId, name: userName, assignedAt: new Date().toISOString() }] };
-      }
-      return r;
+      if (r.id !== rewardId) return r;
+      const already = r.winners?.some(w => w.id === userId);
+      if (already) return r;
+      return { ...r, winners: [...(r.winners || []), { id: userId, name: userName, assignedAt: new Date().toISOString() }] };
     });
     localStorage.setItem(REWARDS_KEY, JSON.stringify(updated));
     return true;
-  }
+  },
+
+  async removeWinner(rewardId, userId) {
+    const rewards = await this.getRewards();
+    const updated = rewards.map(r =>
+      r.id !== rewardId ? r : { ...r, winners: (r.winners || []).filter(w => w.id !== userId) }
+    );
+    localStorage.setItem(REWARDS_KEY, JSON.stringify(updated));
+    return true;
+  },
 };

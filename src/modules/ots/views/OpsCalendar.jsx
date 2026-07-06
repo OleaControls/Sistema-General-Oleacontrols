@@ -702,7 +702,7 @@ export default function OpsCalendar() {
                     const techPosition = selectedEvent.technician?.position || 'Técnico Líder';
                     const supervisorName = selectedEvent.assignedByName;
                     const assistIds = Array.isArray(selectedEvent.assistantTechs) ? selectedEvent.assistantTechs : [];
-                    const assistNames = assistIds.map(id => availableTechs.find(t => t.id === id)?.name).filter(Boolean);
+                    const assistNames = assistIds.flatMap(id => { const n = availableTechs.find(t => t.id === id)?.name; return n ? [n] : []; });
                     const funds = selectedEvent.financials;
                     return (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>

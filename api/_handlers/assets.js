@@ -1,6 +1,10 @@
 import prisma from '../_lib/prisma.js'
+import { authMiddleware } from '../_lib/auth.js'
 
 export default async function handler(req, res) {
+  const auth = authMiddleware(req, res);
+  if (!auth) return; // authMiddleware ya respondió 401
+
   const method = req.method.toUpperCase();
 
   try {
@@ -77,7 +81,7 @@ export default async function handler(req, res) {
     }
 
     if (method === 'DELETE') {
-      const { id } = req.body || req.query;
+      const id = req.query.id || req.body?.id;
       if (!id) return res.status(400).json({ error: 'ID requerido' });
 
       await prisma.asset.delete({ where: { id } });

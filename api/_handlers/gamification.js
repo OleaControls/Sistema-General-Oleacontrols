@@ -42,7 +42,7 @@ function parseSupportIds(ot) {
     try {
       const arr = typeof f === 'string' ? JSON.parse(f) : f;
       return Array.isArray(arr)
-        ? arr.map(t => (typeof t === 'string' ? t : t?.id)).filter(Boolean)
+        ? arr.flatMap(t => { const v = typeof t === 'string' ? t : t?.id; return v ? [v] : []; })
         : [];
     } catch { return []; }
   };
@@ -151,13 +151,13 @@ export default async function handler(req, res) {
 
       const myPeriodOTs = [...leadOTs, ...supportOTs];
 
-      const reactionMins = myPeriodOTs.filter(o => o.createdAt && o.startedAt)
-        .map(o => (new Date(o.startedAt) - new Date(o.createdAt)) / 60000);
+      const reactionMins = myPeriodOTs.flatMap(o =>
+        (o.createdAt && o.startedAt) ? [(new Date(o.startedAt) - new Date(o.createdAt)) / 60000] : []);
       const avgReaction = reactionMins.length
         ? (reactionMins.reduce((a, b) => a + b, 0) / reactionMins.length).toFixed(0) : null;
 
-      const resolutionHrs = myPeriodOTs.filter(o => o.startedAt && o.finishedAt)
-        .map(o => (new Date(o.finishedAt) - new Date(o.startedAt)) / 3600000);
+      const resolutionHrs = myPeriodOTs.flatMap(o =>
+        (o.startedAt && o.finishedAt) ? [(new Date(o.finishedAt) - new Date(o.startedAt)) / 3600000] : []);
       const avgResolution = resolutionHrs.length
         ? (resolutionHrs.reduce((a, b) => a + b, 0) / resolutionHrs.length).toFixed(1) : null;
 

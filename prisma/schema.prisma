@@ -746,3 +746,114 @@ model CalendarEvent {
   @@index([userId, startDate])
   @@index([otClientId])
 }
+
+// ── Comunicados / Anuncios ───────────────────────────────────────────────────
+model Announcement {
+  id                   String   @id @default(cuid())
+  title                String
+  content              String
+  type                 String   @default("INFO")   // INFO, URGENT, POLICY
+  category             String   @default("GENERAL") // GENERAL, TECNICO, VENTAS, ADMIN, RRHH
+  targetDepts          String[] @default([])        // [] = todos
+  targetRoles          String[] @default([])        // [] = todos
+  requiresConfirmation Boolean  @default(false)
+  authorId             String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  reads                AnnouncementRead[]
+
+  @@index([createdAt])
+}
+
+model AnnouncementRead {
+  id             String       @id @default(cuid())
+  announcementId String
+  employeeId     String
+  confirmedAt    DateTime     @default(now())
+  announcement   Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+
+  @@unique([announcementId, employeeId])
+  @@index([announcementId])
+  @@index([employeeId])
+}
+
+// ── Encuestas de Clima ───────────────────────────────────────────────────────
+model Survey {
+  id          String           @id @default(cuid())
+  title       String
+  description String?
+  status      String           @default("ACTIVE") // DRAFT, ACTIVE, CLOSED
+  anonymous   Boolean          @default(true)
+  endDate     DateTime?
+  questions   Json             @default("[]")
+  targetDepts String[]         @default([])
+  targetRoles String[]         @default([])
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  responses   SurveyResponse[]
+
+  @@index([status, createdAt])
+}
+
+model SurveyResponse {
+  id          String   @id @default(cuid())
+  surveyId    String
+  employeeId  String?
+  answers     Json     @default("{}")
+  submittedAt DateTime @default(now())
+  survey      Survey   @relation(fields: [surveyId], references: [id], onDelete: Cascade)
+
+  @@unique([surveyId, employeeId])
+  @@index([surveyId])
+}
+
+// ── Nómina ────────────────────────────────────────────────────────────────────
+model PayrollPeriod {
+  id              String        @id @default(cuid())
+  name            String        // "1ª Quincena Enero 2026"
+  type            String        @default("QUINCENAL") // SEMANAL, QUINCENAL, MENSUAL
+  startDate       DateTime
+  endDate         DateTime
+  status          String        @default("DRAFT")    // DRAFT, APPROVED, PAID
+  totalGross      Float         @default(0)
+  totalDeductions Float         @default(0)
+  totalNet        Float         @default(0)
+  employeeCount   Int           @default(0)
+  notes           String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  items           PayrollItem[]
+
+  @@index([status, startDate])
+}
+
+model PayrollItem {
+  id              String        @id @default(cuid())
+  periodId        String
+  period          PayrollPeriod @relation(fields: [periodId], references: [id], onDelete: Cascade)
+  employeeId      String
+  employeeName    String
+  employeePos     String?
+  employeeDept    String?
+  baseSalary      Float         @default(0)
+  absenceDays     Int           @default(0)
+  absenceDeduct   Float         @default(0)
+  overtimeHours   Float         @default(0)
+  overtimePay     Float         @default(0)
+  bonuses         Json          @default("[]")       // [{concept, amount}]
+  bonusTotal      Float         @default(0)
+  grossPay        Float         @default(0)
+  imss            Float         @default(0)
+  isr             Float         @default(0)
+  infonavit       Float         @default(0)
+  extraDeductions Json          @default("[]")       // [{concept, amount}]
+  totalDeductions Float         @default(0)
+  netPay          Float         @default(0)
+  notes           String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@unique([periodId, employeeId])
+  @@index([periodId])
+  @@index([employeeId])
+}

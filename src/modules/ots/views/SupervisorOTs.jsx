@@ -493,14 +493,17 @@ export default function SupervisorOTs() {
           });
 
           // Técnicos de apoyo — assistantTechs y supportTechs (sin vehículo propio por defecto)
-          for (const at of [...(newOT.assistantTechs || []), ...(newOT.supportTechs || [])]) {
-            if (at?.id) {
-              await apiFetch('/api/tech-attendance/goals', {
-                method: 'POST',
-                body: JSON.stringify({ ...goalBase, techId: at.id, hasVehicle: false }),
-              });
-            }
-          }
+          // Metas independientes por técnico → se crean en paralelo, en una sola pasada
+          await Promise.all(
+            [...(newOT.assistantTechs || []), ...(newOT.supportTechs || [])].flatMap(at =>
+              at?.id
+                ? [apiFetch('/api/tech-attendance/goals', {
+                    method: 'POST',
+                    body: JSON.stringify({ ...goalBase, techId: at.id, hasVehicle: false }),
+                  })]
+                : []
+            )
+          );
         } catch (_) { /* no bloquear el guardado de la OT si falla la meta */ }
       }
 

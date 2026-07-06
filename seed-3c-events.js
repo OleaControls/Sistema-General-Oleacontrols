@@ -122,7 +122,7 @@ async function main() {
   let created = 0;
   let errors = 0;
 
-  for (const ev of EVENTS_DATA) {
+  await Promise.all(EVENTS_DATA.map(async (ev) => {
     try {
       await prisma.calendarEvent.create({
         data: {
@@ -142,7 +142,7 @@ async function main() {
       errors++;
       console.error(`  ✗ ${ev.fecha} ${ev.title}: ${err.message}`);
     }
-  }
+  }));
 
   console.log(`\n🎉 Completado: ${created} eventos creados, ${errors} errores.`);
 }

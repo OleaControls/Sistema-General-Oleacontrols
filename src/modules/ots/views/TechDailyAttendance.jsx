@@ -1294,7 +1294,7 @@ export default function TechDailyAttendance() {
       setLog(logData);
 
       // Cargar panoramizaciones para OTs del día que tengan otNumber
-      const otNumbers = todayGoals.map(g => g.otNumber).filter(Boolean);
+      const otNumbers = todayGoals.flatMap(g => g.otNumber ? [g.otNumber] : []);
       if (otNumbers.length > 0) {
         const pMap = {};
         await Promise.all(otNumbers.map(async (ot) => {
