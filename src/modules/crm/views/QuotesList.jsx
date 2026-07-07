@@ -393,6 +393,7 @@ export default function QuotesList() {
   const [savingQuote,   setSavingQuote]   = useState(false);
   const [generatingPDF, setGeneratingPDF] = useState(false);
   const [duplicating,   setDuplicating]   = useState(null);
+  const [sendingPipeline, setSendingPipeline] = useState(null);
 
   // Modal: crear cotización
   const [showAddModal,  setShowAddModal]  = useState(false);
@@ -622,6 +623,77 @@ export default function QuotesList() {
       alert('Error al duplicar la cotización: ' + err.message);
     } finally {
       setDuplicating(null);
+    }
+  };
+
+  // ── Mandar cotización al pipeline ─────────────────────────────────────────
+  // Crea (o mueve) un trato a la etapa "Cotización enviada" del Pipeline CRM,
+  // vincula la cotización al trato y registra la actividad para darle seguimiento.
+  const sendToPipeline = async (q, e) => {
+    e?.stopPropagation();
+    if (sendingPipeline) return;
+    if (q.dealId && !window.confirm(`Esta cotización ya está vinculada a un trato del pipeline.\n\n¿Actualizar el trato a la etapa "Cotización enviada" y registrar el seguimiento?`)) return;
+    setSendingPipeline(q.id);
+    const fmtM = (n) => `$${Number(n || 0).toLocaleString('es-MX', { maximumFractionDigits: 0 })}`;
+    try {
+      const client = clients.find(c => c.id === q.clientId) || q.client || {};
+      let dealId = q.dealId;
+
+      if (dealId) {
+        // Mover el trato existente a "Cotización enviada"
+        const res = await apiFetch('/api/crm/deals', {
+          method: 'PUT',
+          body: JSON.stringify({ id: dealId, stage: 'PROPOSAL_SENT' })
+        });
+        if (!res.ok) throw new Error('No se pudo actualizar el trato en el pipeline');
+      } else {
+        // Crear un nuevo trato en la etapa "Cotización enviada"
+        const res = await apiFetch('/api/crm/deals', {
+          method: 'POST',
+          body: JSON.stringify({
+            title:        q.projectName || client.companyName || q.quoteNumber,
+            value:        q.total || 0,
+            company:      client.companyName || null,
+            contactName:  q.contactName || client.contactName || null,
+            contactEmail: client.email || null,
+            contactPhone: client.phone || null,
+            clientId:     q.clientId || null,
+            stage:        'PROPOSAL_SENT',
+            source:       'Cotización',
+            description:  `Trato generado desde la cotización ${q.quoteNumber}`,
+          })
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.error || 'No se pudo crear el trato en el pipeline');
+        }
+        const deal = await res.json();
+        dealId = deal.id;
+        // Vincular la cotización al trato recién creado
+        await apiFetch('/api/quotes', {
+          method: 'PUT',
+          body: JSON.stringify({ id: q.id, dealId })
+        }).catch(() => {});
+      }
+
+      // Registrar la actividad de seguimiento en el trato
+      await apiFetch('/api/crm/deal-activities', {
+        method: 'POST',
+        body: JSON.stringify({
+          dealId,
+          type:       'QUOTE',
+          content:    `Cotización enviada al pipeline — Folio: ${q.quoteNumber} | Total: ${fmtM(q.total)} | Proyecto: ${q.projectName || client.companyName || ''}`,
+          authorName: user?.name || 'Sistema',
+          status:     'COMPLETED',
+        })
+      }).catch(() => {});
+
+      await fetchData();
+      alert('✓ Cotización enviada al pipeline. Ya puedes darle seguimiento en el Pipeline CRM (etapa "Cotización enviada").');
+    } catch (err) {
+      alert('Error al enviar al pipeline: ' + err.message);
+    } finally {
+      setSendingPipeline(null);
     }
   };
 
@@ -1030,6 +1102,19 @@ export default function QuotesList() {
                         }
                       </button>
                       <button
+                        onClick={e => sendToPipeline(q, e)}
+                        title={q.dealId ? 'Actualizar en el pipeline (Cotización enviada)' : 'Mandar cotización al pipeline'}
+                        disabled={sendingPipeline === q.id}
+                        style={{ width: 34, height: 34, borderRadius: 10, background: q.dealId ? '#ecfdf5' : '#fff7ed', color: q.dealId ? '#059669' : '#ea580c', border: `1.5px solid ${q.dealId ? '#a7f3d0' : '#fed7aa'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: sendingPipeline === q.id ? 'wait' : 'pointer', transition: 'all .15s', flexShrink: 0, opacity: sendingPipeline && sendingPipeline !== q.id ? .5 : 1 }}
+                        onMouseEnter={e => { if (!sendingPipeline) { const c = q.dealId ? '#059669' : '#ea580c'; e.currentTarget.style.background = c; e.currentTarget.style.color = '#fff'; e.currentTarget.style.borderColor = c; e.currentTarget.style.boxShadow = `0 4px 14px ${c}40`; } }}
+                        onMouseLeave={e => { e.currentTarget.style.background = q.dealId ? '#ecfdf5' : '#fff7ed'; e.currentTarget.style.color = q.dealId ? '#059669' : '#ea580c'; e.currentTarget.style.borderColor = q.dealId ? '#a7f3d0' : '#fed7aa'; e.currentTarget.style.boxShadow = 'none'; }}
+                      >
+                        {sendingPipeline === q.id
+                          ? <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} />
+                          : <TrendingUp size={14} />
+                        }
+                      </button>
+                      <button
                         onClick={e => { e.stopPropagation(); downloadPDF(q.id, q.quoteNumber); }}
                         title="Descargar PDF"
                         style={{ width: 34, height: 34, borderRadius: 10, background: '#eff6ff', color: '#3b82f6', border: '1.5px solid #dbeafe', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'all .15s', flexShrink: 0 }}
@@ -1080,6 +1165,22 @@ export default function QuotesList() {
                     </p>
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0">
+                    <button
+                      onClick={() => sendToPipeline(selectedQuote)}
+                      disabled={sendingPipeline === selectedQuote.id}
+                      title={selectedQuote.dealId ? 'Actualizar en el pipeline (Cotización enviada)' : 'Mandar cotización al pipeline'}
+                      className={cn(
+                        "flex items-center gap-2 px-4 py-2.5 rounded-xl font-black text-[9px] uppercase tracking-widest transition-all disabled:opacity-60 border",
+                        selectedQuote.dealId
+                          ? "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
+                          : "bg-orange-500 text-white border-orange-500 hover:bg-orange-600"
+                      )}
+                    >
+                      {sendingPipeline === selectedQuote.id
+                        ? <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                        : <TrendingUp className="h-3.5 w-3.5" />}
+                      {selectedQuote.dealId ? 'En pipeline' : 'Al pipeline'}
+                    </button>
                     <button
                       onClick={async () => {
                         if (detailTab === 'edit') {

@@ -806,9 +806,10 @@ export default async function handler(req, res) {
 
   if (method === 'PUT') {
     try {
-      const { id, status, clientId, sellerId, projectName, contactName, validUntil, terms, templateType, requirements, observations, benefits, items, subtotal, tax, adjustment, total } = req.body;
+      const { id, status, clientId, sellerId, projectName, contactName, validUntil, terms, templateType, requirements, observations, benefits, items, subtotal, tax, adjustment, total, dealId } = req.body;
       const updateData = {};
       if (status !== undefined)        updateData.status = status;
+      if (dealId !== undefined)        updateData.dealId = dealId || null;
       if (clientId !== undefined && clientId) updateData.clientId = clientId;
       if (sellerId !== undefined)      updateData.sellerId = sellerId || null;
       if (projectName !== undefined)   updateData.projectName = projectName;
