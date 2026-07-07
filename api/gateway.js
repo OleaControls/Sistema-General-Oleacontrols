@@ -32,6 +32,12 @@ const handlers = {
   upload: () => import('./_handlers/upload.js'),
   'tech-locations':  () => import('./_handlers/tech-locations.js'),
   'tech-attendance': () => import('./_handlers/tech-attendance.js'),
+  attendance:    () => import('./_handlers/attendance.js'),
+  performance:   () => import('./_handlers/performance.js'),
+  announcements: () => import('./_handlers/announcements.js'),
+  surveys:       () => import('./_handlers/surveys.js'),
+  payroll:       () => import('./_handlers/payroll.js'),
+  lms:           () => import('./_handlers/lms.js'),
 };
 
 export default async function handler(req, res) {

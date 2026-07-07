@@ -303,8 +303,11 @@ export default function Performance() {
     setLoading(true);
     try {
       const r = await apiFetch('/api/performance');
-      setData(await r.json());
-    } catch(e) { console.error(e); }
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const json = await r.json();
+      // Aseguramos la forma esperada; si el backend responde otra cosa, no rompemos el render
+      setData(json && Array.isArray(json.employees) ? json : { employees: [] });
+    } catch(e) { console.error(e); setData({ employees: [] }); }
     finally { setLoading(false); }
   };
 
