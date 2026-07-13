@@ -5,6 +5,8 @@ import { cn } from '@/lib/utils';
 export default function CRMLayout() {
   const location = useLocation();
   const isFullHeight = ['/crm', '/crm/deals', '/crm/clients', '/crm/calendar'].includes(location.pathname);
+  // Vistas que usan todo el ancho pero conservan padding y scroll
+  const isWide = ['/crm/leads', '/crm/quotes'].includes(location.pathname);
 
   return (
     <div className="flex h-[calc(100vh-4rem)] -m-4 md:-m-8 bg-gray-50">
@@ -17,7 +19,7 @@ export default function CRMLayout() {
           </div>
         ) : (
           <div className="flex-1 overflow-y-auto p-4 md:p-8">
-            <div className="max-w-6xl mx-auto pb-20">
+            <div className={cn('pb-20', isWide ? 'w-full' : 'max-w-6xl mx-auto')}>
               <Outlet />
             </div>
           </div>

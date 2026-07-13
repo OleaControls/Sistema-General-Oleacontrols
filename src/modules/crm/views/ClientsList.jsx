@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Plus, Search, Building2, User, Mail, Phone, MapPin, Hash,
   ShieldCheck, X, Save, Trash2, ChevronRight, FileText,
@@ -9,6 +9,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { apiFetch } from '@/lib/api';
+import Pagination from '../components/Pagination';
 
 const STATUS_COLORS = {
   ACTIVE:   { bg: 'bg-emerald-50', text: 'text-emerald-600', border: 'border-emerald-200', dot: 'bg-emerald-500', label: 'Activo' },
@@ -187,27 +188,17 @@ export default function ClientsList() {
     return list;
   }, [clients, quotes, deals, searchTerm, filterStatus, sortConfig]);
 
-  // ── Carga progresiva (IntersectionObserver sobre filas de la tabla) ───────
-  const CLIENTS_BATCH = 40;
-  const [visibleCount, setVisibleCount] = useState(CLIENTS_BATCH);
-  const sentinelRef = useRef(null);
-
-  // Resetear al cambiar filtros u orden
-  useEffect(() => { setVisibleCount(CLIENTS_BATCH); }, [searchTerm, filterStatus, sortConfig]);
-
-  useEffect(() => {
-    const el = sentinelRef.current;
-    if (!el) return;
-    const observer = new IntersectionObserver(
-      ([entry]) => { if (entry.isIntersecting) setVisibleCount(prev => prev + CLIENTS_BATCH); },
-      { rootMargin: '300px' }
-    );
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [filtered.length]);
-
-  const displayedClients = filtered.slice(0, visibleCount);
-  const hasMore = visibleCount < filtered.length;
+  // ── Paginación (hojas) ─────────────────────────────────────────────────────
+  const [page, setPage]         = useState(1);
+  const [pageSize, setPageSize] = useState(15);
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  // Volver a la primera hoja al cambiar filtros, búsqueda, orden o tamaño
+  useEffect(() => { setPage(1); }, [searchTerm, filterStatus, sortConfig, pageSize]);
+  useEffect(() => { if (page > totalPages) setPage(totalPages); }, [page, totalPages]);
+  const pagedClients = useMemo(
+    () => filtered.slice((page - 1) * pageSize, page * pageSize),
+    [filtered, page, pageSize]
+  );
 
   // ── Exportar a CSV (abre en Excel) ────────────────────────────────────────
   const exportCSV = () => {
@@ -351,7 +342,7 @@ export default function ClientsList() {
                   </tr>
                 </thead>
                 <tbody>
-                  {displayedClients.map((client, idx) => {
+                  {pagedClients.map((client, idx) => {
                     const s = STATUS_COLORS[client.status] || STATUS_COLORS.ACTIVE;
                     const isSelected = selectedClient?.id === client.id;
                     return (
@@ -422,23 +413,15 @@ export default function ClientsList() {
                 </tbody>
               </table>
 
-              {/* Sentinel — carga más filas al llegar al final */}
-              {hasMore && (
-                <div ref={sentinelRef} className="flex justify-center py-5 border-t border-gray-100">
-                  <div className="flex items-center gap-2 text-gray-300">
-                    <div className="w-4 h-4 border-2 border-gray-200 border-t-primary rounded-full animate-spin" />
-                    <span className="text-[9px] font-bold uppercase tracking-widest">Cargando más...</span>
-                  </div>
-                </div>
-              )}
-
-              {/* Pie con contador */}
-              <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-t border-gray-200">
-                <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">
-                  Mostrando {Math.min(visibleCount, filtered.length)} de {filtered.length} clientes
-                </p>
-                <p className="text-[9px] font-bold text-gray-300">Clic en una fila para abrir el expediente</p>
-              </div>
+              {/* Paginación (hojas) */}
+              <Pagination
+                page={page}
+                pageSize={pageSize}
+                total={filtered.length}
+                onPageChange={setPage}
+                onPageSizeChange={setPageSize}
+                noun="cliente"
+              />
             </div>
           )}
         </div>

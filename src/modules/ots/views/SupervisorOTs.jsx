@@ -136,7 +136,7 @@ export default function SupervisorOTs() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [extraFunds, setExtraFunds] = useState(0);
   const [searchTerm, setSearchTerm] = useState('');
-  const [filters, setFilters] = useState({ status: 'ALL', priority: 'ALL' });
+  const [filters, setFilters] = useState({ status: 'ALL', priority: 'ALL', techId: 'ALL' });
 
   // Paginación server-side
   const OT_PAGE_SIZE = 50;
@@ -165,11 +165,12 @@ export default function SupervisorOTs() {
   };
 
   // Carga de OTs — recibe el número de página explícitamente para evitar closures obsoletos
-  const loadOTs = async (page, search, status) => {
+  const loadOTs = async (page, search, status, techId) => {
     try {
       const params = { page, limit: OT_PAGE_SIZE };
       if (search)                     params.search = search;
       if (status && status !== 'ALL') params.status = status;
+      if (techId && techId !== 'ALL') params.techId = techId;
       const raw = await otService.getOTsPaginated(params);
       const { data, total } = parseOTsResponse(raw);
       setOts(data);
@@ -213,7 +214,7 @@ export default function SupervisorOTs() {
   }, []);
 
   // Alias para que llamadas internas (ej: después de guardar una OT) recarguen la página actual
-  const loadData = () => loadOTs(otPage, searchTerm, filters.status);
+  const loadData = () => loadOTs(otPage, searchTerm, filters.status, filters.techId);
 
   /**
    * ✅ EXPORT AER (ARREGLADO):
@@ -666,7 +667,7 @@ export default function SupervisorOTs() {
     clearTimeout(searchDebounceRef.current);
     searchDebounceRef.current = setTimeout(() => {
       setOtPage(1);
-      loadOTs(1, value, filters.status); // pasa el value nuevo directamente, no el state
+      loadOTs(1, value, filters.status, filters.techId); // pasa el value nuevo directamente, no el state
     }, 350);
   };
 
@@ -674,13 +675,20 @@ export default function SupervisorOTs() {
   const handleStatusFilter = (newStatus) => {
     setFilters(prev => ({ ...prev, status: newStatus }));
     setOtPage(1);
-    loadOTs(1, searchTerm, newStatus); // pasa el newStatus directamente, no el state
+    loadOTs(1, searchTerm, newStatus, filters.techId); // pasa el newStatus directamente, no el state
+  };
+
+  // Cambio de filtro por técnico → recarga inmediata desde servidor (líder + apoyo)
+  const handleTechFilter = (newTechId) => {
+    setFilters(prev => ({ ...prev, techId: newTechId }));
+    setOtPage(1);
+    loadOTs(1, searchTerm, filters.status, newTechId); // pasa el techId nuevo directamente, no el state
   };
 
   // Navegar de página — llama a loadOTs directamente con el número nuevo
   const goToPage = (newPage) => {
     setOtPage(newPage);
-    loadOTs(newPage, searchTerm, filters.status);
+    loadOTs(newPage, searchTerm, filters.status, filters.techId);
   };
 
   // Filtrado local solo por priority (no enviado al servidor)
@@ -898,16 +906,37 @@ export default function SupervisorOTs() {
                 );
               })}
             </div>
-            {/* Búsqueda */}
-            <div className="relative mb-2 sm:mb-1 shrink-0">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-300 pointer-events-none" />
-              <input
-                type="text"
-                placeholder="Buscar folio o cliente..."
-                className="pl-9 pr-4 py-2 bg-gray-50 border border-gray-100 rounded-xl outline-none text-sm font-medium text-gray-700 placeholder:text-gray-300 focus:bg-white focus:border-blue-200 focus:ring-1 focus:ring-blue-100 transition-all duration-150 w-56"
-                value={searchTerm}
-                onChange={(e) => handleSearchChange(e.target.value)}
-              />
+            {/* Filtros: técnico + búsqueda */}
+            <div className="flex items-center gap-2 mb-2 sm:mb-1 shrink-0">
+              {/* Filtro por técnico */}
+              <div className="relative">
+                <User className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-300 pointer-events-none" />
+                <select
+                  value={filters.techId}
+                  onChange={(e) => handleTechFilter(e.target.value)}
+                  className={cn(
+                    "cursor-pointer appearance-none pl-9 pr-8 py-2 bg-gray-50 border rounded-xl outline-none text-sm font-medium focus:bg-white focus:ring-1 focus:ring-blue-100 transition-all duration-150 max-w-[180px] truncate",
+                    filters.techId !== 'ALL'
+                      ? "border-blue-200 text-blue-700 bg-blue-50/50"
+                      : "border-gray-100 text-gray-700 focus:border-blue-200"
+                  )}
+                >
+                  <option value="ALL">Todos los técnicos</option>
+                  {availableTechs.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                </select>
+                <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-300 pointer-events-none" />
+              </div>
+              {/* Búsqueda */}
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-300 pointer-events-none" />
+                <input
+                  type="text"
+                  placeholder="Buscar folio o cliente..."
+                  className="pl-9 pr-4 py-2 bg-gray-50 border border-gray-100 rounded-xl outline-none text-sm font-medium text-gray-700 placeholder:text-gray-300 focus:bg-white focus:border-blue-200 focus:ring-1 focus:ring-blue-100 transition-all duration-150 w-56"
+                  value={searchTerm}
+                  onChange={(e) => handleSearchChange(e.target.value)}
+                />
+              </div>
             </div>
           </div>
         </div>

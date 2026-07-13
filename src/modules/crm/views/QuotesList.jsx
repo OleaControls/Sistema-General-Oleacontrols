@@ -8,12 +8,14 @@ import {
   BarChart2, Percent, Eye, RefreshCw, Package, Loader2, ImagePlus, Copy,
   BookOpen, ChevronDown, ChevronUp, ArrowUp, ArrowDown, ChevronsUpDown,
   FileSpreadsheet
+
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/store/AuthContext';
 import { useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { apiFetch } from '@/lib/api';
+import Pagination from '../components/Pagination';
 
 const STATUS = {
   PENDING:  { label: 'Pendiente',     bg: 'bg-amber-50',   text: 'text-amber-700',   border: 'border-amber-200',  icon: Clock },
@@ -909,6 +911,19 @@ export default function QuotesList() {
     return list;
   }, [quotes, searchTerm, filterStatus, sortConfig]);
 
+  // ── Paginación (hojas) ─────────────────────────────────────────────────────
+  const [page, setPage]         = useState(1);
+  const [pageSize, setPageSize] = useState(15);
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  // Volver a la primera hoja cuando cambian filtros, búsqueda, orden o tamaño
+  useEffect(() => { setPage(1); }, [searchTerm, filterStatus, sortConfig, pageSize]);
+  // Corregir la página si el total se reduce (ej. al eliminar)
+  useEffect(() => { if (page > totalPages) setPage(totalPages); }, [page, totalPages]);
+  const paged = useMemo(
+    () => filtered.slice((page - 1) * pageSize, page * pageSize),
+    [filtered, page, pageSize]
+  );
+
   // ── Exportar a CSV (abre en Excel) ────────────────────────────────────────
   const exportCSV = () => {
     const headers = ['Folio', 'Cliente', 'Proyecto', 'Vendedor', 'Ítems', 'Vigencia', 'Subtotal', 'IVA', 'Total', 'Estado'];
@@ -1062,7 +1077,7 @@ export default function QuotesList() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((q, idx) => {
+                {paged.map((q, idx) => {
                   const ss = STATUS_STYLE[q.status] || STATUS_STYLE.PENDING;
                   const s  = STATUS[q.status]  || STATUS.PENDING;
                   const SIcon = s.icon;
@@ -1165,13 +1180,16 @@ export default function QuotesList() {
               </tbody>
             </table>
           </div>
-          {/* Pie con contador */}
-          <div className="flex items-center justify-between px-4 py-2.5 bg-slate-50 border-t border-slate-200">
-            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
-              {filtered.length} cotización{filtered.length !== 1 ? 'es' : ''}
-            </p>
-            <p className="text-[9px] font-bold text-slate-300">Clic en una fila para ver el detalle · ordena por cualquier columna</p>
-          </div>
+          {/* Paginación (hojas) */}
+          <Pagination
+            page={page}
+            pageSize={pageSize}
+            total={filtered.length}
+            onPageChange={setPage}
+            onPageSizeChange={setPageSize}
+            noun="cotización"
+            nounPlural="cotizaciones"
+          />
         </div>
       )}
 

@@ -1,12 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
-  Plus, Mail, Phone, Building2,
-  DollarSign, Target, X, Activity, Trash2, ArrowRight,
-  MapPin, FileText, UserCheck, CheckCircle2
+  Plus, DollarSign, Target, X, Activity, Trash2, ArrowRight,
+  UserCheck, CheckCircle2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { apiFetch } from '@/lib/api';
+import Pagination from '../components/Pagination';
 
 const SOURCES = ['Web', 'Referido', 'LinkedIn', 'Facebook', 'Llamada en frío', 'Evento', 'Otro'];
 
@@ -38,6 +38,16 @@ export default function SalesPipeline() {
   const [newLead, setNewLead] = useState(emptyLead());
   const [convertingId, setConvertingId] = useState(null); // id del lead en proceso
   const [convertedIds, setConvertedIds] = useState(new Set()); // leads ya convertidos esta sesión
+
+  // ── Paginación (hojas) ─────────────────────────────────────────────────────
+  const [page, setPage]         = useState(1);
+  const [pageSize, setPageSize] = useState(15);
+  const totalPages = Math.max(1, Math.ceil(leads.length / pageSize));
+  useEffect(() => { if (page > totalPages) setPage(totalPages); }, [page, totalPages]);
+  const pagedLeads = useMemo(
+    () => leads.slice((page - 1) * pageSize, page * pageSize),
+    [leads, page, pageSize]
+  );
 
   useEffect(() => { fetchLeads(); }, []);
 
@@ -149,100 +159,98 @@ export default function SalesPipeline() {
           </button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          <AnimatePresence>
-            {leads.map((lead) => {
-              const isConverted = convertedIds.has(lead.id);
-              const isConverting = convertingId === lead.id;
-              return (
-                <motion.div
-                  key={lead.id}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.95 }}
-                  className="bg-white rounded-[1.5rem] border border-gray-100 shadow-sm hover:shadow-md transition-all group p-5 space-y-3"
-                >
-                  {/* Nombre + eliminar */}
-                  <div className="flex justify-between items-start gap-2">
-                    <p className="font-black text-gray-900 text-sm leading-tight">{lead.name}</p>
-                    <button
-                      onClick={() => handleDeleteLead(lead.id, lead.name)}
-                      className="p-1.5 rounded-xl bg-red-50 text-red-400 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse text-left">
+              <thead>
+                <tr className="bg-gray-50 border-b border-gray-200">
+                  {['Nombre', 'Empresa', 'Email', 'Teléfono', 'RFC', 'Dirección', 'Fuente'].map((h) => (
+                    <th key={h} className="px-4 py-3 text-[9px] font-black text-gray-500 uppercase tracking-widest whitespace-nowrap border-r border-gray-100">
+                      {h}
+                    </th>
+                  ))}
+                  <th className="px-4 py-3 text-[9px] font-black text-gray-500 uppercase tracking-widest whitespace-nowrap text-right border-r border-gray-100">
+                    Valor Est.
+                  </th>
+                  <th className="px-4 py-3 text-[9px] font-black text-gray-500 uppercase tracking-widest whitespace-nowrap text-center">
+                    Acciones
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {pagedLeads.map((lead, i) => {
+                  const isConverted = convertedIds.has(lead.id);
+                  const isConverting = convertingId === lead.id;
+                  return (
+                    <tr
+                      key={lead.id}
+                      className={`border-b border-gray-100 hover:bg-primary/5 transition-colors ${i % 2 === 1 ? 'bg-gray-50/40' : 'bg-white'}`}
                     >
-                      <Trash2 className="h-3 w-3" />
-                    </button>
-                  </div>
+                      <td className="px-4 py-3 text-xs font-black text-gray-900 whitespace-nowrap border-r border-gray-50">{lead.name}</td>
+                      <td className="px-4 py-3 text-[11px] font-bold text-gray-600 whitespace-nowrap border-r border-gray-50">{lead.company || '—'}</td>
+                      <td className="px-4 py-3 text-[11px] font-bold text-gray-600 whitespace-nowrap border-r border-gray-50">{lead.email || '—'}</td>
+                      <td className="px-4 py-3 text-[11px] font-bold text-gray-600 whitespace-nowrap border-r border-gray-50">{lead.phone || '—'}</td>
+                      <td className="px-4 py-3 text-[11px] font-bold text-gray-600 whitespace-nowrap border-r border-gray-50 uppercase">{lead.rfc || '—'}</td>
+                      <td className="px-4 py-3 text-[11px] font-bold text-gray-600 max-w-[220px] truncate border-r border-gray-50" title={lead.address || ''}>{lead.address || '—'}</td>
+                      <td className="px-4 py-3 text-[11px] font-bold text-gray-600 whitespace-nowrap border-r border-gray-50">{lead.source || '—'}</td>
+                      <td className="px-4 py-3 text-xs font-black text-gray-900 whitespace-nowrap text-right border-r border-gray-50">
+                        ${(lead.estimatedValue || 0).toLocaleString('es-MX')}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <div className="flex items-center justify-center gap-1.5">
+                          {/* Convertir a Cliente */}
+                          <button
+                            onClick={() => handleConvertToClient(lead)}
+                            disabled={isConverting || isConverted}
+                            title="Convertir a cliente"
+                            className={`flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-lg font-black text-[9px] uppercase tracking-wider transition-all disabled:cursor-not-allowed ${
+                              isConverted
+                                ? 'bg-emerald-50 text-emerald-600 border border-emerald-200'
+                                : 'bg-gray-100 text-gray-600 hover:bg-emerald-600 hover:text-white'
+                            }`}
+                          >
+                            {isConverted
+                              ? <><CheckCircle2 className="h-3 w-3" /> Cliente</>
+                              : isConverting
+                                ? <><Activity className="h-3 w-3 animate-spin" /> ...</>
+                                : <><UserCheck className="h-3 w-3" /> Cliente</>
+                            }
+                          </button>
 
-                  {/* Datos */}
-                  <div className="space-y-1.5">
-                    {lead.company && (
-                      <p className="text-[10px] font-bold text-gray-500 flex items-center gap-1.5">
-                        <Building2 className="h-3 w-3 text-gray-400 flex-shrink-0" /> {lead.company}
-                      </p>
-                    )}
-                    {lead.email && (
-                      <p className="text-[10px] font-bold text-gray-500 flex items-center gap-1.5 truncate">
-                        <Mail className="h-3 w-3 text-gray-400 flex-shrink-0" /> {lead.email}
-                      </p>
-                    )}
-                    {lead.phone && (
-                      <p className="text-[10px] font-bold text-gray-500 flex items-center gap-1.5">
-                        <Phone className="h-3 w-3 text-gray-400 flex-shrink-0" /> {lead.phone}
-                      </p>
-                    )}
-                    {lead.rfc && (
-                      <p className="text-[10px] font-bold text-gray-500 flex items-center gap-1.5">
-                        <FileText className="h-3 w-3 text-gray-400 flex-shrink-0" /> {lead.rfc}
-                      </p>
-                    )}
-                    {lead.address && (
-                      <p className="text-[10px] font-bold text-gray-500 flex items-center gap-1.5 line-clamp-1">
-                        <MapPin className="h-3 w-3 text-gray-400 flex-shrink-0" /> {lead.address}
-                      </p>
-                    )}
-                  </div>
+                          {/* Enviar a Pipeline */}
+                          <button
+                            onClick={() => navigate('/crm/deals', { state: { fromLead: lead } })}
+                            title="Enviar al pipeline"
+                            className="flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-lg bg-blue-600 text-white font-black text-[9px] uppercase tracking-wider hover:bg-blue-700 transition-all"
+                          >
+                            <ArrowRight className="h-3 w-3" /> Pipeline
+                          </button>
 
-                  {/* Valor estimado */}
-                  <div className="flex items-center gap-1 pt-1">
-                    <DollarSign className="h-3.5 w-3.5 text-emerald-500" />
-                    <span className="text-sm font-black text-gray-900">
-                      {(lead.estimatedValue || 0).toLocaleString('es-MX')}
-                    </span>
-                  </div>
-
-                  {/* Botones */}
-                  <div className="flex gap-2 pt-2 border-t border-gray-50">
-                    {/* Convertir a Cliente */}
-                    <button
-                      onClick={() => handleConvertToClient(lead)}
-                      disabled={isConverting || isConverted}
-                      title="Convertir a cliente"
-                      className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl font-black text-[9px] uppercase tracking-wider transition-all disabled:cursor-not-allowed ${
-                        isConverted
-                          ? 'bg-emerald-50 text-emerald-600 border border-emerald-200'
-                          : 'bg-gray-100 text-gray-600 hover:bg-emerald-600 hover:text-white'
-                      }`}
-                    >
-                      {isConverted
-                        ? <><CheckCircle2 className="h-3 w-3" /> Cliente</>
-                        : isConverting
-                          ? <><Activity className="h-3 w-3 animate-spin" /> ...</>
-                          : <><UserCheck className="h-3 w-3" /> Cliente</>
-                      }
-                    </button>
-
-                    {/* Enviar a Pipeline */}
-                    <button
-                      onClick={() => navigate('/crm/deals', { state: { fromLead: lead } })}
-                      className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-blue-600 text-white font-black text-[9px] uppercase tracking-wider hover:bg-blue-700 transition-all"
-                    >
-                      <ArrowRight className="h-3 w-3" /> Pipeline
-                    </button>
-                  </div>
-                </motion.div>
-              );
-            })}
-          </AnimatePresence>
+                          {/* Eliminar */}
+                          <button
+                            onClick={() => handleDeleteLead(lead.id, lead.name)}
+                            title="Eliminar lead"
+                            className="p-1.5 rounded-lg bg-red-50 text-red-400 hover:bg-red-600 hover:text-white transition-all"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          {/* Paginación (hojas) */}
+          <Pagination
+            page={page}
+            pageSize={pageSize}
+            total={leads.length}
+            onPageChange={setPage}
+            onPageSizeChange={(n) => { setPageSize(n); setPage(1); }}
+            noun="lead"
+          />
         </div>
       )}
 
