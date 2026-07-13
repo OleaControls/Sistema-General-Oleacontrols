@@ -198,7 +198,6 @@ export default function OTCatalogs() {
 
   const addLabel    = activeTab === 'OT_CLIENTS' ? 'Nuevo Cliente OT' : 'Nueva Plantilla';
   const isLoading   = activeTab === 'OT_CLIENTS' ? loadingClients : loadingTemplates;
-  const currentList = activeTab === 'OT_CLIENTS' ? filteredOTClients : filteredTemplates;
 
   return (
     <div className="space-y-8 animate-in fade-in duration-300 pb-20">
@@ -264,162 +263,193 @@ export default function OTCatalogs() {
         />
       </div>
 
-      {/* Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {isLoading ? (
-          // Skeletons — solo si no hay datos en cache
-          [1, 2, 3, 4, 5, 6].map(i => (
-            <div key={i} className="h-48 bg-white rounded-[2rem] border animate-pulse" />
-          ))
-        ) : currentList.length === 0 ? (
-          <div className="col-span-3 py-16 text-center">
-            <p className="text-gray-300 text-sm font-bold uppercase tracking-widest">
-              {searchTerm ? 'Sin resultados' : activeTab === 'OT_CLIENTS' ? 'Sin clientes OT registrados' : 'Sin plantillas registradas'}
-            </p>
-          </div>
-        ) : activeTab === 'OT_CLIENTS' ? (
-          filteredOTClients.map(client => (
-            <div
-              key={client.id}
-              className={cn(
-                "bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm hover:shadow-md transition-all group",
-                client._saving && "opacity-60 pointer-events-none"
-              )}
-            >
-              <div className="flex justify-between items-start mb-4">
-                <div className="bg-blue-50 p-3 rounded-2xl text-blue-600">
-                  {client._saving
-                    ? <Loader2 className="h-6 w-6 animate-spin" />
-                    : <Building2 className="h-6 w-6" />}
-                </div>
-                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button
-                    onClick={() => handleEditClick(client)}
-                    className="p-2 text-gray-300 hover:text-blue-500 transition-colors"
-                    title="Editar cliente"
-                  >
-                    <Pencil className="h-4 w-4" />
-                  </button>
-                  <button
-                    onClick={() => handleDeleteOTClient(client.id)}
-                    className="p-2 text-gray-300 hover:text-red-500 transition-colors"
-                    title="Eliminar cliente"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </div>
-              </div>
-              <h3 className="font-black text-gray-900 text-lg leading-tight">{client.name}</h3>
-              {(client.storeNumber || client.storeName) && (
-                <p className="text-[10px] font-black text-blue-500 uppercase tracking-widest mt-1 mb-3">
-                  {client.storeNumber && `#${client.storeNumber}`}
-                  {client.storeNumber && client.storeName && ' · '}
-                  {client.storeName}
-                </p>
-              )}
-              <div className="space-y-2 mt-3">
-                {client.contact && (
-                  <div className="flex items-center gap-2 text-xs font-bold text-gray-500">
-                    <User className="h-3.5 w-3.5 shrink-0" /> {client.contact}
-                  </div>
-                )}
-                {client.phone && (
-                  <div className="flex items-center gap-2 text-xs font-bold text-gray-500">
-                    <Phone className="h-3.5 w-3.5 shrink-0" /> {client.phone}
-                  </div>
-                )}
-                {client.email && (
-                  <div className="flex items-center gap-2 text-xs font-bold text-gray-500">
-                    <Mail className="h-3.5 w-3.5 shrink-0" /> <span className="truncate">{client.email}</span>
-                  </div>
-                )}
-                {client.address && (
-                  <div className="flex items-center gap-2 text-xs font-bold text-gray-500">
-                    <MapPin className="h-3.5 w-3.5 shrink-0" /> <span className="truncate">{client.address}</span>
-                  </div>
-                )}
-                {client.otReference && (
-                  <div className="mt-3 pt-3 border-t border-dashed text-[10px] text-gray-400 italic">
-                    Ref: {client.otReference}
-                  </div>
-                )}
-                
-                {/* Portal Management */}
-                <div className="mt-6 pt-5 border-t border-gray-50">
-                  {client.portalToken ? (
-                    <div className="space-y-3">
-                      <p className="text-[10px] font-black text-emerald-500 uppercase tracking-widest flex items-center gap-1.5">
-                        <Check className="h-3 w-3" /> Portal Activo
+      {/* Tabla */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+        <div className="overflow-x-auto">
+          {activeTab === 'OT_CLIENTS' ? (
+            /* ── Tabla Clientes OT ── */
+            <table className="w-full min-w-[960px]">
+              <thead>
+                <tr className="bg-gray-50/70 border-b border-gray-100">
+                  {['Cliente · Sucursal', 'Contacto', 'Email', 'Dirección', 'Portal de Cliente', 'Acciones'].map((h, i) => (
+                    <th key={h} className={cn("px-5 py-3.5", i === 5 ? "text-right" : "text-left")}>
+                      <span className="text-[9px] font-black uppercase tracking-[0.15em] text-gray-400">{h}</span>
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {isLoading ? (
+                  [1, 2, 3, 4, 5].map(i => (
+                    <tr key={i} className="border-b border-gray-50">
+                      <td colSpan={6} className="px-5 py-4"><div className="h-6 bg-gray-100 rounded-lg animate-pulse" /></td>
+                    </tr>
+                  ))
+                ) : filteredOTClients.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="py-16 text-center">
+                      <Building2 className="h-8 w-8 text-gray-200 mx-auto mb-3" />
+                      <p className="text-gray-300 text-[11px] font-black uppercase tracking-widest">
+                        {searchTerm ? 'Sin resultados' : 'Sin clientes OT registrados'}
                       </p>
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => handleCopyLink(client.portalToken)}
-                          className={cn(
-                            "flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all",
-                            copiedId === client.portalToken 
-                              ? "bg-emerald-500 text-white shadow-lg shadow-emerald-200" 
-                              : "bg-gray-900 text-white shadow-lg shadow-gray-200 hover:bg-gray-800"
-                          )}
-                        >
-                          {copiedId === client.portalToken ? <><Check className="h-3.5 w-3.5" /> Copiado</> : <><Copy className="h-3.5 w-3.5" /> Copiar Link</>}
-                        </button>
-                        <a 
-                          href={`/portal?token=${client.portalToken}`} 
-                          target="_blank" 
-                          rel="noreferrer"
-                          className="p-2.5 bg-gray-100 text-gray-600 rounded-xl hover:bg-gray-200 transition-colors"
-                          title="Abrir Portal"
-                        >
-                          <ExternalLink className="h-4 w-4" />
-                        </a>
-                      </div>
-                    </div>
-                  ) : (
-                    <button
-                      onClick={() => handleGeneratePortal(client)}
-                      className="w-full flex items-center justify-center gap-2 py-3 bg-blue-50 text-blue-600 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-100 transition-all border border-blue-100 border-dashed"
-                    >
-                      <Link2 className="h-4 w-4" /> Activar Portal de Cliente
-                    </button>
-                  )}
-                </div>
-              </div>
-            </div>
-          ))
-        ) : (
-          filteredTemplates.map(template => (
-            <div
-              key={template.id}
-              className={cn(
-                "bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm hover:shadow-md transition-all group",
-                template._saving && "opacity-60 pointer-events-none"
-              )}
-            >
-              <div className="flex justify-between items-start mb-4">
-                <div className="bg-purple-100 p-3 rounded-2xl text-purple-600">
-                  {template._saving
-                    ? <Loader2 className="h-6 w-6 animate-spin" />
-                    : <FileText className="h-6 w-6" />}
-                </div>
-                <button
-                  onClick={() => handleDeleteTemplate(template.id)}
-                  className="p-2 text-gray-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
-              </div>
-              <h3 className="font-black text-gray-900 text-lg leading-tight mb-2">{template.name}</h3>
-              <p className="text-[10px] font-black text-purple-500 uppercase tracking-widest mb-4">
-                Plantilla: {template.title}
-              </p>
-              <p className="text-xs text-gray-500 line-clamp-2 italic">"{template.workDescription}"</p>
-              <div className="mt-4 pt-4 border-t border-dashed flex justify-between items-center text-[10px] font-black uppercase text-gray-400">
-                <span>Prioridad: {template.priority}</span>
-                <span>Llegada: {template.arrivalTime}</span>
-              </div>
-            </div>
-          ))
-        )}
+                    </td>
+                  </tr>
+                ) : (
+                  filteredOTClients.map(client => (
+                    <tr key={client.id} className={cn("border-b border-gray-50 hover:bg-gray-50/60 transition-colors group", client._saving && "opacity-60 pointer-events-none")}>
+                      {/* Cliente + sucursal */}
+                      <td className="px-5 py-4">
+                        <div className="flex items-center gap-3">
+                          <div className="h-9 w-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+                            {client._saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Building2 className="h-4 w-4" />}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="font-black text-gray-900 text-sm leading-tight truncate">{client.name}</p>
+                            {(client.storeNumber || client.storeName) && (
+                              <p className="text-[9px] font-black text-blue-500 uppercase tracking-widest mt-0.5 truncate">
+                                {client.storeNumber && `#${client.storeNumber}`}
+                                {client.storeNumber && client.storeName && ' · '}
+                                {client.storeName}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+                      {/* Contacto */}
+                      <td className="px-5 py-4">
+                        {client.contact && <p className="text-xs font-bold text-gray-700 flex items-center gap-1.5"><User className="h-3 w-3 text-gray-300 shrink-0" />{client.contact}</p>}
+                        {client.phone && <p className="text-[11px] font-mono font-bold text-gray-400 flex items-center gap-1.5 mt-1"><Phone className="h-3 w-3 text-gray-300 shrink-0" />{client.phone}</p>}
+                        {!client.contact && !client.phone && <span className="text-gray-300 text-xs">—</span>}
+                      </td>
+                      {/* Email */}
+                      <td className="px-5 py-4 max-w-[180px]">
+                        {client.email
+                          ? <span className="text-xs font-bold text-gray-500 truncate flex items-center gap-1.5"><Mail className="h-3 w-3 text-gray-300 shrink-0" /><span className="truncate">{client.email}</span></span>
+                          : <span className="text-gray-300 text-xs">—</span>}
+                      </td>
+                      {/* Dirección */}
+                      <td className="px-5 py-4 max-w-[220px]">
+                        {client.address
+                          ? <span className="text-xs font-medium text-gray-500 line-clamp-2 flex items-start gap-1.5"><MapPin className="h-3 w-3 text-gray-300 shrink-0 mt-0.5" /><span className="line-clamp-2">{client.address}</span></span>
+                          : <span className="text-gray-300 text-xs">—</span>}
+                      </td>
+                      {/* Portal */}
+                      <td className="px-5 py-4">
+                        {client.portalToken ? (
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              onClick={() => handleCopyLink(client.portalToken)}
+                              className={cn(
+                                "flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all",
+                                copiedId === client.portalToken ? "bg-emerald-500 text-white" : "bg-gray-900 text-white hover:bg-gray-800"
+                              )}
+                            >
+                              {copiedId === client.portalToken ? <><Check className="h-3 w-3" /> Copiado</> : <><Copy className="h-3 w-3" /> Copiar</>}
+                            </button>
+                            <a href={`/portal?token=${client.portalToken}`} target="_blank" rel="noreferrer" className="p-1.5 bg-gray-100 text-gray-500 rounded-lg hover:bg-gray-200 transition-colors" title="Abrir Portal">
+                              <ExternalLink className="h-3.5 w-3.5" />
+                            </a>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => handleGeneratePortal(client)}
+                            className="flex items-center gap-1.5 px-2.5 py-1.5 bg-blue-50 text-blue-600 rounded-lg text-[9px] font-black uppercase tracking-wider hover:bg-blue-100 transition-all border border-blue-100 border-dashed"
+                          >
+                            <Link2 className="h-3 w-3" /> Activar
+                          </button>
+                        )}
+                      </td>
+                      {/* Acciones */}
+                      <td className="px-5 py-4">
+                        <div className="flex items-center justify-end gap-1">
+                          <button onClick={() => handleEditClick(client)} className="h-8 w-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors" title="Editar cliente">
+                            <Pencil className="h-4 w-4" />
+                          </button>
+                          <button onClick={() => handleDeleteOTClient(client.id)} className="h-8 w-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors" title="Eliminar cliente">
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          ) : (
+            /* ── Tabla Plantillas OT ── */
+            <table className="w-full min-w-[820px]">
+              <thead>
+                <tr className="bg-gray-50/70 border-b border-gray-100">
+                  {['Plantilla', 'Título de OT', 'Descripción', 'Prioridad', 'Llegada', 'Acciones'].map((h, i) => (
+                    <th key={h} className={cn("px-5 py-3.5", i === 5 ? "text-right" : "text-left")}>
+                      <span className="text-[9px] font-black uppercase tracking-[0.15em] text-gray-400">{h}</span>
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {isLoading ? (
+                  [1, 2, 3, 4].map(i => (
+                    <tr key={i} className="border-b border-gray-50">
+                      <td colSpan={6} className="px-5 py-4"><div className="h-6 bg-gray-100 rounded-lg animate-pulse" /></td>
+                    </tr>
+                  ))
+                ) : filteredTemplates.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="py-16 text-center">
+                      <FileText className="h-8 w-8 text-gray-200 mx-auto mb-3" />
+                      <p className="text-gray-300 text-[11px] font-black uppercase tracking-widest">
+                        {searchTerm ? 'Sin resultados' : 'Sin plantillas registradas'}
+                      </p>
+                    </td>
+                  </tr>
+                ) : (
+                  filteredTemplates.map(template => {
+                    const prio = { LOW: 'bg-slate-100 text-slate-500', MEDIUM: 'bg-blue-50 text-blue-600', HIGH: 'bg-orange-50 text-orange-700', URGENT: 'bg-red-50 text-red-700' }[template.priority] || 'bg-slate-100 text-slate-500';
+                    const prioLabel = { LOW: 'Baja', MEDIUM: 'Media', HIGH: 'Alta', URGENT: 'Urgente' }[template.priority] || template.priority;
+                    return (
+                      <tr key={template.id} className={cn("border-b border-gray-50 hover:bg-gray-50/60 transition-colors", template._saving && "opacity-60 pointer-events-none")}>
+                        {/* Plantilla */}
+                        <td className="px-5 py-4">
+                          <div className="flex items-center gap-3">
+                            <div className="h-9 w-9 rounded-xl bg-purple-100 text-purple-600 flex items-center justify-center shrink-0">
+                              {template._saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
+                            </div>
+                            <p className="font-black text-gray-900 text-sm leading-tight">{template.name}</p>
+                          </div>
+                        </td>
+                        {/* Título */}
+                        <td className="px-5 py-4">
+                          <span className="text-xs font-bold text-gray-600">{template.title}</span>
+                        </td>
+                        {/* Descripción */}
+                        <td className="px-5 py-4 max-w-[280px]">
+                          <span className="text-xs text-gray-500 italic line-clamp-2">"{template.workDescription}"</span>
+                        </td>
+                        {/* Prioridad */}
+                        <td className="px-5 py-4">
+                          <span className={cn("text-[9px] font-black uppercase tracking-wider px-2.5 py-1 rounded-lg", prio)}>{prioLabel}</span>
+                        </td>
+                        {/* Llegada */}
+                        <td className="px-5 py-4">
+                          <span className="text-[11px] font-mono font-bold text-gray-500">{template.arrivalTime}</span>
+                        </td>
+                        {/* Acciones */}
+                        <td className="px-5 py-4">
+                          <div className="flex items-center justify-end">
+                            <button onClick={() => handleDeleteTemplate(template.id)} className="h-8 w-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors" title="Eliminar plantilla">
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          )}
+        </div>
       </div>
 
       {/* Modal */}

@@ -7,17 +7,23 @@ import { cn } from '@/lib/utils';
 import { apiFetch } from '@/lib/api';
 import { DEFAULT_STAGES } from './SalesPipeline';
 
+// Paleta alineada al esquema que consume DealsKanban: cada etapa lleva
+// color (punto) + ring + text + bg. Cubre además los colores de las etapas por defecto.
 const COLOR_OPTIONS = [
-  { key: 'blue',    color: 'bg-blue-500',    bg: 'bg-blue-50/30',    hex: '#3b82f6' },
-  { key: 'amber',   color: 'bg-amber-500',   bg: 'bg-amber-50/30',   hex: '#f59e0b' },
-  { key: 'purple',  color: 'bg-purple-500',  bg: 'bg-purple-50/30',  hex: '#a855f7' },
-  { key: 'emerald', color: 'bg-emerald-500', bg: 'bg-emerald-50/30', hex: '#10b981' },
-  { key: 'red',     color: 'bg-red-500',     bg: 'bg-red-50/30',     hex: '#ef4444' },
-  { key: 'indigo',  color: 'bg-indigo-500',  bg: 'bg-indigo-50/30',  hex: '#6366f1' },
-  { key: 'orange',  color: 'bg-orange-500',  bg: 'bg-orange-50/30',  hex: '#f97316' },
-  { key: 'pink',    color: 'bg-pink-500',    bg: 'bg-pink-50/30',    hex: '#ec4899' },
-  { key: 'teal',    color: 'bg-teal-500',    bg: 'bg-teal-50/30',    hex: '#14b8a6' },
-  { key: 'gray',    color: 'bg-gray-500',    bg: 'bg-gray-50/30',    hex: '#6b7280' },
+  { key: 'slate',   color: 'bg-slate-400',   ring: 'ring-slate-200',   text: 'text-slate-600',   bg: 'bg-slate-50',   hex: '#94a3b8' },
+  { key: 'blue',    color: 'bg-blue-400',    ring: 'ring-blue-200',    text: 'text-blue-600',    bg: 'bg-blue-50',    hex: '#60a5fa' },
+  { key: 'indigo',  color: 'bg-indigo-500',  ring: 'ring-indigo-200',  text: 'text-indigo-600',  bg: 'bg-indigo-50',  hex: '#6366f1' },
+  { key: 'violet',  color: 'bg-violet-500',  ring: 'ring-violet-200',  text: 'text-violet-600',  bg: 'bg-violet-50',  hex: '#8b5cf6' },
+  { key: 'amber',   color: 'bg-amber-500',   ring: 'ring-amber-200',   text: 'text-amber-700',   bg: 'bg-amber-50',   hex: '#f59e0b' },
+  { key: 'orange',  color: 'bg-orange-500',  ring: 'ring-orange-200',  text: 'text-orange-700',  bg: 'bg-orange-50',  hex: '#f97316' },
+  { key: 'purple',  color: 'bg-purple-500',  ring: 'ring-purple-200',  text: 'text-purple-600',  bg: 'bg-purple-50',  hex: '#a855f7' },
+  { key: 'pink',    color: 'bg-pink-500',    ring: 'ring-pink-200',    text: 'text-pink-600',    bg: 'bg-pink-50',    hex: '#ec4899' },
+  { key: 'rose',    color: 'bg-rose-500',    ring: 'ring-rose-200',    text: 'text-rose-600',    bg: 'bg-rose-50',    hex: '#f43f5e' },
+  { key: 'yellow',  color: 'bg-yellow-500',  ring: 'ring-yellow-200',  text: 'text-yellow-700',  bg: 'bg-yellow-50',  hex: '#eab308' },
+  { key: 'emerald', color: 'bg-emerald-500', ring: 'ring-emerald-200', text: 'text-emerald-700', bg: 'bg-emerald-50', hex: '#10b981' },
+  { key: 'teal',    color: 'bg-teal-500',    ring: 'ring-teal-200',    text: 'text-teal-600',    bg: 'bg-teal-50',    hex: '#14b8a6' },
+  { key: 'red',     color: 'bg-red-500',     ring: 'ring-red-200',     text: 'text-red-600',     bg: 'bg-red-50',     hex: '#ef4444' },
+  { key: 'gray',    color: 'bg-gray-500',    ring: 'ring-gray-200',    text: 'text-gray-600',    bg: 'bg-gray-50',    hex: '#6b7280' },
 ];
 
 function getColorOption(colorClass) {
@@ -44,7 +50,7 @@ export default function PipelineSettings() {
       if (i !== index) return s;
       if (field === 'colorKey') {
         const opt = COLOR_OPTIONS.find(c => c.key === value) || COLOR_OPTIONS[0];
-        return { ...s, color: opt.color, bg: opt.bg };
+        return { ...s, color: opt.color, bg: opt.bg, ring: opt.ring, text: opt.text };
       }
       return { ...s, [field]: value };
     }));
@@ -69,7 +75,9 @@ export default function PipelineSettings() {
         label: 'Nueva Etapa',
         color: opt.color,
         bg: opt.bg,
-        probability: 50
+        ring: opt.ring,
+        text: opt.text,
+        prob: 50
       }
     ]);
   };
@@ -165,15 +173,15 @@ export default function PipelineSettings() {
                 <div className="flex-1 space-y-1.5">
                   <div className="flex justify-between items-center">
                     <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Probabilidad de cierre</span>
-                    <span className="text-[11px] font-black text-gray-900">{stage.probability ?? 0}%</span>
+                    <span className="text-[11px] font-black text-gray-900">{stage.prob ?? 0}%</span>
                   </div>
                   <input
                     type="range"
                     min={0}
                     max={100}
                     step={5}
-                    value={stage.probability ?? 0}
-                    onChange={e => updateStage(index, 'probability', parseInt(e.target.value))}
+                    value={stage.prob ?? 0}
+                    onChange={e => updateStage(index, 'prob', parseInt(e.target.value))}
                     className="w-full accent-current h-1.5 rounded-full cursor-pointer"
                     style={{ accentColor: colorOpt.hex }}
                   />
@@ -213,7 +221,7 @@ export default function PipelineSettings() {
             <div key={stage.id} className="flex-shrink-0 flex flex-col items-center gap-1.5">
               <div className={cn("w-8 h-8 rounded-xl shadow-sm", stage.color)} />
               <span className="text-[8px] font-black text-gray-600 text-center leading-tight max-w-[60px]">{stage.label}</span>
-              <span className="text-[8px] font-bold text-gray-400">{stage.probability ?? 0}%</span>
+              <span className="text-[8px] font-bold text-gray-400">{stage.prob ?? 0}%</span>
             </div>
           ))}
         </div>
