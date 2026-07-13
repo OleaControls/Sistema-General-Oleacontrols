@@ -39,6 +39,7 @@ const Attendance        = lazy(() => import('@/modules/human-resources/views/Att
 const OrgChart          = lazy(() => import('@/modules/human-resources/views/OrgChart'));
 const Recruitment       = lazy(() => import('@/modules/human-resources/views/Recruitment'));
 const Performance       = lazy(() => import('@/modules/human-resources/views/Performance'));
+const TechKPIs          = lazy(() => import('@/modules/human-resources/views/TechKPIs'));
 const Assets            = lazy(() => import('@/modules/human-resources/views/Assets'));
 const Announcements     = lazy(() => import('@/modules/human-resources/views/Announcements'));
 const HRReports         = lazy(() => import('@/modules/human-resources/views/HRReports'));
@@ -186,6 +187,7 @@ export default function AppRouter() {
             <Route path="org-chart"             element={<OrgChart />} />
             <Route path="recruitment"           element={<Recruitment />} />
             <Route path="performance"           element={<Performance />} />
+            <Route path="tech-kpis"             element={<TechKPIs />} />
             <Route path="rewards"               element={<RewardManager />} />
             <Route path="assets"                element={<Assets />} />
             <Route path="surveys"               element={<SurveyManager />} />

@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   Plus, Search, Building2, User, Mail, Phone, MapPin, Hash,
   ShieldCheck, X, Save, Trash2, ChevronRight, FileText,
   Briefcase, Activity, CreditCard, Globe, CheckCircle2,
-  TrendingUp, Users2, AlertCircle, Edit3, Map
+  TrendingUp, Users2, AlertCircle, Edit3, Map, ArrowUp, ArrowDown,
+  ChevronsUpDown, Download
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
@@ -150,29 +151,56 @@ export default function ClientsList() {
     } catch (err) { console.error(err); }
   };
 
-  // ── Filtrado ──────────────────────────────────────────────────────────────
-  const filtered = clients.filter(c => {
-    const matchSearch = !searchTerm ||
-      [c.companyName, c.contactName, c.email, c.rfc].some(v => v?.toLowerCase().includes(searchTerm.toLowerCase()));
-    const matchStatus = filterStatus === 'ALL' || c.status === filterStatus;
-    return matchSearch && matchStatus;
-  });
+  // ── Orden de columnas (estilo Excel) ──────────────────────────────────────
+  const [sortConfig, setSortConfig] = useState({ key: 'companyName', dir: 1 });
+  const toggleSort = (key) =>
+    setSortConfig(prev => prev.key === key ? { key, dir: -prev.dir } : { key, dir: 1 });
 
-  // ── Carga progresiva (compatible con motion.div y CSS grid) ───────────────
-  const CLIENTS_BATCH = 30;
+  // ── Filtrado + enriquecido (conteos por cliente) + orden ──────────────────
+  const filtered = useMemo(() => {
+    const list = clients
+      .filter(c => {
+        const matchSearch = !searchTerm ||
+          [c.companyName, c.contactName, c.email, c.rfc, c.phone].some(v => v?.toLowerCase().includes(searchTerm.toLowerCase()));
+        const matchStatus = filterStatus === 'ALL' || c.status === filterStatus;
+        return matchSearch && matchStatus;
+      })
+      .map(client => {
+        const cQuotes = quotes.filter(q => q.clientId === client.id);
+        const cDeals  = deals.filter(d => d.clientId === client.id);
+        const revenue = cQuotes.filter(q => q.status === 'ACCEPTED').reduce((s, q) => s + (q.total || 0), 0);
+        return { ...client, _quotes: cQuotes.length, _deals: cDeals.length, _revenue: revenue };
+      });
+
+    const { key, dir } = sortConfig;
+    const cmp = {
+      companyName: (a, b) => (a.companyName || '').localeCompare(b.companyName || '', 'es'),
+      contactName: (a, b) => (a.contactName || '').localeCompare(b.contactName || '', 'es'),
+      rfc:         (a, b) => (a.rfc || '').localeCompare(b.rfc || '', 'es'),
+      email:       (a, b) => (a.email || '').localeCompare(b.email || '', 'es'),
+      status:      (a, b) => (a.status || '').localeCompare(b.status || '', 'es'),
+      quotes:      (a, b) => a._quotes - b._quotes,
+      deals:       (a, b) => a._deals - b._deals,
+      revenue:     (a, b) => a._revenue - b._revenue,
+    }[key];
+    if (cmp) list.sort((a, b) => dir * cmp(a, b));
+    return list;
+  }, [clients, quotes, deals, searchTerm, filterStatus, sortConfig]);
+
+  // ── Carga progresiva (IntersectionObserver sobre filas de la tabla) ───────
+  const CLIENTS_BATCH = 40;
   const [visibleCount, setVisibleCount] = useState(CLIENTS_BATCH);
   const sentinelRef = useRef(null);
 
-  // Resetear al cambiar filtros
-  useEffect(() => { setVisibleCount(CLIENTS_BATCH); }, [searchTerm, filterStatus]);
+  // Resetear al cambiar filtros u orden
+  useEffect(() => { setVisibleCount(CLIENTS_BATCH); }, [searchTerm, filterStatus, sortConfig]);
 
-  // IntersectionObserver: carga más tarjetas cuando el usuario llega al final
   useEffect(() => {
     const el = sentinelRef.current;
     if (!el) return;
     const observer = new IntersectionObserver(
       ([entry]) => { if (entry.isIntersecting) setVisibleCount(prev => prev + CLIENTS_BATCH); },
-      { rootMargin: '200px' }
+      { rootMargin: '300px' }
     );
     observer.observe(el);
     return () => observer.disconnect();
@@ -180,6 +208,25 @@ export default function ClientsList() {
 
   const displayedClients = filtered.slice(0, visibleCount);
   const hasMore = visibleCount < filtered.length;
+
+  // ── Exportar a CSV (abre en Excel) ────────────────────────────────────────
+  const exportCSV = () => {
+    const headers = ['Empresa', 'RFC', 'Contacto', 'Email', 'Teléfono', 'Dirección', 'Cotizaciones', 'Tratos', 'Facturado', 'Estado'];
+    const rows = filtered.map(c => [
+      c.companyName, c.rfc, c.contactName, c.email, c.phone, c.address,
+      c._quotes, c._deals, c._revenue,
+      STATUS_COLORS[c.status]?.label || c.status,
+    ]);
+    const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const csv = [headers, ...rows].map(r => r.map(esc).join(',')).join('\n');
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `clientes-oleacontrols-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   // Métricas
   const totalActive   = clients.filter(c => c.status === 'ACTIVE').length;
@@ -213,12 +260,21 @@ export default function ClientsList() {
                 <ShieldCheck className="h-3 w-3 text-emerald-500" /> Base de Datos CRM OleaControls
               </p>
             </div>
-            <button
-              onClick={() => { setNewClient(emptyClient); setShowAddModal(true); }}
-              className="flex items-center gap-2 bg-gray-900 text-white px-5 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-primary transition-all shadow-lg"
-            >
-              <Plus className="h-4 w-4" /> Nuevo Cliente
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={exportCSV}
+                className="flex items-center gap-2 bg-white border border-gray-200 text-gray-600 px-4 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-gray-50 hover:text-emerald-600 transition-all"
+                title="Exportar a Excel (CSV)"
+              >
+                <Download className="h-4 w-4" /> Exportar
+              </button>
+              <button
+                onClick={() => { setNewClient(emptyClient); setShowAddModal(true); }}
+                className="flex items-center gap-2 bg-gray-900 text-white px-5 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-primary transition-all shadow-lg"
+              >
+                <Plus className="h-4 w-4" /> Nuevo Cliente
+              </button>
+            </div>
           </div>
 
           {/* KPIs */}
@@ -268,8 +324,8 @@ export default function ClientsList() {
           </div>
         </div>
 
-        {/* Grid de clientes */}
-        <div className="flex-1 overflow-y-auto p-4">
+        {/* Tabla de clientes (estilo Excel) */}
+        <div className="flex-1 overflow-auto px-4 pb-4">
           {filtered.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-48 space-y-3">
               <Users2 className="h-12 w-12 text-gray-200" />
@@ -278,110 +334,112 @@ export default function ClientsList() {
               </p>
             </div>
           ) : (
-            <>
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-              {displayedClients.map(client => {
-                const cQuotes  = quotes.filter(q => q.clientId === client.id);
-                const cDeals   = deals.filter(d => d.clientId === client.id);
-                const revenue  = cQuotes.filter(q => q.status === 'ACCEPTED').reduce((s, q) => s + (q.total || 0), 0);
-                const s        = STATUS_COLORS[client.status] || STATUS_COLORS.ACTIVE;
-                const isSelected = selectedClient?.id === client.id;
-
-                return (
-                  <motion.div
-                    key={client.id}
-                    whileHover={{ y: -3 }}
-                    onClick={() => openClient(client)}
-                    className={cn(
-                      "bg-white rounded-3xl p-6 border cursor-pointer transition-all group relative overflow-hidden",
-                      isSelected ? 'border-2 border-primary shadow-lg shadow-primary/10' : 'border-gray-100 hover:shadow-xl hover:border-gray-200'
-                    )}
-                  >
-                    {/* Fondo decorativo */}
-                    <div className="absolute top-0 right-0 w-24 h-24 opacity-5 rounded-full bg-primary translate-x-8 -translate-y-8" />
-
-                    <div className="space-y-4 relative z-10">
-                      {/* Top row */}
-                      <div className="flex items-start justify-between">
-                        <div className="h-12 w-12 rounded-2xl bg-gray-900 text-white flex items-center justify-center font-black text-lg shadow-lg flex-shrink-0">
-                          {client.companyName.charAt(0).toUpperCase()}
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className={cn("text-[7px] font-black px-2 py-0.5 rounded-full border uppercase flex items-center gap-1", s.bg, s.text, s.border)}>
+            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden mt-4">
+              <table className="w-full border-collapse text-left">
+                <thead className="sticky top-0 z-10">
+                  <tr className="bg-gray-50 border-b border-gray-200">
+                    <SortableTH label="Empresa"      col="companyName" sortConfig={sortConfig} onSort={toggleSort} className="pl-4" />
+                    <SortableTH label="RFC"          col="rfc"         sortConfig={sortConfig} onSort={toggleSort} />
+                    <SortableTH label="Contacto"     col="contactName" sortConfig={sortConfig} onSort={toggleSort} />
+                    <SortableTH label="Email"        col="email"       sortConfig={sortConfig} onSort={toggleSort} />
+                    <th className="px-3 py-2.5 text-[9px] font-black text-gray-400 uppercase tracking-widest">Teléfono</th>
+                    <SortableTH label="Cotiz."       col="quotes"      sortConfig={sortConfig} onSort={toggleSort} align="center" />
+                    <SortableTH label="Tratos"       col="deals"       sortConfig={sortConfig} onSort={toggleSort} align="center" />
+                    <SortableTH label="Facturado"    col="revenue"     sortConfig={sortConfig} onSort={toggleSort} align="right" />
+                    <SortableTH label="Estado"       col="status"      sortConfig={sortConfig} onSort={toggleSort} align="center" />
+                    <th className="px-3 py-2.5 text-[9px] font-black text-gray-400 uppercase tracking-widest text-center w-16">Acción</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {displayedClients.map((client, idx) => {
+                    const s = STATUS_COLORS[client.status] || STATUS_COLORS.ACTIVE;
+                    const isSelected = selectedClient?.id === client.id;
+                    return (
+                      <tr
+                        key={client.id}
+                        onClick={() => openClient(client)}
+                        className={cn(
+                          "group cursor-pointer border-b border-gray-100 transition-colors",
+                          isSelected ? 'bg-primary/5' : idx % 2 ? 'bg-gray-50/40 hover:bg-blue-50/50' : 'bg-white hover:bg-blue-50/50'
+                        )}
+                      >
+                        {/* Empresa */}
+                        <td className="pl-4 pr-3 py-2.5">
+                          <div className="flex items-center gap-2.5">
+                            <div className={cn(
+                              "h-8 w-8 rounded-lg text-white flex items-center justify-center font-black text-xs flex-shrink-0",
+                              isSelected ? 'bg-primary' : 'bg-gray-900'
+                            )}>
+                              {client.companyName.charAt(0).toUpperCase()}
+                            </div>
+                            <span className="text-xs font-black text-gray-900 group-hover:text-primary transition-colors truncate max-w-[200px]">
+                              {client.companyName}
+                            </span>
+                          </div>
+                        </td>
+                        {/* RFC */}
+                        <td className="px-3 py-2.5 text-[11px] font-bold text-gray-500 uppercase whitespace-nowrap">{client.rfc || '—'}</td>
+                        {/* Contacto */}
+                        <td className="px-3 py-2.5 text-[11px] font-bold text-gray-700 truncate max-w-[140px]">{client.contactName || '—'}</td>
+                        {/* Email */}
+                        <td className="px-3 py-2.5 text-[11px] font-medium text-gray-500 lowercase truncate max-w-[180px]">{client.email || '—'}</td>
+                        {/* Teléfono */}
+                        <td className="px-3 py-2.5 text-[11px] font-bold text-gray-600 whitespace-nowrap">{client.phone || '—'}</td>
+                        {/* Cotizaciones */}
+                        <td className="px-3 py-2.5 text-center">
+                          <span className="text-xs font-black text-gray-900 tabular-nums">{client._quotes}</span>
+                        </td>
+                        {/* Tratos */}
+                        <td className="px-3 py-2.5 text-center">
+                          <span className="text-xs font-black text-gray-900 tabular-nums">{client._deals}</span>
+                        </td>
+                        {/* Facturado */}
+                        <td className="px-3 py-2.5 text-right">
+                          <span className={cn("text-[11px] font-black tabular-nums whitespace-nowrap", client._revenue > 0 ? 'text-emerald-600' : 'text-gray-300')}>
+                            {fmt(client._revenue)}
+                          </span>
+                        </td>
+                        {/* Estado */}
+                        <td className="px-3 py-2.5 text-center">
+                          <span className={cn("inline-flex items-center gap-1 text-[8px] font-black px-2 py-1 rounded-full border uppercase", s.bg, s.text, s.border)}>
                             <span className={cn("w-1.5 h-1.5 rounded-full", s.dot)} />
                             {s.label}
                           </span>
+                        </td>
+                        {/* Acción */}
+                        <td className="px-3 py-2.5 text-center">
                           <button
                             onClick={e => { e.stopPropagation(); deleteClient(client); }}
-                            className="p-1.5 rounded-lg opacity-0 group-hover:opacity-100 bg-red-50 text-red-400 hover:text-red-600 transition-all"
+                            className="p-1.5 rounded-lg text-gray-300 hover:bg-red-50 hover:text-red-600 transition-all"
+                            title="Eliminar cliente"
                           >
-                            <Trash2 className="h-3 w-3" />
+                            <Trash2 className="h-3.5 w-3.5" />
                           </button>
-                        </div>
-                      </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
 
-                      {/* Info */}
-                      <div>
-                        <h3 className="text-base font-black text-gray-900 leading-tight group-hover:text-primary transition-colors">{client.companyName}</h3>
-                        <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest mt-0.5 flex items-center gap-1">
-                          <Hash className="h-2.5 w-2.5" /> RFC: {client.rfc || 'XAXX010101000'}
-                        </p>
-                      </div>
-
-                      {/* Contacto */}
-                      <div className="space-y-1.5 pt-3 border-t border-gray-50">
-                        <div className="flex items-center gap-2 text-gray-500">
-                          <User className="h-3 w-3 text-primary/40 flex-shrink-0" />
-                          <span className="text-[10px] font-bold truncate">{client.contactName || '—'}</span>
-                        </div>
-                        <div className="flex items-center gap-2 text-gray-500">
-                          <Mail className="h-3 w-3 text-primary/40 flex-shrink-0" />
-                          <span className="text-[10px] font-bold lowercase truncate">{client.email}</span>
-                        </div>
-                        {client.phone && (
-                          <div className="flex items-center gap-2 text-gray-500">
-                            <Phone className="h-3 w-3 text-primary/40 flex-shrink-0" />
-                            <span className="text-[10px] font-bold">{client.phone}</span>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Mini métricas */}
-                      <div className="flex gap-2 pt-2">
-                        <div className="flex-1 bg-gray-50 rounded-xl p-2 text-center">
-                          <p className="text-[8px] font-black text-gray-400 uppercase">Cotizaciones</p>
-                          <p className="text-sm font-black text-gray-900">{cQuotes.length}</p>
-                        </div>
-                        <div className="flex-1 bg-gray-50 rounded-xl p-2 text-center">
-                          <p className="text-[8px] font-black text-gray-400 uppercase">Tratos</p>
-                          <p className="text-sm font-black text-gray-900">{cDeals.length}</p>
-                        </div>
-                        <div className="flex-1 bg-emerald-50 rounded-xl p-2 text-center">
-                          <p className="text-[8px] font-black text-emerald-600 uppercase">Facturado</p>
-                          <p className="text-xs font-black text-emerald-700">{fmt(revenue)}</p>
-                        </div>
-                      </div>
-                    </div>
-                  </motion.div>
-                );
-              })}
-
-              {/* Sentinel — IntersectionObserver carga más tarjetas al llegar aquí */}
+              {/* Sentinel — carga más filas al llegar al final */}
               {hasMore && (
-                <div ref={sentinelRef} className="col-span-full flex justify-center py-6">
+                <div ref={sentinelRef} className="flex justify-center py-5 border-t border-gray-100">
                   <div className="flex items-center gap-2 text-gray-300">
                     <div className="w-4 h-4 border-2 border-gray-200 border-t-primary rounded-full animate-spin" />
                     <span className="text-[9px] font-bold uppercase tracking-widest">Cargando más...</span>
                   </div>
                 </div>
               )}
-            </div>
 
-            {/* Contador total */}
-            <p className="mt-3 text-center text-[9px] font-mono text-gray-300">
-              Mostrando {Math.min(visibleCount, filtered.length)} de {filtered.length} clientes
-            </p>
-            </>
+              {/* Pie con contador */}
+              <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-t border-gray-200">
+                <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">
+                  Mostrando {Math.min(visibleCount, filtered.length)} de {filtered.length} clientes
+                </p>
+                <p className="text-[9px] font-bold text-gray-300">Clic en una fila para abrir el expediente</p>
+              </div>
+            </div>
           )}
         </div>
       </div>
@@ -539,6 +597,29 @@ export default function ClientsList() {
         )}
       </AnimatePresence>
     </div>
+  );
+}
+
+// ── Encabezado de columna ordenable (estilo Excel) ────────────────────────────
+function SortableTH({ label, col, sortConfig, onSort, align = 'left', className }) {
+  const active = sortConfig.key === col;
+  const alignCls = align === 'right' ? 'justify-end text-right' : align === 'center' ? 'justify-center text-center' : 'justify-start text-left';
+  return (
+    <th className={cn("px-3 py-2.5 select-none", className)}>
+      <button
+        onClick={() => onSort(col)}
+        className={cn(
+          "flex items-center gap-1 w-full text-[9px] font-black uppercase tracking-widest transition-colors hover:text-primary",
+          alignCls,
+          active ? 'text-primary' : 'text-gray-400'
+        )}
+      >
+        {label}
+        {active
+          ? (sortConfig.dir === 1 ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />)
+          : <ChevronsUpDown className="h-3 w-3 opacity-40" />}
+      </button>
+    </th>
   );
 }
 

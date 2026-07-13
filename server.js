@@ -30,6 +30,7 @@ import attendanceHandler from './api/_handlers/attendance.js';
 import techAttendanceHandler from './api/_handlers/tech-attendance.js';
 import techLocationsHandler  from './api/_handlers/tech-locations.js';
 import performanceHandler    from './api/_handlers/performance.js';
+import techKpisHandler       from './api/_handlers/tech-kpis.js';
 import announcementsHandler  from './api/_handlers/announcements.js';
 import surveysHandler        from './api/_handlers/surveys.js';
 import payrollHandler        from './api/_handlers/payroll.js';
@@ -184,6 +185,9 @@ app.delete('/api/catalog', adaptHandler(catalogHandler));
 
 // Performance / KPIs
 app.get('/api/performance', adaptHandler(performanceHandler));
+
+// KPIs de Técnicos (puntualidad · cumplimiento OT · encuestas · resolución)
+app.get('/api/tech-kpis', adaptHandler(techKpisHandler));
 
 // Announcements
 app.get('/api/announcements',    adaptHandler(announcementsHandler));

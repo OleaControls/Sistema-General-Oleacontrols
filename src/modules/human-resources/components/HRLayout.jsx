@@ -3,7 +3,7 @@ import { Link, useLocation, Outlet } from 'react-router-dom';
 import {
   Users, FileSignature, CalendarClock, Network,
   UserPlus, Target, HardHat, Megaphone, BarChart4, Settings,
-  ClipboardCheck, Gift, LayoutDashboard, Receipt
+  ClipboardCheck, Gift, LayoutDashboard, Receipt, Gauge
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -32,6 +32,7 @@ const hrNavGroups = [
     label: 'Talento',
     items: [
       { name: 'Desempeño', path: '/hr/performance', icon: Target },
+      { name: 'KPIs Técnicos', path: '/hr/tech-kpis', icon: Gauge },
       { name: 'Incentivos y Premios', path: '/hr/rewards', icon: Gift },
     ]
   },

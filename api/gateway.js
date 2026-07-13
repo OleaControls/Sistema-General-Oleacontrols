@@ -34,6 +34,7 @@ const handlers = {
   'tech-attendance': () => import('./_handlers/tech-attendance.js'),
   attendance:    () => import('./_handlers/attendance.js'),
   performance:   () => import('./_handlers/performance.js'),
+  'tech-kpis':   () => import('./_handlers/tech-kpis.js'),
   announcements: () => import('./_handlers/announcements.js'),
   surveys:       () => import('./_handlers/surveys.js'),
   payroll:       () => import('./_handlers/payroll.js'),
