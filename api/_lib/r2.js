@@ -32,6 +32,41 @@ function getR2Client() {
 }
 
 /**
+ * Construye la URL pública de un archivo a partir de su Key.
+ * @param {string} fileName - Key (ruta) del archivo en el bucket.
+ * @returns {string} URL pública.
+ */
+export function buildPublicUrl(fileName) {
+  if (process.env.R2_PUBLIC_URL) {
+    return `${process.env.R2_PUBLIC_URL.replace(/\/$/, '')}/${fileName}`;
+  }
+  const accountId = process.env.R2_ENDPOINT?.match(/https:\/\/(.+)\.r2/)?.[1];
+  return `https://pub-${accountId}.r2.dev/${fileName}`;
+}
+
+/**
+ * Genera una URL prefirmada de SUBIDA (PUT) para que el navegador suba
+ * un archivo directamente a R2, evitando el límite de 4.5 MB de las
+ * funciones serverless de Vercel.
+ * @param {string} folder - Carpeta destino ('delivery-acts', etc).
+ * @param {string} contentType - Tipo MIME del archivo (ej: 'application/pdf').
+ * @param {string} extension - Extensión del archivo (ej: 'pdf').
+ * @param {number} expiresIn - Tiempo de expiración en segundos (default 15 min).
+ * @returns {Promise<{uploadUrl: string, publicUrl: string, key: string}>}
+ */
+export async function getUploadUrl(folder = 'uploads', contentType = 'application/octet-stream', extension = 'bin', expiresIn = 900) {
+  const client = getR2Client();
+  const fileName = `${folder}/${Date.now()}-${Math.random().toString(36).substring(7)}.${extension}`;
+  const command = new PutObjectCommand({
+    Bucket: process.env.R2_BUCKET_NAME,
+    Key: fileName,
+    ContentType: contentType,
+  });
+  const uploadUrl = await getSignedUrl(client, command, { expiresIn });
+  return { uploadUrl, publicUrl: buildPublicUrl(fileName), key: fileName };
+}
+
+/**
  * Genera una URL firmada para un archivo en R2.
  * @param {string} key - El Key (ruta) del archivo en el bucket.
  * @param {number} expiresIn - Tiempo de expiración en segundos (default 1 hora).
@@ -153,15 +188,7 @@ export async function uploadToR2(fileData, folder = 'general', customName = null
     // 4. Construir URL Pública (o key)
     // Para mantener compatibilidad con lo existente, seguimos devolviendo la URL.
     // Pero ahora tenemos la capacidad de firmarla al recuperarla.
-    let publicUrl;
-    if (process.env.R2_PUBLIC_URL) {
-      publicUrl = `${process.env.R2_PUBLIC_URL.replace(/\/$/, '')}/${fileName}`;
-    } else {
-      const accountId = process.env.R2_ENDPOINT?.match(/https:\/\/(.+)\.r2/)?.[1];
-      publicUrl = `https://pub-${accountId}.r2.dev/${fileName}`; 
-    }
-
-    return publicUrl;
+    return buildPublicUrl(fileName);
   } catch (error) {
     console.error(`❌ R2 Upload Error (${folder}):`, error.message);
     if (typeof fileData === 'string' && fileData.startsWith('data:')) {

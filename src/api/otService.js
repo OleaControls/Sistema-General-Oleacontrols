@@ -51,6 +51,50 @@ export const otService = {
     }
   },
 
+  // Convierte un data-URI base64 en { blob, contentType, extension }.
+  _dataUriToBlob(dataUri) {
+    const match = dataUri.match(/^data:([^;]+);base64,(.+)$/);
+    if (!match) throw new Error('Data-URI inválido');
+    const contentType = match[1];
+    const binary = atob(match[2]);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    const mimeToExt = { 'application/pdf': 'pdf', 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
+    const extension = mimeToExt[contentType] || contentType.split('/')[1]?.split('+')[0] || 'bin';
+    return { blob: new Blob([bytes], { type: contentType }), contentType, extension };
+  },
+
+  // Sube archivos grandes (PDFs) DIRECTO a R2 mediante URL prefirmada,
+  // evitando el límite de 4.5 MB de las funciones serverless de Vercel.
+  // Si la subida directa falla (p. ej. CORS no configurado en R2), cae de
+  // vuelta al método clásico vía /api/upload.
+  async uploadLargeFile(base64Data, folder = 'uploads') {
+    if (!base64Data?.startsWith('data:')) return base64Data;
+    try {
+      const { blob, contentType, extension } = this._dataUriToBlob(base64Data);
+
+      const presignRes = await apiFetch('/api/upload', {
+        method: 'POST',
+        body: JSON.stringify({ presign: true, folder, contentType, extension }),
+      });
+      if (!presignRes.ok) throw new Error(`No se pudo obtener URL de subida (${presignRes.status})`);
+      const { uploadUrl, publicUrl } = await presignRes.json();
+
+      const putRes = await fetch(uploadUrl, {
+        method: 'PUT',
+        headers: { 'Content-Type': contentType },
+        body: blob,
+      });
+      if (!putRes.ok) throw new Error(`Fallo subida directa a R2 (${putRes.status})`);
+
+      console.log(`[otService] Archivo grande subido directo a R2:`, publicUrl);
+      return publicUrl;
+    } catch (err) {
+      console.warn(`[otService] Subida directa falló, usando /api/upload como respaldo:`, err.message);
+      return this.uploadFile(base64Data, folder);
+    }
+  },
+
   // Plantillas OT (guardadas en BD vía /api/ot-templates)
   _templatesFlight: null,
   async getTemplates() {

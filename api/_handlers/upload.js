@@ -1,4 +1,4 @@
-import { uploadToR2 } from '../_lib/r2.js'
+import { uploadToR2, getUploadUrl } from '../_lib/r2.js'
 
 export const config = {
   api: {
@@ -12,7 +12,19 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   try {
-    const { file, folder } = req.body;
+    const { file, folder, presign, contentType, extension } = req.body;
+
+    // Modo presigned: devuelve una URL de subida directa a R2 (sin cuerpo pesado).
+    // Permite subir archivos grandes (PDFs) evitando el límite de 4.5 MB de Vercel.
+    if (presign) {
+      const { uploadUrl, publicUrl } = await getUploadUrl(
+        folder || 'uploads',
+        contentType || 'application/octet-stream',
+        extension || 'bin'
+      );
+      return res.status(200).json({ uploadUrl, publicUrl });
+    }
+
     if (!file || !file.startsWith('data:')) {
         return res.status(400).json({ error: 'Archivo no válido o ausente' });
     }

@@ -407,6 +407,31 @@ export default function DeliveryAct() {
       img.src = dataUri;
   });
 
+  // Reduce una foto para INCRUSTARLA en el PDF (se muestra a 80x60mm, no
+  // necesita alta resolución). La copia en R2 se sube aparte en buena calidad.
+  // Mantiene el PDF muy por debajo del límite de 4.5 MB de Vercel.
+  const compressPhotoForPdf = (dataUri) => new Promise((resolve) => {
+      if (!dataUri?.startsWith('data:')) { resolve(dataUri); return; }
+      const img = new Image();
+      img.onload = () => {
+          try {
+              const MAX = 900;
+              const scale = Math.min(1, MAX / Math.max(img.width, img.height, 1));
+              const w = Math.max(1, Math.round(img.width * scale));
+              const h = Math.max(1, Math.round(img.height * scale));
+              const c = document.createElement('canvas');
+              c.width = w; c.height = h;
+              const ctx = c.getContext('2d');
+              ctx.fillStyle = '#ffffff';
+              ctx.fillRect(0, 0, w, h);
+              ctx.drawImage(img, 0, 0, w, h);
+              resolve(c.toDataURL('image/jpeg', 0.55));
+          } catch (e) { resolve(dataUri); }
+      };
+      img.onerror = () => resolve(dataUri);
+      img.src = dataUri;
+  });
+
   const log = (msg) => {
       const line = `[${new Date().toLocaleTimeString()}] ${msg}`;
       console.log(line);
@@ -450,19 +475,20 @@ export default function DeliveryAct() {
       );
       log(`Fotos OK: ${photoUrls.length}`);
 
-      // 4. Generar PDF
+      // 4. Generar PDF (con fotos re-comprimidas para no inflar el PDF)
       log('Paso 4: generando PDF...');
+      const pdfPhotos = await Promise.all(formData.photos.map(compressPhotoForPdf));
       const pdfBase64 = await generatePDF({
           ...formData,
           tscSignature: tscSigBase64,
           clientSignature: clientSigBase64,
-          photos: formData.photos
+          photos: pdfPhotos
       });
       log(`PDF generado: ${Math.round(pdfBase64.length / 1024)} KB`);
 
-      // 5. Subir PDF
+      // 5. Subir PDF (directo a R2 con URL prefirmada; evita el límite de 4.5 MB)
       log('Paso 5: subiendo PDF a R2...');
-      const pdfUrl = await otService.uploadFile(pdfBase64, 'delivery-acts');
+      const pdfUrl = await otService.uploadLargeFile(pdfBase64, 'delivery-acts');
       log(`PDF URL: ${String(pdfUrl).slice(0, 60)}`);
 
       // 6. Actualizar OT
