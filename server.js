@@ -34,6 +34,7 @@ import techKpisHandler       from './api/_handlers/tech-kpis.js';
 import announcementsHandler  from './api/_handlers/announcements.js';
 import surveysHandler        from './api/_handlers/surveys.js';
 import payrollHandler        from './api/_handlers/payroll.js';
+import projectsHandler       from './api/_handlers/projects.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -212,6 +213,12 @@ app.get('/api/calendar', adaptHandler(calendarHandler));
 app.post('/api/calendar', adaptHandler(calendarHandler));
 app.put('/api/calendar', adaptHandler(calendarHandler));
 app.delete('/api/calendar', adaptHandler(calendarHandler));
+
+// Proyectos
+app.get('/api/projects',    adaptHandler(projectsHandler));
+app.post('/api/projects',   adaptHandler(projectsHandler));
+app.put('/api/projects',    adaptHandler(projectsHandler));
+app.delete('/api/projects', adaptHandler(projectsHandler));
 
 // Portal de Cliente (público)
 app.get('/api/portal', adaptHandler(portalHandler));

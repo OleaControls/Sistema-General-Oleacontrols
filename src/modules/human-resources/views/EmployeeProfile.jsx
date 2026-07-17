@@ -104,6 +104,7 @@ const ROLE_CONFIG = {
     [ROLES.OPS]: { label: 'Supervisor de Operaciones', color: 'bg-blue-50 text-blue-600 border-blue-100', icon: HardHat },
     [ROLES.TECH]: { label: 'Técnico Especialista', color: 'bg-emerald-50 text-emerald-600 border-emerald-100', icon: Zap },
     [ROLES.SALES]: { label: 'Consultor de Ventas', color: 'bg-orange-50 text-orange-600 border-orange-100', icon: TrendingUp },
+    [ROLES.PM]: { label: 'Gerente de Proyectos', color: 'bg-indigo-50 text-indigo-600 border-indigo-100', icon: Briefcase },
     [ROLES.COLLABORATOR]: { label: 'Colaborador', color: 'bg-gray-50 text-gray-600 border-gray-100', icon: User }
 };
 

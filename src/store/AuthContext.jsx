@@ -8,6 +8,7 @@ export const ROLES = {
   TECH: 'TECHNICIAN',
   HR: 'HR',
   SALES: 'SALES',
+  PM: 'PROJECT_MANAGER',
   COLLABORATOR: 'COLLABORATOR'
 };
 

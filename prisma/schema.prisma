@@ -857,3 +857,243 @@ model PayrollItem {
   @@index([periodId])
   @@index([employeeId])
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MÓDULO DE GESTIÓN DE PROYECTOS (rol PROJECT_MANAGER)
+// Las referencias a empleados se guardan como String (id) + snapshot de nombre,
+// siguiendo el patrón de PersonalAudit/Announcement, para no acoplar el modelo
+// Employee. Cada área del acta de proyecto tiene su propio modelo hijo.
+// ═══════════════════════════════════════════════════════════════════════════
+
+model Project {
+  id            String   @id @default(cuid())
+  code          String   @unique          // PROY-2026-001
+  name          String
+
+  // Acta de inicio
+  objective     String?                    // Objetivo
+  scope         String?                    // Alcance
+  justification String?                    // Justificación
+  sponsor       String?                    // Patrocinador
+  managerId     String?                    // Responsable del proyecto (Employee.id)
+  managerName   String?
+  clientName    String?
+
+  // Estado y avance
+  status        String   @default("INICIO") // INICIO, PLANEACION, EJECUCION, CIERRE, CERRADO
+  progress      Int      @default(0)         // % avance (0-100)
+
+  // Tiempo
+  startDate     DateTime?
+  endDate       DateTime?
+
+  // Costos
+  budget        Float    @default(0)         // Presupuesto autorizado
+  actualCost    Float    @default(0)         // Gasto real acumulado (snapshot)
+
+  // Alcance
+  requirements  String?                      // Requerimientos
+  deliverables  String?                      // Entregables
+
+  // Cierre
+  lessonsLearned String?                     // Lecciones aprendidas
+  closureNotes   String?                     // Notas de cierre
+  closureActUrl  String?                     // PDF acta de cierre (R2)
+  closedAt       DateTime?
+
+  // Integración y automatización
+  autoProgress   Boolean  @default(false)    // avance calculado desde tareas
+  linkedOtIds    Json?                        // IDs de OTs vinculadas
+  linkedQuoteIds Json?                        // IDs de cotizaciones vinculadas
+
+  archived      Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  tasks          ProjectTask[]
+  risks          ProjectRisk[]
+  costs          ProjectCost[]
+  resources      ProjectResource[]
+  qualityItems   ProjectQuality[]
+  communications ProjectCommunication[]
+  incidents      ProjectIncident[]
+  documents      ProjectDocument[]
+  changes        ProjectChange[]
+  activities     ProjectActivity[]
+
+  @@index([status])
+  @@index([managerId])
+  @@index([archived])
+}
+
+// Bitácora de actividad / auditoría del proyecto
+model ProjectActivity {
+  id         String   @id @default(cuid())
+  projectId  String
+  project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  action     String                           // "Creó tarea", "Cambió estado a EJECUCION", etc.
+  detail     String?
+  authorName String?
+  createdAt  DateTime @default(now())
+
+  @@index([projectId, createdAt])
+}
+
+// Cronograma / Actividades / Hitos / Tiempo / Dependencias
+model ProjectTask {
+  id              String   @id @default(cuid())
+  projectId       String
+  project         Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name            String
+  type            String   @default("TASK")    // TASK, MILESTONE
+  status          String   @default("PENDING") // PENDING, IN_PROGRESS, DONE, BLOCKED
+  progress        Int      @default(0)          // % avance
+  startDate       DateTime?
+  endDate         DateTime?
+  dependsOn       Json?                          // IDs de tareas predecesoras
+  responsibleId   String?
+  responsibleName String?
+  order           Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([projectId])
+}
+
+// Gestión de riesgos
+model ProjectRisk {
+  id            String   @id @default(cuid())
+  projectId     String
+  project       Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  description   String
+  probability   String   @default("MEDIA")   // BAJA, MEDIA, ALTA
+  impact        String   @default("MEDIO")   // BAJO, MEDIO, ALTO
+  mitigation    String?
+  ownerId       String?
+  ownerName     String?
+  status        String   @default("ABIERTO") // ABIERTO, MITIGADO, CERRADO, MATERIALIZADO
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([projectId])
+}
+
+// Gestión de costos (presupuesto vs real → variación/pronóstico calculado)
+model ProjectCost {
+  id            String   @id @default(cuid())
+  projectId     String
+  project       Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  concept       String
+  category      String   @default("GENERAL") // MATERIAL, MANO_OBRA, EQUIPO, OTRO
+  budgeted      Float    @default(0)
+  actual        Float    @default(0)
+  date          DateTime?
+  notes         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([projectId])
+}
+
+// Gestión de recursos (personal, equipos, materiales)
+model ProjectResource {
+  id             String   @id @default(cuid())
+  projectId      String
+  project        Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  type           String   @default("PERSONAL") // PERSONAL, EQUIPO, MATERIAL
+  name           String
+  quantity       Float    @default(1)
+  unit           String?
+  cost           Float    @default(0)
+  responsibility String?                        // Asignación de responsabilidades
+  assignedToId   String?
+  assignedName   String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([projectId])
+}
+
+// Gestión de la calidad (criterios, inspecciones, pruebas, indicadores)
+model ProjectQuality {
+  id            String   @id @default(cuid())
+  projectId     String
+  project       Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  type          String   @default("CRITERIO")  // CRITERIO, INSPECCION, PRUEBA, INDICADOR
+  description   String
+  target        String?                          // Criterio de aceptación / valor esperado
+  result        String?                          // Resultado obtenido
+  status        String   @default("PENDIENTE")  // PENDIENTE, APROBADO, RECHAZADO
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([projectId])
+}
+
+// Gestión de comunicaciones (minutas, reportes, reuniones)
+model ProjectCommunication {
+  id            String   @id @default(cuid())
+  projectId     String
+  project       Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  type          String   @default("MINUTA")     // MINUTA, REPORTE, REUNION
+  title         String
+  content       String?
+  channel       String?                          // Canal de comunicación
+  date          DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([projectId])
+}
+
+// Gestión de incidencias
+model ProjectIncident {
+  id              String   @id @default(cuid())
+  projectId       String
+  project         Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  title           String
+  description     String?
+  priority        String   @default("MEDIA")    // BAJA, MEDIA, ALTA, CRITICA
+  responsibleId   String?
+  responsibleName String?
+  status          String   @default("ABIERTA")  // ABIERTA, EN_PROCESO, RESUELTA
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([projectId])
+}
+
+// Gestión documental (planos, manuales, contratos, evidencias, versionado)
+model ProjectDocument {
+  id            String   @id @default(cuid())
+  projectId     String
+  project       Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name          String
+  category      String   @default("OTRO")       // PLANO, MANUAL, CONTRATO, EVIDENCIA, OTRO
+  url           String
+  version       String   @default("1.0")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([projectId])
+}
+
+// Control de cambios (solicitudes, impacto, aprobaciones, historial)
+model ProjectChange {
+  id              String   @id @default(cuid())
+  projectId       String
+  project         Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  title           String
+  description     String?
+  impact          String?                         // Evaluación del impacto
+  status          String   @default("SOLICITADO") // SOLICITADO, APROBADO, RECHAZADO
+  requestedById   String?
+  requestedByName String?
+  decidedById     String?
+  decidedByName   String?
+  decidedAt       DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([projectId])
+}

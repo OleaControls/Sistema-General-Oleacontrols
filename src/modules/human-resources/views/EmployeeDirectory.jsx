@@ -14,6 +14,7 @@ const ROLE_LABELS = {
   [ROLES.OPS]: 'Super',
   [ROLES.TECH]: 'Tech',
   [ROLES.SALES]: 'Ventas',
+  [ROLES.PM]: 'Proyectos',
   [ROLES.COLLABORATOR]: 'Colab'
 };
 

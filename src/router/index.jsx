@@ -68,6 +68,10 @@ const SalesCalendar     = lazy(() => import('@/modules/crm/views/SalesCalendar')
 const OpsMetrics  = lazy(() => import('@/modules/ops/views/OpsMetrics'));
 const TechMetrics = lazy(() => import('@/modules/ots/views/TechMetrics'));
 
+// Proyectos
+const ProjectsList  = lazy(() => import('@/modules/projects/views/ProjectsList'));
+const ProjectDetail = lazy(() => import('@/modules/projects/views/ProjectDetail'));
+
 // Misc
 const FeedbackForm = lazy(() => import('@/modules/feedback/FeedbackForm'));
 const ClientPortal = lazy(() => import('@/modules/ots/views/ClientPortal'));
@@ -131,6 +135,7 @@ const DashboardSelector = () => {
     case ROLES.TECH:   return <TechMetrics />;
     case ROLES.HR:     return <HRDashboard />;
     case ROLES.SALES:  return <DealsKanban />;
+    case ROLES.PM:     return <ProjectsList />;
     default:           return <MyProfile />;
   }
 };
@@ -213,6 +218,10 @@ export default function AppRouter() {
             <Route path="catalog"       element={<ProductCatalog />} />
             <Route path="calendar"      element={<SalesCalendar />} />
           </Route>
+
+          {/* Módulo Proyectos */}
+          <Route path="/projects"     element={<ProtectedRoute><ProjectsList /></ProtectedRoute>} />
+          <Route path="/projects/:id" element={<ProtectedRoute><ProjectDetail /></ProtectedRoute>} />
 
           {/* Ventas – acceso directo SALES */}
           <Route path="/sales/metricas" element={<ProtectedRoute><SalesMetrics /></ProtectedRoute>} />

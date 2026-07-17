@@ -4,7 +4,8 @@ import {
   LayoutDashboard, ClipboardList, Receipt, Users, GraduationCap,
   Briefcase, Menu, X, LogOut, Bell, ChevronDown, Trophy, User as UserIcon,
   BarChart3, Wallet, Target, Users2, FileText, Sliders, TrendingUp,
-  Activity, Settings, BarChart4, BookOpen, Calendar, Package, Star, CalendarCheck, ClipboardCheck
+  Activity, Settings, BarChart4, BookOpen, Calendar, Package, Star, CalendarCheck, ClipboardCheck,
+  FolderKanban
 } from 'lucide-react';
 import { useAuth, ROLES } from '@/store/AuthContext';
 import { useTenant } from '@/store/TenantContext';
@@ -129,6 +130,15 @@ const NAV_STRUCTURE = [
     path: '/crm/indirect-sales',
     icon: Target,
     roles: [ROLES.TECH, ROLES.COLLABORATOR],
+  },
+
+  // ── GERENTE DE PROYECTOS ────────────────────────────────────────────────────
+  {
+    type: 'item',
+    name: 'Proyectos',
+    path: '/projects',
+    icon: FolderKanban,
+    roles: [ROLES.PM, ROLES.ADMIN],
   },
 
   // ── RH ────────────────────────────────────────────────────────────────────
@@ -311,6 +321,7 @@ export default function AppShell({ children }) {
                   r === ROLES.OPS   ? 'Operaciones' :
                   r === ROLES.TECH  ? 'Técnico' :
                   r === ROLES.HR    ? 'R. Humanos' :
+                  r === ROLES.PM    ? 'Gerente de Proyectos' :
                   r === ROLES.COLLABORATOR ? 'Colaborador' : r
                 ).join(' · ')}
               </span>
