@@ -418,7 +418,7 @@ function SellerDetailModal({ data, color, rank, allDeals, allActivities, allQuot
 }
 
 function SellerCard({ data, color, rank }) {
-  const { seller, wonDeals, activeDeals, lostDeals, deals, wonValue, pipelineValue, quotes, acceptedQuotes, leads, closeRate, activities } = data;
+  const { seller, wonDeals, activeDeals, lostDeals, deals, wonValue, pipelineValue, quotes, acceptedQuotes, acceptedValue = 0, leads, closeRate, activities } = data;
   const initial = (seller.name || '?').charAt(0).toUpperCase();
   const isTop = rank === 1;
   const totalDeals = (wonDeals || 0) + (activeDeals || 0) + (lostDeals || 0);
@@ -490,6 +490,14 @@ function SellerCard({ data, color, rank }) {
             <p style={{ fontSize:8, fontWeight:800, color:'#94a3b8', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:4 }}>Tasa Cierre</p>
             <p style={{ fontSize:22, fontWeight:900, color: closeRate >= 50 ? '#059669' : closeRate >= 25 ? '#f59e0b' : '#dc2626', letterSpacing:'-0.02em' }}>{closeRate}%</p>
           </div>
+        </div>
+      </div>
+
+      {/* Cotizado autorizado (monto) */}
+      <div style={{ margin:'10px 16px 0' }}>
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', background:'#f0fdf4', border:'1px solid #bbf7d0', borderRadius:12, padding:'9px 14px' }}>
+          <span style={{ fontSize:8, fontWeight:900, color:'#059669', textTransform:'uppercase', letterSpacing:'0.1em' }}>Cotizado Autorizado · {acceptedQuotes} cot.</span>
+          <span style={{ fontSize:15, fontWeight:900, color:'#059669', fontFamily:'monospace' }}>{fmt(acceptedValue)}</span>
         </div>
       </div>
 
@@ -961,6 +969,15 @@ export default function SalesMetrics() {
     ? Math.round(metrics.reduce((s, m) => s + m.closeRate, 0) / metrics.length)
     : 0;
 
+  // "Valor ganado" real del pipeline: TODOS los tratos ganados (igual que el Kanban),
+  // para que el KPI y las tarjetas concuerden con el pipeline y entre sí.
+  const wonValueAll = deals
+    .filter(d => d.stage === 'CLOSED_WON')
+    .reduce((s, d) => s + (d.value || 0), 0);
+  const wonValueBySeller = (sellerId) => deals
+    .filter(d => d.stage === 'CLOSED_WON' && (d.assignedTo?.id === sellerId || d.assignedToId === sellerId))
+    .reduce((s, d) => s + (d.value || 0), 0);
+
   const addSeguimiento = async (e) => {
     e.preventDefault();
     if (!newSeg.dealId || !newSeg.observations.trim()) return;
@@ -1016,62 +1033,66 @@ export default function SalesMetrics() {
     <div className="space-y-4 pb-12">
 
       {/* ── HEADER ────────────────────────────────────────────────────────────── */}
-      <div style={{ background:'#fff', borderRadius:20, border:'1px solid #e2e8f0', padding:'20px 24px', boxShadow:'0 1px 4px rgba(0,0,0,0.05)' }}>
-        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:12 }}>
-          <div>
-            <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:6 }}>
-              <div style={{ width:7, height:7, borderRadius:'50%', background:'#3b82f6', boxShadow:'0 0 6px #3b82f680' }} />
-              <span style={{ fontSize:9, fontWeight:700, color:'#94a3b8', textTransform:'uppercase', letterSpacing:'0.1em' }}>Panel Comercial · Oleacontrols</span>
-            </div>
-            <h2 style={{ fontSize:22, fontWeight:900, color:'#0a0f1e', letterSpacing:'-0.03em', margin:0 }}>Pipeline Comercial</h2>
-            <p style={{ fontSize:11, color:'#94a3b8', fontWeight:600, marginTop:3 }}>
-              {metrics.length} vendedor{metrics.length !== 1 ? 'es' : ''}&ensp;·&ensp;Últimos {currentPeriod?.days} días&ensp;·&ensp;{activeDeals.length} tratos activos
-            </p>
-          </div>
-          <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-            <div style={{ display:'flex', background:'#f8fafc', border:'1px solid #e2e8f0', borderRadius:12, padding:3, gap:2 }}>
-              {PERIODS.map(p => (
-                <button key={p.key} onClick={() => setPeriod(p.key)} style={{
-                  padding:'6px 14px', borderRadius:9, fontSize:11, fontWeight:700, cursor:'pointer', transition:'all 0.15s',
-                  background: period === p.key ? '#fff' : 'transparent',
-                  color: period === p.key ? '#1d4ed8' : '#94a3b8',
-                  border: period === p.key ? '1px solid #dbeafe' : '1px solid transparent',
-                  boxShadow: period === p.key ? '0 1px 4px rgba(0,0,0,0.08)' : 'none',
-                }}>
-                  {p.label}
-                </button>
-              ))}
-            </div>
-            <button onClick={fetchMetrics} style={{
-              width:34, height:34, borderRadius:10, display:'flex', alignItems:'center', justifyContent:'center',
-              background:'#f8fafc', border:'1px solid #e2e8f0', cursor:'pointer', color:'#94a3b8', transition:'all 0.15s',
-            }}
-              onMouseEnter={e => { e.currentTarget.style.background='#eff6ff'; e.currentTarget.style.color='#1d4ed8'; }}
-              onMouseLeave={e => { e.currentTarget.style.background='#f8fafc'; e.currentTarget.style.color='#94a3b8'; }}
-            >
-              <RefreshCw style={{ width:13, height:13 }} />
-            </button>
-          </div>
-        </div>
-
-        {/* KPIs compactos */}
-        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(110px, 1fr))', gap:10, marginTop:16, paddingTop:16, borderTop:'1px solid #f1f5f9' }}>
-          {[
-            { label:'Deals activos',  value: activeDeals.length,        icon: Briefcase,    color:'#1d4ed8', bg:'#eff6ff' },
-            { label:'Valor ganado',   value: fmt(totals.wonValue),       icon: DollarSign,   color:'#059669', bg:'#f0fdf4' },
-            { label:'Pipeline',       value: fmt(totals.pipelineValue),  icon: TrendingUp,   color:'#7c3aed', bg:'#faf5ff' },
-            { label:'Cotizaciones',   value: totals.quotes,              icon: FileText,     color:'#0284c7', bg:'#f0f9ff' },
-            { label:'Actividades',    value: totals.activities,          icon: Activity,     color:'#b45309', bg:'#fffbeb' },
-            { label:'Tasa de cierre', value: `${totals.avgCloseRate}%`,  icon: Target,       color:'#059669', bg:'#f0fdf4' },
-          ].map(({ label, value, icon: Icon, color, bg }) => (
-            <div key={label} style={{ background:bg, borderRadius:12, padding:'10px 14px', border:`1px solid ${color}15` }}>
-              <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:7 }}>
-                <Icon style={{ width:10, height:10, color }} />
-                <span style={{ fontSize:8, fontWeight:700, color, textTransform:'uppercase', letterSpacing:'0.07em' }}>{label}</span>
+      <div style={{ position:'relative', overflow:'hidden', background:'linear-gradient(135deg, #0f172a 0%, #1e293b 55%, #0b1220 100%)', borderRadius:24, padding:'28px 32px', boxShadow:'0 12px 44px rgba(15,23,42,0.20)' }}>
+        <div style={{ position:'absolute', inset:0, backgroundImage:'radial-gradient(circle, rgba(255,255,255,.05) 1px, transparent 1px)', backgroundSize:'26px 26px' }} />
+        <div style={{ position:'absolute', right:-90, top:-90, width:340, height:340, background:'radial-gradient(circle, rgba(59,130,246,.10) 0%, transparent 65%)' }} />
+        <div style={{ position:'absolute', left:'35%', bottom:-60, width:220, height:220, background:'radial-gradient(circle, rgba(16,185,129,.08) 0%, transparent 70%)' }} />
+        <div style={{ position:'relative', zIndex:1 }}>
+          <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', flexWrap:'wrap', gap:16 }}>
+            <div>
+              <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:8 }}>
+                <div style={{ width:6, height:6, borderRadius:'50%', background:'#10b981' }} />
+                <span style={{ fontSize:9, fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'0.22em', fontFamily:'monospace' }}>Panel Comercial · Oleacontrols</span>
               </div>
-              <p style={{ fontSize:19, fontWeight:900, color:'#0a0f1e', letterSpacing:'-0.03em', lineHeight:1 }}>{value}</p>
+              <h2 style={{ fontSize:'clamp(1.6rem, 4vw, 2.4rem)', fontWeight:900, color:'#f1f5f9', letterSpacing:'-0.03em', margin:0, lineHeight:1 }}>Pipeline Comercial</h2>
+              <p style={{ fontSize:11, color:'#64748b', fontWeight:600, marginTop:8 }}>
+                {metrics.length} vendedor{metrics.length !== 1 ? 'es' : ''}&ensp;·&ensp;Últimos {currentPeriod?.days} días&ensp;·&ensp;{activeDeals.length} tratos activos
+              </p>
             </div>
-          ))}
+            <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
+              <div style={{ display:'flex', background:'rgba(255,255,255,.06)', border:'1px solid rgba(255,255,255,.08)', borderRadius:12, padding:3, gap:2 }}>
+                {PERIODS.map(p => (
+                  <button key={p.key} onClick={() => setPeriod(p.key)} style={{
+                    padding:'6px 14px', borderRadius:9, fontSize:11, fontWeight:800, cursor:'pointer', transition:'all 0.15s',
+                    background: period === p.key ? '#fff' : 'transparent',
+                    color: period === p.key ? '#0f172a' : '#94a3b8',
+                    border:'none',
+                  }}>
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+              <button onClick={fetchMetrics} style={{
+                width:36, height:36, borderRadius:10, display:'flex', alignItems:'center', justifyContent:'center',
+                background:'rgba(255,255,255,.06)', border:'1px solid rgba(255,255,255,.08)', cursor:'pointer', color:'#94a3b8', transition:'all 0.15s',
+              }}
+                onMouseEnter={e => { e.currentTarget.style.background='rgba(255,255,255,.12)'; e.currentTarget.style.color='#fff'; }}
+                onMouseLeave={e => { e.currentTarget.style.background='rgba(255,255,255,.06)'; e.currentTarget.style.color='#94a3b8'; }}
+              >
+                <RefreshCw style={{ width:14, height:14 }} />
+              </button>
+            </div>
+          </div>
+
+          {/* KPIs */}
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(130px, 1fr))', gap:12, marginTop:22 }}>
+            {[
+              { label:'Deals activos',  value: activeDeals.length,        icon: Briefcase,    color:'#93c5fd' },
+              { label:'Valor ganado',   value: fmt(wonValueAll),           icon: DollarSign,   color:'#6ee7b7' },
+              { label:'Pipeline',       value: fmt(totals.pipelineValue),  icon: TrendingUp,   color:'#c4b5fd' },
+              { label:'Cotizaciones',   value: totals.quotes,              icon: FileText,     color:'#7dd3fc' },
+              { label:'Actividades',    value: totals.activities,          icon: Activity,     color:'#fcd34d' },
+              { label:'Tasa de cierre', value: `${totals.avgCloseRate}%`,  icon: Target,       color:'#6ee7b7' },
+            ].map(({ label, value, icon: Icon, color }) => (
+              <div key={label} style={{ background:'rgba(255,255,255,.05)', borderRadius:14, padding:'13px 16px', border:'1px solid rgba(255,255,255,.07)', backdropFilter:'blur(4px)' }}>
+                <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:8 }}>
+                  <Icon style={{ width:11, height:11, color }} />
+                  <span style={{ fontSize:8, fontWeight:800, color:'#64748b', textTransform:'uppercase', letterSpacing:'0.1em' }}>{label}</span>
+                </div>
+                <p style={{ fontSize:22, fontWeight:900, color, letterSpacing:'-0.03em', lineHeight:1, fontFamily:'monospace' }}>{value}</p>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -1102,10 +1123,14 @@ export default function SalesMetrics() {
               )}>
                 {[...metrics].sort((a, b) => b.wonValue - a.wonValue).map((m, i) => {
                   const color = SELLER_COLORS[i % SELLER_COLORS.length];
+                  const acceptedValue = allQuotes
+                    .filter(q => q.status === 'ACCEPTED' && (q.sellerId === m.seller.id || q.creatorId === m.seller.id))
+                    .reduce((s, q) => s + (q.total || 0), 0);
+                  const cardData = { ...m, acceptedValue, wonValue: wonValueBySeller(m.seller.id) };
                   return (
-                    <div key={m.seller.id} onClick={() => isAdmin && setSellerModal({ data: m, color, rank: i + 1 })}
+                    <div key={m.seller.id} onClick={() => isAdmin && setSellerModal({ data: cardData, color, rank: i + 1 })}
                       style={{ cursor: isAdmin ? 'pointer' : 'default' }}>
-                      <SellerCard data={m} color={color} rank={i + 1} />
+                      <SellerCard data={cardData} color={color} rank={i + 1} />
                     </div>
                   );
                 })}
@@ -1140,22 +1165,6 @@ export default function SalesMetrics() {
             </div>
           </AccordionSection>
         )}
-
-        {/* 7 · Seguimientos */}
-        <AccordionSection icon={ClipboardList} title="Seguimientos" subtitle={`${seguimientos.length} registros`} accent="#1d4ed8" badge={seguimientos.length} defaultOpen={false}>
-          <div style={{ padding:'20px' }}>
-            <SeguimientosPanel
-              seguimientos={seguimientos}
-              loading={seguimientosLoading}
-              newSeg={newSeg}
-              setNewSeg={setNewSeg}
-              deals={activeDeals}
-              onAdd={addSeguimiento}
-              adding={addingSeg}
-              isAdmin={isAdmin}
-            />
-          </div>
-        </AccordionSection>
 
       </div>
 
@@ -1331,6 +1340,17 @@ function QuotesViewerSection({ quotes, metrics }) {
     return true;
   });
 
+  // ── Resumen de cotizaciones AUTORIZADAS (aprobadas / ganadas) ──────────────
+  const acceptedQuotes = quotes.filter(q => q.status === 'ACCEPTED');
+  const totalAccepted  = acceptedQuotes.reduce((s, q) => s + (q.total || 0), 0);
+  const perSellerAccepted = sellers
+    .map(s => {
+      const sq = acceptedQuotes.filter(q => q.sellerId === s.id || q.creatorId === s.id);
+      return { seller: s, count: sq.length, sum: sq.reduce((a, q) => a + (q.total || 0), 0) };
+    })
+    .filter(x => x.count > 0)
+    .sort((a, b) => b.sum - a.sum);
+
   return (
     <section className="space-y-4">
       <SectionHeader
@@ -1359,6 +1379,38 @@ function QuotesViewerSection({ quotes, metrics }) {
           </div>
         }
       />
+
+      {/* Resumen de cotizaciones autorizadas */}
+      {acceptedQuotes.length > 0 && (
+        <div className="grid gap-3 lg:grid-cols-3">
+          <div className="rounded-2xl p-5 text-white relative overflow-hidden" style={{ background:'linear-gradient(135deg,#065f46,#0f172a)' }}>
+            <p style={{ fontSize:8, fontWeight:900, color:'#6ee7b7', textTransform:'uppercase', letterSpacing:'0.14em' }}>Total Autorizado</p>
+            <p style={{ fontSize:28, fontWeight:900, marginTop:6, fontFamily:'monospace', letterSpacing:'-0.02em', lineHeight:1 }}>{fmtMXN(totalAccepted)}</p>
+            <p style={{ fontSize:10, color:'#94a3b8', fontWeight:700, marginTop:6 }}>
+              {acceptedQuotes.length} cotización{acceptedQuotes.length !== 1 ? 'es' : ''} autorizada{acceptedQuotes.length !== 1 ? 's' : ''}
+            </p>
+          </div>
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 lg:col-span-2 shadow-sm">
+            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-3">Autorizado por vendedor</p>
+            {perSellerAccepted.length === 0 ? (
+              <p className="text-[11px] font-bold text-slate-300 py-2">Sin autorizadas asignadas a un vendedor.</p>
+            ) : (
+              <div className="space-y-2">
+                {perSellerAccepted.map(({ seller, count, sum }) => (
+                  <div key={seller.id} className="flex items-center gap-3">
+                    <span className="h-7 w-7 rounded-lg bg-slate-900 text-white flex items-center justify-center text-[10px] font-black shrink-0">
+                      {seller.name?.charAt(0)?.toUpperCase() || '?'}
+                    </span>
+                    <span className="text-xs font-bold text-slate-700 flex-1 truncate">{seller.name}</span>
+                    <span className="text-[10px] font-black text-slate-400 shrink-0">{count} cot.</span>
+                    <span className="text-sm font-black text-emerald-600 font-mono shrink-0">{fmtMXN(sum)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       <div className={D.card}>
         <CardAccent color="#0284c7" />
