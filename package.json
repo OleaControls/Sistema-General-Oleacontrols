@@ -17,12 +17,12 @@
   "prisma": {
     "seed": "node prisma/seed.js"
   },
-  
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1002.0",
     "@aws-sdk/s3-request-presigner": "^3.1003.0",
     "@prisma/adapter-pg": "^7.4.2",
     "@prisma/client": "^7.4.2",
+    "@prisma/extension-accelerate": "^3.0.1",
     "@tailwindcss/vite": "^4.2.1",
     "bcryptjs": "^3.0.3",
     "class-variance-authority": "^0.7.1",

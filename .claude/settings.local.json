@@ -4,7 +4,9 @@
       "Bash(npx prisma:*)",
       "Bash(2)",
       "Bash(node -e \":*)",
-      "Bash(npx vite:*)"
+      "Bash(npx vite:*)",
+      "Bash(node --check api/_lib/prisma.js)",
+      "Bash(DATABASE_URL=\"prisma+postgres://accelerate.prisma-data.net/?api_key=FAKE_TEST_KEY_NOT_REAL\" node -e \"import\\('./api/_lib/prisma.js'\\).then\\(m => { console.log\\('CONSTRUYÓ OK, tipo:', typeof m.default, '· métodos:', typeof m.default.credentials?.findFirst\\); }\\).catch\\(e => { console.log\\('FALLA CONSTRUCCIÓN:', e.message.slice\\(0,300\\)\\); process.exit\\(0\\); }\\);\")"
     ]
   }
 }
