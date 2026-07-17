@@ -14,7 +14,7 @@ import projectService from '@/api/projectService';
 import { otService } from '@/api/otService';
 import { useAuth } from '@/store/AuthContext';
 import { generateProjectActaPDF } from '../utils/projectPDF';
-import { PROJECT_STATUS } from './ProjectsList';
+import { PROJECT_STATUS, normalizePhase } from './ProjectsList';
 import { cn } from '@/lib/utils';
 
 const money = (n) => `$${Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 0 })}`;
@@ -220,7 +220,7 @@ export default function ProjectDetail() {
   if (loading) return <div className="py-24 flex justify-center"><Loader2 className="h-8 w-8 text-primary animate-spin" /></div>;
   if (!project) return <div className="py-24 text-center text-sm font-black text-red-400">Proyecto no encontrado.</div>;
 
-  const st = PROJECT_STATUS[project.status] || PROJECT_STATUS.INICIO;
+  const st = PROJECT_STATUS[normalizePhase(project.status)] || PROJECT_STATUS.INICIACION;
 
   const archive = async () => {
     if (!confirm('¿Archivar este proyecto? Dejará de aparecer en la lista.')) return;
@@ -251,7 +251,7 @@ export default function ProjectDetail() {
           </div>
           <div className="flex items-center gap-2">
             <select
-              value={project.status}
+              value={normalizePhase(project.status)}
               onChange={async (e) => { await projectService.update(id, { status: e.target.value }); reload(); }}
               className={cn('px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider border cursor-pointer', st.cls)}
             >
@@ -595,7 +595,7 @@ function CierreTab({ project, onSaved }) {
     try {
       await projectService.update(project.id, {
         ...form,
-        ...(close ? { status: 'CERRADO', closedAt: new Date().toISOString(), progress: 100 } : {}),
+        ...(close ? { status: 'CIERRE', closedAt: new Date().toISOString(), progress: 100 } : {}),
       });
       onSaved();
     } finally { setSaving(false); }

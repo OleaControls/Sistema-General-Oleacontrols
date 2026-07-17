@@ -184,7 +184,7 @@ function ReglamentoPanel() {
 
 export default function HRSettings() {
   return (
-    <div className="space-y-6 animate-in fade-in duration-500 max-w-4xl mx-auto">
+    <div className="space-y-6 animate-in fade-in duration-500 w-full">
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
           <h2 className="text-3xl font-black text-gray-900 leading-tight">Configuración RH</h2>

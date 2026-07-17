@@ -2,19 +2,27 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   FolderKanban, Plus, X, Calendar, DollarSign, User, ListChecks,
-  AlertTriangle, Loader2, ArrowRight, Search, FileSpreadsheet
+  AlertTriangle, Loader2, ArrowRight, Search, FileSpreadsheet,
+  Columns3, List, GripVertical
 } from 'lucide-react';
 import projectService from '@/api/projectService';
 import { cn } from '@/lib/utils';
 
-// Estados del proyecto y sus estilos.
+// Las 5 fases del pipeline de proyectos (en orden) con sus estilos.
 export const PROJECT_STATUS = {
-  INICIO:     { label: 'Inicio',     cls: 'bg-blue-50 text-blue-600 border-blue-200' },
-  PLANEACION: { label: 'Planeación', cls: 'bg-amber-50 text-amber-600 border-amber-200' },
-  EJECUCION:  { label: 'Ejecución',  cls: 'bg-violet-50 text-violet-600 border-violet-200' },
-  CIERRE:     { label: 'Cierre',     cls: 'bg-orange-50 text-orange-600 border-orange-200' },
-  CERRADO:    { label: 'Cerrado',    cls: 'bg-emerald-50 text-emerald-600 border-emerald-200' },
+  INICIACION:     { label: 'Iniciación',     cls: 'bg-blue-50 text-blue-600 border-blue-200',       dot: 'bg-blue-500',    col: 'bg-blue-50/60',    ring: 'ring-blue-300' },
+  PLANEACION:     { label: 'Planeación',     cls: 'bg-amber-50 text-amber-600 border-amber-200',    dot: 'bg-amber-500',   col: 'bg-amber-50/60',   ring: 'ring-amber-300' },
+  IMPLEMENTACION: { label: 'Implementación', cls: 'bg-violet-50 text-violet-600 border-violet-200', dot: 'bg-violet-500',  col: 'bg-violet-50/60',  ring: 'ring-violet-300' },
+  CALIDAD:        { label: 'Calidad',        cls: 'bg-cyan-50 text-cyan-600 border-cyan-200',       dot: 'bg-cyan-500',    col: 'bg-cyan-50/60',    ring: 'ring-cyan-300' },
+  CIERRE:         { label: 'Cierre',         cls: 'bg-emerald-50 text-emerald-600 border-emerald-200', dot: 'bg-emerald-500', col: 'bg-emerald-50/60', ring: 'ring-emerald-300' },
 };
+
+// Orden de las fases (para el pipeline y filtros).
+export const PROJECT_PHASES = Object.keys(PROJECT_STATUS);
+
+// Conecta estados antiguos (INICIO/EJECUCION/CERRADO) con las 5 fases nuevas.
+const PHASE_ALIAS = { INICIO: 'INICIACION', EJECUCION: 'IMPLEMENTACION', CERRADO: 'CIERRE' };
+export const normalizePhase = (s) => PHASE_ALIAS[s] || (PROJECT_STATUS[s] ? s : 'INICIACION');
 
 const money = (n) => `$${Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 0 })}`;
 
@@ -36,6 +44,7 @@ export default function ProjectsList() {
   const [statusFilter, setStatusFilter] = useState('');
   const [employees, setEmployees] = useState([]);
   const [otClients, setOtClients] = useState([]);
+  const [view, setView] = useState('pipeline'); // 'pipeline' | 'lista'
 
   const load = async () => {
     setLoading(true);
@@ -54,9 +63,9 @@ export default function ProjectsList() {
     projectService.otClients().then(setOtClients).catch(() => {});
   }, []);
 
-  // Filtro por texto y estado.
+  // Filtro por texto y fase.
   const filtered = projects.filter(p => {
-    if (statusFilter && p.status !== statusFilter) return false;
+    if (statusFilter && normalizePhase(p.status) !== statusFilter) return false;
     if (search) {
       const q = search.toLowerCase();
       return [p.name, p.code, p.managerName, p.clientName].some(v => (v || '').toLowerCase().includes(q));
@@ -67,15 +76,24 @@ export default function ProjectsList() {
   // Resumen consolidado.
   const summary = {
     total: projects.length,
-    activos: projects.filter(p => p.status !== 'CERRADO').length,
+    activos: projects.filter(p => normalizePhase(p.status) !== 'CIERRE').length,
     presupuesto: projects.reduce((a, p) => a + (p.budget || 0), 0),
-    porEstado: Object.keys(PROJECT_STATUS).map(k => ({ k, n: projects.filter(p => p.status === k).length })),
+    porFase: (fase) => projects.filter(p => normalizePhase(p.status) === fase).length,
+  };
+
+  // Mueve un proyecto a otra fase (drag & drop en el pipeline).
+  const moveProject = async (projectId, phase) => {
+    const p = projects.find(x => x.id === projectId);
+    if (!p || normalizePhase(p.status) === phase) return;
+    setProjects(prev => prev.map(x => x.id === projectId ? { ...x, status: phase } : x)); // optimista
+    try { await projectService.update(projectId, { status: phase }); }
+    catch (e) { setError(e.message); load(); }
   };
 
   const exportExcel = async () => {
     const XLSX = await import('xlsx');
     const rows = projects.map(p => ({
-      Código: p.code, Nombre: p.name, Estado: PROJECT_STATUS[p.status]?.label || p.status,
+      Código: p.code, Nombre: p.name, Estado: PROJECT_STATUS[normalizePhase(p.status)]?.label || p.status,
       Responsable: p.managerName || '', Cliente: p.clientName || '',
       Avance: `${p.progress || 0}%`, Presupuesto: p.budget || 0,
       Tareas: p._count?.tasks || 0, Riesgos: p._count?.risks || 0,
@@ -97,6 +115,7 @@ export default function ProjectsList() {
       const payload = {
         ...form,
         budget: parseFloat(form.budget) || 0,
+        status: 'INICIACION',
       };
       const created = await projectService.create(payload);
       setShowModal(false);
@@ -147,8 +166,8 @@ export default function ProjectsList() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <SummaryTile label="Proyectos" value={summary.total} sub={`${summary.activos} activos`} />
           <SummaryTile label="Presupuesto total" value={money(summary.presupuesto)} sub="Autorizado" />
-          <SummaryTile label="En ejecución" value={summary.porEstado.find(e => e.k === 'EJECUCION')?.n || 0} sub="Proyectos" />
-          <SummaryTile label="Cerrados" value={summary.porEstado.find(e => e.k === 'CERRADO')?.n || 0} sub="Completados" />
+          <SummaryTile label="Implementación" value={summary.porFase('IMPLEMENTACION')} sub="En curso" />
+          <SummaryTile label="En cierre" value={summary.porFase('CIERRE')} sub="Fase final" />
         </div>
       )}
 
@@ -162,9 +181,22 @@ export default function ProjectsList() {
           </div>
           <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}
             className="px-4 py-2.5 bg-white border border-gray-200 rounded-2xl text-[11px] font-black uppercase tracking-wider text-gray-600 outline-none focus:border-primary cursor-pointer">
-            <option value="">Todos los estados</option>
+            <option value="">Todas las fases</option>
             {Object.entries(PROJECT_STATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
           </select>
+          {/* Toggle Pipeline / Lista */}
+          <div className="flex bg-white border border-gray-200 rounded-2xl p-1">
+            <button onClick={() => setView('pipeline')}
+              className={cn('flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all',
+                view === 'pipeline' ? 'bg-primary text-white shadow-sm' : 'text-gray-400 hover:text-gray-600')}>
+              <Columns3 className="h-3.5 w-3.5" /> Pipeline
+            </button>
+            <button onClick={() => setView('lista')}
+              className={cn('flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all',
+                view === 'lista' ? 'bg-primary text-white shadow-sm' : 'text-gray-400 hover:text-gray-600')}>
+              <List className="h-3.5 w-3.5" /> Lista
+            </button>
+          </div>
         </div>
       )}
 
@@ -173,20 +205,24 @@ export default function ProjectsList() {
         <div className="py-24 flex justify-center">
           <Loader2 className="h-8 w-8 text-primary animate-spin" />
         </div>
+      ) : projects.length === 0 ? (
+        <div className="py-24 text-center">
+          <FolderKanban className="h-12 w-12 text-gray-200 mx-auto mb-4" />
+          <p className="text-sm font-black text-gray-400 uppercase tracking-widest">Sin proyectos aún</p>
+          <p className="text-[11px] font-bold text-gray-300 mt-1">Crea tu primer proyecto para empezar.</p>
+        </div>
+      ) : view === 'pipeline' ? (
+        <PipelineBoard projects={filtered} onMove={moveProject} onOpen={(id) => navigate(`/projects/${id}`)} />
       ) : filtered.length === 0 ? (
         <div className="py-24 text-center">
           <FolderKanban className="h-12 w-12 text-gray-200 mx-auto mb-4" />
-          <p className="text-sm font-black text-gray-400 uppercase tracking-widest">
-            {projects.length === 0 ? 'Sin proyectos aún' : 'Sin resultados'}
-          </p>
-          <p className="text-[11px] font-bold text-gray-300 mt-1">
-            {projects.length === 0 ? 'Crea tu primer proyecto para empezar.' : 'Ajusta la búsqueda o el filtro.'}
-          </p>
+          <p className="text-sm font-black text-gray-400 uppercase tracking-widest">Sin resultados</p>
+          <p className="text-[11px] font-bold text-gray-300 mt-1">Ajusta la búsqueda o el filtro.</p>
         </div>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {filtered.map((p) => {
-            const st = PROJECT_STATUS[p.status] || PROJECT_STATUS.INICIO;
+            const st = PROJECT_STATUS[normalizePhase(p.status)] || PROJECT_STATUS.INICIACION;
             return (
               <button
                 key={p.id}
@@ -330,6 +366,73 @@ export default function ProjectsList() {
         }
         .input:focus { border-color: var(--color-primary, #2563eb); }
       `}</style>
+    </div>
+  );
+}
+
+// ── Tablero Pipeline (Kanban de fases con drag & drop) ───────────────────────
+function PipelineBoard({ projects, onMove, onOpen }) {
+  const [draggedId, setDraggedId] = useState(null);
+  const [overPhase, setOverPhase] = useState(null);
+
+  return (
+    <div className="overflow-x-auto pb-4 -mx-1 px-1">
+      <div className="flex gap-4 min-w-max">
+        {PROJECT_PHASES.map((phase, i) => {
+          const meta = PROJECT_STATUS[phase];
+          const items = projects.filter(p => normalizePhase(p.status) === phase);
+          const isOver = overPhase === phase;
+          return (
+            <div key={phase}
+              onDragOver={(e) => { e.preventDefault(); setOverPhase(phase); }}
+              onDragLeave={() => setOverPhase(null)}
+              onDrop={() => { if (draggedId) onMove(draggedId, phase); setDraggedId(null); setOverPhase(null); }}
+              className={cn('w-72 shrink-0 rounded-3xl border p-3 transition-all', meta.col, isOver ? `ring-2 ${meta.ring} border-transparent` : 'border-transparent')}>
+              <div className="flex items-center justify-between px-2 py-2 mb-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-[9px] font-black text-gray-300">{i + 1}</span>
+                  <span className={cn('w-2.5 h-2.5 rounded-full', meta.dot)} />
+                  <span className="text-[10px] font-black text-gray-700 uppercase tracking-wider">{meta.label}</span>
+                </div>
+                <span className="text-[9px] font-black bg-white rounded-lg px-2 py-0.5 text-gray-500 shadow-sm">{items.length}</span>
+              </div>
+              <div className="space-y-2 min-h-[120px]">
+                {items.map(p => (
+                  <PipelineCard key={p.id} p={p}
+                    onOpen={() => onOpen(p.id)}
+                    onDragStart={() => setDraggedId(p.id)}
+                    onDragEnd={() => setDraggedId(null)} />
+                ))}
+                {items.length === 0 && (
+                  <div className="h-24 flex items-center justify-center rounded-2xl border-2 border-dashed border-black/10">
+                    <p className="text-[8px] font-black text-gray-300 uppercase tracking-widest">Arrastra aquí</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function PipelineCard({ p, onOpen, onDragStart, onDragEnd }) {
+  return (
+    <div draggable onDragStart={onDragStart} onDragEnd={onDragEnd} onClick={onOpen}
+      className="bg-white rounded-2xl border shadow-sm p-3 cursor-pointer hover:shadow-md hover:border-primary/30 transition-all group">
+      <div className="flex items-start justify-between gap-2 mb-2">
+        <span className="text-[8px] font-black text-primary uppercase tracking-widest">{p.code}</span>
+        <GripVertical className="h-3.5 w-3.5 text-gray-200 group-hover:text-gray-400 shrink-0" />
+      </div>
+      <h4 className="text-[12px] font-black text-gray-900 leading-tight mb-2 line-clamp-2">{p.name}</h4>
+      <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden mb-2">
+        <div className="h-full bg-primary rounded-full" style={{ width: `${p.progress || 0}%` }} />
+      </div>
+      <div className="flex items-center justify-between text-[9px] font-bold text-gray-500">
+        <span className="flex items-center gap-1 truncate"><User className="h-3 w-3 text-gray-300 shrink-0" />{p.managerName || '—'}</span>
+        <span>{p.progress || 0}%</span>
+      </div>
     </div>
   );
 }

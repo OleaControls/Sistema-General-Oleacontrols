@@ -3,6 +3,19 @@ import { uploadToR2, signUrlIfNeeded } from '../_lib/r2.js'
 import { authMiddleware } from '../_lib/auth.js'
 import { notifyOTAssigned, notifyOTCompleted } from '../_lib/telegram.js'
 
+// ── Helper: sufijo de folio estilo "columna de Excel" (siempre letras, nunca se acaba) ──
+// index 0 → '' (sin sufijo) · 1→A · 26→Z · 27→AA · 28→AB · ... nunca produce símbolos.
+function folioSuffix(index) {
+  let n = index;
+  let s = '';
+  while (n > 0) {
+    const rem = (n - 1) % 26;
+    s = String.fromCharCode(65 + rem) + s;
+    n = Math.floor((n - 1) / 26);
+  }
+  return s;
+}
+
 // ── Helper: crea/actualiza metas de asistencia para todos los técnicos de una OT ──
 const toUTCNoon = (str) => {
   const dateOnly = str instanceof Date
@@ -334,20 +347,29 @@ export default async function handler(req, res) {
         supportTechs: data.supportTechs || [],
       };
 
-      // Generate unique otNumber with retry — handles concurrent requests and stale counts
+      // Generate unique otNumber with retry — handles concurrent requests and stale counts.
+      // Cuenta exacta: el folio base + los que tengan sufijo "baseId-…" (evita
+      // mezclar tiendas cuyo prefijo se parezca, p.ej. 000 vs 0001).
       let ot = null;
-      for (let attempt = 0; attempt < 30 && !ot; attempt++) {
-        const existingCount = await prisma.workOrder.count({ where: { otNumber: { startsWith: baseId } } });
+      for (let attempt = 0; attempt < 60 && !ot; attempt++) {
+        const existingCount = await prisma.workOrder.count({
+          where: { OR: [{ otNumber: baseId }, { otNumber: { startsWith: `${baseId}-` } }] },
+        });
         const index = existingCount + attempt;
-        const otNumber = index === 0 ? baseId : `${baseId}-${String.fromCharCode(64 + index)}`;
+        const otNumber = index === 0 ? baseId : `${baseId}-${folioSuffix(index)}`;
         try {
           ot = await prisma.workOrder.create({ data: { otNumber, ...otFields } });
         } catch (err) {
           if (err.code !== 'P2002') throw err;
-          // Concurrent request grabbed this otNumber — retry with next suffix
+          // Otra petición concurrente tomó ese folio — reintenta con el siguiente sufijo
         }
       }
-      if (!ot) throw new Error('No se pudo generar un número de OT único');
+      // Respaldo garantizado: si tras los reintentos aún no se creó (caso extremo),
+      // usa un sufijo con timestamp que nunca colisiona ni produce símbolos.
+      if (!ot) {
+        const otNumber = `${baseId}-${Date.now().toString(36).toUpperCase()}`;
+        ot = await prisma.workOrder.create({ data: { otNumber, ...otFields } });
+      }
 
       // Notificar por Telegram si la OT ya viene asignada
       if (data.leadTechId) {

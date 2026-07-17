@@ -265,7 +265,7 @@ export default function OTCatalogs() {
 
       {/* Tabla */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto hidden md:block">
           {activeTab === 'OT_CLIENTS' ? (
             /* ── Tabla Clientes OT ── */
             <table className="w-full min-w-[960px]">
@@ -448,6 +448,105 @@ export default function OTCatalogs() {
                 )}
               </tbody>
             </table>
+          )}
+        </div>
+
+        {/* ── Tarjetas (móvil) — sin scroll horizontal ── */}
+        <div className="md:hidden divide-y divide-gray-100">
+          {isLoading ? (
+            <div className="p-4 space-y-3">
+              {[1, 2, 3].map(i => <div key={i} className="h-16 bg-gray-100 rounded-xl animate-pulse" />)}
+            </div>
+          ) : activeTab === 'OT_CLIENTS' ? (
+            filteredOTClients.length === 0 ? (
+              <div className="py-16 text-center">
+                <Building2 className="h-8 w-8 text-gray-200 mx-auto mb-3" />
+                <p className="text-gray-300 text-[11px] font-black uppercase tracking-widest">
+                  {searchTerm ? 'Sin resultados' : 'Sin clientes OT registrados'}
+                </p>
+              </div>
+            ) : (
+              filteredOTClients.map(client => (
+                <div key={client.id} className={cn("p-4", client._saving && "opacity-60 pointer-events-none")}>
+                  <div className="flex items-start gap-3">
+                    <div className="h-9 w-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+                      {client._saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Building2 className="h-4 w-4" />}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="font-black text-gray-900 text-sm leading-tight">{client.name}</p>
+                      {(client.storeNumber || client.storeName) && (
+                        <p className="text-[9px] font-black text-blue-500 uppercase tracking-widest mt-0.5">
+                          {client.storeNumber && `#${client.storeNumber}`}
+                          {client.storeNumber && client.storeName && ' · '}
+                          {client.storeName}
+                        </p>
+                      )}
+                      <div className="mt-2 space-y-1">
+                        {client.contact && <p className="text-[11px] font-bold text-gray-600 flex items-center gap-1.5"><User className="h-3 w-3 text-gray-300 shrink-0" />{client.contact}</p>}
+                        {client.phone && <p className="text-[11px] font-mono font-bold text-gray-400 flex items-center gap-1.5"><Phone className="h-3 w-3 text-gray-300 shrink-0" />{client.phone}</p>}
+                        {client.email && <p className="text-[11px] font-bold text-gray-500 flex items-center gap-1.5 min-w-0"><Mail className="h-3 w-3 text-gray-300 shrink-0" /><span className="truncate">{client.email}</span></p>}
+                        {client.address && <p className="text-[11px] font-medium text-gray-500 flex items-start gap-1.5"><MapPin className="h-3 w-3 text-gray-300 shrink-0 mt-0.5" /><span className="line-clamp-2">{client.address}</span></p>}
+                      </div>
+                    </div>
+                    <div className="flex flex-col gap-1 shrink-0">
+                      <button onClick={() => handleEditClick(client)} className="h-8 w-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors" title="Editar"><Pencil className="h-4 w-4" /></button>
+                      <button onClick={() => handleDeleteOTClient(client.id)} className="h-8 w-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors" title="Eliminar"><Trash2 className="h-4 w-4" /></button>
+                    </div>
+                  </div>
+                  {/* Portal */}
+                  <div className="mt-3 pl-12">
+                    {client.portalToken ? (
+                      <div className="flex items-center gap-1.5">
+                        <button onClick={() => handleCopyLink(client.portalToken)}
+                          className={cn("flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all",
+                            copiedId === client.portalToken ? "bg-emerald-500 text-white" : "bg-gray-900 text-white")}>
+                          {copiedId === client.portalToken ? <><Check className="h-3 w-3" /> Copiado</> : <><Copy className="h-3 w-3" /> Copiar Portal</>}
+                        </button>
+                        <a href={`/portal?token=${client.portalToken}`} target="_blank" rel="noreferrer" className="p-1.5 bg-gray-100 text-gray-500 rounded-lg" title="Abrir Portal"><ExternalLink className="h-3.5 w-3.5" /></a>
+                      </div>
+                    ) : (
+                      <button onClick={() => handleGeneratePortal(client)}
+                        className="flex items-center gap-1.5 px-2.5 py-1.5 bg-blue-50 text-blue-600 rounded-lg text-[9px] font-black uppercase tracking-wider border border-blue-100 border-dashed">
+                        <Link2 className="h-3 w-3" /> Activar Portal
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))
+            )
+          ) : (
+            filteredTemplates.length === 0 ? (
+              <div className="py-16 text-center">
+                <FileText className="h-8 w-8 text-gray-200 mx-auto mb-3" />
+                <p className="text-gray-300 text-[11px] font-black uppercase tracking-widest">
+                  {searchTerm ? 'Sin resultados' : 'Sin plantillas registradas'}
+                </p>
+              </div>
+            ) : (
+              filteredTemplates.map(template => {
+                const prio = { LOW: 'bg-slate-100 text-slate-500', MEDIUM: 'bg-blue-50 text-blue-600', HIGH: 'bg-orange-50 text-orange-700', URGENT: 'bg-red-50 text-red-700' }[template.priority] || 'bg-slate-100 text-slate-500';
+                const prioLabel = { LOW: 'Baja', MEDIUM: 'Media', HIGH: 'Alta', URGENT: 'Urgente' }[template.priority] || template.priority;
+                return (
+                  <div key={template.id} className={cn("p-4", template._saving && "opacity-60 pointer-events-none")}>
+                    <div className="flex items-start gap-3">
+                      <div className="h-9 w-9 rounded-xl bg-purple-100 text-purple-600 flex items-center justify-center shrink-0">
+                        {template._saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="font-black text-gray-900 text-sm leading-tight">{template.name}</p>
+                          <span className={cn("text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-lg", prio)}>{prioLabel}</span>
+                        </div>
+                        <p className="text-xs font-bold text-gray-600 mt-1">{template.title}</p>
+                        <p className="text-[11px] text-gray-500 italic line-clamp-2 mt-1">"{template.workDescription}"</p>
+                        <p className="text-[10px] font-mono font-bold text-gray-400 mt-1">Llegada: {template.arrivalTime}</p>
+                      </div>
+                      <button onClick={() => handleDeleteTemplate(template.id)} className="h-8 w-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors shrink-0" title="Eliminar"><Trash2 className="h-4 w-4" /></button>
+                    </div>
+                  </div>
+                );
+              })
+            )
           )}
         </div>
       </div>

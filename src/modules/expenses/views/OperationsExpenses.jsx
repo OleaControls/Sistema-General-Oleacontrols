@@ -613,7 +613,7 @@ export default function OperationsExpenses() {
           </div>
         </div>
 
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto hidden md:block">
           <table className="w-full text-left min-w-[900px]">
             <thead>
               <tr className="bg-gray-50/60 border-b text-[9px] font-black text-gray-400 uppercase tracking-widest">
@@ -771,6 +771,108 @@ export default function OperationsExpenses() {
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* ── Lista agrupada (móvil) — sin scroll horizontal ── */}
+        <div className="md:hidden">
+          {loading ? (
+            <div className="px-6 py-16 text-center text-gray-300 font-black uppercase text-xs tracking-widest animate-pulse">Cargando gastos…</div>
+          ) : filtered.length === 0 ? (
+            <div className="px-8 py-16 text-center">
+              <Receipt className="h-10 w-10 text-gray-200 mx-auto mb-2" />
+              <p className="text-gray-400 font-black text-xs uppercase tracking-widest">Sin gastos en este período</p>
+            </div>
+          ) : (
+            Object.entries(
+              filtered.reduce((acc, e) => {
+                const key = e.otId || 'SIN_OT';
+                if (!acc[key]) acc[key] = [];
+                acc[key].push(e);
+                return acc;
+              }, {})
+            ).map(([otId, otExpenses]) => (
+              <div key={otId} className="border-b border-gray-100">
+                {/* Cabecera OT */}
+                <button
+                  onClick={() => setExpandedOts(p => ({ ...p, [otId]: !p[otId] }))}
+                  className="w-full flex items-center gap-2.5 px-4 py-3.5 bg-indigo-50/40 border-l-4 border-l-indigo-500 text-left"
+                >
+                  <ChevronDown className={cn('h-4 w-4 text-indigo-500 transition-transform duration-200 shrink-0', expandedOts[otId] && 'rotate-180')} />
+                  <span className="text-[11px] font-black text-gray-800 uppercase tracking-wider flex-1 truncate">
+                    {otId === 'SIN_OT' ? 'Gastos Generales' : `OT #${otId}`}
+                  </span>
+                  <span className="text-[9px] font-bold text-gray-400 bg-white px-2 py-0.5 rounded-full border shrink-0">{otExpenses.length}</span>
+                  <span className="text-sm font-black text-indigo-700 shrink-0">
+                    ${otExpenses.reduce((s, e) => s + e.amount, 0).toLocaleString('es-MX', { maximumFractionDigits: 0 })}
+                  </span>
+                </button>
+
+                {/* Gastos de la OT */}
+                {expandedOts[otId] && (
+                  <div className="divide-y divide-gray-50">
+                    {otExpenses.map(exp => {
+                      const cfg = CATEGORIES[exp.category] || CATEGORIES.OTROS;
+                      return (
+                        <div key={exp.id} className="p-4">
+                          <div className="flex items-start gap-3">
+                            <div className="h-9 w-9 rounded-xl bg-gray-100 flex items-center justify-center font-black text-gray-700 text-sm uppercase shrink-0">
+                              {exp.employee?.name?.charAt(0) || '?'}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center justify-between gap-2">
+                                <p className="text-[11px] font-black text-gray-900 leading-none truncate">{exp.employee?.name || 'Técnico'}</p>
+                                <span className={cn('text-[9px] font-black px-2 py-0.5 rounded-lg uppercase tracking-wider border shrink-0',
+                                  exp.status === 'APPROVED' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                                  exp.status === 'PENDING'  ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                                                             'bg-red-50 text-red-700 border-red-200')}>
+                                  {exp.status === 'APPROVED' ? '✓ Aprobado' : exp.status === 'PENDING' ? '⏳ Pendiente' : '✕ Rechazado'}
+                                </span>
+                              </div>
+                              <p className="text-[9px] text-gray-400 font-bold mt-0.5 uppercase">
+                                {new Date(exp.createdAt).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' })}
+                              </p>
+                              <p className="text-sm font-bold text-gray-900 mt-1.5">{exp.description || '—'}</p>
+                              <div className="flex items-center gap-2 mt-1 flex-wrap">
+                                {exp.otId && (
+                                  <span className="text-[9px] font-black text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100">#{exp.otId}</span>
+                                )}
+                                <div className={cn('flex items-center gap-1 px-1.5 py-0.5 rounded', cfg.bg)}>
+                                  <cfg.icon className={cn('h-2.5 w-2.5', cfg.color)} />
+                                  <span className={cn('text-[8px] font-black uppercase', cfg.color)}>{exp.category}</span>
+                                </div>
+                              </div>
+                              {exp.comment && (
+                                <div className="flex items-start gap-1.5 mt-1.5">
+                                  <MessageSquare className="h-3 w-3 text-gray-400 shrink-0 mt-0.5" />
+                                  <p className="text-[10px] text-gray-500 italic leading-snug">"{exp.comment}"</p>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex items-center justify-between mt-2 pl-12">
+                            <p className="text-sm font-black text-gray-900">
+                              ${exp.amount.toLocaleString('es-MX', { maximumFractionDigits: 2 })} <span className="text-[8px] text-gray-400 font-bold">MXN</span>
+                            </p>
+                            <div className="flex gap-1.5">
+                              <button onClick={() => navigate(`/ots/${exp.workOrder?.id || exp.otId}`)}
+                                className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all" title="Ver OT">
+                                <FileText className="h-4 w-4" />
+                              </button>
+                              <button onClick={() => exp.receipt ? setSelectedImage(exp.receipt) : alert('Sin evidencia cargada.')}
+                                className={cn('p-2 rounded-lg transition-all', exp.receipt ? 'text-indigo-600 bg-indigo-50 hover:bg-indigo-100' : 'text-gray-200 cursor-not-allowed')}
+                                title={exp.receipt ? 'Ver evidencia' : 'Sin evidencia'}>
+                                <Receipt className="h-4 w-4" />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            ))
+          )}
         </div>
 
         {/* Footer contador */}

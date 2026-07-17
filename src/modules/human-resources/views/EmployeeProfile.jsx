@@ -133,7 +133,7 @@ export default function EmployeeProfile() {
   const roleInfo = ROLE_CONFIG[mainRole] || ROLE_CONFIG[ROLES.COLLABORATOR];
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6">
+    <div className="w-full space-y-6">
       <div className="flex justify-between items-center">
         <button 
           onClick={() => navigate('/hr/directory')}

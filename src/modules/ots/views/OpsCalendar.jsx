@@ -74,6 +74,7 @@ const BLANK_OT = {
 export default function OpsCalendar() {
   const { user } = useAuth();
   const [currentDate, setCurrentDate] = useState(new Date());
+  const [scrollTick, setScrollTick] = useState(0);
   const [events, setEvents] = useState([]);
   const [ots, setOts] = useState([]);
   const [clients, setClients] = useState([]);
@@ -175,7 +176,15 @@ export default function OpsCalendar() {
 
   const handlePrevMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1));
   const handleNextMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1));
-  const handleToday = () => setCurrentDate(new Date());
+  const handleToday = () => { setCurrentDate(new Date()); setScrollTick(t => t + 1); };
+
+  // Al presionar "Hoy" (móvil): baja hasta el día de hoy en la agenda, o al
+  // primer día con eventos a partir de hoy si hoy no tiene eventos.
+  useEffect(() => {
+    if (scrollTick === 0) return;
+    const el = document.getElementById('agenda-today') || document.querySelector('[data-agenda-anchor="true"]');
+    el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [scrollTick]);
 
   const copyPortalLink = (client) => {
     const url = `${window.location.origin}/portal?token=${client.portalToken}`;
@@ -412,7 +421,7 @@ export default function OpsCalendar() {
           <p className="text-[10px] font-mono font-bold text-gray-400 uppercase tracking-[0.2em] mb-1">Operaciones · Agenda</p>
           <h1 className="text-3xl font-black text-gray-950 capitalize">{monthName}</h1>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={() => setIsPortalModalOpen(true)}
             className="flex items-center gap-2 bg-emerald-50 text-emerald-700 px-5 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-emerald-100 transition-all border border-emerald-100"
@@ -437,7 +446,7 @@ export default function OpsCalendar() {
         </div>
       </div>
 
-      <div className="bg-white rounded-[2.5rem] border border-gray-100 shadow-sm overflow-hidden">
+      <div className="bg-white rounded-[2.5rem] border border-gray-100 shadow-sm overflow-hidden hidden md:block">
         <div className="grid grid-cols-7 bg-gray-50/50 border-b border-gray-100">
           {['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'].map(d => (
             <div key={d} className="py-4 text-center">
@@ -514,6 +523,80 @@ export default function OpsCalendar() {
             );
           })}
         </div>
+      </div>
+
+      {/* ── Agenda (móvil) — lista de días con eventos ── */}
+      <div className="md:hidden bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
+        {(() => {
+          const daysWithEvents = days.filter(d => d.date && getEventsForDate(d.date).length > 0);
+          const today0 = new Date(); today0.setHours(0, 0, 0, 0);
+          const anchorDay = daysWithEvents.find(d => d.date >= today0); // primer día con eventos desde hoy
+          if (daysWithEvents.length === 0) {
+            return (
+              <div className="py-16 text-center">
+                <CalendarIcon className="h-10 w-10 text-gray-200 mx-auto mb-3" />
+                <p className="text-gray-300 text-[11px] font-black uppercase tracking-widest">Sin eventos este mes</p>
+                <p className="text-[10px] font-bold text-gray-300 mt-1">Toca "Nuevo Evento" para agregar uno.</p>
+              </div>
+            );
+          }
+          return (
+            <div className="divide-y divide-gray-50">
+              {daysWithEvents.map(d => {
+                const dayEvents = getEventsForDate(d.date);
+                const isToday = d.date.toDateString() === new Date().toDateString();
+                return (
+                  <div
+                    key={d.date.toISOString()}
+                    id={isToday ? 'agenda-today' : undefined}
+                    data-agenda-anchor={d === anchorDay ? 'true' : undefined}
+                    className="p-4 scroll-mt-24"
+                  >
+                    <div className="flex items-center gap-2.5 mb-3">
+                      <div className={cn('h-10 w-10 rounded-2xl flex items-center justify-center font-black text-sm shrink-0',
+                        isToday ? 'bg-gray-950 text-white shadow-md' : 'bg-gray-100 text-gray-700')}>
+                        {d.day}
+                      </div>
+                      <div>
+                        <p className="text-xs font-black text-gray-800 uppercase tracking-wide capitalize">
+                          {d.date.toLocaleDateString('es-MX', { weekday: 'long' })}
+                        </p>
+                        <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">
+                          {d.date.toLocaleDateString('es-MX', { day: '2-digit', month: 'short' })}{isToday && ' · Hoy'}
+                        </p>
+                      </div>
+                      <span className="ml-auto text-[9px] font-black text-gray-400 bg-gray-50 px-2 py-0.5 rounded-full border">{dayEvents.length}</span>
+                    </div>
+                    <div className="space-y-2">
+                      {dayEvents.map(ev => {
+                        const meta = EVENT_TYPES[ev.type] || EVENT_TYPES.OTHER;
+                        const p = meta.pill;
+                        const EvIcon = meta.icon;
+                        return (
+                          <button
+                            key={ev.id}
+                            onClick={() => { setSelectedEvent(ev); setConvertedOT(null); setHoveredEvent(null); }}
+                            className="w-full text-left flex items-center gap-3 p-3 rounded-2xl border active:scale-[0.99] transition-transform"
+                            style={{ background: p.bg, borderColor: p.border }}
+                          >
+                            <div className="h-9 w-9 rounded-xl bg-white flex items-center justify-center shrink-0">
+                              <EvIcon className="h-4 w-4" style={{ color: p.dot }} />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm font-bold leading-tight truncate" style={{ color: p.text }}>{ev.title}</p>
+                              <p className="text-[10px] font-mono font-bold" style={{ color: p.text, opacity: 0.7 }}>{ev.time}</p>
+                            </div>
+                            <ChevronRight className="h-4 w-4 shrink-0" style={{ color: p.text, opacity: 0.4 }} />
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })()}
       </div>
 
       {/* ══ TOOLTIP HOVER EVENTO ══ */}

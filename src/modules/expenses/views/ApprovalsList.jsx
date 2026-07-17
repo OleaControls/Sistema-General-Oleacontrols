@@ -125,7 +125,7 @@ export default function ApprovalsList() {
       </div>
 
       <div className="bg-white border rounded-[2rem] overflow-hidden shadow-sm">
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto hidden md:block">
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-gray-50/50 border-b text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">
@@ -214,6 +214,78 @@ export default function ApprovalsList() {
               ))}
             </tbody>
           </table>
+        </div>
+
+        {/* ── Tarjetas (móvil) — sin scroll horizontal ── */}
+        <div className="md:hidden divide-y divide-gray-50">
+          {loading ? (
+            <div className="px-8 py-16 text-center text-gray-400 italic font-bold">Sincronizando con el servidor...</div>
+          ) : filtered.length === 0 ? (
+            <div className="px-8 py-20 text-center space-y-3">
+              <CheckCircle2 className="h-12 w-12 text-emerald-100 mx-auto" />
+              <p className="text-gray-400 font-bold uppercase text-xs tracking-widest">Todo al día. No hay gastos por aprobar.</p>
+            </div>
+          ) : filtered.map((exp) => (
+            <div key={exp.id} className={cn("p-4", processingId === exp.id && "opacity-50 pointer-events-none bg-gray-50")}>
+              <div className="flex items-start gap-3">
+                <div className="h-10 w-10 rounded-2xl bg-primary/10 flex items-center justify-center text-primary font-black text-xs shrink-0">
+                  {exp.employee?.name?.charAt(0) || 'U'}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="text-sm font-black text-gray-900 uppercase truncate">{exp.employee?.name || 'Técnico'}</p>
+                    <p className={cn("text-lg font-black shrink-0 leading-none", exp.financials?.isOverLimit ? "text-red-600" : "text-gray-900")}>
+                      ${exp.amount.toLocaleString()}
+                    </p>
+                  </div>
+                  <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mt-0.5">{new Date(exp.createdAt).toLocaleDateString()}</p>
+                  <p className="text-sm font-bold text-gray-700 leading-tight mt-1.5">{exp.description}</p>
+                  <div className="flex flex-wrap items-center gap-2 mt-1.5">
+                    <span className="text-[9px] font-black bg-gray-100 px-2 py-0.5 rounded text-gray-500 uppercase">{exp.category}</span>
+                    <span className="text-[9px] font-black text-primary bg-primary/5 px-2 py-0.5 rounded border border-primary/10">#{exp.otId}</span>
+                    {exp.financials?.isOverLimit && (
+                      <span className="text-[8px] font-black text-red-600 bg-red-50 px-2 py-0.5 rounded border border-red-100 animate-pulse uppercase">
+                        <AlertCircle className="h-2.5 w-2.5 inline mr-1" /> Excede Saldo
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between gap-2 mt-3">
+                {exp.receipt ? (
+                  <button
+                    onClick={() => setSelectedImage(exp.receipt)}
+                    className="flex items-center gap-2 bg-white px-3 py-2 rounded-xl border border-gray-200 hover:border-primary transition-all shadow-sm group"
+                  >
+                    <ImageIcon className="h-4 w-4 text-gray-400 group-hover:text-primary" />
+                    <span className="text-[10px] font-black text-gray-500 group-hover:text-primary uppercase">Ver Ticket</span>
+                  </button>
+                ) : (
+                  <span className="text-[10px] font-bold text-gray-300 uppercase italic">Sin recibo</span>
+                )}
+
+                {processingId === exp.id ? (
+                  <Loader2 className="h-6 w-6 text-primary animate-spin" />
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handleAction(exp, 'REJECTED')}
+                      className="p-2.5 bg-white text-red-500 border border-gray-100 rounded-2xl hover:bg-red-50 hover:border-red-100 transition-all shadow-sm"
+                    >
+                      <XCircle className="h-5 w-5" />
+                    </button>
+                    <button
+                      onClick={() => handleAction(exp, 'APPROVED')}
+                      className="p-2.5 bg-gray-900 text-white rounded-2xl hover:bg-emerald-600 transition-all shadow-lg active:scale-95"
+                    >
+                      <CheckCircle2 className="h-5 w-5" />
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
         </div>
       </div>
 

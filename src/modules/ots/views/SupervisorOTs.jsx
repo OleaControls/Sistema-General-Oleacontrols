@@ -883,7 +883,7 @@ export default function SupervisorOTs() {
         <div className="px-5 pt-4 pb-0 border-b border-gray-100">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-0">
             {/* Tabs */}
-            <div className="flex items-end gap-0 overflow-x-auto">
+            <div className="flex items-end gap-0 flex-wrap md:flex-nowrap md:overflow-x-auto">
               {['ALL', 'UNASSIGNED', 'ASSIGNED', 'ACCEPTED', 'IN_PROGRESS', 'COMPLETED'].map(s => {
                 const meta = STATUS_META[s];
                 const isActive = filters.status === s;
@@ -907,15 +907,15 @@ export default function SupervisorOTs() {
               })}
             </div>
             {/* Filtros: técnico + búsqueda */}
-            <div className="flex items-center gap-2 mb-2 sm:mb-1 shrink-0">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2 mb-2 sm:mb-1 sm:shrink-0 w-full sm:w-auto">
               {/* Filtro por técnico */}
-              <div className="relative">
+              <div className="relative w-full sm:w-auto">
                 <User className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-300 pointer-events-none" />
                 <select
                   value={filters.techId}
                   onChange={(e) => handleTechFilter(e.target.value)}
                   className={cn(
-                    "cursor-pointer appearance-none pl-9 pr-8 py-2 bg-gray-50 border rounded-xl outline-none text-sm font-medium focus:bg-white focus:ring-1 focus:ring-blue-100 transition-all duration-150 max-w-[180px] truncate",
+                    "cursor-pointer appearance-none pl-9 pr-8 py-2 bg-gray-50 border rounded-xl outline-none text-sm font-medium focus:bg-white focus:ring-1 focus:ring-blue-100 transition-all duration-150 w-full sm:max-w-[180px] truncate",
                     filters.techId !== 'ALL'
                       ? "border-blue-200 text-blue-700 bg-blue-50/50"
                       : "border-gray-100 text-gray-700 focus:border-blue-200"
@@ -927,12 +927,12 @@ export default function SupervisorOTs() {
                 <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-300 pointer-events-none" />
               </div>
               {/* Búsqueda */}
-              <div className="relative">
+              <div className="relative w-full sm:w-auto">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-300 pointer-events-none" />
                 <input
                   type="text"
                   placeholder="Buscar folio o cliente..."
-                  className="pl-9 pr-4 py-2 bg-gray-50 border border-gray-100 rounded-xl outline-none text-sm font-medium text-gray-700 placeholder:text-gray-300 focus:bg-white focus:border-blue-200 focus:ring-1 focus:ring-blue-100 transition-all duration-150 w-56"
+                  className="pl-9 pr-4 py-2 bg-gray-50 border border-gray-100 rounded-xl outline-none text-sm font-medium text-gray-700 placeholder:text-gray-300 focus:bg-white focus:border-blue-200 focus:ring-1 focus:ring-blue-100 transition-all duration-150 w-full sm:w-56"
                   value={searchTerm}
                   onChange={(e) => handleSearchChange(e.target.value)}
                 />
@@ -941,8 +941,8 @@ export default function SupervisorOTs() {
           </div>
         </div>
 
-        {/* Tabla */}
-        <div className="overflow-x-auto">
+        {/* Tabla (escritorio) */}
+        <div className="overflow-x-auto hidden md:block">
           <table className="w-full min-w-[820px]">
             <thead>
               <tr className="bg-gray-50/60 border-b border-gray-100">
@@ -1310,6 +1310,102 @@ export default function SupervisorOTs() {
           </table>
         </div>
 
+        {/* ── Lista de tarjetas (móvil) — evita el scroll horizontal ── */}
+        <div className="md:hidden divide-y divide-gray-100">
+          {filteredOts.length === 0 && (
+            <div className="py-16 text-center">
+              <ClipboardList className="h-8 w-8 text-gray-200 mx-auto mb-3" />
+              <p className="text-[10px] font-mono font-bold text-gray-300 uppercase tracking-widest">Sin órdenes</p>
+            </div>
+          )}
+          {filteredOts.map((ot) => {
+            const prioMeta = PRIORITY_META[ot.priority] || PRIORITY_META.MEDIUM;
+            const statMeta = STATUS_META[ot.status]     || STATUS_META.PENDING;
+            return (
+              <div key={ot.id} className="relative p-4">
+                <div className={cn("absolute left-0 top-4 bottom-4 w-[3px] rounded-full", prioMeta.bar)} />
+
+                {/* Folio + prioridad · Estado (siempre visible) */}
+                <div className="flex items-center justify-between gap-2 mb-2 pl-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <p className="font-mono font-bold text-[13px] text-gray-900 leading-none shrink-0">{ot.otNumber}</p>
+                    <span className={cn("text-[8px] font-mono font-bold px-2 py-0.5 rounded-md border uppercase shrink-0", prioMeta.badge)}>{prioMeta.label}</span>
+                  </div>
+                  <span className={cn("inline-flex items-center gap-1.5 text-[9px] font-mono font-bold px-2.5 py-1 rounded-lg border uppercase tracking-wide shrink-0", statMeta.badge)}>
+                    <div className={cn("h-1.5 w-1.5 rounded-full shrink-0", statMeta.dot, ot.status === 'IN_PROGRESS' && "animate-pulse")} />
+                    {statMeta.label}
+                  </span>
+                </div>
+
+                {/* Servicio + cliente + fecha */}
+                <div className="pl-2 mb-2">
+                  <p className="font-semibold text-sm text-gray-800 leading-tight">{ot.title}</p>
+                  <div className="flex items-center gap-1 mt-1 flex-wrap">
+                    <Building2 className="h-3 w-3 text-gray-300 shrink-0" />
+                    <p className="text-[10px] text-gray-400 font-medium truncate max-w-[180px]">{ot.clientName || ot.client || '—'}</p>
+                    {ot.scheduledDate && (
+                      <>
+                        <span className="text-gray-200">·</span>
+                        <Clock className="h-3 w-3 text-gray-200 shrink-0" />
+                        <p className="text-[9px] text-gray-300 font-mono">
+                          {new Date(ot.scheduledDate.split('T')[0] + 'T12:00:00').toLocaleDateString('es-MX', { day: '2-digit', month: 'short' })}
+                        </p>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {/* Técnico + fondos */}
+                <div className="pl-2 flex items-center gap-2 mb-3">
+                  <div className={cn("h-7 w-7 rounded-lg flex items-center justify-center font-mono font-black text-[11px] shrink-0",
+                    ot.leadTechName ? "bg-blue-50 text-blue-600" : "bg-gray-50 text-gray-300")}>
+                    {ot.leadTechName?.charAt(0) || '—'}
+                  </div>
+                  <p className="text-xs font-bold text-gray-700 truncate">{ot.leadTechName || 'Sin asignar'}</p>
+                  <span className="text-[9px] font-mono text-gray-400 ml-auto shrink-0">${ot.assignedFunds?.toLocaleString() || '0'}</span>
+                </div>
+
+                {/* Acciones (Acta + Ver + editar/eliminar) */}
+                <div className="pl-2 flex items-center gap-2">
+                  {ot.status === 'COMPLETED' && (
+                    <button
+                      onClick={() => ot.deliveryActUrl ? window.open(ot.deliveryActUrl, '_blank') : handleExportAER(ot)}
+                      className="flex items-center gap-1.5 text-emerald-700 bg-emerald-50 border border-emerald-100 px-3 py-2 rounded-lg text-[10px] font-bold active:scale-95 transition-transform"
+                    >
+                      <FileText className="h-3.5 w-3.5" />
+                      {ot.deliveryActUrl ? 'Acta' : 'Generar'}
+                    </button>
+                  )}
+                  <button
+                    onClick={() => navigate(`/ots/${ot.id}`)}
+                    className="flex items-center gap-1.5 text-blue-600 bg-blue-50 border border-blue-100 px-3 py-2 rounded-lg text-[10px] font-bold active:scale-95 transition-transform"
+                  >
+                    <Eye className="h-3.5 w-3.5" /> Ver
+                  </button>
+                  <div className="ml-auto flex items-center gap-1">
+                    <button
+                      onClick={() => openEditModal(ot)}
+                      disabled={ot.status === 'COMPLETED'}
+                      aria-label="Editar"
+                      className={cn("h-8 w-8 flex items-center justify-center rounded-lg",
+                        ot.status === 'COMPLETED' ? "text-gray-200" : "text-gray-400 hover:bg-gray-100")}
+                    >
+                      <MoreHorizontal className="h-4 w-4" />
+                    </button>
+                    <button
+                      onClick={() => { setOtToDelete(ot); setIsDeleteModalOpen(true); }}
+                      aria-label="Eliminar"
+                      className="h-8 w-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
         {/* Paginación */}
         {otTotal > OT_PAGE_SIZE && (
           <div className="flex items-center justify-between px-5 py-3 border-t border-gray-100 bg-gray-50/40">
@@ -1368,11 +1464,14 @@ export default function SupervisorOTs() {
 
       {/* ══════ MODAL NUEVA OT — SPLIT PANEL ══════ */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full flex overflow-hidden" style={{ maxWidth: 960, maxHeight: '92vh' }}>
+        <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-md z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl shadow-2xl ring-1 ring-black/5 w-full flex overflow-hidden animate-in zoom-in-95 slide-in-from-bottom-2 duration-300" style={{ maxWidth: 1200, maxHeight: '94vh' }}>
 
             {/* ── SIDEBAR IZQUIERDO ── */}
-            <div className="w-64 shrink-0 bg-gray-950 flex flex-col overflow-hidden hidden md:flex">
+            <div className="w-72 shrink-0 bg-gradient-to-br from-indigo-950 via-slate-900 to-gray-950 flex flex-col overflow-hidden hidden md:flex relative">
+              {/* Glow decorativo */}
+              <div className="pointer-events-none absolute -top-20 -left-20 h-60 w-60 rounded-full bg-indigo-500/20 blur-3xl" />
+              <div className="pointer-events-none absolute bottom-0 -right-16 h-52 w-52 rounded-full bg-violet-600/15 blur-3xl" />
               {/* Branding */}
               <div className="p-7 border-b border-white/5">
                 <p className="text-[8px] font-mono font-bold uppercase tracking-[0.2em] text-gray-600 mb-3">Olea Controls · Ops</p>

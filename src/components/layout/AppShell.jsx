@@ -29,7 +29,6 @@ const NAV_STRUCTURE = [
       { name: 'Ventas',       path: '/sales/metricas', icon: TrendingUp,    roles: [ROLES.ADMIN] },
       { name: 'Operaciones',  path: '/ops/metricas',   icon: ClipboardList, roles: [ROLES.ADMIN] },
       { name: 'Técnicos',     path: '/tech/metricas',  icon: Trophy,        roles: [ROLES.ADMIN] },
-      { name: 'R. Humanos',   path: '/hr',             icon: Users,         roles: [ROLES.ADMIN] },
       { name: 'Asistencia Técnicos', path: '/ops/tech-attendance',   icon: ClipboardCheck, roles: [ROLES.ADMIN] },
     ]
   },
@@ -143,18 +142,28 @@ const NAV_STRUCTURE = [
 
   // ── RH ────────────────────────────────────────────────────────────────────
   {
-    type: 'item',
+    type: 'group',
     name: 'Recursos Humanos',
-    path: '/hr/directory',
     icon: Users,
-    roles: [ROLES.HR],
-  },
-  {
-    type: 'item',
-    name: 'Asistencia',
-    path: '/hr/attendance',
-    icon: CalendarCheck,
-    roles: [ROLES.HR],
+    roles: [ROLES.HR, ROLES.ADMIN],
+    defaultOpen: true,
+    items: [
+      { name: 'Dashboard',            path: '/hr',              icon: LayoutDashboard, roles: [ROLES.HR, ROLES.ADMIN], exact: true },
+      { name: 'Empleados',            path: '/hr/directory',    icon: Users,           roles: [ROLES.HR, ROLES.ADMIN] },
+      { name: 'Organigrama',          path: '/hr/org-chart',    icon: Users2,          roles: [ROLES.HR, ROLES.ADMIN] },
+      { name: 'Reclutamiento',        path: '/hr/recruitment',  icon: GraduationCap,   roles: [ROLES.HR, ROLES.ADMIN] },
+      { name: 'Asistencia & Vacaciones', path: '/hr/attendance', icon: CalendarCheck,  roles: [ROLES.HR, ROLES.ADMIN] },
+      { name: 'Desempeño',            path: '/hr/performance',  icon: Target,          roles: [ROLES.HR, ROLES.ADMIN] },
+      { name: 'KPIs Técnicos',        path: '/hr/tech-kpis',    icon: BarChart3,       roles: [ROLES.HR, ROLES.ADMIN] },
+      { name: 'Incentivos y Premios', path: '/hr/rewards',      icon: Star,            roles: [ROLES.HR, ROLES.ADMIN] },
+      { name: 'EPP e Inventario',     path: '/hr/assets',       icon: Package,         roles: [ROLES.HR, ROLES.ADMIN] },
+      { name: 'Contratos y Docs',     path: '/hr/documents',    icon: FileText,        roles: [ROLES.HR, ROLES.ADMIN] },
+      { name: 'Encuestas de Clima',   path: '/hr/surveys',      icon: ClipboardCheck,  roles: [ROLES.HR, ROLES.ADMIN] },
+      { name: 'Comunicados',          path: '/hr/announcements', icon: Bell,           roles: [ROLES.HR, ROLES.ADMIN] },
+      { name: 'Sistema de Nómina',    path: '/hr/payroll',      icon: Receipt,         roles: [ROLES.HR, ROLES.ADMIN] },
+      { name: 'Reportes',             path: '/hr/reports',      icon: BarChart4,       roles: [ROLES.ADMIN] },
+      { name: 'Configuración',        path: '/hr/settings',     icon: Settings,        roles: [ROLES.ADMIN] },
+    ]
   },
 
   // ── COMÚN: Mi Perfil ──────────────────────────────────────────────────────
@@ -179,8 +188,8 @@ function filterItems(items, userRoles) {
 // ── Componente NavItem (link simple) ──────────────────────────────────────────
 function NavItem({ item, user, isCollapsed, onClick }) {
   const location = useLocation();
-  const isActive = item.path === '/'
-    ? location.pathname === '/'
+  const isActive = (item.path === '/' || item.exact)
+    ? location.pathname === item.path
     : location.pathname === item.path || location.pathname.startsWith(item.path + '/');
   const label = item.getName ? item.getName(user) : item.name;
 
@@ -260,7 +269,12 @@ export default function AppShell({ children }) {
   const location = useLocation();
   const navigate = useNavigate();
 
-  const userRoles = user?.roles || [user?.role];
+  const rawRoles = user?.roles || [user?.role];
+  // El rol RH es exclusivo: un usuario de Recursos Humanos que NO sea ADMIN solo
+  // ve el módulo de RH, aunque tenga otros roles asignados. ADMIN sigue viendo todo.
+  const userRoles = (!rawRoles.includes(ROLES.ADMIN) && rawRoles.includes(ROLES.HR))
+    ? [ROLES.HR]
+    : rawRoles;
 
   const handleLogout = () => { logout(); navigate('/login'); };
 

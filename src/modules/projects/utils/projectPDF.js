@@ -9,7 +9,9 @@ const money = (n) => `$${Number(n || 0).toLocaleString('es-MX', { minimumFractio
 const fmtDate = (d) => (d ? new Date(d).toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric' }) : '—');
 
 const STATUS_LABEL = {
-  INICIO: 'Inicio', PLANEACION: 'Planeación', EJECUCION: 'Ejecución', CIERRE: 'Cierre', CERRADO: 'Cerrado',
+  INICIACION: 'Iniciación', PLANEACION: 'Planeación', IMPLEMENTACION: 'Implementación', CALIDAD: 'Calidad', CIERRE: 'Cierre',
+  // Compatibilidad con estados antiguos
+  INICIO: 'Iniciación', EJECUCION: 'Implementación', CERRADO: 'Cierre',
 };
 
 const loadPngAsBase64 = async (url) => {
