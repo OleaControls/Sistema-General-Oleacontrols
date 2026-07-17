@@ -423,12 +423,15 @@ export default function QuotesList() {
 
   // Modal: crear cotización
   const [showAddModal,  setShowAddModal]  = useState(false);
+  const [quoteStep,     setQuoteStep]     = useState(1); // wizard 1..4
   const [isGenerating,  setIsGenerating]  = useState(false);
   const [fromDealMeta,  setFromDealMeta]  = useState(null); // deal del que proviene la cotización
   const [prodSearch,    setProdSearch]    = useState(null); // { index, mode:'new'|'edit' }
   const [clientMode,      setClientMode]      = useState('existing'); // 'existing' | 'new'
   const [newClientSearch, setNewClientSearch] = useState('');
   const [newClientOpen,   setNewClientOpen]   = useState(false);
+  // Reinicia el asistente al primer paso cada vez que se abre el modal
+  useEffect(() => { if (showAddModal) setQuoteStep(1); }, [showAddModal]);
   const initialNewClientData = () => ({ companyName: '', contactName: '', email: '', phone: '', rfc: '', address: '' });
   const [newClientData, setNewClientData] = useState(initialNewClientData());
 
@@ -1061,7 +1064,7 @@ export default function QuotesList() {
         </div>
       ) : (
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto hidden md:block">
             <table className="w-full border-collapse text-left min-w-[900px]">
               <thead className="sticky top-0 z-10">
                 <tr className="bg-slate-50 border-b border-slate-200">
@@ -1180,6 +1183,75 @@ export default function QuotesList() {
               </tbody>
             </table>
           </div>
+
+          {/* ── Tarjetas (móvil) — sin scroll horizontal ── */}
+          <div className="md:hidden divide-y divide-slate-100">
+            {paged.map((q) => {
+              const ss = STATUS_STYLE[q.status] || STATUS_STYLE.PENDING;
+              const s  = STATUS[q.status]  || STATUS.PENDING;
+              const SIcon = s.icon;
+              const isSel = selectedQuote?.id === q.id;
+              return (
+                <div key={q.id} onClick={() => openDetail(q)}
+                  className={cn("p-4 cursor-pointer", isSel ? 'bg-emerald-50/60' : 'bg-white')}>
+                  <div className="flex items-start gap-3">
+                    <span className="w-1 self-stretch rounded-full flex-shrink-0" style={{ background: ss.accent }} />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[11px] font-black font-mono text-slate-700">{q.quoteNumber}</span>
+                        <span className="inline-flex items-center gap-1 text-[8px] font-black px-2.5 py-1 rounded-full uppercase tracking-wide shrink-0"
+                          style={{ background: ss.bg, color: ss.text, border: `1.5px solid ${ss.border}` }}>
+                          <SIcon size={9} /> {s.label}
+                        </span>
+                      </div>
+                      <p className="text-sm font-black text-slate-900 mt-1 truncate">{q.client?.companyName || '—'}</p>
+                      {q.projectName && <p className="text-[11px] font-semibold text-slate-500 truncate">{q.projectName}</p>}
+                      <div className="flex items-center gap-x-3 gap-y-1 mt-2 flex-wrap text-[10px] font-bold text-slate-500">
+                        <span className="flex items-center gap-1.5">
+                          <span className="h-5 w-5 rounded-full bg-slate-900 text-white flex items-center justify-center text-[8px] font-black">
+                            {q.seller?.name?.charAt(0)?.toUpperCase() || '?'}
+                          </span>
+                          {q.seller?.name || 'Sin asignar'}
+                        </span>
+                        <span>{q.items?.length || 0} ítems</span>
+                        <span>Vig. {fmtDate(q.validUntil)}</span>
+                        <span className="ml-auto text-sm font-black font-mono text-slate-900">{fmt(q.total)}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Acciones */}
+                  <div className="flex items-center gap-1.5 mt-3 flex-wrap" onClick={e => e.stopPropagation()}>
+                    {q.status === 'PENDING' && (
+                      <>
+                        <button onClick={() => updateStatus(q.id, 'ACCEPTED')} title="Aprobar"
+                          className="p-2 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white transition-all"><CheckCircle2 size={15} /></button>
+                        <button onClick={() => updateStatus(q.id, 'REJECTED')} title="No concretada"
+                          className="p-2 rounded-lg bg-red-50 text-red-500 hover:bg-red-500 hover:text-white transition-all"><X size={15} /></button>
+                      </>
+                    )}
+                    <button onClick={() => { openDetail(q); setDetailTab('edit'); }} title="Editar"
+                      className="p-2 rounded-lg bg-slate-100 text-slate-500 hover:bg-slate-900 hover:text-white transition-all"><Edit3 size={15} /></button>
+                    <button onClick={e => duplicateQuote(q, e)} title="Duplicar" disabled={duplicating === q.id}
+                      className="p-2 rounded-lg bg-violet-50 text-violet-600 hover:bg-violet-600 hover:text-white transition-all disabled:opacity-50">
+                      {duplicating === q.id ? <Loader2 size={15} className="animate-spin" /> : <Copy size={15} />}
+                    </button>
+                    <button onClick={e => sendToPipeline(q, e)} disabled={sendingPipeline === q.id}
+                      title={q.dealId ? 'Actualizar en pipeline' : 'Mandar al pipeline'}
+                      className={cn("p-2 rounded-lg transition-all disabled:opacity-50",
+                        q.dealId ? "bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white" : "bg-orange-50 text-orange-500 hover:bg-orange-500 hover:text-white")}>
+                      {sendingPipeline === q.id ? <Loader2 size={15} className="animate-spin" /> : <TrendingUp size={15} />}
+                    </button>
+                    <button onClick={() => downloadPDF(q.id, q.quoteNumber)} title="Descargar PDF"
+                      className="p-2 rounded-lg bg-blue-50 text-blue-500 hover:bg-blue-500 hover:text-white transition-all"><Download size={15} /></button>
+                    <button onClick={() => deleteQuote(q.id, q.quoteNumber)} title="Eliminar"
+                      className="ml-auto p-2 rounded-lg text-slate-300 hover:bg-red-50 hover:text-red-600 transition-all"><Trash2 size={15} /></button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
           {/* Paginación (hojas) */}
           <Pagination
             page={page}
@@ -1347,7 +1419,7 @@ export default function QuotesList() {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 60, scale: .97 }}
               transition={{ type: 'spring', damping: 28, stiffness: 320 }}
-              className="bg-white rounded-t-[2rem] sm:rounded-[2rem] shadow-2xl w-full max-w-4xl max-h-[96vh] flex flex-col overflow-hidden"
+              className="bg-white rounded-t-[2rem] sm:rounded-[2rem] shadow-2xl w-full max-w-5xl max-h-[96vh] flex flex-col overflow-hidden"
             >
               {/* Header sticky */}
               <div className="flex-shrink-0 flex items-center justify-between px-7 py-5 border-b border-gray-100" style={{ background: tplBg }}>
@@ -1372,10 +1444,40 @@ export default function QuotesList() {
                 </button>
               </div>
 
+              {/* Stepper */}
+              {(() => {
+                const STEPS = ['Documento y Cliente', 'Proyecto', 'Conceptos', 'Términos y Cierre'];
+                return (
+                  <div className="flex-shrink-0 px-7 py-4 border-b border-gray-100 bg-white">
+                    <div className="flex items-center">
+                      {STEPS.map((label, i) => {
+                        const n = i + 1;
+                        const done = quoteStep > n;
+                        const active = quoteStep === n;
+                        return (
+                          <React.Fragment key={n}>
+                            <button type="button" onClick={() => setQuoteStep(n)} className="flex items-center gap-2 group">
+                              <span className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-black flex-shrink-0 transition-all text-white"
+                                style={{ background: done || active ? tplColor : '#e5e7eb', color: done || active ? '#fff' : '#9ca3af' }}>
+                                {done ? <CheckCircle2 size={13} /> : n}
+                              </span>
+                              <span className="hidden sm:block text-[10px] font-black uppercase tracking-wider transition-colors"
+                                style={{ color: active ? tplColor : done ? '#64748b' : '#cbd5e1' }}>{label}</span>
+                            </button>
+                            {n < STEPS.length && <div className="flex-1 h-0.5 mx-2 rounded-full transition-all" style={{ background: quoteStep > n ? tplColor : '#e5e7eb' }} />}
+                          </React.Fragment>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })()}
+
               {/* Scrollable body */}
               <div className="flex-1 overflow-y-auto">
-                <form onSubmit={handleCreateQuote} className="p-7 space-y-9">
+                <form id="new-quote-form" onSubmit={handleCreateQuote} className="p-7 space-y-9">
 
+                  {quoteStep === 1 && (<>
                   {/* ① Tipo de documento */}
                   <div>
                     <SectionHeader num="1" icon={FileText} label="Tipo de documento" />
@@ -1534,7 +1636,9 @@ export default function QuotesList() {
                       </div>
                     )}
                   </div>
+                  </>)}
 
+                  {quoteStep === 2 && (<>
                   {/* ③ Proyecto */}
                   <div>
                     <SectionHeader num="3" icon={Package} label="Información del proyecto" />
@@ -1590,7 +1694,9 @@ export default function QuotesList() {
                       hideLabel
                     />
                   </div>
+                  </>)}
 
+                  {quoteStep === 3 && (<>
                   {/* ⑤ Conceptos */}
                   <div>
                     <SectionHeader num="5" icon={Package} label="Conceptos / Productos" />
@@ -1660,7 +1766,9 @@ export default function QuotesList() {
                       onChange={pct => setNewQuote(f => ({ ...f, discountPct: pct }))}
                     />
                   </div>
+                  </>)}
 
+                  {quoteStep === 4 && (<>
                   {/* ⑦ Términos + Totales */}
                   <div>
                     <SectionHeader num="7" icon={FileText} label="Términos y totales" />
@@ -1727,17 +1835,40 @@ export default function QuotesList() {
                     </div>
                   </div>
 
-                  {/* Submit */}
-                  <button
+                  </>)}
+                </form>
+              </div>
+
+              {/* Footer de navegación (siempre visible) */}
+              <div className="flex-shrink-0 flex items-center justify-between gap-3 px-7 py-4 border-t border-gray-100 bg-white">
+                <button type="button"
+                  onClick={() => { if (quoteStep > 1) setQuoteStep(s => s - 1); else { setShowAddModal(false); setFromDealMeta(null); } }}
+                  className="flex items-center gap-1.5 px-5 py-3 rounded-2xl border border-gray-200 text-gray-600 text-[11px] font-black uppercase tracking-widest hover:bg-gray-50 transition-all">
+                  <ChevronRight size={14} className="rotate-180" /> {quoteStep > 1 ? 'Anterior' : 'Cancelar'}
+                </button>
+
+                <div className="hidden sm:flex items-center gap-1.5">
+                  {[1, 2, 3, 4].map(n => (
+                    <div key={n} className="h-1.5 rounded-full transition-all" style={{ width: quoteStep === n ? 24 : 6, background: quoteStep >= n ? tplColor : '#e5e7eb' }} />
+                  ))}
+                </div>
+
+                {quoteStep < 4 ? (
+                  <button type="button" onClick={() => setQuoteStep(s => Math.min(4, s + 1))}
+                    className="flex items-center gap-1.5 px-6 py-3 rounded-2xl text-white text-[11px] font-black uppercase tracking-widest shadow-lg transition-all"
+                    style={{ background: tplColor }}>
+                    Siguiente <ChevronRight size={14} />
+                  </button>
+                ) : (
+                  <button type="submit" form="new-quote-form"
                     disabled={isGenerating || (clientMode === 'existing' ? !newQuote.clientId : (!newClientData.companyName || !newClientData.email))}
-                    type="submit"
-                    className="w-full py-5 rounded-2xl font-black text-sm uppercase tracking-widest shadow-lg transition-all disabled:opacity-50 text-white"
+                    className="flex items-center gap-2 px-6 py-3 rounded-2xl text-white text-[11px] font-black uppercase tracking-widest shadow-lg transition-all disabled:opacity-50"
                     style={{ background: tplColor }}>
                     {isGenerating
-                      ? <span className="flex items-center justify-center gap-2"><RefreshCw size={16} className="animate-spin" /> Generando PDF...</span>
-                      : <span className="flex items-center justify-center gap-2"><FileText size={16} /> Generar Cotización y PDF</span>}
+                      ? <><RefreshCw size={14} className="animate-spin" /> Generando…</>
+                      : <><FileText size={14} /> Generar Cotización</>}
                   </button>
-                </form>
+                )}
               </div>
             </motion.div>
           </div>
