@@ -311,7 +311,7 @@ export default function SupervisorOTs() {
 
     autoTable(doc, {
       startY: headerH + 34,
-      head: [['CLIENTE', 'SUCURSAL', 'FECHA DE CIERRE', 'ESTADO']],
+      head: [['CLIENTE', 'NOMBRE DE SITIO', 'FECHA DE CIERRE', 'ESTADO']],
       body: [[
         String((ot.clientName || ot.client || 'N/A')).toUpperCase(),
         String((ot.storeName || 'OFICINA CENTRAL')).toUpperCase(),
@@ -1389,7 +1389,7 @@ export default function SupervisorOTs() {
                 <p className="text-[8px] font-mono font-bold uppercase tracking-[0.2em] text-gray-300 mb-5">Progreso</p>
                 <div className="space-y-1">
                   {[
-                    { n: 1, label: 'Identificación', sub: 'Cliente, sucursal, prioridad' },
+                    { n: 1, label: 'Identificación', sub: 'Cliente, sitio, prioridad' },
                     { n: 2, label: 'Ubicación',      sub: 'Dirección y contacto' },
                     { n: 3, label: 'Equipo',         sub: 'Técnicos y programación' },
                   ].map(({ n, label, sub }) => (
@@ -1507,7 +1507,7 @@ export default function SupervisorOTs() {
                             <input
                               type="text"
                               className="cursor-text w-full pl-9 pr-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-sm font-medium text-gray-700 outline-none focus:border-gray-400 focus:bg-white transition-colors"
-                              placeholder="Buscar empresa o sucursal..."
+                              placeholder="Buscar empresa o sitio..."
                               value={otClientSearch}
                               onChange={e => { setOtClientSearch(e.target.value); setShowOtClientDropdown(true); }}
                               onFocus={() => setShowOtClientDropdown(true)}
@@ -1572,7 +1572,7 @@ export default function SupervisorOTs() {
                       {/* Sucursal + Cliente */}
                       <div className="grid grid-cols-3 gap-4">
                         <div>
-                          <label className="text-[9px] font-mono font-bold uppercase tracking-[0.15em] text-gray-500 block mb-2">No. Sucursal</label>
+                          <label className="text-[9px] font-mono font-bold uppercase tracking-[0.15em] text-gray-500 block mb-2">Clave de Sitio</label>
                           <input
                             className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm font-mono font-bold text-gray-900 outline-none focus:border-gray-900 focus:ring-2 focus:ring-gray-900/5 transition-all placeholder:text-gray-300"
                             value={newOT.storeNumber}
@@ -1581,7 +1581,7 @@ export default function SupervisorOTs() {
                           />
                         </div>
                         <div className="col-span-2">
-                          <label className="text-[9px] font-mono font-bold uppercase tracking-[0.15em] text-gray-500 block mb-2">Nombre Sucursal</label>
+                          <label className="text-[9px] font-mono font-bold uppercase tracking-[0.15em] text-gray-500 block mb-2">Nombre de Sitio</label>
                           <input
                             className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-900 outline-none focus:border-gray-900 focus:ring-2 focus:ring-gray-900/5 transition-all placeholder:text-gray-300"
                             value={newOT.storeName}

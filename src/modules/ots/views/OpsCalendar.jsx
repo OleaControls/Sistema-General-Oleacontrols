@@ -776,7 +776,7 @@ export default function OpsCalendar() {
                         {/* Tienda / Ubicación */}
                         {(selectedEvent.storeName || selectedEvent.address) && (
                           <div style={{ background: '#f9fafb', border: '1px solid #f3f4f6', borderRadius: 14, padding: '14px 18px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-                            <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase', color: '#9ca3af', margin: 0 }}>Ubicación · Tienda</p>
+                            <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase', color: '#9ca3af', margin: 0 }}>Ubicación · Sitio</p>
                             {selectedEvent.storeName && (
                               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                                 <Building2 size={14} style={{ color: '#9ca3af', flexShrink: 0 }} />
@@ -1219,7 +1219,7 @@ export default function OpsCalendar() {
                 <p className="text-[8px] font-mono font-bold uppercase tracking-[0.2em] text-gray-300 mb-5">Progreso</p>
                 <div className="space-y-1">
                   {[
-                    { n: 1, label: 'Identificación', sub: 'Cliente, sucursal, prioridad' },
+                    { n: 1, label: 'Identificación', sub: 'Cliente, sitio, prioridad' },
                     { n: 2, label: 'Ubicación', sub: 'Dirección y contacto' },
                     { n: 3, label: 'Equipo', sub: 'Técnicos y programación' },
                   ].map(({ n, label, sub }) => (
@@ -1311,7 +1311,7 @@ export default function OpsCalendar() {
                             <input
                               type="text"
                               className="cursor-text w-full pl-9 pr-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-sm font-medium text-gray-700 outline-none focus:border-gray-400 focus:bg-white transition-colors"
-                              placeholder="Buscar empresa o sucursal..."
+                              placeholder="Buscar empresa o sitio..."
                               value={convertOtClientSearch}
                               onChange={e => { setConvertOtClientSearch(e.target.value); setShowConvertDropdown(true); }}
                               onFocus={() => setShowConvertDropdown(true)}
@@ -1361,12 +1361,12 @@ export default function OpsCalendar() {
                       {/* Sucursal + Cliente */}
                       <div className="grid grid-cols-3 gap-4">
                         <div>
-                          <label className="text-[9px] font-mono font-bold uppercase tracking-[0.15em] text-gray-500 block mb-2">No. Sucursal</label>
+                          <label className="text-[9px] font-mono font-bold uppercase tracking-[0.15em] text-gray-500 block mb-2">Clave de Sitio</label>
                           <input className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm font-mono font-bold text-gray-900 outline-none focus:border-gray-900 transition-all placeholder:text-gray-300"
                             value={convertOT.storeNumber} onChange={e => setConvertOT({ ...convertOT, storeNumber: e.target.value })} placeholder="152" />
                         </div>
                         <div className="col-span-2">
-                          <label className="text-[9px] font-mono font-bold uppercase tracking-[0.15em] text-gray-500 block mb-2">Nombre Sucursal</label>
+                          <label className="text-[9px] font-mono font-bold uppercase tracking-[0.15em] text-gray-500 block mb-2">Nombre de Sitio</label>
                           <input className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-900 outline-none focus:border-gray-900 transition-all placeholder:text-gray-300"
                             value={convertOT.storeName} onChange={e => setConvertOT({ ...convertOT, storeName: e.target.value })} placeholder="Coppel Insurgentes Norte" />
                         </div>

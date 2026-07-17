@@ -33,6 +33,7 @@ model Employee {
 
   // 2. Documentos oficiales (ID/Strings y Referencias PDF)
   ine             String?
+  
   curp            String?
   rfc             String?
   nss             String?

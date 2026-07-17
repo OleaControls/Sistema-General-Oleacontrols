@@ -219,8 +219,8 @@ export default function DeliveryAct() {
       startY: currentY + 6,
       margin: { left: margin, right: margin },
       body: [
-          ['CLIENTE:', (ot.clientName || ot.client || 'N/A').toUpperCase(), 'SUCURSAL:', (ot.storeName || 'N/A').toUpperCase()],
-          ['DIRECCIÓN:', (ot.address || ot.otAddress || 'N/A').toUpperCase(), 'NÚM. TIENDA:', (ot.storeNumber || 'N/A')],
+          ['CLIENTE:', (ot.clientName || ot.client || 'N/A').toUpperCase(), 'NOMBRE DE SITIO:', (ot.storeName || 'N/A').toUpperCase()],
+          ['DIRECCIÓN:', (ot.address || ot.otAddress || 'N/A').toUpperCase(), 'CLAVE DE SITIO:', (ot.storeNumber || 'N/A')],
           ['CONTACTO:', `${data.clientName || formData.clientName} ${data.clientLastName || formData.clientLastName}`.toUpperCase(), 'EMAIL:', (data.clientEmail || formData.clientEmail || 'N/A').toLowerCase()]
       ],
       theme: 'plain',

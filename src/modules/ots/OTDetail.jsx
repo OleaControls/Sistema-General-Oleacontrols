@@ -556,7 +556,7 @@ export default function OTDetail() {
                     <p className="text-lg font-black text-gray-900 leading-tight">{ot.clientName}</p>
                   </div>
                   <div>
-                    <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Sucursal</p>
+                    <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Sitio</p>
                     <div className="flex items-center gap-2">
                       <span className="font-mono text-[10px] font-black bg-gray-100 text-gray-600 px-2 py-1 rounded-md">#{ot.storeNumber || 'N/A'}</span>
                       <span className="font-bold text-gray-700 text-sm truncate">{ot.storeName || 'Central'}</span>
