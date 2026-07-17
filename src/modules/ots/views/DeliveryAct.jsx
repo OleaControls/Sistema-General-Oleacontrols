@@ -190,13 +190,39 @@ export default function DeliveryAct() {
   // Solo logo izquierdo con transparencia
   if (insigniaB64) { try { doc.addImage(insigniaB64, 'PNG', margin, 8, 24, 24); } catch (e) { console.warn('Logo insignia no cargó'); } }
 
-  doc.setTextColor(7, 89, 133); // Azul Oceano Oscuro para el texto (Sky 800)
+  // ── Marca (izquierda) ─────────────────────────────────────────────
+  const brandX = margin + 27;
+  doc.setTextColor(7, 89, 133); // Sky 800
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(14);
-  doc.text("ACTA DE ENTREGA / RECEPCIÓN", pageWidth / 2, 22, { align: 'center' });
-  doc.setFontSize(8);
+  doc.setFontSize(11);
+  doc.text("OLEA CONTROLS MÉXICO", brandX, 18);
+
+  // Tagline (pegado al nombre) con la "T" un poco más grande y en negrita
+  const tagY = 24;
+  let tx = brandX;
+  doc.setTextColor(14, 165, 233); // Sky 500
   doc.setFont("helvetica", "normal");
-  doc.text(`COMPROBANTE OFICIAL DE SERVICIO TÉCNICO`, pageWidth / 2, 28, { align: 'center' });
+  doc.setFontSize(6.5);
+  doc.text("IMPULSANDO ", tx, tagY);
+  tx += doc.getTextWidth("IMPULSANDO ");
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(8);
+  doc.text("T", tx, tagY);
+  tx += doc.getTextWidth("T");
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(6.5);
+  doc.text("ECNOLÓGICAMENTE", tx, tagY);
+
+  // ── Título (derecha) ──────────────────────────────────────────────
+  const rightX = pageWidth - margin;
+  doc.setTextColor(7, 89, 133); // Sky 800
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(11);
+  doc.text("ACTA DE ENTREGA / RECEPCIÓN", rightX, 18, { align: 'right' });
+  doc.setTextColor(14, 165, 233); // Sky 500
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(7);
+  doc.text("COMPROBANTE OFICIAL DE SERVICIO TÉCNICO", rightX, 24, { align: 'right' });
 
   // --- 2. INFORMACIÓN DE CONTROL (Cinta Gris azulada) ---
   doc.setFillColor(240, 249, 255); // Azul aún más claro
@@ -220,7 +246,7 @@ export default function DeliveryAct() {
       margin: { left: margin, right: margin },
       body: [
           ['CLIENTE:', (ot.clientName || ot.client || 'N/A').toUpperCase(), 'NOMBRE DE SITIO:', (ot.storeName || 'N/A').toUpperCase()],
-          ['DIRECCIÓN:', (ot.address || ot.otAddress || 'N/A').toUpperCase(), 'CLAVE DE SITIO:', (ot.storeNumber || 'N/A')],
+          ['DIRECCIÓN:', (ot.address || ot.otAddress || 'N/A').toUpperCase(), 'REFERENCIA:', (ot.otReference || 'N/A').toUpperCase()],
           ['CONTACTO:', `${data.clientName || formData.clientName} ${data.clientLastName || formData.clientLastName}`.toUpperCase(), 'EMAIL:', (data.clientEmail || formData.clientEmail || 'N/A').toLowerCase()]
       ],
       theme: 'plain',
