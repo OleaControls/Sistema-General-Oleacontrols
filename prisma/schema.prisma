@@ -897,6 +897,9 @@ model Project {
   managerName   String?
   clientName    String?
 
+  // Tipo de servicio (embudo): DISENO, IMPLEMENTACION, REINGENIERIA
+  serviceType   String   @default("IMPLEMENTACION")
+
   // Estado y avance
   status        String   @default("INICIO") // INICIO, PLANEACION, EJECUCION, CIERRE, CERRADO
   progress      Int      @default(0)         // % avance (0-100)
@@ -940,6 +943,7 @@ model Project {
   activities     ProjectActivity[]
 
   @@index([status])
+  @@index([serviceType])
   @@index([managerId])
   @@index([archived])
 }

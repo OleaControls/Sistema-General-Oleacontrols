@@ -220,8 +220,9 @@ export default function AppRouter() {
           </Route>
 
           {/* Módulo Proyectos */}
-          <Route path="/projects"     element={<ProtectedRoute><ProjectsList /></ProtectedRoute>} />
-          <Route path="/projects/:id" element={<ProtectedRoute><ProjectDetail /></ProtectedRoute>} />
+          <Route path="/projects"                    element={<ProtectedRoute><ProjectsList /></ProtectedRoute>} />
+          <Route path="/projects/servicio/:service"  element={<ProtectedRoute><ProjectsList /></ProtectedRoute>} />
+          <Route path="/projects/:id"                element={<ProtectedRoute><ProjectDetail /></ProtectedRoute>} />
 
           {/* Ventas – acceso directo SALES */}
           <Route path="/sales/metricas" element={<ProtectedRoute><SalesMetrics /></ProtectedRoute>} />

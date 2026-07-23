@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import {
   FolderKanban, Plus, X, Calendar, DollarSign, User, ListChecks,
   AlertTriangle, Loader2, ArrowRight, Search, FileSpreadsheet,
@@ -20,6 +20,18 @@ export const PROJECT_STATUS = {
 // Orden de las fases (para el pipeline y filtros).
 export const PROJECT_PHASES = Object.keys(PROJECT_STATUS);
 
+// Tipos de servicio (embudos): cada servicio agrupa sus propios proyectos.
+export const PROJECT_SERVICES = {
+  DISENO:         { label: 'Servicios de Diseño',         short: 'Diseño',         cls: 'bg-fuchsia-50 text-fuchsia-600 border-fuchsia-200', dot: 'bg-fuchsia-500', accent: '#c026d3', bg: 'bg-fuchsia-50/60' },
+  IMPLEMENTACION: { label: 'Servicios de Implementación', short: 'Implementación', cls: 'bg-violet-50 text-violet-600 border-violet-200',    dot: 'bg-violet-500',  accent: '#7c3aed', bg: 'bg-violet-50/60' },
+  REINGENIERIA:   { label: 'Servicios de Re-Ingeniería',  short: 'Re-Ingeniería',  cls: 'bg-teal-50 text-teal-600 border-teal-200',          dot: 'bg-teal-500',    accent: '#0d9488', bg: 'bg-teal-50/60' },
+};
+export const SERVICE_KEYS = Object.keys(PROJECT_SERVICES);
+export const normalizeService = (s) => (PROJECT_SERVICES[s] ? s : 'IMPLEMENTACION');
+
+// Slug de la URL (/projects/servicio/:service) → clave de servicio.
+const SLUG_TO_SERVICE = { diseno: 'DISENO', implementacion: 'IMPLEMENTACION', reingenieria: 'REINGENIERIA' };
+
 // Conecta estados antiguos (INICIO/EJECUCION/CERRADO) con las 5 fases nuevas.
 const PHASE_ALIAS = { INICIO: 'INICIACION', EJECUCION: 'IMPLEMENTACION', CERRADO: 'CIERRE' };
 export const normalizePhase = (s) => PHASE_ALIAS[s] || (PROJECT_STATUS[s] ? s : 'INICIACION');
@@ -30,10 +42,15 @@ const EMPTY_FORM = {
   name: '', objective: '', scope: '', justification: '',
   sponsor: '', managerName: '', clientName: '',
   startDate: '', endDate: '', budget: '',
+  serviceType: 'IMPLEMENTACION',
 };
 
 export default function ProjectsList() {
   const navigate = useNavigate();
+  const { service: serviceSlug } = useParams();
+  // Cuando se entra por una ruta dedicada (/projects/servicio/diseno) el embudo
+  // queda bloqueado a ese servicio y se oculta la barra de servicios.
+  const lockedService = serviceSlug ? SLUG_TO_SERVICE[serviceSlug] : null;
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -42,6 +59,7 @@ export default function ProjectsList() {
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [serviceTab, setServiceTab] = useState(''); // '' = todos | DISENO | IMPLEMENTACION | REINGENIERIA
   const [employees, setEmployees] = useState([]);
   const [otClients, setOtClients] = useState([]);
   const [view, setView] = useState('pipeline'); // 'pipeline' | 'lista'
@@ -63,8 +81,12 @@ export default function ProjectsList() {
     projectService.otClients().then(setOtClients).catch(() => {});
   }, []);
 
-  // Filtro por texto y fase.
+  // Servicio activo: el de la ruta dedicada (bloqueado) o el de la barra de tabs.
+  const effectiveService = lockedService || serviceTab;
+
+  // Filtro por texto, fase y servicio.
   const filtered = projects.filter(p => {
+    if (effectiveService && normalizeService(p.serviceType) !== effectiveService) return false;
     if (statusFilter && normalizePhase(p.status) !== statusFilter) return false;
     if (search) {
       const q = search.toLowerCase();
@@ -73,12 +95,15 @@ export default function ProjectsList() {
     return true;
   });
 
-  // Resumen consolidado.
+  // Resumen consolidado (acotado al servicio cuando la ruta está bloqueada).
+  const scopeProjects = lockedService
+    ? projects.filter(p => normalizeService(p.serviceType) === lockedService)
+    : projects;
   const summary = {
-    total: projects.length,
-    activos: projects.filter(p => normalizePhase(p.status) !== 'CIERRE').length,
-    presupuesto: projects.reduce((a, p) => a + (p.budget || 0), 0),
-    porFase: (fase) => projects.filter(p => normalizePhase(p.status) === fase).length,
+    total: scopeProjects.length,
+    activos: scopeProjects.filter(p => normalizePhase(p.status) !== 'CIERRE').length,
+    presupuesto: scopeProjects.reduce((a, p) => a + (p.budget || 0), 0),
+    porFase: (fase) => scopeProjects.filter(p => normalizePhase(p.status) === fase).length,
   };
 
   // Mueve un proyecto a otra fase (drag & drop en el pipeline).
@@ -137,9 +162,13 @@ export default function ProjectsList() {
             <FolderKanban className="h-6 w-6 text-primary" />
           </div>
           <div>
-            <h1 className="text-xl font-black text-gray-900 uppercase tracking-tight">Proyectos</h1>
+            <h1 className="text-xl font-black text-gray-900 uppercase tracking-tight">
+              {lockedService ? PROJECT_SERVICES[lockedService].label : 'Proyectos'}
+            </h1>
             <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">
-              {projects.length} proyecto{projects.length !== 1 && 's'} activo{projects.length !== 1 && 's'}
+              {lockedService
+                ? `${filtered.length} proyecto${filtered.length !== 1 ? 's' : ''} en este embudo`
+                : `${projects.length} proyecto${projects.length !== 1 ? 's' : ''} activo${projects.length !== 1 ? 's' : ''}`}
             </p>
           </div>
         </div>
@@ -149,7 +178,7 @@ export default function ProjectsList() {
             <FileSpreadsheet className="h-4 w-4" /> Excel
           </button>
           <button
-            onClick={() => { setForm(EMPTY_FORM); setError(''); setShowModal(true); }}
+            onClick={() => { setForm({ ...EMPTY_FORM, serviceType: effectiveService || 'IMPLEMENTACION' }); setError(''); setShowModal(true); }}
             className="flex items-center gap-2 px-5 py-3 bg-primary text-white rounded-2xl text-[11px] font-black uppercase tracking-wider shadow-lg shadow-primary/20 hover:opacity-90 transition-all"
           >
             <Plus className="h-4 w-4" /> Nuevo Proyecto
@@ -168,6 +197,34 @@ export default function ProjectsList() {
           <SummaryTile label="Presupuesto total" value={money(summary.presupuesto)} sub="Autorizado" />
           <SummaryTile label="Implementación" value={summary.porFase('IMPLEMENTACION')} sub="En curso" />
           <SummaryTile label="En cierre" value={summary.porFase('CIERRE')} sub="Fase final" />
+        </div>
+      )}
+
+      {/* Embudos por tipo de servicio (oculto en rutas dedicadas) */}
+      {projects.length > 0 && !lockedService && (
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={() => setServiceTab('')}
+            className={cn('flex items-center gap-2 px-4 py-2.5 rounded-2xl border text-[11px] font-black uppercase tracking-wider transition-all',
+              serviceTab === '' ? 'bg-gray-900 text-white border-gray-900 shadow-sm' : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300')}>
+            Todos
+            <span className={cn('px-1.5 py-0.5 rounded-md text-[9px]', serviceTab === '' ? 'bg-white/20' : 'bg-gray-100 text-gray-500')}>{projects.length}</span>
+          </button>
+          {SERVICE_KEYS.map(key => {
+            const svc = PROJECT_SERVICES[key];
+            const count = projects.filter(p => normalizeService(p.serviceType) === key).length;
+            const active = serviceTab === key;
+            return (
+              <button key={key} onClick={() => setServiceTab(key)}
+                className={cn('flex items-center gap-2 px-4 py-2.5 rounded-2xl border text-[11px] font-black uppercase tracking-wider transition-all',
+                  active ? 'text-white border-transparent shadow-sm' : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300')}
+                style={active ? { background: svc.accent } : undefined}>
+                <span className={cn('w-2 h-2 rounded-full', active ? 'bg-white/80' : svc.dot)} />
+                {svc.short}
+                <span className={cn('px-1.5 py-0.5 rounded-md text-[9px]', active ? 'bg-white/20' : 'bg-gray-100 text-gray-500')}>{count}</span>
+              </button>
+            );
+          })}
         </div>
       )}
 
@@ -223,6 +280,7 @@ export default function ProjectsList() {
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {filtered.map((p) => {
             const st = PROJECT_STATUS[normalizePhase(p.status)] || PROJECT_STATUS.INICIACION;
+            const svc = PROJECT_SERVICES[normalizeService(p.serviceType)];
             return (
               <button
                 key={p.id}
@@ -235,6 +293,9 @@ export default function ProjectsList() {
                     {st.label}
                   </span>
                 </div>
+                <span className={cn('inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[8px] font-black uppercase tracking-wider border mb-3', svc.cls)}>
+                  <span className={cn('w-1.5 h-1.5 rounded-full', svc.dot)} /> {svc.short}
+                </span>
                 <h3 className="text-sm font-black text-gray-900 leading-tight mb-4 line-clamp-2 min-h-[2.5rem]">{p.name}</h3>
 
                 {/* Barra de avance */}
@@ -288,6 +349,24 @@ export default function ProjectsList() {
               <Field label="Nombre del proyecto *">
                 <input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
                   className="input" placeholder="Ej. Instalación CCTV Sucursal Centro" />
+              </Field>
+
+              <Field label="Tipo de servicio *">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  {SERVICE_KEYS.map(key => {
+                    const svc = PROJECT_SERVICES[key];
+                    const active = form.serviceType === key;
+                    return (
+                      <button key={key} type="button" onClick={() => setForm({ ...form, serviceType: key })}
+                        className={cn('flex items-center justify-center gap-2 py-3 rounded-2xl border text-[11px] font-black uppercase tracking-wider transition-all',
+                          active ? 'text-white border-transparent shadow-sm' : 'bg-gray-50 text-gray-500 border-gray-200 hover:border-gray-300')}
+                        style={active ? { background: svc.accent } : undefined}>
+                        <span className={cn('w-2 h-2 rounded-full', active ? 'bg-white/80' : svc.dot)} />
+                        {svc.short}
+                      </button>
+                    );
+                  })}
+                </div>
               </Field>
 
               <Field label="Objetivo">
@@ -418,12 +497,16 @@ function PipelineBoard({ projects, onMove, onOpen }) {
 }
 
 function PipelineCard({ p, onOpen, onDragStart, onDragEnd }) {
+  const svc = PROJECT_SERVICES[normalizeService(p.serviceType)];
   return (
     <div draggable onDragStart={onDragStart} onDragEnd={onDragEnd} onClick={onOpen}
       className="bg-white rounded-2xl border shadow-sm p-3 cursor-pointer hover:shadow-md hover:border-primary/30 transition-all group">
-      <div className="flex items-start justify-between gap-2 mb-2">
+      <div className="flex items-center gap-2 mb-2">
         <span className="text-[8px] font-black text-primary uppercase tracking-widest">{p.code}</span>
-        <GripVertical className="h-3.5 w-3.5 text-gray-200 group-hover:text-gray-400 shrink-0" />
+        <span className={cn('inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[7px] font-black uppercase tracking-wider border', svc.cls)}>
+          <span className={cn('w-1 h-1 rounded-full', svc.dot)} /> {svc.short}
+        </span>
+        <GripVertical className="h-3.5 w-3.5 text-gray-200 group-hover:text-gray-400 shrink-0 ml-auto" />
       </div>
       <h4 className="text-[12px] font-black text-gray-900 leading-tight mb-2 line-clamp-2">{p.name}</h4>
       <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden mb-2">

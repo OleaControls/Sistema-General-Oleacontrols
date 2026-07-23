@@ -5,7 +5,7 @@ import {
   Briefcase, Menu, X, LogOut, Bell, ChevronDown, Trophy, User as UserIcon,
   BarChart3, Wallet, Target, Users2, FileText, Sliders, TrendingUp,
   Activity, Settings, BarChart4, BookOpen, Calendar, Package, Star, CalendarCheck, ClipboardCheck,
-  FolderKanban
+  FolderKanban, PenTool, Wrench, RefreshCw
 } from 'lucide-react';
 import { useAuth, ROLES } from '@/store/AuthContext';
 import { useTenant } from '@/store/TenantContext';
@@ -133,11 +133,17 @@ const NAV_STRUCTURE = [
 
   // ── GERENTE DE PROYECTOS ────────────────────────────────────────────────────
   {
-    type: 'item',
+    type: 'group',
     name: 'Proyectos',
-    path: '/projects',
     icon: FolderKanban,
     roles: [ROLES.PM, ROLES.ADMIN],
+    defaultOpen: true,
+    items: [
+      { name: 'Todos',          path: '/projects',                        icon: FolderKanban, roles: [ROLES.PM, ROLES.ADMIN], exact: true },
+      { name: 'Diseño',         path: '/projects/servicio/diseno',        icon: PenTool,      roles: [ROLES.PM, ROLES.ADMIN] },
+      { name: 'Implementación', path: '/projects/servicio/implementacion', icon: Wrench,       roles: [ROLES.PM, ROLES.ADMIN] },
+      { name: 'Re-Ingeniería',  path: '/projects/servicio/reingenieria',  icon: RefreshCw,    roles: [ROLES.PM, ROLES.ADMIN] },
+    ]
   },
 
   // ── RH ────────────────────────────────────────────────────────────────────
