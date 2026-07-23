@@ -267,7 +267,7 @@ export default function HRDashboard() {
           <div className="grid grid-cols-2 gap-3">
             {[
               { label:'Nómina',        sub:'Generar y aprobar',  icon:DollarSign,   to:'/hr/payroll',      bg:'bg-emerald-50 border-emerald-100 text-emerald-700' },
-              { label:'Reclutamiento', sub:'Pipeline vacantes',  icon:UserPlus,     to:'/hr/recruitment',  bg:'bg-blue-50 border-blue-100 text-blue-700'          },
+              { label:'Reclutamiento', sub:'Embudo vacantes',  icon:UserPlus,     to:'/hr/recruitment',  bg:'bg-blue-50 border-blue-100 text-blue-700'          },
               { label:'Documentos',    sub:'Expedientes',        icon:FileText,     to:'/hr/documents',    bg:'bg-violet-50 border-violet-100 text-violet-700'    },
               { label:'Asistencia',    sub:'Control mensual',    icon:CalendarDays, to:'/hr/attendance',   bg:'bg-sky-50 border-sky-100 text-sky-700'             },
               { label:'Desempeño',     sub:'Evaluaciones',       icon:TrendingUp,   to:'/hr/performance',  bg:'bg-amber-50 border-amber-100 text-amber-700'       },

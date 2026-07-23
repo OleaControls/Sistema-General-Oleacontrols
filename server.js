@@ -19,6 +19,7 @@ import recruitmentHandler from './api/_handlers/recruitment.js';
 import assetsHandler from './api/_handlers/assets.js';
 import salesDataHandler from './api/_handlers/sales-data.js';
 import personalAuditsHandler from './api/_handlers/personal-audits.js';
+import technicianPropsHandler from './api/_handlers/technician-props.js';
 import lmsHandler from './api/_handlers/lms.js';
 import otClientsHandler from './api/_handlers/ot-clients.js';
 import otTemplatesHandler from './api/_handlers/ot-templates.js';
@@ -148,6 +149,11 @@ app.delete('/api/sales-data', adaptHandler(salesDataHandler));
 app.get('/api/personal-audits', adaptHandler(personalAuditsHandler));
 app.post('/api/personal-audits', adaptHandler(personalAuditsHandler));
 app.delete('/api/personal-audits', adaptHandler(personalAuditsHandler));
+
+// PROP de Técnicos (Prioridades · Realidades · Opciones · Plan)
+app.get('/api/technician-props',    adaptHandler(technicianPropsHandler));
+app.post('/api/technician-props',   adaptHandler(technicianPropsHandler));
+app.delete('/api/technician-props', adaptHandler(technicianPropsHandler));
 
 // Attendance (HR general)
 app.get('/api/attendance', adaptHandler(attendanceHandler));

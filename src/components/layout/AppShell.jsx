@@ -55,14 +55,14 @@ const NAV_STRUCTURE = [
     roles: [ROLES.SALES],
     defaultOpen: true,
     items: [
-      { name: 'Pipeline / Tratos',  path: '/crm/deals',           icon: Briefcase,  roles: [ROLES.SALES] },
+      { name: 'Embudo / Tratos',    path: '/crm/deals',           icon: Briefcase,  roles: [ROLES.SALES] },
       { name: 'Prospectos (Leads)', path: '/crm/leads',           icon: Target,     roles: [ROLES.SALES] },
       { name: 'Clientes',           path: '/crm/clients',         icon: Users2,     roles: [ROLES.SALES] },
       { name: 'Cotizaciones',       path: '/crm/quotes',          icon: FileText,   roles: [ROLES.SALES] },
       { name: 'Agenda',             path: '/crm/calendar',        icon: Calendar,   roles: [ROLES.SALES] },
       { name: 'Métricas Ventas',    path: '/sales/metricas',      icon: TrendingUp, roles: [ROLES.SALES] },
       { name: 'Catálogo Productos', path: '/crm/catalog',         icon: Package,    roles: [ROLES.SALES] },
-      { name: 'Config. Pipeline',   path: '/crm/settings',        icon: Sliders,    roles: [ROLES.SALES] },
+      { name: 'Config. Embudo',     path: '/crm/settings',        icon: Sliders,    roles: [ROLES.SALES] },
     ]
   },
 

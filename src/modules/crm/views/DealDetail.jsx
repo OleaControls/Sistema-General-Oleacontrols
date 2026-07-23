@@ -402,7 +402,7 @@ export default function DealDetail() {
             className="flex items-center gap-2 text-[9px] font-black uppercase tracking-widest text-gray-500 hover:text-gray-900 transition-colors mb-4 group"
           >
             <ArrowLeft className="h-3.5 w-3.5 group-hover:-translate-x-0.5 transition-transform" />
-            Pipeline
+            Embudo
           </button>
 
           <div className="flex flex-col lg:flex-row lg:items-start gap-4 justify-between">
@@ -601,7 +601,7 @@ export default function DealDetail() {
 
                 {/* Pipeline */}
                 <div className="bg-white rounded-3xl p-5 border border-gray-100 space-y-3">
-                  <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Etapa del Pipeline</p>
+                  <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Etapa del Embudo</p>
                   <select
                     className={cn(
                       'w-full text-[10px] font-black uppercase tracking-widest rounded-xl px-4 py-3 border-2 outline-none cursor-pointer transition-all',

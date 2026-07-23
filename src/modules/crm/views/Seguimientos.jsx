@@ -500,7 +500,7 @@ export default function Seguimientos() {
       {loading ? (
         <div className="flex flex-col items-center justify-center py-20 space-y-4">
           <Activity className="h-10 w-10 text-primary animate-pulse" />
-          <p className="font-black text-gray-400 text-[10px] uppercase">Cargando pipeline...</p>
+          <p className="font-black text-gray-400 text-[10px] uppercase">Cargando embudo...</p>
         </div>
       ) : filteredDeals.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 space-y-3">

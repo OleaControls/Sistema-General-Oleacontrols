@@ -307,7 +307,7 @@ export default function ProspectoProfile() {
 
         {/* Pipeline progress */}
         <div className="border-t border-gray-50 pt-4">
-          <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-3">Posición en el Pipeline</p>
+          <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-3">Posición en el Embudo</p>
           <PipelineProgress currentStage={deal.stage} />
         </div>
 

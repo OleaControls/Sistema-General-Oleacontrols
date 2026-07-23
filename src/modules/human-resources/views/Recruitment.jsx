@@ -217,7 +217,7 @@ export default function Recruitment() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h2 className="text-2xl font-black text-gray-900 leading-tight">Reclutamiento ATS</h2>
-          <p className="text-sm text-gray-500 font-medium mt-0.5">{candidates.length} candidatos en pipeline</p>
+          <p className="text-sm text-gray-500 font-medium mt-0.5">{candidates.length} candidatos en embudo</p>
         </div>
         <button onClick={()=>setShowAdd(true)}
           className="flex items-center gap-2 bg-primary text-white px-4 py-2.5 rounded-xl font-bold text-sm shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all shrink-0">
@@ -492,7 +492,7 @@ export default function Recruitment() {
                 </div>
                 <div>
                   <p className="text-sm font-black text-gray-900">Nuevo Candidato</p>
-                  <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Pipeline ATS</p>
+                  <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Embudo ATS</p>
                 </div>
               </div>
               <button onClick={()=>setShowAdd(false)} className="h-7 w-7 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors">

@@ -3,6 +3,7 @@ import {
   ClipboardList, CheckCircle2, Clock, Wallet, TrendingUp, RefreshCw,
   Calendar, Shield, Camera, Settings, Monitor, Award, Activity,
   AlertTriangle, XCircle, Target, CheckCheck, BarChart3, Users, Zap,
+  Compass, ChevronDown,
 } from 'lucide-react';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -10,6 +11,15 @@ import {
 } from 'recharts';
 import { otService } from '@/api/otService';
 import { expenseService } from '@/api/expenseService';
+import { apiFetch } from '@/lib/api';
+
+// ── PROP — Prioridades · Realidades · Opciones · Plan ──────────────────────────
+const PROP_CATS = [
+  { key: 'prioridades', label: 'Prioridades', color: '#6366f1', bg: '#eef2ff', border: '#c7d2fe' },
+  { key: 'realidades',  label: 'Realidades',  color: '#d97706', bg: '#fffbeb', border: '#fde68a' },
+  { key: 'opciones',    label: 'Opciones',    color: '#2563eb', bg: '#eff6ff', border: '#bfdbfe' },
+  { key: 'plan',        label: 'Plan',        color: '#059669', bg: '#ecfdf5', border: '#a7f3d0' },
+];
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
 const D = {
@@ -119,10 +129,105 @@ function Hdr({ icon:Icon, title, sub, color=D.blue, right }) {
   );
 }
 
+// ── PROP por técnico ──────────────────────────────────────────────────────────
+function PropCategoryGrid({ prop }) {
+  return (
+    <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(200px, 1fr))', gap:8, marginTop:10 }}>
+      {PROP_CATS.map(({ key, label, color, bg, border }) => (
+        <div key={key} style={{ borderRadius:10, background:bg, border:`1px solid ${border}`, padding:'10px 12px' }}>
+          <p style={{ fontSize:8, fontWeight:900, color, textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:6 }}>{label}</p>
+          <ul style={{ listStyle:'none', margin:0, padding:0, display:'flex', flexDirection:'column', gap:4 }}>
+            {(prop[key] || []).filter(t => t && String(t).trim()).map((it, i) => (
+              <li key={i} style={{ display:'flex', gap:6, alignItems:'flex-start' }}>
+                <span style={{ fontSize:8, fontWeight:900, color, flexShrink:0, marginTop:1 }}>{i + 1}.</span>
+                <span style={{ fontSize:11, fontWeight:600, color:'#334155', lineHeight:1.35 }}>{it}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function PropsPanel({ props }) {
+  const [openId, setOpenId] = useState(null);
+
+  // Agrupa por técnico
+  const byTech = useMemo(() => {
+    const map = {};
+    for (const p of props) {
+      const id = p.employeeId || p.employeeName || 'sin-id';
+      if (!map[id]) map[id] = { id, name: p.employeeName || 'Técnico', items: [] };
+      map[id].items.push(p);
+    }
+    return Object.values(map)
+      .map(t => ({ ...t, items: t.items.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)) }))
+      .sort((a, b) => new Date(b.items[0]?.createdAt || 0) - new Date(a.items[0]?.createdAt || 0));
+  }, [props]);
+
+  return (
+    <div style={{ background:D.surface, borderRadius:16, border:`1px solid ${D.border}`, padding:'20px 22px' }}>
+      <Hdr icon={Compass} title="PROP de Técnicos" sub={`${byTech.length} técnicos · ${props.length} registros — Prioridades · Realidades · Opciones · Plan`} color={D.violet} />
+      {byTech.length === 0 ? (
+        <div style={{ padding:'40px', textAlign:'center' }}>
+          <Compass style={{ width:28, height:28, color:D.muted, margin:'0 auto 8px' }} />
+          <p style={{ fontSize:10, fontWeight:800, color:D.sub, textTransform:'uppercase' }}>Sin registros PROP</p>
+        </div>
+      ) : (
+        <div style={{ display:'flex', flexDirection:'column', gap:9 }}>
+          {byTech.map(tech => {
+            const latest = tech.items[0];
+            const isOpen = openId === tech.id;
+            const dateStr = fmtDate(latest?.createdAt);
+            return (
+              <div key={tech.id} style={{ borderRadius:12, border:`1px solid ${D.border}`, overflow:'hidden' }}>
+                <button onClick={() => setOpenId(isOpen ? null : tech.id)}
+                  style={{ width:'100%', display:'flex', alignItems:'center', gap:12, padding:'11px 13px', background:'transparent', border:'none', cursor:'pointer', textAlign:'left' }}>
+                  <div style={{ width:30, height:30, borderRadius:9, background:`${D.violet}15`, border:`1px solid ${D.violet}25`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                    <span style={{ fontSize:11, fontWeight:900, color:D.violet }}>{tech.name.charAt(0)}</span>
+                  </div>
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <p style={{ fontSize:12, fontWeight:800, color:D.text, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{tech.name}</p>
+                    <p style={{ fontSize:9, fontWeight:600, color:D.sub, marginTop:2 }}>
+                      Último: {dateStr}{latest?.objetivo ? ` · ${latest.objetivo}` : ''}
+                    </p>
+                  </div>
+                  <span style={{ fontSize:9, fontWeight:800, color:D.violet, background:`${D.violet}12`, border:`1px solid ${D.violet}20`, borderRadius:999, padding:'3px 9px', flexShrink:0 }}>
+                    {tech.items.length} PROP{tech.items.length !== 1 ? 's' : ''}
+                  </span>
+                  <ChevronDown style={{ width:15, height:15, color:D.muted, flexShrink:0, transition:'transform 0.2s', transform:isOpen ? 'rotate(180deg)' : 'none' }} />
+                </button>
+                {isOpen && (
+                  <div style={{ padding:'0 13px 13px', borderTop:`1px solid ${D.border}` }}>
+                    {tech.items.map((p, i) => (
+                      <div key={p.id} style={{ marginTop:12 }}>
+                        <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                          <span style={{ fontSize:9, fontWeight:800, color:D.sub, textTransform:'uppercase', letterSpacing:'0.06em' }}>
+                            {new Date(p.createdAt).toLocaleDateString('es-MX', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' })}
+                          </span>
+                          {p.objetivo && <span style={{ fontSize:9, fontWeight:700, color:D.violet, background:`${D.violet}10`, borderRadius:6, padding:'2px 7px' }}>{p.objetivo}</span>}
+                          {i === 0 && <span style={{ fontSize:8, fontWeight:800, color:D.emerald, background:`${D.emerald}12`, borderRadius:6, padding:'2px 7px', textTransform:'uppercase' }}>Más reciente</span>}
+                        </div>
+                        <PropCategoryGrid prop={p} />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 export default function OpsMetrics() {
   const [ots,        setOts]        = useState([]);
   const [expenses,   setExpenses]   = useState([]);
+  const [props,      setProps]      = useState([]);
   const [loading,    setLoading]    = useState(true);
   const [period,     setPeriod]     = useState('month');
   const [spinning,   setSpinning]   = useState(false);
@@ -132,12 +237,14 @@ export default function OpsMetrics() {
     if (!silent) setLoading(true);
     setSpinning(true);
     try {
-      const [otsData, expData] = await Promise.all([
+      const [otsData, expData, propData] = await Promise.all([
         otService.getOTs(),
         expenseService.getAll(),
+        apiFetch('/api/technician-props').then(r => r.ok ? r.json() : []).catch(() => []),
       ]);
       setOts(Array.isArray(otsData) ? otsData : []);
       setExpenses(Array.isArray(expData) ? expData : []);
+      setProps(Array.isArray(propData) ? propData : []);
       setUpdated(new Date());
     } catch (e) {
       console.error('OpsMetrics:', e);
@@ -318,7 +425,7 @@ export default function OpsMetrics() {
 
         {/* ── STATUS PIPELINE ───────────────────────────────────────────── */}
         <div style={{ background:D.surface, borderRadius:16, border:`1px solid ${D.border}`, padding:'20px 22px' }}>
-          <Hdr icon={BarChart3} title="Flujo de Pipeline" sub="Distribución de estados en el periodo actual" color={D.blue} />
+          <Hdr icon={BarChart3} title="Flujo de Embudo" sub="Distribución de estados en el periodo actual" color={D.blue} />
           <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-7 gap-2">
             {['PENDING','ASSIGNED','ACCEPTED','IN_PROGRESS','COMPLETED','VALIDATED','CANCELLED'].map(s => {
               const cfg   = STATUS[s];
@@ -531,6 +638,9 @@ export default function OpsMetrics() {
             </div>
           </div>
         </div>
+
+        {/* ── PROP POR TÉCNICO ──────────────────────────────────────────── */}
+        <PropsPanel props={props} />
 
         {/* ── PENDING OTs TABLE ─────────────────────────────────────────── */}
         <div style={{ background:D.surface, borderRadius:16, border:`1px solid ${D.border}`, padding:'20px 22px' }}>

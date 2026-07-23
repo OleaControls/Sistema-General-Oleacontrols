@@ -753,7 +753,7 @@ function ClientDealsTab({ deals }) {
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-2">
         <div className="bg-blue-50 rounded-xl p-3 text-center">
-          <p className="text-[8px] font-black text-blue-600 uppercase">Pipeline</p>
+          <p className="text-[8px] font-black text-blue-600 uppercase">Embudo</p>
           <p className="text-sm font-black text-blue-700">{fmt(totalValue)}</p>
         </div>
         <div className="bg-emerald-50 rounded-xl p-3 text-center">

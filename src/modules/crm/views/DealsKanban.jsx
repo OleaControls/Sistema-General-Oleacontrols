@@ -11,6 +11,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { apiFetch } from '@/lib/api';
+import { celebrateWin, mournLoss } from '@/lib/celebrate';
 import { useAuth } from '@/store/AuthContext';
 import { useLocation, useNavigate } from 'react-router-dom';
 
@@ -192,17 +193,25 @@ export default function DealsKanban() {
       if (res.ok) {
         const deal = await res.json();
         setDeals(prev => prev.map(d => d.id === deal.id ? deal : d));
+        return true;
       }
-    } catch (err) { console.error(err); }
+      return false;
+    } catch (err) { console.error(err); return false; }
     finally { setSavingStage(false); }
   };
 
   // ── Submit modal razón de cierre ─────────────────────────────────────────────
   const handleCloseReasonSubmit = async (e) => {
     e.preventDefault();
+    const stage = closeModal.stage;
     setCloseModal(prev => ({ ...prev, saving: true }));
-    await applyStageChange(closeModal.pendingDrop.id, closeModal.stage, closeModal.reason);
+    const ok = await applyStageChange(closeModal.pendingDrop.id, stage, closeModal.reason);
     setCloseModal({ show: false, stage: '', reason: '', saving: false, pendingDrop: null });
+    // 🎉 / 👎 — Efecto de cierre solo si se guardó correctamente
+    if (ok) {
+      if (stage === 'CLOSED_WON') celebrateWin();
+      else if (stage === 'CLOSED_LOST') mournLoss();
+    }
   };
 
   // ── Crear nuevo deal ─────────────────────────────────────────────────────────
@@ -262,7 +271,7 @@ export default function DealsKanban() {
   if (loading) return (
     <div className="min-h-[60vh] flex flex-col items-center justify-center space-y-4">
       <Activity className="h-10 w-10 text-primary animate-pulse" />
-      <p className="font-black text-gray-400 text-[10px] uppercase tracking-widest">Cargando Pipeline CRM...</p>
+      <p className="font-black text-gray-400 text-[10px] uppercase tracking-widest">Cargando Embudo CRM...</p>
     </div>
   );
 
@@ -275,7 +284,7 @@ export default function DealsKanban() {
         <div className="flex-shrink-0 px-6 pt-6 pb-4 bg-white border-b border-gray-100">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
-              <h2 className="text-3xl font-black text-gray-900 tracking-tighter uppercase italic">Pipeline</h2>
+              <h2 className="text-3xl font-black text-gray-900 tracking-tighter uppercase italic">Embudo</h2>
               <p className="text-gray-400 font-bold text-[10px] mt-0.5 uppercase tracking-widest flex items-center gap-2">
                 <Target className="h-3 w-3 text-primary" /> Tratos / Oportunidades — OleaControls CRM
               </p>
@@ -316,7 +325,7 @@ export default function DealsKanban() {
           {/* KPIs */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
             {[
-              { label: 'Pipeline Total', value: fmt(totalPipeline), icon: BarChart2, color: 'text-blue-600', bg: 'bg-blue-50' },
+              { label: 'Embudo Total', value: fmt(totalPipeline), icon: BarChart2, color: 'text-blue-600', bg: 'bg-blue-50' },
               { label: 'Ganado', value: fmt(totalWon), icon: Award, color: 'text-emerald-600', bg: 'bg-emerald-50' },
               { label: 'Tratos Activos', value: totalActive, icon: Activity, color: 'text-purple-600', bg: 'bg-purple-50' },
               { label: 'Pronóstico Pond.', value: fmt(weightedForecast), icon: TrendingUp, color: 'text-amber-600', bg: 'bg-amber-50' },
@@ -445,7 +454,7 @@ export default function DealsKanban() {
                 <div className="flex justify-between items-center border-b pb-5">
                   <div>
                     <h3 className="text-2xl font-black text-gray-900 uppercase italic tracking-tighter">Nuevo Trato</h3>
-                    <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mt-1">Pipeline OleaControls CRM</p>
+                    <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mt-1">Embudo OleaControls CRM</p>
                   </div>
                   <button type="button" onClick={() => { setShowAddModal(false); setSelectedLeadId(''); setNewDeal(emptyDeal()); }} className="p-2 hover:bg-gray-100 rounded-full">
                     <X className="h-5 w-5 text-gray-400" />
@@ -557,7 +566,7 @@ export default function DealsKanban() {
                 </div>
 
                 <button type="submit" className="w-full bg-gray-900 text-white py-5 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-primary transition-all shadow-lg">
-                  <Plus className="h-4 w-4 inline mr-2" /> Crear Trato en Pipeline
+                  <Plus className="h-4 w-4 inline mr-2" /> Crear Trato en Embudo
                 </button>
               </form>
             </motion.div>
@@ -1120,7 +1129,7 @@ function PipelineListView({ filteredDeals, dealStages, seguimientos, onDeal }) {
       <div className="flex items-center gap-3 px-4 py-2.5 bg-gray-50 rounded-2xl mb-3">
         <BarChart2 className="h-3.5 w-3.5 text-gray-400" />
         <span className="text-[9px] font-black text-gray-500 uppercase tracking-widest">
-          {totalDeals} tratos · {fmt(filteredDeals.reduce((s, d) => s + (d.value || 0), 0))} en pipeline
+          {totalDeals} tratos · {fmt(filteredDeals.reduce((s, d) => s + (d.value || 0), 0))} en embudo
         </span>
         <span className="ml-auto text-[8px] font-bold text-gray-400">Clic en un trato para ver detalles</span>
       </div>

@@ -113,7 +113,7 @@ export default function PipelineSettings() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h2 className="text-3xl font-black text-gray-900 tracking-tighter uppercase italic flex items-center gap-3">
-            <Sliders className="h-7 w-7 text-primary" /> Pipeline
+            <Sliders className="h-7 w-7 text-primary" /> Embudo
           </h2>
           <p className="text-gray-400 font-bold text-[10px] uppercase tracking-widest mt-1">
             Configura las etapas del embudo de ventas
@@ -215,7 +215,7 @@ export default function PipelineSettings() {
 
       {/* Preview */}
       <div className="bg-gray-50 rounded-[2rem] p-6 space-y-4">
-        <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Vista previa del pipeline</p>
+        <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Vista previa del embudo</p>
         <div className="flex gap-2 overflow-x-auto pb-2">
           {stages.map((stage, i) => (
             <div key={stage.id} className="flex-shrink-0 flex flex-col items-center gap-1.5">

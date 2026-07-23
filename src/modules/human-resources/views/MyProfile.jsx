@@ -7,7 +7,23 @@ import {
   ChevronRight, ChevronLeft, BadgeCheck, Zap, Plus, ClipboardList, ChevronDown, Trash2,
   Megaphone, ClipboardCheck, CalendarDays, Wallet, XCircle, Umbrella, HeartPulse,
   Send, Loader2, Inbox, Coins, Check, ThumbsUp, ThumbsDown, LayoutGrid,
+  Compass,
 } from 'lucide-react';
+
+// ── PROP — Prioridades · Realidades · Opciones · Plan ──────────────────────────
+const PROP_CATS = [
+  { key: 'prioridades', label: 'Prioridades', hint: '¿Qué es lo más importante ahora?', color: '#6366f1', bg: '#eef2ff', border: '#c7d2fe' },
+  { key: 'realidades',  label: 'Realidades',  hint: '¿Cuál es la situación real actual?', color: '#d97706', bg: '#fffbeb', border: '#fde68a' },
+  { key: 'opciones',    label: 'Opciones',    hint: '¿Qué caminos o alternativas tienes?', color: '#2563eb', bg: '#eff6ff', border: '#bfdbfe' },
+  { key: 'plan',        label: 'Plan',        hint: '¿Qué vas a hacer, paso a paso?', color: '#059669', bg: '#ecfdf5', border: '#a7f3d0' },
+];
+const emptyProp = () => ({
+  objetivo: '',
+  prioridades: ['', '', ''],
+  realidades:  ['', '', ''],
+  opciones:    ['', '', ''],
+  plan:        ['', '', ''],
+});
 import { apiFetch } from '@/lib/api';
 import { useAuth, ROLES } from '@/store/AuthContext';
 import { hrService } from '@/api/hrService';
@@ -557,6 +573,14 @@ export default function MyProfile() {
     startDate: '', endDate: '', days: '', reason: '', type: 'ANNUAL',
   });
 
+  // PROP (Prioridades · Realidades · Opciones · Plan)
+  const [props, setProps] = useState([]);
+  const [loadingProps, setLoadingProps] = useState(true);
+  const [showPropForm, setShowPropForm] = useState(false);
+  const [isSavingProp, setIsSavingProp] = useState(false);
+  const [expandedProp, setExpandedProp] = useState(null);
+  const [propForm, setPropForm] = useState(emptyProp());
+
   useEffect(() => {
     (async () => {
       const allEmployees = await hrService.getEmployees();
@@ -594,6 +618,16 @@ export default function MyProfile() {
       .then(data => setAudits(data))
       .catch(() => {})
       .finally(() => setLoadingAudits(false));
+  }, [employee?.id]);
+
+  // PROP del técnico
+  useEffect(() => {
+    if (!employee?.id) return;
+    apiFetch(`/api/technician-props?employeeId=${employee.id}`)
+      .then(r => r.ok ? r.json() : [])
+      .then(data => setProps(Array.isArray(data) ? data : []))
+      .catch(() => {})
+      .finally(() => setLoadingProps(false));
   }, [employee?.id]);
 
   // Comunicados + Encuestas (personal: por employeeId)
@@ -740,6 +774,53 @@ export default function MyProfile() {
     }
   };
 
+  const handleSaveProp = async (e) => {
+    e.preventDefault();
+    if (isSavingProp) return;
+    // Al menos una opción con texto por categoría
+    for (const cat of PROP_CATS) {
+      if (!propForm[cat.key].some(t => t.trim())) {
+        alert(`Completa al menos una opción en ${cat.label}.`);
+        return;
+      }
+    }
+    setIsSavingProp(true);
+    try {
+      const payload = {
+        employeeId: employee.id,
+        objetivo: propForm.objetivo,
+        prioridades: propForm.prioridades.map(t => t.trim()),
+        realidades:  propForm.realidades.map(t => t.trim()),
+        opciones:    propForm.opciones.map(t => t.trim()),
+        plan:        propForm.plan.map(t => t.trim()),
+      };
+      const res = await apiFetch('/api/technician-props', { method: 'POST', body: JSON.stringify(payload) });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Error al guardar');
+      }
+      const saved = await res.json();
+      setProps(prev => [saved, ...prev]);
+      setShowPropForm(false);
+      setPropForm(emptyProp());
+    } catch (err) {
+      alert('Error: ' + err.message);
+    } finally {
+      setIsSavingProp(false);
+    }
+  };
+
+  const handleDeleteProp = async (id) => {
+    if (!confirm('¿Eliminar este PROP? Esta acción no se puede deshacer.')) return;
+    setProps(prev => prev.filter(p => p.id !== id));
+    try {
+      await apiFetch(`/api/technician-props?id=${id}`, { method: 'DELETE' });
+    } catch {
+      const r = await apiFetch(`/api/technician-props?employeeId=${employee.id}`);
+      if (r.ok) setProps(await r.json());
+    }
+  };
+
   const handleAvatarChange = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -773,6 +854,10 @@ export default function MyProfile() {
   );
 
   const isCollaborator = user.role === ROLES.COLLABORATOR;
+  // Es técnico si su rol principal es TECHNICIAN o si lo incluye en su array de roles
+  const isTechnician = user.role === ROLES.TECH ||
+    (Array.isArray(user.roles) && user.roles.includes(ROLES.TECH)) ||
+    (Array.isArray(employee?.roles) && employee.roles.includes(ROLES.TECH));
   const roleLabel = {
     [ROLES.ADMIN]: 'Administrador', [ROLES.OPS]: 'Operaciones',
     [ROLES.TECH]: 'Técnico', [ROLES.HR]: 'Recursos Humanos',
@@ -798,6 +883,8 @@ export default function MyProfile() {
     { id: 'ASSETS', label: 'Equipamiento', icon: HardHat },
     { id: 'REGLAMENTO', label: 'Reglamento', icon: Shield },
     { id: 'AUDITORIA', label: 'Auditoría', icon: ClipboardList },
+    // El PROP solo lo registran los técnicos (revisa rol principal o el array de roles)
+    ...(isTechnician ? [{ id: 'PROP', label: 'PROP', icon: Compass }] : []),
   ];
 
   return (
@@ -1336,6 +1423,121 @@ export default function MyProfile() {
                               <p className="text-[9px] font-black uppercase tracking-wider mb-2.5" style={{ color }}>{label}</p>
                               <ul className="space-y-1.5 list-none m-0 p-0">
                                 {(items || []).map((it, i) => (
+                                  <li key={i} className="flex items-start gap-2">
+                                    <span className="h-[18px] w-[18px] rounded-md flex items-center justify-center text-[9px] font-black shrink-0 mt-0.5" style={{ background: `${color}20`, border: `1px solid ${color}40`, color }}>{i + 1}</span>
+                                    <span className="text-[12px] font-semibold text-slate-800 leading-snug">{it}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ═══ PROP ═══ */}
+      {activeTab === 'PROP' && (
+        <div className="space-y-5 animate-in fade-in slide-in-from-bottom-3 duration-400">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <SectionHead icon={Compass} title="PROP" subtitle="Prioridades · Realidades · Opciones · Plan" accent="#6366f1" bg="#eef2ff" />
+            <button onClick={() => setShowPropForm(v => !v)}
+              className={cn('inline-flex items-center gap-2 px-5 py-3 rounded-2xl text-[11px] font-black uppercase tracking-wider transition-all shrink-0',
+                showPropForm ? 'bg-slate-100 text-slate-600 border border-slate-200' : 'text-white shadow-lg shadow-slate-900/15')}
+              style={showPropForm ? {} : { background: 'linear-gradient(135deg, #4f46e5, #6366f1)' }}>
+              {showPropForm ? <><X className="h-3.5 w-3.5" /> Cancelar</> : <><Plus className="h-3.5 w-3.5" /> Nuevo PROP</>}
+            </button>
+          </div>
+
+          {showPropForm && (
+            <div className={cn(CARD, 'overflow-hidden animate-in fade-in slide-in-from-top-2 duration-300')}>
+              <div className="px-7 py-6" style={{ background: 'linear-gradient(135deg, #1e1b4b 0%, #4338ca 100%)' }}>
+                <p className="text-[10px] font-extrabold text-indigo-300 uppercase tracking-wider mb-1">Nuevo registro</p>
+                <h4 className="text-lg font-black text-slate-50">Prioridades · Realidades · Opciones · Plan</h4>
+              </div>
+              <form onSubmit={handleSaveProp} className="p-7 space-y-6">
+                <div className="space-y-2">
+                  <label className="text-[9px] font-extrabold text-slate-400 uppercase tracking-wider block">Enfoque / Objetivo <span className="text-slate-300 normal-case font-bold">(opcional)</span></label>
+                  <input type="text" value={propForm.objetivo} onChange={e => setPropForm(p => ({ ...p, objetivo: e.target.value }))}
+                    placeholder="Ej: Instalación de CCTV en Tienda Norte, cierre de OT-1234…"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-[13px] font-bold text-slate-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/10 transition-all" />
+                </div>
+
+                {PROP_CATS.map(({ key, label, hint, color, bg, border }) => (
+                  <div key={key} className="space-y-3">
+                    <div>
+                      <label className="text-[10px] font-black uppercase tracking-wider" style={{ color }}>{label}</label>
+                      <p className="text-[11px] font-semibold text-slate-400 mt-0.5">{hint}</p>
+                    </div>
+                    <div className="space-y-2">
+                      {propForm[key].map((val, idx) => (
+                        <div key={idx} className="flex items-center gap-2">
+                          <div className="h-7 w-7 rounded-lg flex items-center justify-center shrink-0 text-[10px] font-black" style={{ background: bg, border: `1px solid ${border}`, color }}>{idx + 1}</div>
+                          <input type="text" value={val}
+                            onChange={e => setPropForm(p => { const arr = [...p[key]]; arr[idx] = e.target.value; return { ...p, [key]: arr }; })}
+                            placeholder={`Opción ${idx + 1}…`}
+                            className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-[13px] font-semibold text-slate-800 outline-none transition-all"
+                            style={{ '--tw-ring-color': color }}
+                            onFocus={e => { e.target.style.borderColor = color; }}
+                            onBlur={e => { e.target.style.borderColor = '#e2e8f0'; }} />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+
+                <div className="flex gap-3 pt-2">
+                  <button type="button" onClick={() => setShowPropForm(false)} className="flex-1 py-3.5 rounded-2xl bg-slate-100 text-slate-600 text-[11px] font-black uppercase tracking-wider">Cancelar</button>
+                  <button type="submit" disabled={isSavingProp}
+                    className="flex-[2] py-3.5 rounded-2xl text-white text-[11px] font-black uppercase tracking-wider shadow-lg shadow-indigo-500/25 disabled:opacity-60 inline-flex items-center justify-center gap-2"
+                    style={{ background: isSavingProp ? '#94a3b8' : 'linear-gradient(135deg, #4f46e5, #6366f1)' }}>
+                    {isSavingProp ? <><Loader2 className="h-4 w-4 animate-spin" /> Guardando…</> : <><Send className="h-4 w-4" /> Guardar y enviar a Telegram</>}
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+
+          <div className="space-y-3">
+            {loadingProps ? (
+              Array.from({ length: 3 }).map((_, i) => <div key={i} className="h-20 bg-white rounded-2xl border border-slate-100 animate-pulse" />)
+            ) : props.length === 0 ? (
+              <EmptyState icon={Compass} title="Sin registros PROP" hint="Crea tu primer PROP para planear tus Prioridades, Realidades, Opciones y Plan." />
+            ) : (
+              props.map(prop => {
+                const isOpen = expandedProp === prop.id;
+                const dateStr = new Date(prop.createdAt).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+                return (
+                  <div key={prop.id} className={cn(CARD, 'overflow-hidden hover:shadow-md transition-shadow')}>
+                    <button type="button" onClick={() => setExpandedProp(isOpen ? null : prop.id)} className="w-full flex items-center gap-4 p-5 text-left">
+                      <div className="h-11 w-11 rounded-2xl flex items-center justify-center shrink-0" style={{ background: 'linear-gradient(135deg, #eef2ff, #e0e7ff)', border: '1px solid #c7d2fe' }}>
+                        <Compass className="h-5 w-5 text-indigo-600" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-black text-slate-900 truncate mb-1">{prop.objetivo || 'PROP sin enfoque'}</p>
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">{dateStr}</span>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button type="button" onClick={ev => { ev.stopPropagation(); handleDeleteProp(prop.id); }} className="h-8 w-8 rounded-xl bg-rose-50 border border-rose-200 flex items-center justify-center">
+                          <Trash2 className="h-3.5 w-3.5 text-rose-600" />
+                        </button>
+                        <ChevronDown className={cn('h-4.5 w-4.5 text-slate-400 transition-transform', isOpen && 'rotate-180')} style={{ width: 18, height: 18 }} />
+                      </div>
+                    </button>
+                    {isOpen && (
+                      <div className="px-5 pb-5 border-t border-slate-50 animate-in fade-in duration-200">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
+                          {PROP_CATS.map(({ key, label, color, bg, border }) => (
+                            <div key={key} className="rounded-2xl p-4" style={{ background: bg, border: `1px solid ${border}` }}>
+                              <p className="text-[9px] font-black uppercase tracking-wider mb-2.5" style={{ color }}>{label}</p>
+                              <ul className="space-y-1.5 list-none m-0 p-0">
+                                {(prop[key] || []).filter(t => t && String(t).trim()).map((it, i) => (
                                   <li key={i} className="flex items-start gap-2">
                                     <span className="h-[18px] w-[18px] rounded-md flex items-center justify-center text-[9px] font-black shrink-0 mt-0.5" style={{ background: `${color}20`, border: `1px solid ${color}40`, color }}>{i + 1}</span>
                                     <span className="text-[12px] font-semibold text-slate-800 leading-snug">{it}</span>

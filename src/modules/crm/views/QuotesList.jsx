@@ -411,6 +411,7 @@ export default function QuotesList() {
   const [loading,   setLoading]   = useState(true);
   const [searchTerm,   setSearchTerm]   = useState('');
   const [filterStatus, setFilterStatus] = useState('ALL');
+  const [filterClient, setFilterClient] = useState('ALL');
 
   // Modal: detalle / edición
   const [selectedQuote, setSelectedQuote] = useState(null);
@@ -661,7 +662,7 @@ export default function QuotesList() {
   const sendToPipeline = async (q, e) => {
     e?.stopPropagation();
     if (sendingPipeline) return;
-    if (q.dealId && !window.confirm(`Esta cotización ya está vinculada a un trato del pipeline.\n\n¿Actualizar el trato a la etapa "Cotización enviada" y registrar el seguimiento?`)) return;
+    if (q.dealId && !window.confirm(`Esta cotización ya está vinculada a un trato del embudo.\n\n¿Actualizar el trato a la etapa "Cotización enviada" y registrar el seguimiento?`)) return;
     setSendingPipeline(q.id);
     const fmtM = (n) => `$${Number(n || 0).toLocaleString('es-MX', { maximumFractionDigits: 0 })}`;
     try {
@@ -674,7 +675,7 @@ export default function QuotesList() {
           method: 'PUT',
           body: JSON.stringify({ id: dealId, stage: 'PROPOSAL_SENT' })
         });
-        if (!res.ok) throw new Error('No se pudo actualizar el trato en el pipeline');
+        if (!res.ok) throw new Error('No se pudo actualizar el trato en el embudo');
       } else {
         // Crear un nuevo trato en la etapa "Cotización enviada"
         const res = await apiFetch('/api/crm/deals', {
@@ -694,7 +695,7 @@ export default function QuotesList() {
         });
         if (!res.ok) {
           const err = await res.json().catch(() => ({}));
-          throw new Error(err.error || 'No se pudo crear el trato en el pipeline');
+          throw new Error(err.error || 'No se pudo crear el trato en el embudo');
         }
         const deal = await res.json();
         dealId = deal.id;
@@ -711,16 +712,16 @@ export default function QuotesList() {
         body: JSON.stringify({
           dealId,
           type:       'QUOTE',
-          content:    `Cotización enviada al pipeline — Folio: ${q.quoteNumber} | Total: ${fmtM(q.total)} | Proyecto: ${q.projectName || client.companyName || ''}`,
+          content:    `Cotización enviada al embudo — Folio: ${q.quoteNumber} | Total: ${fmtM(q.total)} | Proyecto: ${q.projectName || client.companyName || ''}`,
           authorName: user?.name || 'Sistema',
           status:     'COMPLETED',
         })
       }).catch(() => {});
 
       await fetchData();
-      alert('✓ Cotización enviada al pipeline. Ya puedes darle seguimiento en el Pipeline CRM (etapa "Cotización enviada").');
+      alert('✓ Cotización enviada al embudo. Ya puedes darle seguimiento en el Embudo CRM (etapa "Cotización enviada").');
     } catch (err) {
-      alert('Error al enviar al pipeline: ' + err.message);
+      alert('Error al enviar al embudo: ' + err.message);
     } finally {
       setSendingPipeline(null);
     }
@@ -889,6 +890,18 @@ export default function QuotesList() {
   const toggleSort = (key) =>
     setSortConfig(prev => prev.key === key ? { key, dir: -prev.dir } : { key, dir: key === 'date' || key === 'total' ? -1 : 1 });
 
+  // ── Clientes con cotizaciones (para el filtro) ────────────────────────────
+  const clientOptions = useMemo(() => {
+    const map = new Map();
+    quotes.forEach(q => {
+      if (!q.clientId) return;
+      const name = q.client?.companyName || clients.find(c => c.id === q.clientId)?.companyName || 'Sin nombre';
+      const prev = map.get(q.clientId);
+      map.set(q.clientId, { id: q.clientId, name, count: (prev?.count || 0) + 1 });
+    });
+    return [...map.values()].sort((a, b) => a.name.localeCompare(b.name, 'es'));
+  }, [quotes, clients]);
+
   // ── Filtrado + orden ──────────────────────────────────────────────────────
   const filtered = useMemo(() => {
     const list = quotes.filter(q => {
@@ -896,7 +909,8 @@ export default function QuotesList() {
         [q.quoteNumber, q.client?.companyName, q.projectName, q.seller?.name]
           .some(v => v?.toLowerCase().includes(searchTerm.toLowerCase()));
       const matchStatus = filterStatus === 'ALL' || q.status === filterStatus;
-      return matchSearch && matchStatus;
+      const matchClient = filterClient === 'ALL' || q.clientId === filterClient;
+      return matchSearch && matchStatus && matchClient;
     });
 
     const { key, dir } = sortConfig;
@@ -912,14 +926,14 @@ export default function QuotesList() {
     }[key];
     if (cmp) list.sort((a, b) => dir * cmp(a, b));
     return list;
-  }, [quotes, searchTerm, filterStatus, sortConfig]);
+  }, [quotes, searchTerm, filterStatus, filterClient, sortConfig]);
 
   // ── Paginación (hojas) ─────────────────────────────────────────────────────
   const [page, setPage]         = useState(1);
   const [pageSize, setPageSize] = useState(15);
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   // Volver a la primera hoja cuando cambian filtros, búsqueda, orden o tamaño
-  useEffect(() => { setPage(1); }, [searchTerm, filterStatus, sortConfig, pageSize]);
+  useEffect(() => { setPage(1); }, [searchTerm, filterStatus, filterClient, sortConfig, pageSize]);
   // Corregir la página si el total se reduce (ej. al eliminar)
   useEffect(() => { if (page > totalPages) setPage(totalPages); }, [page, totalPages]);
   const paged = useMemo(
@@ -1020,6 +1034,39 @@ export default function QuotesList() {
             value={searchTerm}
             onChange={e => setSearchTerm(e.target.value)}
           />
+        </div>
+        {/* Filtro por cliente */}
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 8, background: '#fff',
+          border: filterClient !== 'ALL' ? '1.5px solid #6366f1' : '1.5px solid #f1f5f9',
+          borderRadius: 14, padding: '9px 14px', flex: '0 1 260px',
+          boxShadow: filterClient !== 'ALL' ? '0 4px 12px rgba(99,102,241,.18)' : '0 1px 6px rgba(0,0,0,.04)',
+          transition: 'all .15s',
+        }}>
+          <Building2 size={14} style={{ color: filterClient !== 'ALL' ? '#6366f1' : '#94a3b8', flexShrink: 0 }} />
+          <select
+            value={filterClient}
+            onChange={e => setFilterClient(e.target.value)}
+            style={{
+              background: 'transparent', border: 'none', outline: 'none', flex: 1, cursor: 'pointer',
+              fontSize: 12, fontWeight: 800, color: filterClient !== 'ALL' ? '#4338ca' : '#64748b',
+              maxWidth: '100%', textOverflow: 'ellipsis',
+            }}
+          >
+            <option value="ALL">Todos los clientes ({quotes.length})</option>
+            {clientOptions.map(c => (
+              <option key={c.id} value={c.id}>{c.name} ({c.count})</option>
+            ))}
+          </select>
+          {filterClient !== 'ALL' && (
+            <button
+              onClick={() => setFilterClient('ALL')}
+              title="Quitar filtro de cliente"
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 20, borderRadius: 6, background: '#eef2ff', border: 'none', cursor: 'pointer', flexShrink: 0 }}
+            >
+              <X size={11} style={{ color: '#6366f1' }} />
+            </button>
+          )}
         </div>
         <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
           {[
@@ -1161,7 +1208,7 @@ export default function QuotesList() {
                             {duplicating === q.id ? <Loader2 size={14} className="animate-spin" /> : <Copy size={14} />}
                           </button>
                           <button onClick={e => sendToPipeline(q, e)} disabled={sendingPipeline === q.id}
-                            title={q.dealId ? 'Actualizar en pipeline' : 'Mandar al pipeline'}
+                            title={q.dealId ? 'Actualizar en embudo' : 'Mandar al embudo'}
                             className={cn("p-1.5 rounded-lg transition-all disabled:opacity-50",
                               q.dealId ? "bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white"
                                        : "bg-orange-50 text-orange-500 hover:bg-orange-500 hover:text-white")}>
@@ -1237,7 +1284,7 @@ export default function QuotesList() {
                       {duplicating === q.id ? <Loader2 size={15} className="animate-spin" /> : <Copy size={15} />}
                     </button>
                     <button onClick={e => sendToPipeline(q, e)} disabled={sendingPipeline === q.id}
-                      title={q.dealId ? 'Actualizar en pipeline' : 'Mandar al pipeline'}
+                      title={q.dealId ? 'Actualizar en embudo' : 'Mandar al embudo'}
                       className={cn("p-2 rounded-lg transition-all disabled:opacity-50",
                         q.dealId ? "bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white" : "bg-orange-50 text-orange-500 hover:bg-orange-500 hover:text-white")}>
                       {sendingPipeline === q.id ? <Loader2 size={15} className="animate-spin" /> : <TrendingUp size={15} />}
@@ -1301,7 +1348,7 @@ export default function QuotesList() {
                     <button
                       onClick={() => sendToPipeline(selectedQuote)}
                       disabled={sendingPipeline === selectedQuote.id}
-                      title={selectedQuote.dealId ? 'Actualizar en el pipeline (Cotización enviada)' : 'Mandar cotización al pipeline'}
+                      title={selectedQuote.dealId ? 'Actualizar en el embudo (Cotización enviada)' : 'Mandar cotización al embudo'}
                       className={cn(
                         "flex items-center gap-2 px-4 py-2.5 rounded-xl font-black text-[9px] uppercase tracking-widest transition-all disabled:opacity-60 border",
                         selectedQuote.dealId
@@ -1312,7 +1359,7 @@ export default function QuotesList() {
                       {sendingPipeline === selectedQuote.id
                         ? <RefreshCw className="h-3.5 w-3.5 animate-spin" />
                         : <TrendingUp className="h-3.5 w-3.5" />}
-                      {selectedQuote.dealId ? 'En pipeline' : 'Al pipeline'}
+                      {selectedQuote.dealId ? 'En embudo' : 'Al embudo'}
                     </button>
                     <button
                       onClick={async () => {
@@ -1512,7 +1559,7 @@ export default function QuotesList() {
                     <div className="flex items-start gap-3 p-4 rounded-2xl border" style={{ background: '#f0fdf4', borderColor: '#bbf7d0' }}>
                       <FileText className="h-4 w-4 mt-0.5 flex-shrink-0" style={{ color: '#16a34a' }} />
                       <div className="flex-1 min-w-0">
-                        <p className="text-[8px] font-black uppercase tracking-widest mb-1" style={{ color: '#16a34a' }}>Generando desde Pipeline CRM</p>
+                        <p className="text-[8px] font-black uppercase tracking-widest mb-1" style={{ color: '#16a34a' }}>Generando desde Embudo CRM</p>
                         <p className="text-xs font-black text-gray-900 truncate">{fromDealMeta.title}</p>
                         <div className="flex flex-wrap gap-x-4 gap-y-0.5 mt-1">
                           {fromDealMeta.company && <span className="text-[9px] font-bold text-gray-500">{fromDealMeta.company}</span>}
@@ -1666,7 +1713,7 @@ export default function QuotesList() {
                       </div>
                       {!fromDealMeta && (
                         <div>
-                          <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest block mb-1.5">Vincular a trato del pipeline</label>
+                          <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest block mb-1.5">Vincular a trato del embudo</label>
                           <select className="w-full bg-emerald-50 rounded-xl px-4 py-3.5 font-bold text-sm outline-none text-emerald-800 cursor-pointer"
                             value={newQuote.linkedDealId}
                             onChange={e => {

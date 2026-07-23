@@ -702,6 +702,23 @@ model PersonalAudit {
   @@index([employeeId])
 }
 
+// ── PROP del técnico — Prioridades · Realidades · Opciones · Plan ────────────
+// Marco de planeación personal; cada categoría guarda 3 opciones (array de texto).
+model TechnicianProp {
+  id           String   @id @default(cuid())
+  employeeId   String
+  employeeName String              // Denormalizado para listarlo en Operaciones
+  objetivo     String   @default("") // Enfoque / situación que aborda el PROP (opcional)
+  prioridades  Json                 // string[] — 3 opciones
+  realidades   Json                 // string[] — 3 opciones
+  opciones     Json                 // string[] — 3 opciones
+  plan         Json                 // string[] — 3 opciones
+  createdAt    DateTime @default(now())
+
+  @@index([employeeId])
+  @@index([createdAt])
+}
+
 // ── Panoramización de sitio — una por OT ────────────────────────────────────
 model OtPanoramizacion {
   id               String   @id @default(cuid())

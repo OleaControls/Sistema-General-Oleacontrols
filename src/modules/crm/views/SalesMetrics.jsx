@@ -233,7 +233,7 @@ function SellerDetailModal({ data, color, rank, allDeals, allActivities, allQuot
             {[
               { label:'Valor Ganado', value: fmt(wonValue),     highlight: true },
               { label:'Tasa Cierre',  value: `${closeRate}%`,   highlight: false },
-              { label:'Pipeline',     value: fmt(pipelineValue || 0), highlight: false },
+              { label:'Embudo',       value: fmt(pipelineValue || 0), highlight: false },
               { label:'Cotizaciones', value: quotes,             highlight: false },
               { label:'Actividades',  value: actCount ?? 0,      highlight: false },
             ].map(({ label, value, highlight }) => (
@@ -506,7 +506,7 @@ function SellerCard({ data, color, rank }) {
         {/* Barra de pipeline */}
         <div style={{ marginBottom:16 }}>
           <div style={{ display:'flex', justifyContent:'space-between', marginBottom:5 }}>
-            <span style={{ fontSize:8, fontWeight:800, color:'#94a3b8', textTransform:'uppercase', letterSpacing:'0.08em' }}>Progreso del pipeline</span>
+            <span style={{ fontSize:8, fontWeight:800, color:'#94a3b8', textTransform:'uppercase', letterSpacing:'0.08em' }}>Progreso del embudo</span>
             <span style={{ fontSize:8, fontWeight:800, color }}>
               {wonDeals}/{totalDeals} cerrados
             </span>
@@ -531,7 +531,7 @@ function SellerCard({ data, color, rank }) {
         {/* KPI grid 2x2 */}
         <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:14 }}>
           {[
-            { label:'Pipeline', value: fmt(pipelineValue || 0), icon: TrendingUp,   col:'#7c3aed', bg:'#faf5ff' },
+            { label:'Embudo', value: fmt(pipelineValue || 0), icon: TrendingUp,   col:'#7c3aed', bg:'#faf5ff' },
             { label:'Cotizac.', value: quotes,                   icon: FileText,     col:'#0284c7', bg:'#f0f9ff' },
             { label:'Aceptadas',value: acceptedQuotes,           icon: CheckCircle2, col:'#059669', bg:'#f0fdf4' },
             { label:'Activid.', value: activities ?? 0,          icon: Activity,     col:'#b45309', bg:'#fffbeb' },
@@ -576,7 +576,7 @@ function ComparisonTable({ metrics, colors }) {
       <table className="w-full">
         <thead>
           <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
-            {['#', 'Vendedor', 'Deals', 'Ganados', 'Perdidos', 'Pipeline', 'Cotiz.', 'Aceptadas', 'Valor Ganado', 'Cierre %'].map(h => (
+            {['#', 'Vendedor', 'Deals', 'Ganados', 'Perdidos', 'Embudo', 'Cotiz.', 'Aceptadas', 'Valor Ganado', 'Cierre %'].map(h => (
               <th key={h} style={{ padding: '10px 16px 10px 0', textAlign: 'left', fontSize: 9, fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.08em', whiteSpace: 'nowrap' }}>
                 {h}
               </th>
@@ -667,7 +667,7 @@ function ActivityTable_UNUSED({ activities, deals, metrics }) {
 
   return (
     <section className="space-y-4">
-      <SectionHeader icon={Activity} title="Seguimiento de Pipeline y Actividad" subtitle={`${count} registros`} accent="#b45309" />
+      <SectionHeader icon={Activity} title="Seguimiento de Embudo y Actividad" subtitle={`${count} registros`} accent="#b45309" />
 
       <div className={D.card}>
         <CardAccent color="#b45309" />
@@ -677,7 +677,7 @@ function ActivityTable_UNUSED({ activities, deals, metrics }) {
           {/* Tabs */}
           <div className="flex bg-gray-100 rounded-xl p-1 gap-1">
             {[
-              { key:'pipeline',   label:'Pipeline / Tratos' },
+              { key:'pipeline',   label:'Embudo / Tratos' },
               { key:'activities', label:'Registro de Actividad' },
             ].map(t => (
               <button key={t.key} onClick={() => setTab(t.key)}
@@ -804,7 +804,7 @@ function ActivityTable_UNUSED({ activities, deals, metrics }) {
             <div className="flex flex-col items-center justify-center py-14 gap-3">
               <Activity className="w-10 h-10 text-gray-200" />
               <p className="text-[10px] font-black text-gray-300 uppercase tracking-widest">Sin actividad registrada</p>
-              <p className="text-[9px] font-bold text-gray-300">Las actividades se crean al mover tratos o registrar notas/llamadas en el pipeline</p>
+              <p className="text-[9px] font-bold text-gray-300">Las actividades se crean al mover tratos o registrar notas/llamadas en el embudo</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -1044,7 +1044,7 @@ export default function SalesMetrics() {
                 <div style={{ width:6, height:6, borderRadius:'50%', background:'#10b981' }} />
                 <span style={{ fontSize:9, fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'0.22em', fontFamily:'monospace' }}>Panel Comercial · Oleacontrols</span>
               </div>
-              <h2 style={{ fontSize:'clamp(1.6rem, 4vw, 2.4rem)', fontWeight:900, color:'#f1f5f9', letterSpacing:'-0.03em', margin:0, lineHeight:1 }}>Pipeline Comercial</h2>
+              <h2 style={{ fontSize:'clamp(1.6rem, 4vw, 2.4rem)', fontWeight:900, color:'#f1f5f9', letterSpacing:'-0.03em', margin:0, lineHeight:1 }}>Embudo Comercial</h2>
               <p style={{ fontSize:11, color:'#64748b', fontWeight:600, marginTop:8 }}>
                 {metrics.length} vendedor{metrics.length !== 1 ? 'es' : ''}&ensp;·&ensp;Últimos {currentPeriod?.days} días&ensp;·&ensp;{activeDeals.length} tratos activos
               </p>
@@ -1079,7 +1079,7 @@ export default function SalesMetrics() {
             {[
               { label:'Deals activos',  value: activeDeals.length,        icon: Briefcase,    color:'#93c5fd' },
               { label:'Valor ganado',   value: fmt(wonValueAll),           icon: DollarSign,   color:'#6ee7b7' },
-              { label:'Pipeline',       value: fmt(totals.pipelineValue),  icon: TrendingUp,   color:'#c4b5fd' },
+              { label:'Embudo',         value: fmt(totals.pipelineValue),  icon: TrendingUp,   color:'#c4b5fd' },
               { label:'Cotizaciones',   value: totals.quotes,              icon: FileText,     color:'#7dd3fc' },
               { label:'Actividades',    value: totals.activities,          icon: Activity,     color:'#fcd34d' },
               { label:'Tasa de cierre', value: `${totals.avgCloseRate}%`,  icon: Target,       color:'#6ee7b7' },
@@ -1700,7 +1700,7 @@ function ClientInsightsSection({ clients, deals, quotes, sinceDate, colors }) {
                     </div>
                     <div className="flex gap-3">
                       <span style={{ fontSize:8, fontWeight:700, color:'#10b981' }}>✓ {fmt(tc.value)} ganado</span>
-                      <span style={{ fontSize:8, fontWeight:700, color:'#8b5cf6' }}>◈ {fmt(tc.pipeline)} pipeline</span>
+                      <span style={{ fontSize:8, fontWeight:700, color:'#8b5cf6' }}>◈ {fmt(tc.pipeline)} embudo</span>
                     </div>
                   </div>
                 );
@@ -1847,7 +1847,7 @@ function PipelineKanbanReadOnly({ deals, metrics, colors, onDealClick }) {
           <div>
             <div className="flex items-center gap-2 mb-1">
               <LayoutGrid className="h-4 w-4 text-violet-600" />
-              <h3 className="text-xl font-black text-gray-900 tracking-tighter uppercase italic">Pipeline</h3>
+              <h3 className="text-xl font-black text-gray-900 tracking-tighter uppercase italic">Embudo</h3>
               <span className="text-[8px] font-black bg-violet-100 text-violet-700 px-2 py-0.5 rounded-lg uppercase tracking-widest">{totalActive} activos</span>
             </div>
             <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">
@@ -1858,7 +1858,7 @@ function PipelineKanbanReadOnly({ deals, metrics, colors, onDealClick }) {
             {/* KPIs mini */}
             <div className="flex gap-2">
               {[
-                { label:'Pipeline', value: fmt(totalPipeline), color:'text-blue-600', bg:'bg-blue-50' },
+                { label:'Embudo', value: fmt(totalPipeline), color:'text-blue-600', bg:'bg-blue-50' },
                 { label:'Ganado',   value: fmt(totalWon),      color:'text-emerald-600', bg:'bg-emerald-50' },
               ].map(({ label, value, color, bg }) => (
                 <div key={label} className={cn('flex flex-col px-3 py-1.5 rounded-xl', bg)}>

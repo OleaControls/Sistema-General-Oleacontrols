@@ -220,10 +220,10 @@ export default function SalesPipeline() {
                           {/* Enviar a Pipeline */}
                           <button
                             onClick={() => navigate('/crm/deals', { state: { fromLead: lead } })}
-                            title="Enviar al pipeline"
+                            title="Enviar al embudo"
                             className="flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-lg bg-blue-600 text-white font-black text-[9px] uppercase tracking-wider hover:bg-blue-700 transition-all"
                           >
-                            <ArrowRight className="h-3 w-3" /> Pipeline
+                            <ArrowRight className="h-3 w-3" /> Embudo
                           </button>
 
                           {/* Eliminar */}

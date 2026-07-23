@@ -130,6 +130,45 @@ export async function sendTelegramDocument(chatId, pdfBuffer, filename, caption)
   }
 }
 
+// Notifica a Operaciones que un técnico registró su PROP (Prioridades · Realidades · Opciones · Plan)
+export async function notifyPropSubmitted(prop, recipients) {
+  if (!recipients || recipients.length === 0) return;
+
+  const fecha = new Date(prop.createdAt || Date.now())
+    .toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+
+  const bloque = (titulo, items) => [
+    `<b>${titulo}</b>`,
+    ...(Array.isArray(items) ? items : [])
+      .filter(t => t && String(t).trim())
+      .map((t, i) => `  ${i + 1}. ${t}`),
+  ].join('\n');
+
+  const text = [
+    `🧭 <b>PROP registrado</b>`,
+    ``,
+    `👤 <b>Técnico:</b> ${prop.employeeName || 'N/A'}`,
+    prop.objetivo ? `🎯 <b>Enfoque:</b> ${prop.objetivo}` : null,
+    `📅 <b>Fecha:</b> ${fecha}`,
+    ``,
+    bloque('🔷 Prioridades', prop.prioridades),
+    ``,
+    bloque('🟡 Realidades', prop.realidades),
+    ``,
+    bloque('🔵 Opciones', prop.opciones),
+    ``,
+    bloque('🟢 Plan', prop.plan),
+  ]
+    .filter((line) => line !== null)
+    .join('\n');
+
+  for (const r of recipients) {
+    if (r?.telegramChatId) {
+      await sendTelegramMessage(r.telegramChatId, text);
+    }
+  }
+}
+
 export async function notifyOTCompleted(ot, supervisor) {
   if (!supervisor?.telegramChatId) return;
 
