@@ -333,7 +333,10 @@ export default function ProjectsList() {
                 </div>
                 <div>
                   <h2 className="text-base font-black text-gray-900 tracking-tight">Acta de Inicio</h2>
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Nuevo proyecto</p>
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                    Nuevo proyecto
+                    {PROJECT_SERVICES[form.serviceType] && <> · <span style={{ color: PROJECT_SERVICES[form.serviceType].accent }}>{PROJECT_SERVICES[form.serviceType].short}</span></>}
+                  </p>
                 </div>
               </div>
               <button onClick={() => setShowModal(false)} className="p-2.5 hover:bg-gray-100 rounded-xl transition-colors">
@@ -351,31 +354,13 @@ export default function ProjectsList() {
                   className="input" placeholder="Ej. Instalación CCTV Sucursal Centro" />
               </Field>
 
-              <Field label="Tipo de servicio *">
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                  {SERVICE_KEYS.map(key => {
-                    const svc = PROJECT_SERVICES[key];
-                    const active = form.serviceType === key;
-                    return (
-                      <button key={key} type="button" onClick={() => setForm({ ...form, serviceType: key })}
-                        className={cn('flex items-center justify-center gap-2 py-3 rounded-2xl border text-[11px] font-black uppercase tracking-wider transition-all',
-                          active ? 'text-white border-transparent shadow-sm' : 'bg-gray-50 text-gray-500 border-gray-200 hover:border-gray-300')}
-                        style={active ? { background: svc.accent } : undefined}>
-                        <span className={cn('w-2 h-2 rounded-full', active ? 'bg-white/80' : svc.dot)} />
-                        {svc.short}
-                      </button>
-                    );
-                  })}
-                </div>
-              </Field>
-
               <Field label="Objetivo">
                 <textarea rows={2} value={form.objective} onChange={(e) => setForm({ ...form, objective: e.target.value })}
                   className="input" placeholder="¿Qué se busca lograr?" />
               </Field>
 
               <div className="grid sm:grid-cols-2 gap-4">
-                <Field label="Alcance">
+                <Field label="Meta">
                   <textarea rows={2} value={form.scope} onChange={(e) => setForm({ ...form, scope: e.target.value })} className="input" />
                 </Field>
                 <Field label="Justificación">
@@ -384,7 +369,7 @@ export default function ProjectsList() {
               </div>
 
               <div className="grid sm:grid-cols-3 gap-4">
-                <Field label="Patrocinador">
+                <Field label="Nombre">
                   <input value={form.sponsor} onChange={(e) => setForm({ ...form, sponsor: e.target.value })} className="input" />
                 </Field>
                 <Field label="Responsable">
@@ -393,7 +378,7 @@ export default function ProjectsList() {
                     {employees.map(emp => <option key={emp.id} value={emp.name}>{emp.name}</option>)}
                   </select>
                 </Field>
-                <Field label="Cliente">
+                <Field label="Empresa">
                   <input list="proj-clients" value={form.clientName} onChange={(e) => setForm({ ...form, clientName: e.target.value })} className="input" />
                   <datalist id="proj-clients">
                     {otClients.map(c => <option key={c.id} value={c.name} />)}

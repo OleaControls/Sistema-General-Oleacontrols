@@ -14,7 +14,7 @@ import projectService from '@/api/projectService';
 import { otService } from '@/api/otService';
 import { useAuth } from '@/store/AuthContext';
 import { generateProjectActaPDF } from '../utils/projectPDF';
-import { PROJECT_STATUS, normalizePhase } from './ProjectsList';
+import { PROJECT_STATUS, normalizePhase, PROJECT_SERVICES, normalizeService } from './ProjectsList';
 import { cn } from '@/lib/utils';
 
 const money = (n) => `$${Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 0 })}`;
@@ -239,6 +239,7 @@ export default function ProjectDetail() {
 
   return (
     <div className="w-full space-y-6">
+      <ProjInputStyle />
       {/* Header */}
       <header className="bg-white p-6 rounded-3xl border shadow-sm">
         <button onClick={() => navigate('/projects')} className="flex items-center gap-1.5 text-[10px] font-black text-gray-400 uppercase tracking-widest hover:text-primary mb-4">
@@ -517,25 +518,53 @@ function GanttChart({ tasks }) {
 // ── Tab Acta de inicio (editable) ───────────────────────────────────────────
 const ACTA_FIELDS = [
   { name: 'name', label: 'Nombre del proyecto', type: 'text' },
-  { name: 'objective', label: 'Objetivo', type: 'textarea' },
-  { name: 'scope', label: 'Alcance', type: 'textarea' },
-  { name: 'justification', label: 'Justificación', type: 'textarea' },
-  { name: 'requirements', label: 'Requerimientos', type: 'textarea' },
-  { name: 'deliverables', label: 'Entregables', type: 'textarea' },
-  { name: 'sponsor', label: 'Patrocinador', type: 'text' },
+  { name: 'objective', label: 'Objetivo', type: 'textarea', rows: 3 },
+  { name: 'scope', label: 'Meta', type: 'textarea', rows: 3 },
+  { name: 'justification', label: 'Justificación', type: 'textarea', rows: 3 },
+  { name: 'requirements', label: 'Requerimientos', type: 'textarea', rows: 3 },
+  { name: 'deliverables', label: 'Entregables', type: 'textarea', rows: 3 },
+  { name: 'sponsor', label: 'Nombre', type: 'text' },
   { name: 'managerName', label: 'Responsable del proyecto', type: 'employee' },
-  { name: 'clientName', label: 'Cliente', type: 'text' },
+  { name: 'clientName', label: 'Empresa', type: 'text' },
   { name: 'startDate', label: 'Fecha de inicio', type: 'date' },
   { name: 'endDate', label: 'Fecha de fin', type: 'date' },
   { name: 'budget', label: 'Presupuesto ($)', type: 'number' },
   { name: 'progress', label: '% de avance', type: 'number' },
 ];
+const ACTA_FIELD_MAP = Object.fromEntries(ACTA_FIELDS.map(f => [f.name, f]));
+
+// Agrupación del acta en secciones tipo documento.
+const ACTA_GROUPS = [
+  { title: 'Identificación',        icon: FileText,   accent: '#2563eb', bg: '#eff6ff', fields: ['name'] },
+  { title: 'Definición del proyecto', icon: ListChecks, accent: '#7c3aed', bg: '#f5f3ff', fields: ['objective', 'scope', 'justification', 'requirements', 'deliverables'] },
+  { title: 'Responsables',          icon: Users,      accent: '#0891b2', bg: '#ecfeff', fields: ['sponsor', 'managerName', 'clientName'] },
+  { title: 'Tiempo y presupuesto',  icon: DollarSign, accent: '#059669', bg: '#ecfdf5', fields: ['startDate', 'endDate', 'budget', 'progress'] },
+];
+
+function ActaSection({ icon: Icon, title, accent, bg, children }) {
+  return (
+    <section className="space-y-4">
+      <div className="flex items-center gap-3">
+        <div className="h-9 w-9 rounded-2xl flex items-center justify-center shrink-0" style={{ background: bg }}>
+          <Icon className="h-4 w-4" style={{ color: accent }} />
+        </div>
+        <h3 className="text-[13px] font-black text-gray-900 tracking-tight">{title}</h3>
+        <div className="flex-1 h-px bg-gray-100" />
+      </div>
+      {children}
+    </section>
+  );
+}
 
 function ActaTab({ project, onSaved, employees }) {
   const [form, setForm] = useState(() => buildForm(project, ACTA_FIELDS));
   const [autoProgress, setAutoProgress] = useState(!!project.autoProgress);
   const [saving, setSaving] = useState(false);
   const [ok, setOk] = useState(false);
+
+  const svc = PROJECT_SERVICES[normalizeService(project.serviceType)];
+  const st = PROJECT_STATUS[normalizePhase(project.status)] || PROJECT_STATUS.INICIACION;
+  const progress = Math.max(0, Math.min(100, parseInt(form.progress, 10) || 0));
 
   const save = async () => {
     setSaving(true); setOk(false);
@@ -553,23 +582,63 @@ function ActaTab({ project, onSaved, employees }) {
   };
 
   return (
-    <div className="bg-white p-6 rounded-3xl border shadow-sm space-y-4">
-      <div className="grid sm:grid-cols-2 gap-4">
-        {ACTA_FIELDS.filter(f => !(autoProgress && f.name === 'progress')).map(f => (
-          <div key={f.name} className={f.type === 'textarea' ? 'sm:col-span-2' : ''}>
-            <FieldInput field={f} value={form[f.name]} onChange={(v) => setForm({ ...form, [f.name]: v })} context={{ employees }} />
+    <div className="bg-white rounded-3xl border shadow-sm overflow-hidden">
+      {/* Banner tipo documento */}
+      <div className="relative overflow-hidden px-7 py-7" style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 55%, #312e81 100%)' }}>
+        <div className="absolute inset-0 pointer-events-none opacity-[0.06]"
+          style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,0.7) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.7) 1px, transparent 1px)', backgroundSize: '34px 34px' }} />
+        <div className="absolute -right-6 -top-8 opacity-10 pointer-events-none"><FileText className="h-32 w-32 text-white" /></div>
+        <div className="relative">
+          <div className="flex flex-wrap items-center gap-2 mb-3">
+            <span className="text-[9px] font-black uppercase tracking-widest rounded-full px-2.5 py-1" style={{ color: '#c7d2fe', background: 'rgba(99,102,241,0.18)', border: '1px solid rgba(99,102,241,0.3)' }}>{project.code}</span>
+            <span className="text-[9px] font-black uppercase tracking-widest rounded-full px-2.5 py-1" style={{ color: '#fff', background: svc.accent }}>{svc.short}</span>
+            <span className={cn('text-[9px] font-black uppercase tracking-widest rounded-full px-2.5 py-1 border', st.cls)}>{st.label}</span>
           </div>
+          <p className="text-[10px] font-black text-indigo-300 uppercase tracking-[0.2em] mb-1">Acta de Constitución del Proyecto</p>
+          <h2 className="text-xl font-black text-slate-50 leading-tight">{form.name || project.name || 'Proyecto sin nombre'}</h2>
+          {/* Avance */}
+          <div className="mt-5 max-w-md">
+            <div className="flex justify-between text-[9px] font-black uppercase tracking-wider text-slate-400 mb-1.5">
+              <span>Avance {autoProgress && '· automático'}</span><span className="text-slate-200">{progress}%</span>
+            </div>
+            <div className="h-2 bg-white/10 rounded-full overflow-hidden">
+              <div className="h-full rounded-full transition-all" style={{ width: `${progress}%`, background: 'linear-gradient(90deg, #6366f1, #22d3ee)' }} />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Cuerpo del acta */}
+      <div className="p-7 space-y-8">
+        {ACTA_GROUPS.map(group => (
+          <ActaSection key={group.title} icon={group.icon} title={group.title} accent={group.accent} bg={group.bg}>
+            <div className="grid sm:grid-cols-2 gap-4">
+              {group.fields
+                .filter(name => !(autoProgress && name === 'progress'))
+                .map(name => {
+                  const f = ACTA_FIELD_MAP[name];
+                  return (
+                    <div key={name} className={f.type === 'textarea' ? 'sm:col-span-2' : ''}>
+                      <FieldInput field={f} value={form[name]} onChange={(v) => setForm({ ...form, [name]: v })} context={{ employees }} />
+                    </div>
+                  );
+                })}
+            </div>
+            {group.title === 'Tiempo y presupuesto' && (
+              <label className="flex items-center gap-2.5 cursor-pointer mt-1 p-3 rounded-2xl bg-emerald-50/60 border border-emerald-100">
+                <input type="checkbox" checked={autoProgress} onChange={(e) => setAutoProgress(e.target.checked)} className="h-4 w-4 accent-emerald-600" />
+                <span className="text-[11px] font-black text-emerald-700 uppercase tracking-wider">Calcular avance automáticamente desde las tareas</span>
+              </label>
+            )}
+          </ActaSection>
         ))}
       </div>
 
-      <label className="flex items-center gap-2.5 cursor-pointer pt-1">
-        <input type="checkbox" checked={autoProgress} onChange={(e) => setAutoProgress(e.target.checked)} className="h-4 w-4 accent-[color:var(--color-primary,#2563eb)]" />
-        <span className="text-[11px] font-black text-gray-600 uppercase tracking-wider">Calcular avance automáticamente desde las tareas</span>
-      </label>
-      <div className="flex justify-end items-center gap-3 pt-2">
-        {ok && <span className="text-[11px] font-black text-emerald-500 uppercase tracking-wider">✓ Guardado</span>}
+      {/* Barra de acciones */}
+      <div className="flex flex-wrap justify-end items-center gap-3 px-7 py-5 border-t border-gray-100 bg-gray-50/60">
+        {ok && <span className="text-[11px] font-black text-emerald-500 uppercase tracking-wider mr-auto flex items-center gap-1.5"><CheckCircle2 className="h-4 w-4" /> Guardado</span>}
         <button onClick={() => generateProjectActaPDF(project, 'inicio')}
-          className="flex items-center gap-2 px-5 py-3 border border-gray-200 text-gray-600 rounded-2xl text-[11px] font-black uppercase tracking-wider hover:bg-gray-50 transition-all">
+          className="flex items-center gap-2 px-5 py-3 border border-gray-200 bg-white text-gray-600 rounded-2xl text-[11px] font-black uppercase tracking-wider hover:bg-gray-50 transition-all">
           <FileDown className="h-4 w-4" /> Descargar PDF
         </button>
         <button onClick={save} disabled={saving}
@@ -1003,7 +1072,7 @@ function FieldInput({ field, value, onChange, context }) {
     <label className="block">
       {labelEl}
       {field.type === 'textarea' ? (
-        <textarea rows={2} className={base} value={value ?? ''} onChange={(e) => onChange(e.target.value)} />
+        <textarea rows={field.rows || 3} className={base} value={value ?? ''} onChange={(e) => onChange(e.target.value)} />
       ) : field.type === 'select' ? (
         <select className={base} value={value ?? ''} onChange={(e) => onChange(e.target.value)}>
           {field.options.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
@@ -1056,11 +1125,19 @@ function ProjInputStyle() {
   return (
     <style>{`
       .proj-input {
-        width: 100%; padding: 0.6rem 0.9rem; background: #f9fafb;
-        border: 1px solid #e5e7eb; border-radius: 0.9rem; font-size: 0.75rem;
-        font-weight: 700; color: #111827; outline: none; transition: border-color .2s;
+        width: 100%; padding: 0.7rem 0.95rem; background: #f8fafc;
+        border: 1.5px solid #e5e7eb; border-radius: 0.85rem; font-size: 0.8rem;
+        font-weight: 600; color: #0f172a; outline: none;
+        transition: border-color .18s, box-shadow .18s, background .18s;
       }
-      .proj-input:focus { border-color: var(--color-primary, #2563eb); }
+      .proj-input::placeholder { color: #94a3b8; font-weight: 500; }
+      .proj-input:hover { border-color: #cbd5e1; }
+      .proj-input:focus {
+        border-color: var(--color-primary, #2563eb); background: #fff;
+        box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary, #2563eb) 12%, transparent);
+      }
+      textarea.proj-input { resize: vertical; line-height: 1.5; }
+      select.proj-input { cursor: pointer; }
     `}</style>
   );
 }

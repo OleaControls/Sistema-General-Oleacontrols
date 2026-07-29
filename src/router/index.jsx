@@ -72,6 +72,9 @@ const TechMetrics = lazy(() => import('@/modules/ots/views/TechMetrics'));
 const ProjectsList  = lazy(() => import('@/modules/projects/views/ProjectsList'));
 const ProjectDetail = lazy(() => import('@/modules/projects/views/ProjectDetail'));
 
+// PROP (técnicos registran · operaciones ven respuestas)
+const PropView = lazy(() => import('@/modules/prop/views/PropView'));
+
 // Misc
 const FeedbackForm = lazy(() => import('@/modules/feedback/FeedbackForm'));
 const ClientPortal = lazy(() => import('@/modules/ots/views/ClientPortal'));
@@ -162,6 +165,7 @@ export default function AppRouter() {
 
           <Route path="/"           element={<ProtectedRoute><DashboardSelector /></ProtectedRoute>} />
           <Route path="/profile"    element={<ProtectedRoute><MyProfile /></ProtectedRoute>} />
+          <Route path="/prop"       element={<ProtectedRoute><PropView /></ProtectedRoute>} />
           <Route path="/performance" element={<ProtectedRoute><PerformanceDashboard /></ProtectedRoute>} />
 
           {/* Gastos */}

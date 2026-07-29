@@ -5,7 +5,7 @@ import {
   Briefcase, Menu, X, LogOut, Bell, ChevronDown, Trophy, User as UserIcon,
   BarChart3, Wallet, Target, Users2, FileText, Sliders, TrendingUp,
   Activity, Settings, BarChart4, BookOpen, Calendar, Package, Star, CalendarCheck, ClipboardCheck,
-  FolderKanban, PenTool, Wrench, RefreshCw
+  FolderKanban, PenTool, Wrench, RefreshCw, Compass
 } from 'lucide-react';
 import { useAuth, ROLES } from '@/store/AuthContext';
 import { useTenant } from '@/store/TenantContext';
@@ -82,6 +82,7 @@ const NAV_STRUCTURE = [
       { name: 'Control de Gastos',  path: '/ops/expenses/control',   icon: BarChart3,     roles: [ROLES.OPS] },
       { name: 'Aprobaciones',       path: '/ops/approvals/expenses', icon: Wallet,        roles: [ROLES.OPS] },
       { name: 'Métricas Ops',       path: '/ops/metricas',           icon: TrendingUp,    roles: [ROLES.OPS] },
+      { name: 'PROP Técnicos',      path: '/prop',                   icon: Compass,       roles: [ROLES.OPS] },
       { name: 'Calificaciones',     path: '/performance',            icon: Star,          roles: [ROLES.OPS] },
       { name: 'Asistencia Técnicos', path: '/ops/tech-attendance',    icon: ClipboardCheck, roles: [ROLES.OPS] },
     ]
@@ -129,6 +130,13 @@ const NAV_STRUCTURE = [
     path: '/crm/indirect-sales',
     icon: Target,
     roles: [ROLES.TECH, ROLES.COLLABORATOR],
+  },
+  {
+    type: 'item',
+    name: 'PROP',
+    path: '/prop',
+    icon: Compass,
+    roles: [ROLES.TECH],
   },
 
   // ── GERENTE DE PROYECTOS ────────────────────────────────────────────────────
@@ -183,7 +191,15 @@ const NAV_STRUCTURE = [
 ];
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
+// Vistas exclusivas de técnico (van aparte; el admin no las ve).
+const TECH_SCOPE = [ROLES.TECH, ROLES.COLLABORATOR];
+function isTechOnly(entry) {
+  return Array.isArray(entry.roles) && entry.roles.length > 0 && entry.roles.every(r => TECH_SCOPE.includes(r));
+}
+
 function hasRole(entry, userRoles) {
+  // El admin ve todas las vistas de todos los perfiles, excepto las de técnico.
+  if (userRoles.includes(ROLES.ADMIN) && !isTechOnly(entry)) return true;
   return entry.roles?.some(r => userRoles.includes(r));
 }
 

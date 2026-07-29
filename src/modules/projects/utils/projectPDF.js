@@ -62,8 +62,8 @@ export async function generateProjectActaPDF(project, kind = 'inicio', { downloa
   // ── Bloque de datos generales (tabla clave/valor) ───────────────────────
   const generalRows = [
     ['Nombre del proyecto', project.name || '—'],
-    ['Cliente', project.clientName || '—'],
-    ['Patrocinador', project.sponsor || '—'],
+    ['Empresa', project.clientName || '—'],
+    ['Nombre', project.sponsor || '—'],
     ['Responsable', project.managerName || '—'],
     ['Estado', STATUS_LABEL[project.status] || project.status || '—'],
     ['Fecha de inicio', fmtDate(project.startDate)],
@@ -129,7 +129,7 @@ export async function generateProjectActaPDF(project, kind = 'inicio', { downloa
     textBlock('Notas de cierre / Documentación final', project.closureNotes);
   } else {
     textBlock('Objetivo', project.objective);
-    textBlock('Alcance', project.scope);
+    textBlock('Meta', project.scope);
     textBlock('Justificación', project.justification);
     textBlock('Requerimientos', project.requirements);
     textBlock('Entregables', project.deliverables);
