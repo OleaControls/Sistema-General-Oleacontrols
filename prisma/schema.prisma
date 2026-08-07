@@ -727,12 +727,13 @@ model OtPanoramizacion {
   tech             Employee @relation(fields: [techId], references: [id])
   goalId           String?
 
-  condicionesSitio String   // Estado físico del área al llegar
-  planEjecucion    String   // Estrategia, ruta o método de instalación
-  requerimientos   String   // Materiales, herramientas, equipo de apoyo
+  condicionesSitio String   // Plática casual — ambiente y entorno al llegar
+  planEjecucion    String   // Meta del cliente — resultado que el cliente espera
+  requerimientos   String   // Objetivos concretos a lograr en el sitio
   bloqueos         String?  // Legado — reemplazado por obstaculos + algoritmos
   obstaculos       String   @default("") // Obstáculos o bloqueos encontrados
   algoritmos       String   @default("") // Pasos o algoritmo para resolverlos
+  deseaLoMejor     String   @default("") // Desea lo mejor — mensaje para motivar al equipo
 
   createdAt        DateTime @default(now())
 

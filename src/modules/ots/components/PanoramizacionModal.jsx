@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import {
-  ScanSearch, HardDriveUpload, Boxes, TriangleAlert, GitBranch,
+  ScanSearch, Boxes, TriangleAlert, GitBranch, HeartHandshake,
   CheckCircle2, CheckCheck, Target, X,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -16,9 +16,9 @@ const PANORAMIZACION_FIELDS = [
   },
   {
     key: 'planEjecucion',
-    icon: HardDriveUpload,
-    label: 'Plan de ejecución',
-    placeholder: '¿Cuál va a ser tu estrategia, ruta o método general para realizar la instalación en este lugar?',
+    icon: Target,
+    label: 'Meta del cliente',
+    placeholder: '¿Qué espera lograr el cliente con este trabajo? Escríbelo con sus palabras: cuál es el resultado que quiere ver al terminar.',
   },
   {
     key: 'requerimientos',
@@ -38,10 +38,16 @@ const PANORAMIZACION_FIELDS = [
     label: 'Algoritmos',
     placeholder: '¿Qué pasos o algoritmo vas a seguir para resolver los obstáculos? Describe tu plan de acción paso a paso.',
   },
+  {
+    key: 'deseaLoMejor',
+    icon: HeartHandshake,
+    label: 'Desea lo mejor',
+    placeholder: '¿Con qué mensaje motivas hoy al equipo? Reconoce su trabajo y deséales lo mejor para la jornada.',
+  },
 ];
 
 function PanoramizacionModal({ goal, onClose, onSaved }) {
-  const [form,   setForm]   = useState({ condicionesSitio: '', planEjecucion: '', requerimientos: '', obstaculos: '', algoritmos: '' });
+  const [form,   setForm]   = useState({ condicionesSitio: '', planEjecucion: '', requerimientos: '', obstaculos: '', algoritmos: '', deseaLoMejor: '' });
   const [saving, setSaving] = useState(false);
   const [saved,  setSaved]  = useState(false);
 
@@ -102,7 +108,7 @@ function PanoramizacionModal({ goal, onClose, onSaved }) {
             </div>
           )}
           <p className="mt-3 text-[11px] font-bold text-gray-400 leading-relaxed">
-            Responde los 5 puntos para desbloquear la jornada. Se registra una sola vez por OT.
+            Responde los 6 puntos para desbloquear la jornada. Se registra una sola vez por OT.
           </p>
         </div>
 

@@ -608,10 +608,11 @@ export default function TechAttendanceAdmin() {
             });
             const FIELDS = [
               { key: 'condicionesSitio', label: 'Plática casual' },
-              { key: 'planEjecucion',    label: 'Plan de ejecución' },
+              { key: 'planEjecucion',    label: 'Meta del cliente' },
               { key: 'requerimientos',   label: 'Objetivos' },
               { key: 'obstaculos',       label: 'Obstáculos' },
               { key: 'algoritmos',       label: 'Algoritmos' },
+              { key: 'deseaLoMejor',     label: 'Desea lo mejor' },
             ];
             return (
               <div key={p.id} className="bg-white rounded-3xl p-6 border border-violet-100 shadow-sm space-y-4">
@@ -632,7 +633,8 @@ export default function TechAttendanceAdmin() {
 
                 {/* Respuestas */}
                 <div className="space-y-3">
-                  {FIELDS.map(f => (
+                  {/* Se omiten los campos vacíos: las panoramizaciones previas no traen todos */}
+                  {FIELDS.filter(f => p[f.key]?.trim()).map(f => (
                     <div key={f.key} className="rounded-2xl bg-gray-50 border border-gray-100 p-4">
                       <p className="text-[9px] font-black text-violet-600 uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
                         <ScanSearch className="h-3 w-3" /> {f.label}

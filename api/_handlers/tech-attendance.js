@@ -238,8 +238,8 @@ export default async function handler(req, res) {
 
     // POST — guardar panoramización (una por OT, upsert seguro)
     if (method === 'POST' && resource === 'panoramizacion') {
-      const { otNumber, techId, goalId, condicionesSitio, planEjecucion, requerimientos, obstaculos, algoritmos } = body;
-      if (!otNumber || !techId || !condicionesSitio || !planEjecucion || !requerimientos || !obstaculos || !algoritmos)
+      const { otNumber, techId, goalId, condicionesSitio, planEjecucion, requerimientos, obstaculos, algoritmos, deseaLoMejor } = body;
+      if (!otNumber || !techId || !condicionesSitio || !planEjecucion || !requerimientos || !obstaculos || !algoritmos || !deseaLoMejor)
         return res.status(400).json({ error: 'Todos los campos son requeridos' });
 
       // Si ya existe, no sobreescribir (solo una por OT)
@@ -247,7 +247,7 @@ export default async function handler(req, res) {
       if (existing) return res.status(200).json(existing);
 
       const panoramizacion = await prisma.otPanoramizacion.create({
-        data: { otNumber, techId, goalId: goalId || null, condicionesSitio, planEjecucion, requerimientos, obstaculos, algoritmos },
+        data: { otNumber, techId, goalId: goalId || null, condicionesSitio, planEjecucion, requerimientos, obstaculos, algoritmos, deseaLoMejor },
         include: { tech: { select: { id: true, name: true, avatar: true } } },
       });
       return res.status(200).json(panoramizacion);
