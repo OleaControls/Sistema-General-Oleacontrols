@@ -14,12 +14,25 @@ export default defineConfig({
         skipWaiting: true,
         clientsClaim: true,
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024, // 4 MiB
+        // Librerías pesadas que solo usan algunas vistas (PDF, Excel, gráficas, mapas).
+        // Fuera del precache: el técnico en campo no las descarga en el arranque ni en
+        // cada deploy. Quien sí las necesita las baja al abrir la vista y a partir de
+        // ahí quedan en caché por la regla de runtimeCaching de abajo.
+        globIgnores: [
+          '**/vendor-pdf-*.js',
+          '**/vendor-xlsx-*.js',
+          '**/vendor-charts-*.js',
+          '**/vendor-maps-*.js',
+          '**/vendor-maps-*.css', // el CSS de Leaflet no sirve sin su JS
+        ],
         runtimeCaching: [
           {
             // Chunks de Vite tienen hash en el nombre → son inmutables.
             // StaleWhileRevalidate: sirve desde caché inmediatamente y actualiza en segundo plano.
             // Mucho más rápido en móvil que NetworkFirst (sin esperar red).
-            urlPattern: /\/assets\/.*\.[a-f0-9]{8}\.(js|css)$/,
+            // El patrón debe coincidir con el nombrado real de Vite: `nombre-HASH.js`
+            // (guion + hash base64url), no `nombre.hash.js`.
+            urlPattern: /\/assets\/.+-[\w-]{8}\.(js|css)$/,
             handler: 'StaleWhileRevalidate',
             options: {
               cacheName: 'vite-chunks',
