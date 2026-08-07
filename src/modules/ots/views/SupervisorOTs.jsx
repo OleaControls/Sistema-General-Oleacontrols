@@ -144,6 +144,16 @@ export default function SupervisorOTs() {
   const [otTotal, setOtTotal] = useState(0);
   const searchDebounceRef     = useRef(null);
   const [formStep, setFormStep] = useState(1);
+  // Marca que el envío del formulario viene del botón final y no de un submit
+  // accidental (ver handleFormSubmit).
+  const submitIntent = useRef(false);
+
+  // Todo cambio de paso descarta la intención de guardar: si la validación del
+  // navegador abortó un envío, la bandera no se queda encendida.
+  const goToStep = (n) => {
+    submitIntent.current = false;
+    setFormStep(n);
+  };
 
   const initialNewOT = {
     title: '', storeNumber: '', storeName: '', client: '', address: '', secondaryAddress: '',
@@ -461,6 +471,12 @@ export default function SupervisorOTs() {
 
   const handleFormSubmit = async (e) => {
     e.preventDefault();
+    // Solo guardamos si el usuario pulsó el botón final. Cualquier otro envío
+    // —Enter dentro de un input, o el clic de "Siguiente" que el navegador
+    // aplica sobre el botón ya convertido en submit al llegar al paso 3— llega
+    // sin intención marcada y se descarta.
+    if (!submitIntent.current) return;
+    submitIntent.current = false;
     if (isSaving) return;
 
     setIsSaving(true);
@@ -520,7 +536,7 @@ export default function SupervisorOTs() {
   const openCreateModal = () => {
     setNewOT(initialNewOT);
     setIsEditMode(false);
-    setFormStep(1);
+    goToStep(1);
     setOtClientSearch('');
     setShowOtClientDropdown(false);
     setIsModalOpen(true);
@@ -539,7 +555,7 @@ export default function SupervisorOTs() {
     });
     setEditingId(ot.id);
     setIsEditMode(true);
-    setFormStep(1);
+    goToStep(1);
     setMapCenter([ot.lat || 19.4326, ot.lng || -99.1332]);
     setIsModalOpen(true);
 
@@ -1495,7 +1511,7 @@ export default function SupervisorOTs() {
                     <button
                       key={n}
                       type="button"
-                      onClick={() => setFormStep(n)}
+                      onClick={() => goToStep(n)}
                       className="cursor-pointer w-full flex items-start gap-3 p-3 rounded-xl text-left transition-colors duration-150 hover:bg-white/5 group"
                     >
                       <div className={cn(
@@ -2035,7 +2051,7 @@ export default function SupervisorOTs() {
               <div className="shrink-0 px-8 py-5 border-t border-gray-100 bg-gray-50/40 flex items-center justify-between gap-4">
                 <button
                   type="button"
-                  onClick={formStep > 1 ? () => setFormStep(s => s - 1) : () => setIsModalOpen(false)}
+                  onClick={formStep > 1 ? () => goToStep(formStep - 1) : () => setIsModalOpen(false)}
                   className="cursor-pointer flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-gray-200 bg-white text-gray-600 text-xs font-bold hover:bg-gray-50 hover:border-gray-300 transition-colors"
                 >
                   <ChevronLeft className="h-3.5 w-3.5" />
@@ -2058,7 +2074,7 @@ export default function SupervisorOTs() {
                   <button
                     key="ot-next"
                     type="button"
-                    onClick={(e) => { e.preventDefault(); setFormStep(s => s + 1); }}
+                    onClick={(e) => { e.preventDefault(); goToStep(formStep + 1); }}
                     className="cursor-pointer flex items-center gap-1.5 px-6 py-2.5 rounded-xl bg-gray-950 text-white text-xs font-bold hover:bg-gray-800 transition-colors shadow-sm"
                   >
                     Siguiente <ChevronRight className="h-3.5 w-3.5" />
@@ -2068,6 +2084,7 @@ export default function SupervisorOTs() {
                     key="ot-submit"
                     type="submit"
                     form="ot-form"
+                    onClick={() => { submitIntent.current = true; }}
                     disabled={isSaving}
                     className="cursor-pointer flex items-center gap-2 px-7 py-2.5 rounded-xl bg-gray-950 text-white text-xs font-bold hover:bg-gray-800 transition-colors shadow-sm disabled:opacity-40"
                   >
