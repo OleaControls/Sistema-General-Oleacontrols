@@ -71,6 +71,8 @@ const TechMetrics = lazy(() => import('@/modules/ots/views/TechMetrics'));
 // Proyectos
 const ProjectsList  = lazy(() => import('@/modules/projects/views/ProjectsList'));
 const ProjectDetail = lazy(() => import('@/modules/projects/views/ProjectDetail'));
+const CotizadorView = lazy(() => import('@/modules/projects/views/CotizadorView'));
+const CotizadorEdificiosView = lazy(() => import('@/modules/projects/views/CotizadorEdificiosView'));
 
 // PROP (técnicos registran · operaciones ven respuestas)
 const PropView = lazy(() => import('@/modules/prop/views/PropView'));
@@ -226,6 +228,9 @@ export default function AppRouter() {
           {/* Módulo Proyectos */}
           <Route path="/projects"                    element={<ProtectedRoute><ProjectsList /></ProtectedRoute>} />
           <Route path="/projects/servicio/:service"  element={<ProtectedRoute><ProjectsList /></ProtectedRoute>} />
+          {/* Estática antes que /:id para que no la capture como id de proyecto */}
+          <Route path="/projects/cotizador"          element={<ProtectedRoute><CotizadorView /></ProtectedRoute>} />
+          <Route path="/projects/cotizador-edificios" element={<ProtectedRoute><CotizadorEdificiosView /></ProtectedRoute>} />
           <Route path="/projects/:id"                element={<ProtectedRoute><ProjectDetail /></ProtectedRoute>} />
 
           {/* Ventas – acceso directo SALES */}

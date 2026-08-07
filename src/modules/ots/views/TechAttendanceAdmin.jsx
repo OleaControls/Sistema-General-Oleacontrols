@@ -2,13 +2,24 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   MapPin, User2, Plus, Trash2, AlertTriangle, CheckCircle2, XCircle,
   Clock, ChevronLeft, ChevronRight, ClipboardList, Car, ShieldCheck, Pencil, FileDown,
-  ScanSearch, Camera, X, ZoomIn
+  ScanSearch, Camera, X, ZoomIn, LogIn, LogOut, UserCheck
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { apiFetch } from '@/lib/api';
 import { hrService } from '@/api/hrService';
 import { useAuth, ROLES } from '@/store/AuthContext';
 import { generateAttendanceReportPDF } from '../utils/attendanceReportPDF';
+import {
+  SHIFT_LABEL, getCheckInStatus, getCheckOutStatus, workedLabel,
+} from '../utils/attendanceSchedule';
+
+// Paleta por tono sobre fondo claro — puntualidad de la entrada / salida
+const TONE_LIGHT = {
+  emerald: { card: 'border-emerald-100', pill: 'bg-emerald-50 text-emerald-600 border-emerald-200', tile: 'bg-emerald-50 border-emerald-100', text: 'text-emerald-600' },
+  amber:   { card: 'border-amber-200',   pill: 'bg-amber-50   text-amber-700   border-amber-300',   tile: 'bg-amber-50   border-amber-200',   text: 'text-amber-700'   },
+  rose:    { card: 'border-rose-200',    pill: 'bg-rose-50    text-rose-700    border-rose-300',    tile: 'bg-rose-50    border-rose-200',    text: 'text-rose-700'    },
+  blue:    { card: 'border-blue-100',    pill: 'bg-blue-50    text-blue-600    border-blue-200',    tile: 'bg-blue-50    border-blue-100',    text: 'text-blue-600'    },
+};
 
 const PERSONAL_LABELS = {
   // EPP
@@ -52,7 +63,7 @@ export default function TechAttendanceAdmin() {
   const [saving,     setSaving]     = useState(false);
   const [form,       setForm]       = useState({ techId: '', clientName: '', clientLocation: '', notes: '', otNumber: '', hasVehicle: false });
   const [editGoalId, setEditGoalId] = useState(null);
-  const [activeTab,        setActiveTab]        = useState('goals'); // 'goals' | 'reports' | 'panoramizacion' | 'vehiculos'
+  const [activeTab,        setActiveTab]        = useState('asistencia'); // 'asistencia' | 'goals' | 'reports' | 'panoramizacion' | 'vehiculos'
   const [panoramizaciones, setPanoramizaciones] = useState([]);
   const [loadingPanora,    setLoadingPanora]    = useState(false);
   const [photoModal,       setPhotoModal]       = useState(null); // { photos, index }
@@ -137,6 +148,30 @@ export default function TechAttendanceAdmin() {
   const reports = logs.filter(l => l.personalReportSent || l.vehicleReportSent);
   const dayLabel = new Date(viewDate + 'T12:00:00').toLocaleDateString('es-MX', { weekday: 'long', day: '2-digit', month: 'long' });
 
+  // ── Asistencia diaria — un renglón por técnico, independiente del checklist ──
+  const attendanceRows = technicians
+    .map(t => {
+      const log = logs.find(l => l.techId === t.id) || null;
+      return {
+        tech: t,
+        log,
+        checkInTime:  log?.checkInTime  || null,
+        checkOutTime: log?.checkOutTime || null,
+        checkIn:      getCheckInStatus(log?.checkInTime),
+        checkOut:     getCheckOutStatus(log?.checkOutTime),
+      };
+    })
+    .sort((a, b) => {
+      if (!!a.checkInTime !== !!b.checkInTime) return a.checkInTime ? -1 : 1;
+      if (a.checkInTime && b.checkInTime) return a.checkInTime.localeCompare(b.checkInTime);
+      return (a.tech.name || '').localeCompare(b.tech.name || '');
+    });
+
+  const onTimeCount  = attendanceRows.filter(r => r.checkIn?.key === 'ontime').length;
+  const retardoCount = attendanceRows.filter(r => r.checkIn?.key === 'retardo').length;
+  const tardeCount   = attendanceRows.filter(r => r.checkIn?.key === 'tarde').length;
+  const absentCount  = attendanceRows.filter(r => !r.checkInTime).length;
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
 
@@ -174,6 +209,7 @@ export default function TechAttendanceAdmin() {
       {/* Tabs */}
       <div className="flex gap-1 bg-gray-100 p-1 rounded-2xl w-fit">
         {[
+          { id: 'asistencia',      label: 'Asistencia',         icon: UserCheck },
           { id: 'goals',           label: 'Metas del día',      icon: ClipboardList },
           { id: 'reports',         label: `Reportes (${reports.length})`, icon: AlertTriangle },
           { id: 'vehiculos',       label: 'Vehículos',          icon: Car },
@@ -192,6 +228,126 @@ export default function TechAttendanceAdmin() {
           </button>
         ))}
       </div>
+
+      {/* ── TAB: ASISTENCIA DIARIA ──────────────────────────────────────────
+          Entrada y salida por técnico. Separado del checklist (Reportes) y de
+          la Panoramización. */}
+      {activeTab === 'asistencia' && (
+        <div className="space-y-4">
+
+          {/* Resumen de puntualidad — horario 09:00 – 18:00 */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {[
+              { label: 'A tiempo',      value: onTimeCount,  cls: 'text-emerald-500', icon: CheckCircle2 },
+              { label: 'Retardo',       value: retardoCount, cls: 'text-amber-500',   icon: Clock },
+              { label: 'Tarde',         value: tardeCount,   cls: 'text-rose-500',    icon: AlertTriangle },
+              { label: 'Sin registrar', value: absentCount,  cls: 'text-gray-300',    icon: XCircle },
+            ].map(({ label, value, cls, icon: Icon }) => (
+              <div key={label} className="bg-white rounded-3xl p-4 border border-gray-100 shadow-sm">
+                <div className="flex items-center gap-2 mb-1">
+                  <Icon className={cn('h-3.5 w-3.5 shrink-0', cls)} />
+                  <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest leading-tight">{label}</p>
+                </div>
+                <p className="text-2xl font-black text-gray-900 tabular-nums">{value}</p>
+              </div>
+            ))}
+          </div>
+
+          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-1">
+            Horario {SHIFT_LABEL} · Retardo desde 09:05 · Tarde desde 09:10
+          </p>
+
+          {loading ? (
+            <div className="space-y-3">{[1,2,3].map(i => <div key={i} className="h-20 bg-gray-100 rounded-3xl animate-pulse" />)}</div>
+          ) : attendanceRows.length === 0 ? (
+            <div className="bg-white rounded-3xl p-10 border border-gray-100 shadow-sm text-center">
+              <UserCheck className="h-10 w-10 text-gray-200 mx-auto mb-3" />
+              <p className="font-black text-gray-400 text-sm">Sin técnicos registrados</p>
+            </div>
+          ) : attendanceRows.map(({ tech, log, checkInTime, checkOutTime, checkIn, checkOut }) => {
+            const worked = workedLabel(checkInTime, checkOutTime);
+            const tone   = checkIn ? TONE_LIGHT[checkIn.tone] : null;
+            return (
+              <div key={tech.id} className={cn(
+                'bg-white rounded-3xl p-5 border shadow-sm space-y-3',
+                tone ? tone.card : 'border-gray-100',
+                checkIn?.key === 'tarde' && 'ring-1 ring-rose-200'
+              )}>
+                <div className="flex items-center gap-3">
+                  {tech.avatar
+                    ? <img src={tech.avatar} className="h-10 w-10 rounded-2xl object-cover border" alt="" />
+                    : <div className="h-10 w-10 rounded-2xl bg-gray-100 flex items-center justify-center text-sm font-black text-gray-500">{(tech.name || '?').charAt(0)}</div>
+                  }
+                  <div className="min-w-0">
+                    <p className="font-black text-gray-900 text-sm truncate">{tech.name}</p>
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest truncate">
+                      {tech.position || 'Técnico'}
+                    </p>
+                  </div>
+                  <div className="ml-auto flex flex-col items-end gap-1 shrink-0">
+                    {/* Puntualidad — verde / amarillo / rojo */}
+                    <span className={cn(
+                      'text-[9px] font-black px-2.5 py-1 rounded-full border uppercase tracking-wider',
+                      tone ? tone.pill : 'bg-gray-50 text-gray-400 border-gray-200'
+                    )}>
+                      {checkIn ? checkIn.label : 'Sin registrar'}
+                    </span>
+                    {checkInTime && (
+                      <span className="text-[9px] font-black text-gray-400 uppercase tracking-wider">
+                        {checkOutTime ? 'Jornada cerrada' : 'En jornada'}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { label: 'Entrada', time: checkInTime,  icon: LogIn,  status: checkIn  },
+                    { label: 'Salida',  time: checkOutTime, icon: LogOut, status: checkOut },
+                  ].map(({ label, time, icon: Icon, status }) => {
+                    const t = status ? TONE_LIGHT[status.tone] : null;
+                    return (
+                      <div key={label} className={cn(
+                        'rounded-2xl p-3 border',
+                        t ? `${t.tile} ${t.text}` : 'bg-gray-50 border-gray-100 text-gray-300'
+                      )}>
+                        <div className="flex items-center gap-1.5 mb-0.5">
+                          <Icon className="h-3 w-3 shrink-0" />
+                          <p className="text-[9px] font-black uppercase tracking-widest">{label}</p>
+                        </div>
+                        <p className={cn('text-lg font-black tabular-nums', time ? 'text-gray-900' : 'text-gray-300')}>
+                          {time || '--:--'}
+                        </p>
+                        {status?.detail && (
+                          <p className="text-[9px] font-black uppercase tracking-widest mt-0.5">{status.detail}</p>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="flex items-center gap-2 flex-wrap">
+                  {worked && (
+                    <span className="text-[9px] font-black text-gray-500 bg-gray-50 border border-gray-200 px-2 py-1 rounded-full uppercase tracking-wider flex items-center gap-1">
+                      <Clock className="h-3 w-3" /> Jornada de {worked}
+                    </span>
+                  )}
+                  {log?.goal?.otNumber && (
+                    <span className="text-[9px] font-black text-blue-600 bg-blue-50 border border-blue-200 px-2 py-1 rounded-full uppercase tracking-wider">
+                      {log.goal.otNumber}
+                    </span>
+                  )}
+                  {log?.status === 'COMPLETE' && (
+                    <span className="text-[9px] font-black text-violet-600 bg-violet-50 border border-violet-200 px-2 py-1 rounded-full uppercase tracking-wider flex items-center gap-1">
+                      <CheckCircle2 className="h-3 w-3" /> Checklist enviado
+                    </span>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* ── TAB: METAS ──────────────────────────────────────────────────────── */}
       {activeTab === 'goals' && (

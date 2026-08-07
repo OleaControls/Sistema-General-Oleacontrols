@@ -2,6 +2,7 @@ import prisma from '../_lib/prisma.js'
 import { uploadToR2, signUrlIfNeeded } from '../_lib/r2.js'
 import { authMiddleware } from '../_lib/auth.js'
 import { notifyOTAssigned, notifyOTCompleted } from '../_lib/telegram.js'
+import { businessDay } from '../_lib/businessDay.js'
 
 // ── Helper: sufijo de folio estilo "columna de Excel" (siempre letras, nunca se acaba) ──
 // index 0 → '' (sin sufijo) · 1→A · 26→Z · 27→AA · 28→AB · ... nunca produce símbolos.
@@ -64,6 +65,61 @@ async function syncOTGoals(ot, setById) {
   } catch (err) {
     console.error('[syncOTGoals] error:', err.message);
   }
+}
+
+// ── Requisitos previos para que un TÉCNICO avance una OT ─────────────────────
+// Puertas escalonadas:
+//   ASSIGNED → ACCEPTED     requiere asistencia del día + checklist enviado
+//   ACCEPTED → IN_PROGRESS  requiere panoramización de la OT
+// ADMIN y SUPERVISOR (Operaciones) pueden forzar el avance.
+const GATE_BYPASS_ROLES = ['ADMIN', 'SUPERVISOR'];
+
+/**
+ * @returns {Promise<null|{error:string, missing:string[], gate:string}>}
+ *          null si el avance es permitido; objeto de error si falta algo.
+ */
+async function checkOTGate(targetOT, newStatus, auth) {
+  if (!newStatus || !auth) return null;
+  // No es una transición: reenviar el mismo estado (reanudar jornada, unlock) no revalida
+  if (newStatus === targetOT.status) return null;
+  // Supervisores y admins no quedan bloqueados
+  const roles = Array.isArray(auth.roles) ? auth.roles : [auth.roles].filter(Boolean);
+  if (roles.some(r => GATE_BYPASS_ROLES.includes(r))) return null;
+
+  if (newStatus === 'ACCEPTED') {
+    const log = await prisma.techAttendanceLog.findFirst({
+      where: { techId: auth.id, date: businessDay() },
+      select: { checkInTime: true, status: true },
+    });
+    const missing = [];
+    if (!log?.checkInTime)          missing.push('attendance');
+    if (log?.status !== 'COMPLETE') missing.push('checklist');
+    if (missing.length === 0) return null;
+    return {
+      gate: 'ACCEPT',
+      missing,
+      error: missing.length === 2
+        ? 'Registra tu entrada y envía el checklist del día antes de aceptar la orden.'
+        : missing[0] === 'attendance'
+          ? 'Registra tu entrada del día antes de aceptar la orden.'
+          : 'Envía el checklist del día (equipo, herramientas y vehículo) antes de aceptar la orden.',
+    };
+  }
+
+  if (newStatus === 'IN_PROGRESS' && targetOT.otNumber) {
+    const panora = await prisma.otPanoramizacion.findUnique({
+      where: { otNumber: targetOT.otNumber },
+      select: { id: true },
+    });
+    if (panora) return null;
+    return {
+      gate: 'START',
+      missing: ['panoramizacion'],
+      error: 'Completa la panoramización del sitio antes de iniciar la jornada.',
+    };
+  }
+
+  return null;
 }
 
 export const config = {
@@ -215,7 +271,12 @@ export default async function handler(req, res) {
       const limit = Math.min(100, Math.max(1, parseInt(req.query.limit || '50', 10)));
       const skip  = (page - 1) * limit;
 
-      const [ots, total] = await prisma.$transaction([
+      // Promise.all y no $transaction: son dos lecturas independientes, no
+      // necesitan atomicidad. La forma transaccional exige una conexión dedicada
+      // y solo espera 2 s por ella (maxWait), así que con la base fría o el pool
+      // ocupado fallaba con "Unable to start a transaction in the given time" y
+      // el listado devolvía 500.
+      const [ots, total] = await Promise.all([
         prisma.workOrder.findMany({
           where,
           select: {
@@ -466,6 +527,12 @@ export default async function handler(req, res) {
       if (data.jornadas !== undefined) updateData.jornadas = data.jornadas;
       if (startedAt) updateData.startedAt = new Date(startedAt);
       if (finishedAt) updateData.finishedAt = new Date(finishedAt);
+
+      // ── REQUISITOS PREVIOS DEL TÉCNICO ─────────────────────────────────────
+      // Puertas escalonadas: cada requisito se exige cuando el técnico ya puede
+      // cumplirlo. Supervisores y admins pueden forzar el avance.
+      const gate = await checkOTGate(targetOT, updateData.status, auth);
+      if (gate) return res.status(409).json(gate);
 
       // 1. Actualizar los datos maestros de la OT
       const updated = await prisma.workOrder.update({

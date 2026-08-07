@@ -2,6 +2,7 @@ import prisma from '../_lib/prisma.js';
 import { authMiddleware } from '../_lib/auth.js';
 import { sendTelegramDocument, sendTelegramPhoto, sendTelegramPhotoUrl } from '../_lib/telegram.js';
 import { uploadToR2 } from '../_lib/r2.js';
+import { businessDay } from '../_lib/businessDay.js';
 
 // Medianoche UTC — para attendance logs (necesario por el @@unique([techId, date]))
 const toUTCDay = (str) => {
@@ -167,17 +168,21 @@ export default async function handler(req, res) {
       return res.status(200).json(logs);
     }
 
-    // POST — iniciar registro del día (sin checkInTime; se registra al completar checklists)
+    // POST — iniciar registro del día. No requiere meta asignada: la asistencia
+    // diaria (entrada/salida) es independiente del checklist y la panoramización.
     if (method === 'POST' && resource === 'log') {
       const { techId, goalId } = body;
       if (!techId) return res.status(400).json({ error: 'techId requerido' });
 
-      const date = toUTCDay(new Date());
+      // Día operativo (offset de México) — debe coincidir con el `date` que
+      // manda el cliente en los GET y con la validación de requisitos en ots.js
+      const date = businessDay();
 
       const log = await prisma.techAttendanceLog.upsert({
         where:  { techId_date: { techId, date } },
         create: { techId, date, goalId: goalId || null, step: 'PERSONAL' },
-        update: { goalId: goalId || null },
+        // Solo se vincula la meta si viene en el body — no borra la ya guardada
+        update: goalId ? { goalId } : {},
         include: { goal: true },
       });
 

@@ -940,6 +940,7 @@ model Project {
   incidents      ProjectIncident[]
   documents      ProjectDocument[]
   changes        ProjectChange[]
+  quotes         ProjectQuote[]
   activities     ProjectActivity[]
 
   @@index([status])
@@ -1116,6 +1117,38 @@ model ProjectChange {
   decidedAt       DateTime?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+
+  @@index([projectId])
+}
+
+// Cotizador de ingeniería de diseño (portado del Excel FORMA-AJAGC-PP).
+// Cada renglón es una partida cotizada: un sistema + un área. El precio se
+// recalcula en el cliente con src/modules/projects/utils/cotizador.js, y aquí
+// se guarda el desglose completo para dejar trazabilidad de con qué números
+// se cotizó (los coeficientes o el IVA pueden cambiar después).
+model ProjectQuote {
+  id           String   @id @default(cuid())
+  projectId    String
+  project      Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  localName    String?                        // Local / partida cotizada
+  systemKey    String                         // DI, VZDT, SA, CAICCTV
+  systemLabel  String                         // Snapshot del nombre del sistema
+  area         Float                          // m²
+  band         String                         // Rango aplicado: A, B o C
+  coefficient  Float                          // k usado en la fórmula
+
+  basePrice    Float                          // ROUNDUP(k*1000*ln(area), -1)
+  updateFactor Float    @default(0)           // % de actualización sobre 2006
+  subtotal     Float
+  ivaRate      Float    @default(0.16)
+  iva          Float
+  total        Float
+
+  extrapolated Boolean  @default(false)       // Área fuera de 60–500 m²
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   @@index([projectId])
 }

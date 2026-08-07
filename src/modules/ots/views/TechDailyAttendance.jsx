@@ -5,12 +5,25 @@ import {
   Send, ShieldCheck, Car, Fuel, Sparkles, Gauge, HardHat, Glasses, Hand, Footprints,
   Wrench, Zap, ClipboardList, CheckCheck, RotateCcw, ExternalLink, Target, X, ChevronDown, Download,
   ScanSearch, HardDriveUpload, Boxes, TriangleAlert, GitBranch, Camera, ImagePlus,
-  Shirt, CreditCard, Ruler, Scissors, Hammer, Briefcase, Layers, BadgeCheck, Tag
+  Shirt, CreditCard, Ruler, Scissors, Hammer, Briefcase, Layers, BadgeCheck, Tag,
+  LogIn, LogOut
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { apiFetch } from '@/lib/api';
 import { useAuth } from '@/store/AuthContext';
 import { generateAttendanceReportPDF } from '../utils/attendanceReportPDF';
+import {
+  SHIFT_LABEL, getCheckInStatus, getCheckOutStatus, workedLabel,
+} from '../utils/attendanceSchedule';
+import PanoramizacionModal from '../components/PanoramizacionModal';
+
+// Paleta por tono sobre fondo oscuro — puntualidad de la entrada / salida
+const TONE_DARK = {
+  emerald: { pill: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40', icon: 'text-emerald-400', time: 'text-emerald-300', tile: 'bg-emerald-500/10 border-emerald-500/30' },
+  amber:   { pill: 'bg-amber-500/20   text-amber-300   border-amber-500/40',   icon: 'text-amber-400',   time: 'text-amber-300',   tile: 'bg-amber-500/10   border-amber-500/30'   },
+  rose:    { pill: 'bg-rose-500/20    text-rose-300    border-rose-500/40',    icon: 'text-rose-400',    time: 'text-rose-300',    tile: 'bg-rose-500/10    border-rose-500/30'    },
+  blue:    { pill: 'bg-blue-500/20    text-blue-300    border-blue-500/40',    icon: 'text-blue-400',    time: 'text-blue-300',    tile: 'bg-blue-500/10    border-blue-500/30'    },
+};
 
 // ── EPP — posiciones sobre la imagen corporal del técnico ────────────────────
 const EPP_SPOTS = [
@@ -265,167 +278,6 @@ function CheckItem({ item, value, onChange, disabled }) {
   );
 }
 
-// ── PanoramizacionModal ───────────────────────────────────────────────────────
-const PANORAMIZACION_FIELDS = [
-  {
-    key: 'condicionesSitio',
-    icon: ScanSearch,
-    label: 'Plática casual',
-    placeholder: '¿Cómo está el ambiente en el sitio? Cuéntanos de manera casual qué encontraste al llegar y cómo se siente el entorno.',
-  },
-  {
-    key: 'planEjecucion',
-    icon: HardDriveUpload,
-    label: 'Plan de ejecución',
-    placeholder: '¿Cuál va a ser tu estrategia, ruta o método general para realizar la instalación en este lugar?',
-  },
-  {
-    key: 'requerimientos',
-    icon: Boxes,
-    label: 'Objetivos',
-    placeholder: '¿Cuáles son los objetivos concretos a lograr hoy en este sitio? Lista las metas que deben quedar completadas.',
-  },
-  {
-    key: 'obstaculos',
-    icon: TriangleAlert,
-    label: 'Obstáculos',
-    placeholder: '¿Qué obstáculos o bloqueos encontraste en el sitio? Describe cualquier impedimento, falta de acceso o riesgo identificado.',
-  },
-  {
-    key: 'algoritmos',
-    icon: GitBranch,
-    label: 'Algoritmos',
-    placeholder: '¿Qué pasos o algoritmo vas a seguir para resolver los obstáculos? Describe tu plan de acción paso a paso.',
-  },
-];
-
-function PanoramizacionModal({ goal, techName, onClose, onSaved }) {
-  const [form,   setForm]   = useState({ condicionesSitio: '', planEjecucion: '', requerimientos: '', obstaculos: '', algoritmos: '' });
-  const [saving, setSaving] = useState(false);
-  const [saved,  setSaved]  = useState(false);
-
-  const canSave = PANORAMIZACION_FIELDS.every(f => form[f.key].trim().length >= 10);
-
-  const handleSave = async () => {
-    setSaving(true);
-    try {
-      const res = await apiFetch('/api/tech-attendance/panoramizacion', {
-        method: 'POST',
-        body: JSON.stringify({
-          otNumber: goal.otNumber,
-          techId:   goal.techId,
-          goalId:   goal.id,
-          ...form,
-        }),
-      });
-      if (!res.ok) throw new Error();
-      const data = await res.json();
-      setSaved(true);
-      onSaved(data);
-    } catch {
-      alert('Error al guardar panoramización');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 bg-black/70 flex items-end sm:items-center justify-center touch-none">
-      <div
-        className="bg-white w-full sm:max-w-lg sm:rounded-3xl rounded-t-3xl flex flex-col overflow-hidden shadow-2xl"
-        style={{ maxHeight: 'min(92dvh, 92svh, 92vh)' }}
-      >
-        {/* Header */}
-        <div className="bg-gray-950 px-5 py-4 rounded-t-3xl shrink-0">
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <div className="h-9 w-9 rounded-xl bg-violet-500/20 flex items-center justify-center shrink-0">
-                <ScanSearch className="h-4 w-4 text-violet-400" />
-              </div>
-              <div>
-                <h2 className="text-sm font-black text-white">Panoramización del sitio</h2>
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
-                  {goal.otNumber} · {goal.clientName}
-                </p>
-              </div>
-            </div>
-            <button onClick={onClose}
-              className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl text-white/60 active:bg-white/10 touch-manipulation">
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-          {goal.notes && (
-            <div className="mt-3 flex items-start gap-2 px-3 py-2 rounded-xl bg-amber-500/15 border border-amber-500/30">
-              <Target className="h-3.5 w-3.5 text-amber-400 shrink-0 mt-0.5" />
-              <p className="text-[11px] font-black text-amber-300 leading-relaxed">{goal.notes}</p>
-            </div>
-          )}
-          <p className="mt-3 text-[11px] font-bold text-gray-400 leading-relaxed">
-            Responde las 4 preguntas para desbloquear la jornada. Se registra una sola vez por OT.
-          </p>
-        </div>
-
-        {/* Body */}
-        <div className="flex-1 overflow-y-auto overscroll-contain p-4 space-y-4"
-             style={{ WebkitOverflowScrolling: 'touch' }}>
-          {PANORAMIZACION_FIELDS.map(f => {
-            const Icon = f.icon;
-            const val  = form[f.key];
-            const ok   = val.trim().length >= 10;
-            return (
-              <div key={f.key} className={cn(
-                'rounded-2xl border p-4 space-y-2 transition-all',
-                ok ? 'border-violet-200 bg-violet-50/50' : 'border-gray-200 bg-gray-50'
-              )}>
-                <div className="flex items-center gap-2">
-                  <Icon className={cn('h-4 w-4 shrink-0', ok ? 'text-violet-600' : 'text-gray-400')} />
-                  <span className={cn('text-[11px] font-black uppercase tracking-widest', ok ? 'text-violet-700' : 'text-gray-500')}>
-                    {f.label}
-                  </span>
-                  {ok && <CheckCircle2 className="h-3.5 w-3.5 text-violet-500 ml-auto shrink-0" />}
-                </div>
-                <textarea
-                  value={val}
-                  onChange={e => setForm(p => ({ ...p, [f.key]: e.target.value }))}
-                  placeholder={f.placeholder}
-                  rows={3}
-                  className="w-full bg-transparent border-0 text-sm font-bold text-gray-800 placeholder:text-gray-400 placeholder:font-normal focus:outline-none resize-none"
-                />
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Footer */}
-        <div className="px-4 pt-3 border-t border-gray-100 pb-4 shrink-0"
-             style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
-          {saved ? (
-            <div className="w-full min-h-[52px] rounded-2xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center gap-2">
-              <CheckCircle2 className="h-5 w-5 text-emerald-500" />
-              <span className="text-sm font-black text-emerald-600 uppercase tracking-widest">Panoramización registrada</span>
-            </div>
-          ) : (
-            <>
-              <button
-                onClick={handleSave}
-                disabled={!canSave || saving}
-                className="w-full min-h-[52px] rounded-2xl bg-violet-600 text-white font-black text-sm uppercase tracking-widest flex items-center justify-center gap-2 active:bg-violet-700 disabled:opacity-40 shadow-lg shadow-violet-200 touch-manipulation transition-all"
-              >
-                <CheckCheck className="h-4 w-4" />
-                {saving ? 'Guardando...' : 'Guardar Panoramización'}
-              </button>
-              {!canSave && (
-                <p className="text-center text-[10px] font-bold text-gray-400 mt-2">
-                  Completa todas las respuestas (mín. 10 caracteres cada una)
-                </p>
-              )}
-            </>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
 
 // ── Zonas del vehículo para inspección visual ─────────────────────────────────
 const CAR_SPOTS = [
@@ -749,7 +601,7 @@ function ChecklistModal({ goal, techName, log: existingLog, onClose }) {
     return { now, pMissing, vMissing, checkInTime, type, logData };
   };
 
-  const saveLog = async (pMissing, vMissing, now) => {
+  const saveLog = async (pMissing, vMissing) => {
     let logId = existingLog?.id;
     if (!logId) {
       const r = await apiFetch('/api/tech-attendance/log', {
@@ -769,7 +621,8 @@ function ChecklistModal({ goal, techName, log: existingLog, onClose }) {
           vehicleMissing:     vMissing,
           personalReportSent: pHasMissing || false,
           vehicleReportSent:  (goal.hasVehicle && vHasMissing) || false,
-          checkInTime:        existingLog?.checkInTime || now,
+          // No se escribe checkInTime: la asistencia diaria se registra en su
+          // propio apartado, independiente del checklist.
           status:             'COMPLETE',
         }),
       });
@@ -781,8 +634,8 @@ function ChecklistModal({ goal, techName, log: existingLog, onClose }) {
     setGenerating(true);
     setSendStatus(null);
     try {
-      const { now, pMissing, vMissing, type, logData } = buildPdfParams();
-      await saveLog(pMissing, vMissing, now);
+      const { pMissing, vMissing, type, logData } = buildPdfParams();
+      await saveLog(pMissing, vMissing);
 
       const { blob, filename } = await generateAttendanceReportPDF(
         logData, techName, goal, type, { download: false }
@@ -818,8 +671,8 @@ function ChecklistModal({ goal, techName, log: existingLog, onClose }) {
   const handleDownload = async () => {
     setDownloading(true);
     try {
-      const { now, pMissing, vMissing, type, logData } = buildPdfParams();
-      await saveLog(pMissing, vMissing, now);
+      const { pMissing, vMissing, type, logData } = buildPdfParams();
+      await saveLog(pMissing, vMissing);
       await generateAttendanceReportPDF(logData, techName, goal, type, { download: true });
     } catch {
       alert('Error al descargar PDF');
@@ -1268,7 +1121,8 @@ export default function TechDailyAttendance() {
   const [log,                 setLog]                 = useState(null);
   const [loading,             setLoading]             = useState(true);
   const [confirmingId,        setConfirmingId]        = useState(null);
-  const [confirmingAttend,    setConfirmingAttend]    = useState(false);
+  const [checkingIn,          setCheckingIn]          = useState(false);
+  const [checkingOut,         setCheckingOut]         = useState(false);
   const [checklistModal,      setChecklistModal]      = useState(null);
   // panoramizacion: { [otNumber]: objeto | null }
   const [panoramizaciones,    setPanoramizaciones]    = useState({});
@@ -1313,35 +1167,52 @@ export default function TechDailyAttendance() {
     load();
   }, [userId, load]);
 
-  const confirmAttendance = async () => {
-    if (!goals.length || !userId) return;
-    setConfirmingAttend(true);
-    try {
-      const now = new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', hour12: false });
-      // Crear o recuperar el log del día
-      let logId = log?.id;
-      if (!logId) {
-        const r = await apiFetch('/api/tech-attendance/log', {
-          method: 'POST',
-          body: JSON.stringify({ techId: userId, goalId: goals[0].id }),
-        });
-        if (!r.ok) throw new Error('No se pudo crear el log');
-        logId = (await r.json()).id;
-      }
-      // Registrar hora de entrada
-      const r2 = await apiFetch('/api/tech-attendance/log', {
-        method: 'PATCH',
-        body: JSON.stringify({ id: logId, checkInTime: now, status: 'CHECKED_IN' }),
-      });
-      if (!r2.ok) throw new Error('No se pudo registrar la hora');
-      const updated = await r2.json();
-      setLog(updated);
-    } catch (e) {
-      alert('Error al confirmar asistencia');
-    } finally {
-      setConfirmingAttend(false);
-    }
+  // ── Asistencia diaria — independiente de metas, checklist y panoramización ──
+  const nowHM = () => new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', hour12: false });
+
+  // Crea (o recupera) el registro del día. No requiere metas asignadas.
+  const ensureLogId = async () => {
+    if (log?.id) return log.id;
+    const r = await apiFetch('/api/tech-attendance/log', {
+      method: 'POST',
+      body: JSON.stringify({ techId: userId, goalId: goals[0]?.id || null }),
+    });
+    if (!r.ok) throw new Error('No se pudo crear el registro del día');
+    const created = await r.json();
+    setLog(created);
+    return created.id;
   };
+
+  const patchLog = async (payload) => {
+    const logId = await ensureLogId();
+    const r = await apiFetch('/api/tech-attendance/log', {
+      method: 'PATCH',
+      body: JSON.stringify({ id: logId, ...payload }),
+    });
+    if (!r.ok) throw new Error('No se pudo actualizar el registro');
+    setLog(await r.json());
+  };
+
+  const registerCheckIn = async () => {
+    if (!userId || log?.checkInTime) return;
+    setCheckingIn(true);
+    try { await patchLog({ checkInTime: nowHM() }); }
+    catch { alert('Error al registrar la entrada'); }
+    finally { setCheckingIn(false); }
+  };
+
+  const registerCheckOut = async () => {
+    if (!userId || !log?.checkInTime || log?.checkOutTime) return;
+    setCheckingOut(true);
+    try { await patchLog({ checkOutTime: nowHM() }); }
+    catch { alert('Error al registrar la salida'); }
+    finally { setCheckingOut(false); }
+  };
+
+  // Puntualidad (09:00 / 18:00) y duración de la jornada
+  const checkIn  = getCheckInStatus(log?.checkInTime);
+  const checkOut = getCheckOutStatus(log?.checkOutTime);
+  const worked   = workedLabel(log?.checkInTime, log?.checkOutTime);
 
   const confirmGoal = async (goalId, confirmed) => {
     setConfirmingId(goalId);
@@ -1372,7 +1243,6 @@ export default function TechDailyAttendance() {
       {panoraModal && (
         <PanoramizacionModal
           goal={panoraModal}
-          techName={user.name}
           onClose={() => setPanoraModal(null)}
           onSaved={(data) => {
             setPanoramizaciones(p => ({ ...p, [panoraModal.otNumber]: data }));
@@ -1391,18 +1261,170 @@ export default function TechDailyAttendance() {
         />
       )}
 
-      {/* ── Header ── */}
-      <div className="bg-gray-950 rounded-[2.5rem] p-7 text-white">
-        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 mb-1">
-          {new Date().toLocaleDateString('es-MX', { weekday: 'long', day: '2-digit', month: 'long' })}
-        </p>
-        <h1 className="text-2xl font-black leading-tight">Mi Asistencia</h1>
+      {/* ══ APARTADO 1 · ASISTENCIA DIARIA ═══════════════════════════════════
+          Entrada y salida del día. Independiente del checklist y de la
+          panoramización — se registra aunque no haya metas asignadas. */}
+      <div className={cn(
+        'bg-gray-950 rounded-[2.5rem] p-7 text-white border-2 transition-colors',
+        checkIn?.tone === 'rose'  ? 'border-rose-500/60'  :
+        checkIn?.tone === 'amber' ? 'border-amber-500/60' :
+        'border-transparent'
+      )}>
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 mb-1">
+              {new Date().toLocaleDateString('es-MX', { weekday: 'long', day: '2-digit', month: 'long' })}
+            </p>
+            <h1 className="text-2xl font-black leading-tight">Mi Asistencia</h1>
+            <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mt-1">
+              Horario {SHIFT_LABEL}
+            </p>
+          </div>
+          <div className="flex flex-col items-end gap-1.5 shrink-0">
+            {/* Puntualidad de la entrada — verde / amarillo / rojo */}
+            <span className={cn(
+              'text-[9px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full border',
+              checkIn ? TONE_DARK[checkIn.tone].pill : 'bg-white/10 text-gray-400 border-white/20'
+            )}>
+              {checkIn ? checkIn.label : 'Sin registrar'}
+            </span>
+            {log?.checkInTime && (
+              <span className="text-[9px] font-black uppercase tracking-widest text-gray-500">
+                {log?.checkOutTime ? 'Jornada cerrada' : 'En jornada'}
+              </span>
+            )}
+          </div>
+        </div>
 
-        {/* Metas / OTs del día */}
-        <div className="mt-4 space-y-2">
-          {goals.length === 0 ? (
-            <div className="bg-white/5 rounded-2xl p-4 border border-white/10">
+        {/* Marcas del día */}
+        <div className="mt-5 grid grid-cols-2 gap-2">
+          {[
+            { label: 'Entrada', time: log?.checkInTime,  icon: LogIn,  status: checkIn  },
+            { label: 'Salida',  time: log?.checkOutTime, icon: LogOut, status: checkOut },
+          ].map(({ label, time, icon: Icon, status }) => {
+            const tone = status ? TONE_DARK[status.tone] : null;
+            return (
+              <div key={label} className={cn(
+                'rounded-2xl p-4 border',
+                tone ? tone.tile : 'bg-white/8 border-white/10'
+              )}>
+                <div className="flex items-center gap-1.5 mb-1">
+                  <Icon className={cn('h-3.5 w-3.5 shrink-0', tone ? tone.icon : 'text-gray-500')} />
+                  <p className="text-[9px] font-black uppercase tracking-widest text-gray-400">{label}</p>
+                </div>
+                <p className={cn('text-xl font-black tabular-nums', tone ? tone.time : 'text-gray-600')}>
+                  {time || '--:--'}
+                </p>
+                {status?.detail && (
+                  <p className={cn('text-[9px] font-black uppercase tracking-widest mt-0.5', tone.time)}>
+                    {status.detail}
+                  </p>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Aviso de retardo / tarde */}
+        {(checkIn?.key === 'retardo' || checkIn?.key === 'tarde') && (
+          <div className={cn(
+            'mt-2 flex items-start gap-2 px-3 py-2 rounded-xl border',
+            TONE_DARK[checkIn.tone].tile
+          )}>
+            <AlertTriangle className={cn('h-3.5 w-3.5 shrink-0 mt-0.5', TONE_DARK[checkIn.tone].icon)} />
+            <p className={cn('text-[10px] font-black leading-relaxed', TONE_DARK[checkIn.tone].time)}>
+              {checkIn.key === 'retardo'
+                ? `Retardo — entraste ${checkIn.minutesLate} min después de las 09:00.`
+                : `Llegada tarde — entraste ${checkIn.minutesLate} min después de las 09:00.`}
+            </p>
+          </div>
+        )}
+
+        {worked && (
+          <div className="mt-2 flex items-center justify-center gap-2 py-2 rounded-xl bg-white/5 border border-white/10">
+            <Clock className="h-3.5 w-3.5 text-gray-400 shrink-0" />
+            <span className="text-[10px] font-black text-gray-300 uppercase tracking-widest">
+              Jornada de {worked}
+            </span>
+          </div>
+        )}
+
+        {/* Acciones */}
+        <div className="mt-4">
+          {!log?.checkInTime ? (
+            <button
+              onClick={registerCheckIn}
+              disabled={checkingIn}
+              className="w-full min-h-[52px] rounded-2xl bg-emerald-500 text-white font-black text-sm uppercase tracking-widest flex items-center justify-center gap-2 active:bg-emerald-600 disabled:opacity-50 shadow-lg shadow-emerald-900/40 touch-manipulation transition-all"
+            >
+              <LogIn className="h-4 w-4" />
+              {checkingIn ? 'Registrando...' : 'Registrar Entrada'}
+            </button>
+          ) : !log?.checkOutTime ? (
+            <button
+              onClick={registerCheckOut}
+              disabled={checkingOut}
+              className="w-full min-h-[52px] rounded-2xl bg-blue-600 text-white font-black text-sm uppercase tracking-widest flex items-center justify-center gap-2 active:bg-blue-700 disabled:opacity-50 shadow-lg shadow-blue-900/40 touch-manipulation transition-all"
+            >
+              <LogOut className="h-4 w-4" />
+              {checkingOut ? 'Registrando...' : 'Registrar Salida'}
+            </button>
+          ) : (
+            <div className={cn(
+              'flex items-center justify-center gap-2 py-3 rounded-2xl border',
+              checkIn ? TONE_DARK[checkIn.tone].tile : 'bg-emerald-500/20 border-emerald-500/40'
+            )}>
+              <CheckCircle2 className={cn('h-4 w-4 shrink-0', checkIn ? TONE_DARK[checkIn.tone].icon : 'text-emerald-400')} />
+              <span className={cn('text-sm font-black', checkIn ? TONE_DARK[checkIn.tone].time : 'text-emerald-300')}>
+                Asistencia del día completa
+              </span>
+            </div>
+          )}
+        </div>
+
+        <p className="mt-3 text-[10px] font-bold text-gray-500 leading-relaxed text-center">
+          Tu asistencia se registra todos los días, incluso sin OT asignada.
+        </p>
+      </div>
+
+      {/* ══ APARTADO 2 · METAS DEL DÍA — CHECKLIST Y PANORAMIZACIÓN ═════════ */}
+      <div className="bg-gray-950 rounded-[2.5rem] p-6 text-white space-y-4">
+        <div className="flex items-center gap-3">
+          <div className="h-10 w-10 rounded-2xl bg-amber-500/15 flex items-center justify-center shrink-0">
+            <Target className="h-5 w-5 text-amber-400" />
+          </div>
+          <div>
+            <h2 className="text-base font-black leading-tight">Metas del Día</h2>
+            <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">
+              Checklist · Panoramización
+            </p>
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          {!hasGoals ? (
+            <div className="bg-white/5 rounded-2xl p-4 border border-white/10 space-y-3">
               <p className="text-[11px] font-bold text-gray-500 text-center">Sin metas asignadas hoy</p>
+              {/* El checklist es diario: se puede enviar sin meta para no quedar
+                  bloqueado al aceptar una OT */}
+              {log?.status === 'COMPLETE' ? (
+                <div className="flex items-center justify-center gap-1.5 py-2 rounded-xl bg-emerald-500/15 border border-emerald-500/30">
+                  <CheckCheck className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+                  <span className="text-[10px] font-black text-emerald-300 uppercase tracking-widest">Checklist del día enviado</span>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setChecklistModal({
+                    id: null, techId: userId, otNumber: null,
+                    clientName: 'Checklist del día', clientLocation: null,
+                    notes: null, hasVehicle: false, date: today,
+                  })}
+                  className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-white/10 border border-white/20 text-white text-[11px] font-black uppercase tracking-widest active:bg-white/20 touch-manipulation transition-all"
+                >
+                  <ClipboardList className="h-3.5 w-3.5" />
+                  Hacer checklist del día
+                </button>
+              )}
             </div>
           ) : goals.map(g => (
             <div key={g.id} className="bg-white/8 rounded-2xl p-4 space-y-2 border border-white/10">
@@ -1491,28 +1513,6 @@ export default function TechDailyAttendance() {
             </div>
           ))}
         </div>
-
-        {/* ── Botón Confirmar Asistencia ── */}
-        {goals.length > 0 && (
-          <div className="mt-4">
-            {log?.checkInTime ? (
-              <div className="flex items-center justify-center gap-2 py-3 rounded-2xl bg-emerald-500/20 border border-emerald-500/40">
-                <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
-                <span className="text-sm font-black text-emerald-300">Asistencia confirmada — {log.checkInTime}</span>
-              </div>
-            ) : (
-              <button
-                onClick={confirmAttendance}
-                disabled={confirmingAttend}
-                className="w-full min-h-[52px] rounded-2xl bg-emerald-500 text-white font-black text-sm uppercase tracking-widest flex items-center justify-center gap-2 active:bg-emerald-600 disabled:opacity-50 shadow-lg shadow-emerald-900/40 touch-manipulation transition-all"
-              >
-                <CheckCheck className="h-4 w-4" />
-                {confirmingAttend ? 'Registrando...' : 'Confirmar Asistencia'}
-              </button>
-            )}
-          </div>
-        )}
-
       </div>
 
       {/* ── Próximas Órdenes ── */}

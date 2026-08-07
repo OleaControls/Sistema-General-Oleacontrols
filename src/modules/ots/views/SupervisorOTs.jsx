@@ -2049,16 +2049,23 @@ export default function SupervisorOTs() {
                   ))}
                 </div>
 
+                {/* Las `key` distintas evitan que React reutilice el mismo nodo al pasar
+                    de "Siguiente" (type=button) a "Publicar" (type=submit): si lo
+                    reutilizara, el navegador aplicaría la acción por defecto del clic
+                    sobre el botón ya convertido en submit y la OT se guardaría sola al
+                    llegar al paso 3. El preventDefault es el segundo cinturón. */}
                 {formStep < 3 ? (
                   <button
+                    key="ot-next"
                     type="button"
-                    onClick={() => setFormStep(s => s + 1)}
+                    onClick={(e) => { e.preventDefault(); setFormStep(s => s + 1); }}
                     className="cursor-pointer flex items-center gap-1.5 px-6 py-2.5 rounded-xl bg-gray-950 text-white text-xs font-bold hover:bg-gray-800 transition-colors shadow-sm"
                   >
                     Siguiente <ChevronRight className="h-3.5 w-3.5" />
                   </button>
                 ) : (
                   <button
+                    key="ot-submit"
                     type="submit"
                     form="ot-form"
                     disabled={isSaving}

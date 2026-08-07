@@ -12,6 +12,7 @@ const SUB = {
   incidents:      'projectIncident',
   documents:      'projectDocument',
   changes:        'projectChange',
+  quotes:         'projectQuote',
 };
 
 // Campos DateTime por modelo — se convierten '' → null y string → Date.
@@ -31,6 +32,13 @@ function sanitize(body) {
     }
   }
   return data;
+}
+
+// Etiqueta legible de un sub-registro, para el detalle de la bitácora.
+function recLabel(rec) {
+  if (!rec) return null;
+  if (rec.systemLabel) return `${rec.localName ? `${rec.localName} — ` : ''}${rec.systemLabel} (${rec.area} m²)`;
+  return rec.name || rec.title || rec.description || rec.concept || null;
 }
 
 // Genera un folio incremental PROY-AAAA-NNN.
@@ -97,14 +105,14 @@ export default async function handler(req, res) {
       const SUB_LABEL = {
         tasks: 'tarea', risks: 'riesgo', costs: 'costo', resources: 'recurso',
         quality: 'ítem de calidad', communications: 'comunicación', incidents: 'incidencia',
-        documents: 'documento', changes: 'cambio',
+        documents: 'documento', changes: 'cambio', quotes: 'partida cotizada',
       };
 
       if (method === 'POST') {
         if (!id) return res.status(400).json({ error: 'Falta id del proyecto' });
         const created = await delegate.create({ data: { ...sanitize(req.body), projectId: id } });
         if (sub === 'tasks') await recomputeProgress(id);
-        await logActivity(id, `Agregó ${SUB_LABEL[sub] || 'registro'}`, created.name || created.title || created.description || created.concept, actor);
+        await logActivity(id, `Agregó ${SUB_LABEL[sub] || 'registro'}`, recLabel(created), actor);
         return res.status(201).json(created);
       }
 
@@ -112,7 +120,7 @@ export default async function handler(req, res) {
         if (!subId) return res.status(400).json({ error: 'Falta subId' });
         const updated = await delegate.update({ where: { id: subId }, data: sanitize(req.body) });
         if (sub === 'tasks' && updated.projectId) await recomputeProgress(updated.projectId);
-        await logActivity(updated.projectId, `Actualizó ${SUB_LABEL[sub] || 'registro'}`, updated.name || updated.title || updated.description || updated.concept, actor);
+        await logActivity(updated.projectId, `Actualizó ${SUB_LABEL[sub] || 'registro'}`, recLabel(updated), actor);
         return res.status(200).json(updated);
       }
 
@@ -122,7 +130,7 @@ export default async function handler(req, res) {
         await delegate.delete({ where: { id: subId } });
         if (rec?.projectId) {
           if (sub === 'tasks') await recomputeProgress(rec.projectId);
-          await logActivity(rec.projectId, `Eliminó ${SUB_LABEL[sub] || 'registro'}`, rec.name || rec.title || null, actor);
+          await logActivity(rec.projectId, `Eliminó ${SUB_LABEL[sub] || 'registro'}`, recLabel(rec), actor);
         }
         return res.status(200).json({ ok: true });
       }
@@ -147,6 +155,7 @@ export default async function handler(req, res) {
             incidents:      { orderBy: { createdAt: 'desc' } },
             documents:      { orderBy: { createdAt: 'desc' } },
             changes:        { orderBy: { createdAt: 'desc' } },
+            quotes:         { orderBy: { createdAt: 'desc' } },
             activities:     { orderBy: { createdAt: 'desc' }, take: 60 },
           },
         });

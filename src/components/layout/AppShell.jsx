@@ -1,11 +1,11 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, ClipboardList, Receipt, Users, GraduationCap,
   Briefcase, Menu, X, LogOut, Bell, ChevronDown, Trophy, User as UserIcon,
   BarChart3, Wallet, Target, Users2, FileText, Sliders, TrendingUp,
   Activity, Settings, BarChart4, BookOpen, Calendar, Package, Star, CalendarCheck, ClipboardCheck,
-  FolderKanban, PenTool, Wrench, RefreshCw, Compass
+  FolderKanban, PenTool, Wrench, RefreshCw, Compass, Calculator, Building2
 } from 'lucide-react';
 import { useAuth, ROLES } from '@/store/AuthContext';
 import { useTenant } from '@/store/TenantContext';
@@ -148,8 +148,19 @@ const NAV_STRUCTURE = [
     defaultOpen: true,
     items: [
       { name: 'Todos',          path: '/projects',                        icon: FolderKanban, roles: [ROLES.PM, ROLES.ADMIN], exact: true },
-      { name: 'Diseño',         path: '/projects/servicio/diseno',        icon: PenTool,      roles: [ROLES.PM, ROLES.ADMIN] },
-      { name: 'Implementación', path: '/projects/servicio/implementacion', icon: Wrench,       roles: [ROLES.PM, ROLES.ADMIN] },
+      {
+        name: 'Diseño', path: '/projects/servicio/diseno', icon: PenTool, roles: [ROLES.PM, ROLES.ADMIN],
+        // Tercer nivel: se despliega al entrar a Diseño o con el chevron.
+        children: [
+          { name: 'Cotizador de Retail', path: '/projects/cotizador', icon: Calculator, roles: [ROLES.PM, ROLES.ADMIN] },
+        ],
+      },
+      {
+        name: 'Implementación', path: '/projects/servicio/implementacion', icon: Wrench, roles: [ROLES.PM, ROLES.ADMIN],
+        children: [
+          { name: 'Cotizador de Edificios', path: '/projects/cotizador-edificios', icon: Building2, roles: [ROLES.PM, ROLES.ADMIN] },
+        ],
+      },
       { name: 'Re-Ingeniería',  path: '/projects/servicio/reingenieria',  icon: RefreshCw,    roles: [ROLES.PM, ROLES.ADMIN] },
     ]
   },
@@ -207,12 +218,17 @@ function filterItems(items, userRoles) {
   return items.filter(i => hasRole(i, userRoles));
 }
 
+// Un item cuenta como activo en su ruta exacta y, salvo que se marque `exact`,
+// también en sus rutas hijas (/x/123).
+function isPathActive(pathname, item) {
+  if (item.path === '/' || item.exact) return pathname === item.path;
+  return pathname === item.path || pathname.startsWith(item.path + '/');
+}
+
 // ── Componente NavItem (link simple) ──────────────────────────────────────────
 function NavItem({ item, user, isCollapsed, onClick }) {
   const location = useLocation();
-  const isActive = (item.path === '/' || item.exact)
-    ? location.pathname === item.path
-    : location.pathname === item.path || location.pathname.startsWith(item.path + '/');
+  const isActive = isPathActive(location.pathname, item);
   const label = item.getName ? item.getName(user) : item.name;
 
   return (
@@ -230,13 +246,72 @@ function NavItem({ item, user, isCollapsed, onClick }) {
   );
 }
 
+// ── Componente NavBranch (item con sub-items) ─────────────────────────────────
+// Tercer nivel del menú: el item sigue siendo un link normal y además despliega
+// sus hijos. Al entrar al item se abre solo; el chevron permite cerrarlo.
+function NavBranch({ item, user, userRoles, closeSidebar }) {
+  const location = useLocation();
+  const children = filterItems(item.children, userRoles);
+
+  const isSelfActive = isPathActive(location.pathname, item);
+  const isChildActive = children.some(c => isPathActive(location.pathname, c));
+  const [open, setOpen] = useState(isSelfActive || isChildActive);
+
+  // Reabre al navegar aquí desde otra sección o desde un enlace directo.
+  useEffect(() => {
+    if (isSelfActive || isChildActive) setOpen(true);
+  }, [isSelfActive, isChildActive]);
+
+  if (children.length === 0) {
+    return <NavItem item={item} user={user} isCollapsed={false} onClick={closeSidebar} />;
+  }
+
+  return (
+    <div>
+      <div
+        className={cn(
+          "flex items-center gap-1 pr-1.5 rounded-xl transition-all",
+          isSelfActive ? "bg-primary text-white shadow-lg shadow-primary/20" : "text-gray-500 hover:bg-gray-100"
+        )}
+      >
+        <Link
+          to={item.path}
+          onClick={() => { setOpen(true); closeSidebar?.(); }}
+          className="flex items-center gap-3 flex-1 min-w-0 px-3 py-2.5 text-[11px] font-black uppercase tracking-wider"
+        >
+          <item.icon className={cn("h-4 w-4 shrink-0", isSelfActive && "stroke-[3px]")} />
+          <span className="truncate">{item.name}</span>
+        </Link>
+        <button
+          type="button"
+          onClick={() => setOpen(o => !o)}
+          aria-label={open ? `Ocultar sub-secciones de ${item.name}` : `Ver sub-secciones de ${item.name}`}
+          aria-expanded={open}
+          className={cn("p-1 rounded-lg shrink-0", isSelfActive ? "hover:bg-white/20" : "hover:bg-gray-200")}
+        >
+          <ChevronDown className={cn("h-3 w-3 transition-transform duration-200", open && "rotate-180")} />
+        </button>
+      </div>
+
+      {open && (
+        <div className="mt-0.5 ml-4 pl-3 border-l-2 border-gray-100 space-y-0.5">
+          {children.map(c => (
+            <NavItem key={c.path} item={c} user={user} isCollapsed={false} onClick={closeSidebar} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Componente NavGroup (colapsable) ──────────────────────────────────────────
 function NavGroup({ group, user, userRoles, isCollapsed, closeSidebar }) {
   const location = useLocation();
   const visibleItems = filterItems(group.items, userRoles);
 
   const isGroupActive = visibleItems.some(i =>
-    i.path === location.pathname || location.pathname.startsWith(i.path + '/')
+    isPathActive(location.pathname, i) ||
+    (i.children || []).some(c => isPathActive(location.pathname, c))
   );
 
   const [open, setOpen] = useState(group.defaultOpen || isGroupActive);
@@ -244,10 +319,13 @@ function NavGroup({ group, user, userRoles, isCollapsed, closeSidebar }) {
   // Los hooks deben ir antes de cualquier return condicional para no romper el orden de hooks.
   if (visibleItems.length === 0) return null;
 
+  // Con la barra colapsada no hay espacio para desplegables: los sub-items se
+  // aplanan y quedan como un icono más.
   if (isCollapsed) {
+    const flat = visibleItems.flatMap(i => [i, ...filterItems(i.children || [], userRoles)]);
     return (
       <div className="space-y-1">
-        {visibleItems.map(item => (
+        {flat.map(item => (
           <NavItem key={item.path} item={item} user={user} isCollapsed={true} onClick={closeSidebar} />
         ))}
       </div>
@@ -273,7 +351,9 @@ function NavGroup({ group, user, userRoles, isCollapsed, closeSidebar }) {
       {open && (
         <div className="mt-1 ml-3 pl-3 border-l-2 border-gray-100 space-y-0.5">
           {visibleItems.map(item => (
-            <NavItem key={item.path} item={item} user={user} isCollapsed={false} onClick={closeSidebar} />
+            item.children
+              ? <NavBranch key={item.path} item={item} user={user} userRoles={userRoles} closeSidebar={closeSidebar} />
+              : <NavItem key={item.path} item={item} user={user} isCollapsed={false} onClick={closeSidebar} />
           ))}
         </div>
       )}
@@ -306,7 +386,9 @@ export default function AppShell({ children }) {
       if (entry.type === 'item' && entry.path === location.pathname)
         return entry.getName ? entry.getName(user) : entry.name;
       if (entry.type === 'group') {
-        const found = entry.items?.find(i => i.path === location.pathname);
+        // Aplana los sub-items para que el título también salga en el 3er nivel.
+        const flat = (entry.items || []).flatMap(i => [i, ...(i.children || [])]);
+        const found = flat.find(i => i.path === location.pathname);
         if (found) return found.getName ? found.getName(user) : found.name;
       }
     }

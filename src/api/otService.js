@@ -236,7 +236,15 @@ export const otService = {
       method: 'PUT',
       body: JSON.stringify({ id: otId, ...updatedData })
     });
-    if (!response.ok) throw new Error('Error al actualizar OT');
+    if (!response.ok) {
+      // El servidor explica el motivo (p. ej. requisitos previos faltantes: 409)
+      let payload = null;
+      try { payload = await response.json(); } catch { /* respuesta sin JSON */ }
+      const err = new Error(payload?.error || 'Error al actualizar OT');
+      err.status  = response.status;
+      err.payload = payload;
+      throw err;
+    }
     return response.json();
   },
 

@@ -1,16 +1,78 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   ClipboardList, MapPin, Clock, User, CheckCircle2, Receipt, FileText, ChevronLeft,
   X, Send, ArrowRight, Store, Map as MapIcon, AlertTriangle, Wallet, Plus, Coins,
   Phone, Mail, Info, Users, Hash, Calendar, Zap, Activity, Timer, ArrowUpCircle, ArrowDownCircle,
-  MessageCircle, Pause, Play, Flag, Check, BarChart2, Coffee, LockOpen, ShieldAlert
+  MessageCircle, Pause, Play, Flag, Check, BarChart2, Coffee, LockOpen, ShieldAlert,
+  ScanSearch, ClipboardCheck, LogIn, Lock
 } from 'lucide-react';
 import { otService } from '@/api/otService';
 import { expenseService } from '@/api/expenseService';
 import { useAuth, ROLES } from '@/store/AuthContext';
+import { apiFetch } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import NewExpenseForm from '../expenses/components/NewExpenseForm';
+import PanoramizacionModal from './components/PanoramizacionModal';
+
+// ── Requisitos previos — tarjeta de puerta ───────────────────────────────────
+// Muestra qué falta antes de aceptar la OT o iniciar la jornada. `blocking`
+// distingue al técnico (bloqueado) del supervisor (solo informativo).
+const GateCard = ({ title, hint, items, blocking }) => (
+  <div className={cn(
+    'rounded-[2rem] border-2 p-6 space-y-4',
+    blocking ? 'bg-amber-50/60 border-amber-200' : 'bg-white border-gray-100'
+  )}>
+    <div className="flex items-start gap-3">
+      <div className={cn(
+        'h-10 w-10 rounded-2xl flex items-center justify-center shrink-0',
+        blocking ? 'bg-amber-100 text-amber-600' : 'bg-gray-100 text-gray-400'
+      )}>
+        {blocking ? <Lock className="h-5 w-5" /> : <Check className="h-5 w-5" />}
+      </div>
+      <div>
+        <p className={cn(
+          'text-[9px] font-mono font-black uppercase tracking-[0.25em]',
+          blocking ? 'text-amber-600' : 'text-gray-400'
+        )}>
+          Requisitos previos
+        </p>
+        <p className="text-sm font-black text-gray-900 mt-0.5">{title}</p>
+        {hint && <p className="text-[11px] font-bold text-gray-500 mt-1 leading-relaxed">{hint}</p>}
+      </div>
+    </div>
+
+    <div className="space-y-2">
+      {items.map(({ key, label, detail, done, action, actionLabel, icon: Icon }) => (
+        <div key={key} className={cn(
+          'flex items-center gap-3 p-3 rounded-2xl border',
+          done ? 'bg-emerald-50 border-emerald-200' : 'bg-white border-gray-200'
+        )}>
+          <div className={cn(
+            'h-9 w-9 rounded-xl flex items-center justify-center shrink-0',
+            done ? 'bg-emerald-100 text-emerald-600' : 'bg-gray-50 text-gray-400 border border-gray-200'
+          )}>
+            {done ? <CheckCircle2 className="h-4 w-4" /> : <Icon className="h-4 w-4" />}
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-black text-gray-800 leading-tight">{label}</p>
+            {detail && <p className="text-[10px] font-bold text-gray-400 mt-0.5">{detail}</p>}
+          </div>
+          {done ? (
+            <span className="text-[9px] font-black text-emerald-600 uppercase tracking-widest shrink-0">Listo</span>
+          ) : action ? (
+            <button
+              onClick={action}
+              className="shrink-0 text-[9px] font-black uppercase tracking-widest bg-gray-950 text-white px-3 py-2 rounded-xl hover:bg-gray-800 active:scale-95 transition-all"
+            >
+              {actionLabel}
+            </button>
+          ) : null}
+        </div>
+      ))}
+    </div>
+  </div>
+);
 
 // ── Jornada helpers ──────────────────────────────────────────────────────────
 const parseJornadas = (raw) => {
@@ -122,6 +184,48 @@ export default function OTDetail() {
     signature: null
   });
   const [isUnlockModalOpen, setIsUnlockModalOpen] = useState(false);
+
+  // ── Requisitos previos (asistencia + checklist + panoramización) ───────────
+  const [gate, setGate] = useState({ checkInTime: null, checklistDone: false, panoraDone: false, loaded: false });
+  const [isPanoraModalOpen, setIsPanoraModalOpen] = useState(false);
+
+  // El técnico ve su propio avance; el supervisor ve el del técnico asignado
+  const gateTechId = isSupervisor ? (ot?.technicianId || ot?.leadTechId || null) : user?.id;
+
+  const loadGate = useCallback(async () => {
+    if (!gateTechId) return;
+    const n = new Date();
+    const today = `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}`;
+    try {
+      const [logRes, panoraRes] = await Promise.all([
+        apiFetch(`/api/tech-attendance/log?techId=${gateTechId}&date=${today}`),
+        ot?.otNumber
+          ? apiFetch(`/api/tech-attendance/panoramizacion?otNumber=${encodeURIComponent(ot.otNumber)}`)
+          : Promise.resolve(null),
+      ]);
+      const log    = logRes?.ok    ? await logRes.json()    : null;
+      const panora = panoraRes?.ok ? await panoraRes.json() : null;
+      setGate({
+        checkInTime:   log?.checkInTime || null,
+        checklistDone: log?.status === 'COMPLETE',
+        panoraDone:    Boolean(panora),
+        loaded: true,
+      });
+    } catch {
+      // Si falla la consulta no bloqueamos al técnico: el servidor sigue validando
+      setGate(g => ({ ...g, loaded: true }));
+    }
+  }, [gateTechId, ot?.otNumber]);
+
+  useEffect(() => { loadGate(); }, [loadGate]);
+
+  // Requisitos cumplidos vs. permiso de avanzar: el bloqueo aplica solo al
+  // técnico. El supervisor ve lo que falta pero puede forzar el avance.
+  const gateBlocks      = !isSupervisor;
+  const acceptReqsMet   = Boolean(gate.checkInTime) && gate.checklistDone;
+  const startReqsMet    = gate.panoraDone;
+  const canAcceptOT     = !gateBlocks || acceptReqsMet;
+  const canStartJornada = !gateBlocks || startReqsMet;
 
   useEffect(() => { loadOT(); }, [id]);
 
@@ -265,7 +369,11 @@ export default function OTDetail() {
     try {
       await otService.updateOT(id, { status: 'ACCEPTED' });
       await loadOT();
-    } catch (err) { alert('Error al aceptar: ' + err.message); }
+    } catch (err) {
+      // 409 = requisitos previos faltantes: el mensaje del servidor ya lo explica
+      if (err.status === 409) { alert(err.message); await loadGate(); }
+      else alert('Error al aceptar: ' + err.message);
+    }
     finally { setIsSaving(false); }
   };
 
@@ -281,14 +389,18 @@ export default function OTDetail() {
         status: 'ACTIVE',
       };
       const updated = [...jornadas, newJ];
-      setJornadas(updated);
       await otService.updateOT(id, {
         status: 'IN_PROGRESS',
         startedAt: ot.startedAt || new Date().toISOString(),
         jornadas: updated,
       });
+      setJornadas(updated);
       await loadOT();
-    } catch (err) { alert('Error al iniciar jornada: ' + err.message); }
+    } catch (err) {
+      // 409 = falta la panoramización del sitio
+      if (err.status === 409) { alert(err.message); await loadGate(); }
+      else alert('Error al iniciar jornada: ' + err.message);
+    }
     finally { setIsSaving(false); }
   };
 
@@ -781,13 +893,44 @@ export default function OTDetail() {
 
                   <button
                     onClick={handleAcceptOT}
-                    disabled={isSaving}
-                    className="cursor-pointer w-full bg-white text-gray-950 py-5 rounded-2xl font-black text-sm uppercase tracking-[0.2em] flex items-center justify-center gap-3 hover:bg-gray-100 transition-all active:scale-[0.98] disabled:opacity-40 shadow-xl"
+                    disabled={isSaving || !canAcceptOT}
+                    title={!canAcceptOT ? 'Completa los requisitos previos para aceptar la orden' : ''}
+                    className="cursor-pointer w-full bg-white text-gray-950 py-5 rounded-2xl font-black text-sm uppercase tracking-[0.2em] flex items-center justify-center gap-3 hover:bg-gray-100 transition-all active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed shadow-xl"
                   >
-                    <Check className="h-5 w-5" /> Aceptar Orden de Trabajo
+                    {canAcceptOT ? <Check className="h-5 w-5" /> : <Lock className="h-5 w-5" />}
+                    Aceptar Orden de Trabajo
                   </button>
                 </div>
               </div>
+            )}
+
+            {/* ── PUERTA 1: asistencia + checklist antes de aceptar ── */}
+            {(ot.status === 'ASSIGNED' || ot.status === 'PENDING' || ot.status === 'UNASSIGNED') && gate.loaded && !acceptReqsMet && (
+              <GateCard
+                blocking={gateBlocks}
+                title={gateBlocks ? 'Falta cerrar tu salida del taller' : 'El técnico asignado aún no está listo'}
+                hint={gateBlocks
+                  ? 'El checklist se llena antes de salir: registra tu entrada y envía el equipo, herramientas y vehículo. Después podrás aceptar la orden.'
+                  : 'Le falta esto para poder aceptar la orden. Como supervisor puedes avanzarla de todos modos.'}
+                items={[
+                  {
+                    key: 'attendance', icon: LogIn,
+                    label: 'Entrada del día registrada',
+                    detail: gate.checkInTime ? `Entrada ${gate.checkInTime}` : 'Sin registrar — horario 09:00',
+                    done: Boolean(gate.checkInTime),
+                    action: gateBlocks ? () => navigate('/tech/attendance') : null,
+                    actionLabel: 'Ir a asistencia',
+                  },
+                  {
+                    key: 'checklist', icon: ClipboardCheck,
+                    label: 'Checklist del día enviado',
+                    detail: 'Equipo personal, herramientas y vehículo',
+                    done: gate.checklistDone,
+                    action: gateBlocks ? () => navigate('/tech/attendance') : null,
+                    actionLabel: 'Hacer checklist',
+                  },
+                ]}
+              />
             )}
 
             {/* ── ESTADO: ACCEPTED — Lista para iniciar jornada ── */}
@@ -828,12 +971,34 @@ export default function OTDetail() {
                   );
                 })()}
 
+                {/* ── PUERTA 2: panoramización del sitio antes de iniciar ── */}
+                {gate.loaded && !startReqsMet && (
+                  <GateCard
+                    blocking={gateBlocks}
+                    title={gateBlocks ? 'Panoramiza el sitio antes de arrancar' : 'Sin panoramización del sitio'}
+                    hint={gateBlocks
+                      ? 'Ya estás en el lugar: describe cómo lo encontraste, tu plan, los obstáculos y cómo los vas a resolver. Se registra una sola vez por OT.'
+                      : 'El técnico no ha registrado la panoramización de esta OT.'}
+                    items={[{
+                      key: 'panoramizacion', icon: ScanSearch,
+                      label: 'Panoramización de la OT',
+                      detail: `Sitio de ${ot.storeName || ot.clientName || 'la orden'}`,
+                      done: gate.panoraDone,
+                      action: gateBlocks ? () => setIsPanoraModalOpen(true) : null,
+                      actionLabel: 'Panoramizar',
+                    }]}
+                  />
+                )}
+
                 <button
                   onClick={handleStartJornada}
-                  disabled={isSaving}
-                  className="cursor-pointer w-full bg-gray-950 text-white py-5 rounded-2xl font-black text-sm uppercase tracking-[0.2em] flex items-center justify-center gap-3 hover:bg-gray-800 transition-all active:scale-[0.98] disabled:opacity-40 shadow-xl"
+                  disabled={isSaving || !canStartJornada}
+                  title={!canStartJornada ? 'Completa la panoramización del sitio para iniciar la jornada' : ''}
+                  className="cursor-pointer w-full bg-gray-950 text-white py-5 rounded-2xl font-black text-sm uppercase tracking-[0.2em] flex items-center justify-center gap-3 hover:bg-gray-800 transition-all active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed shadow-xl"
                 >
-                  <Play className="h-5 w-5 text-emerald-400" />
+                  {canStartJornada
+                    ? <Play className="h-5 w-5 text-emerald-400" />
+                    : <Lock className="h-5 w-5 text-amber-400" />}
                   {jornadas.length > 0 ? 'Iniciar Nueva Jornada' : 'Iniciar Jornada de Trabajo'}
                 </button>
               </div>
@@ -1069,6 +1234,23 @@ export default function OTDetail() {
         onSave={handleSaveExpense}
         prefilledOtId={ot.otNumber}
       />
+
+      {/* ── Modal Panoramización — requisito para iniciar la jornada ── */}
+      {isPanoraModalOpen && (
+        <PanoramizacionModal
+          goal={{
+            otNumber:   ot.otNumber,
+            clientName: ot.storeName || ot.clientName || ot.client || '—',
+            techId:     user.id,
+            notes:      ot.title,
+          }}
+          onClose={() => setIsPanoraModalOpen(false)}
+          onSaved={() => {
+            setGate(g => ({ ...g, panoraDone: true }));
+            setIsPanoraModalOpen(false);
+          }}
+        />
+      )}
 
       {/* ── Funds Modal ── */}
       {isFundsModalOpen && (

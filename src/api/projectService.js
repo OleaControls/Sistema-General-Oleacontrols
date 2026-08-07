@@ -42,7 +42,7 @@ export const projectService = {
 
   // ── Sub-recursos genéricos ─────────────────────────────────────────────
   // sub ∈ tasks | risks | costs | resources | quality | communications |
-  //        incidents | documents | changes
+  //        incidents | documents | changes | quotes
   async addItem(projectId, sub, data) {
     const res = await apiFetch(`/api/projects?id=${projectId}&sub=${sub}`, {
       method: 'POST',
