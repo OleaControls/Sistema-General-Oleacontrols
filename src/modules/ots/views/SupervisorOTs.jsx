@@ -1616,7 +1616,7 @@ export default function SupervisorOTs() {
                       <div className="grid grid-cols-2 gap-4">
                         {/* Autocompletado Clientes OT */}
                         <div>
-                          <label className="text-[9px] font-mono font-bold uppercase tracking-[0.15em] text-gray-400 block mb-2">Autocompletar Cliente OT</label>
+                          <label className="text-[9px] font-mono font-bold uppercase tracking-[0.15em] text-gray-400 block mb-2">¿Cuál cliente? </label>
                           <div className="relative">
                             <Building2 className="absolute left-3.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-300 pointer-events-none z-10" />
                             <input
