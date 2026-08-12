@@ -195,7 +195,14 @@ model WorkOrder {
   assignedBy        Employee? @relation("AssignedOTs", fields: [assignedById], references: [id])
 
   // Resultados, Financiero y Cierre
-  assignedFunds     Float     @default(0)
+  assignedFunds     Float     @default(0) // Presupuesto inicial por viáticos
+
+  // ── Expectativas de la asignación — el técnico las ve en Telegram y en su meta ──
+  clientGoal        String?   // Meta del cliente — qué espera lograr con este trabajo
+  timeLimitHours    Int?      // Horas que tiene el técnico para completar la asignación
+  qualityHigh       String?   // Nivel de calidad alto — el resultado ideal esperado
+  qualityMin        String?   // Nivel mínimo aceptable para dar la asignación por buena
+
   systemType        String?   // SDI, SCA, CCTV, SSA, RMC, MDE
   deliveryDetails   String?   // "Por este conducto se hace la entrega..."
   report            String?   // Resumen técnico

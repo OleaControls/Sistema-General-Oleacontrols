@@ -3,6 +3,7 @@ import { uploadToR2, signUrlIfNeeded } from '../_lib/r2.js'
 import { authMiddleware } from '../_lib/auth.js'
 import { notifyOTAssigned, notifyOTCompleted } from '../_lib/telegram.js'
 import { businessDay } from '../_lib/businessDay.js'
+import { OT_WINDOW_KEY, isWindowOpen, windowLabel } from '../_lib/otWindow.js'
 
 // ── Helper: sufijo de folio estilo "columna de Excel" (siempre letras, nunca se acaba) ──
 // index 0 → '' (sin sufijo) · 1→A · 26→Z · 27→AA · 28→AB · ... nunca produce símbolos.
@@ -65,6 +66,14 @@ async function syncOTGoals(ot, setById) {
   } catch (err) {
     console.error('[syncOTGoals] error:', err.message);
   }
+}
+
+// Horas para completar la asignación: entero positivo, o null si viene vacío/inválido.
+// Evita mandar NaN a Prisma cuando el input llega como '' desde el formulario.
+function toHours(value) {
+  if (value === undefined || value === null || value === '') return null;
+  const n = parseInt(value, 10);
+  return Number.isFinite(n) && n > 0 ? n : null;
 }
 
 // ── Requisitos previos para que un TÉCNICO avance una OT ─────────────────────
@@ -297,6 +306,10 @@ export default async function handler(req, res) {
             supervisorId: true,
             description: true,
             assignedFunds: true,
+            clientGoal: true,
+            timeLimitHours: true,
+            qualityHigh: true,
+            qualityMin: true,
             deliveryActUrl: true,
             assistantTechs: true,
             supportTechs: true,
@@ -372,8 +385,21 @@ export default async function handler(req, res) {
 
   if (method === 'POST') {
     try {
+      // ── Ventana horaria de creación ──────────────────────────────────────
+      // El ADMIN la configura desde Control de Operaciones. Se valida aquí (no
+      // solo en el botón) para que cubra también el alta desde el calendario.
+      const callerRoles = Array.isArray(auth?.roles) ? auth.roles : [auth?.roles].filter(Boolean);
+      if (!callerRoles.includes('ADMIN')) {
+        const windowCfg = await prisma.systemConfig.findUnique({ where: { key: OT_WINDOW_KEY } });
+        if (!isWindowOpen(windowCfg?.value)) {
+          return res.status(403).json({
+            error: `La creación de OTs está cerrada en este momento. Horario permitido: ${windowLabel(windowCfg?.value)} (hora de México).`,
+          });
+        }
+      }
+
       const data = await processOTImages(req.body);
-      
+
       const cleanName = (data.storeName || 'NA').toUpperCase().replace(/[^A-Z0-9]/g, '').substring(0, 4);
       const cleanNum = (data.storeNumber || '000').toUpperCase().replace(/[^A-Z0-9]/g, '');
       const baseId = `OT-${cleanName}-${cleanNum}`;
@@ -400,6 +426,10 @@ export default async function handler(req, res) {
         arrivalTime: data.arrivalTime,
         scheduledDate: data.scheduledDate ? new Date(data.scheduledDate) : null,
         assignedFunds: parseFloat(data.assignedFunds) || 0,
+        clientGoal: data.clientGoal || null,
+        timeLimitHours: toHours(data.timeLimitHours),
+        qualityHigh: data.qualityHigh || null,
+        qualityMin: data.qualityMin || null,
         supervisorId: data.supervisorId,
         technicianId: data.leadTechId,
         creatorId: data.supervisorId,
@@ -507,6 +537,10 @@ export default async function handler(req, res) {
       if (data.contactPhone     !== undefined) updateData.contactPhone     = data.contactPhone;
       if (data.clientEmail      !== undefined) updateData.clientEmail      = data.clientEmail;
       if (data.clientPhone      !== undefined) updateData.clientPhone      = data.clientPhone;
+      if (data.clientGoal       !== undefined) updateData.clientGoal       = data.clientGoal || null;
+      if (data.timeLimitHours   !== undefined) updateData.timeLimitHours   = toHours(data.timeLimitHours);
+      if (data.qualityHigh      !== undefined) updateData.qualityHigh      = data.qualityHigh || null;
+      if (data.qualityMin       !== undefined) updateData.qualityMin       = data.qualityMin  || null;
 
       // ── Campos de estado / operación ───────────────────────────────────────
       if (status) updateData.status = status;

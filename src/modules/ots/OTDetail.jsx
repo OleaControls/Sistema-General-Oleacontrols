@@ -5,7 +5,7 @@ import {
   X, Send, ArrowRight, Store, Map as MapIcon, AlertTriangle, Wallet, Plus, Coins,
   Phone, Mail, Info, Users, Hash, Calendar, Zap, Activity, Timer, ArrowUpCircle, ArrowDownCircle,
   MessageCircle, Pause, Play, Flag, Check, BarChart2, Coffee, LockOpen, ShieldAlert,
-  ScanSearch, ClipboardCheck, LogIn, Lock
+  ScanSearch, ClipboardCheck, LogIn, Lock, Target
 } from 'lucide-react';
 import { otService } from '@/api/otService';
 import { expenseService } from '@/api/expenseService';
@@ -722,6 +722,21 @@ export default function OTDetail() {
                   </div>
                 </div>
               </div>
+
+              {/* Meta del Cliente — qué espera lograr con este trabajo */}
+              {ot.clientGoal && (
+                <div className="bg-violet-600 rounded-[1.75rem] overflow-hidden">
+                  <div className="px-7 py-5 border-b border-white/10 flex items-center gap-3">
+                    <Target className="h-4 w-4 text-violet-200" />
+                    <h3 className="text-[10px] font-black text-violet-100 uppercase tracking-widest">Meta del Cliente</h3>
+                  </div>
+                  <div className="px-7 py-6">
+                    <p className="text-base md:text-lg font-bold leading-relaxed text-white">
+                      {ot.clientGoal}
+                    </p>
+                  </div>
+                </div>
+              )}
 
               {/* Instrucciones Técnicas */}
               <div className="bg-gray-950 rounded-[1.75rem] overflow-hidden">

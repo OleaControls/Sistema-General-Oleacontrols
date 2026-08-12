@@ -4,7 +4,8 @@ import {
   ClipboardList, Search, MoreHorizontal, Clock, Eye,
   X, Send, Trophy, Building2, User, Trash2, AlertCircle, FileText,
   MapPin, Loader2, Layers, ChevronDown, ChevronUp, Receipt, TrendingDown,
-  DollarSign, ChevronLeft, ChevronRight, Check, Briefcase, Zap, Star, MessageSquare
+  DollarSign, ChevronLeft, ChevronRight, Check, Briefcase, Zap, Star, MessageSquare,
+  Lock, TimerReset
 } from 'lucide-react';
 import { MapContainer, TileLayer, Marker, useMap, useMapEvents, Popup } from 'react-leaflet';
 import L from 'leaflet';
@@ -15,6 +16,9 @@ import { hrService } from '@/api/hrService';
 import { apiFetch } from '@/lib/api';
 import { useAuth, ROLES } from '@/store/AuthContext';
 import { cn } from '@/lib/utils';
+import {
+  OT_WINDOW_KEY, DEFAULT_OT_WINDOW, normalizeWindow, isWindowOpen, windowLabel, hourLabel,
+} from '@/lib/otWindow';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -138,6 +142,19 @@ export default function SupervisorOTs() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filters, setFilters] = useState({ status: 'ALL', priority: 'ALL', techId: 'ALL' });
 
+  // ── Ventana horaria de creación de OTs ────────────────────────────────────
+  const [otWindow, setOtWindow] = useState(DEFAULT_OT_WINDOW);
+  const [windowModalOpen, setWindowModalOpen] = useState(false);
+  const [windowDraft, setWindowDraft] = useState(DEFAULT_OT_WINDOW);
+  const [windowSaving, setWindowSaving] = useState(false);
+  // Marca de tiempo que avanza sola: sin esto el botón no se bloquearía al dar
+  // la hora de cierre con la pestaña ya abierta.
+  const [nowTick, setNowTick] = useState(() => new Date());
+
+  const isAdmin       = currentUser?.roles?.includes(ROLES.ADMIN) ?? false;
+  const canCreateOT   = isAdmin || isWindowOpen(otWindow, nowTick);
+  const windowIsClosed = !canCreateOT;
+
   // Paginación server-side
   const OT_PAGE_SIZE = 50;
   const [otPage, setOtPage]   = useState(1);
@@ -161,7 +178,8 @@ export default function SupervisorOTs() {
     contactName: '', contactEmail: '', contactPhone: '', leadTechId: '', leadTechName: '',
     assistantTechs: [], workDescription: '', arrivalTime: '09:00',
     scheduledDate: new Date().toISOString().split('T')[0],
-    priority: 'MEDIUM', assignedFunds: 0, techMetas: '', techHasVehicle: false
+    priority: 'MEDIUM', assignedFunds: 0, techMetas: '', techHasVehicle: false,
+    timeLimitHours: '', qualityHigh: '', qualityMin: '', clientGoal: ''
   };
 
   const [newOT, setNewOT] = useState(initialNewOT);
@@ -218,8 +236,24 @@ export default function SupervisorOTs() {
       try { setTechLocations(await otService.getTechnicianLocations()); } catch (_) {}
     };
     fetchTechLocations();
+
+    // Horario de creación de OTs
+    (async () => {
+      try {
+        const res = await apiFetch(`/api/config?key=${OT_WINDOW_KEY}`);
+        if (res.ok) {
+          const cfg = normalizeWindow(await res.json());
+          setOtWindow(cfg);
+          setWindowDraft(cfg);
+        }
+      } catch (_) { /* si falla, queda la ventana por defecto (deshabilitada) */ }
+    })();
+
+    // Revisa cada minuto para que el botón se cierre solo al llegar la hora
+    const clockTick = setInterval(() => setNowTick(new Date()), 60000);
+
     const interval = setInterval(fetchTechLocations, 10000);
-    return () => clearInterval(interval);
+    return () => { clearInterval(interval); clearInterval(clockTick); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -533,7 +567,36 @@ export default function SupervisorOTs() {
     }
   };
 
+  const saveOtWindow = async () => {
+    if (windowDraft.enabled && windowDraft.openHour === windowDraft.closeHour) {
+      alert('La hora de apertura y la de cierre no pueden ser la misma.');
+      return;
+    }
+    setWindowSaving(true);
+    try {
+      const res = await apiFetch('/api/config', {
+        method: 'POST',
+        body: JSON.stringify({ key: OT_WINDOW_KEY, value: normalizeWindow(windowDraft) }),
+      });
+      if (!res.ok) {
+        const payload = await res.json().catch(() => null);
+        throw new Error(payload?.error || 'No se pudo guardar el horario');
+      }
+      setOtWindow(normalizeWindow(windowDraft));
+      setWindowModalOpen(false);
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setWindowSaving(false);
+    }
+  };
+
   const openCreateModal = () => {
+    // El backend también lo valida; esto evita llenar el formulario en balde.
+    if (!canCreateOT) {
+      alert(`La creación de OTs está cerrada. Horario permitido: ${windowLabel(otWindow)} (hora de México).`);
+      return;
+    }
     setNewOT(initialNewOT);
     setIsEditMode(false);
     goToStep(1);
@@ -767,14 +830,124 @@ export default function SupervisorOTs() {
           >
             <Trophy className="h-3.5 w-3.5 text-amber-500" /> Ranking
           </button>
+          {isAdmin && (
+            <button
+              onClick={() => { setWindowDraft(otWindow); setWindowModalOpen(true); }}
+              title="Horario de creación de OTs"
+              className="cursor-pointer h-9 px-4 rounded-xl border border-gray-200 bg-white text-gray-600 font-semibold text-xs flex items-center gap-2 hover:border-gray-300 hover:bg-gray-50 transition-colors shadow-sm"
+            >
+              <TimerReset className="h-3.5 w-3.5 text-blue-500" />
+              {otWindow.enabled ? windowLabel(otWindow) : 'Horario'}
+            </button>
+          )}
           <button
             onClick={openCreateModal}
-            className="cursor-pointer h-9 px-5 rounded-xl bg-blue-600 text-white font-semibold text-xs flex items-center gap-2 hover:bg-blue-700 transition-colors shadow-sm"
+            disabled={windowIsClosed}
+            title={windowIsClosed ? `Cerrado · horario permitido ${windowLabel(otWindow)}` : undefined}
+            className={cn(
+              'h-9 px-5 rounded-xl font-semibold text-xs flex items-center gap-2 transition-colors shadow-sm',
+              windowIsClosed
+                ? 'bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed'
+                : 'cursor-pointer bg-blue-600 text-white hover:bg-blue-700'
+            )}
           >
-            <ClipboardList className="h-3.5 w-3.5" /> Nueva OT
+            {windowIsClosed
+              ? <><Lock className="h-3.5 w-3.5" /> Cerrado · {windowLabel(otWindow)}</>
+              : <><ClipboardList className="h-3.5 w-3.5" /> Nueva OT</>}
           </button>
         </div>
       </div>
+
+      {/* ── MODAL: horario de creación de OTs (solo ADMIN) ─────────────────── */}
+      {windowModalOpen && isAdmin && (
+        <div className="fixed inset-0 z-[100] bg-black/50 flex items-center justify-center p-4"
+             onClick={() => !windowSaving && setWindowModalOpen(false)}>
+          <div className="bg-white rounded-3xl w-full max-w-md overflow-hidden shadow-2xl"
+               onClick={e => e.stopPropagation()}>
+            <div className="px-6 pt-6 pb-5 border-b border-gray-100 flex items-start justify-between gap-4">
+              <div>
+                <p className="text-[9px] font-mono font-bold uppercase tracking-[0.18em] text-gray-400 mb-1">Control de Operaciones</p>
+                <h3 className="text-lg font-black text-gray-950 leading-none">Horario para crear OTs</h3>
+                <p className="text-xs text-gray-400 mt-2 leading-relaxed">
+                  Fuera de este horario nadie puede generar OTs nuevas, ni desde aquí ni desde el calendario.
+                  Los administradores no quedan bloqueados.
+                </p>
+              </div>
+              <button onClick={() => setWindowModalOpen(false)}
+                      className="cursor-pointer h-8 w-8 shrink-0 flex items-center justify-center rounded-xl bg-gray-100 text-gray-500 hover:bg-gray-200 transition-colors">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-5">
+              <label className="flex items-center justify-between gap-4 cursor-pointer">
+                <span>
+                  <span className="block text-sm font-bold text-gray-800">Restringir el horario</span>
+                  <span className="block text-[11px] text-gray-400 mt-0.5">
+                    Apagado = se pueden crear OTs a cualquier hora.
+                  </span>
+                </span>
+                <input
+                  type="checkbox"
+                  checked={windowDraft.enabled}
+                  onChange={e => setWindowDraft(d => ({ ...d, enabled: e.target.checked }))}
+                  className="h-5 w-5 shrink-0 accent-blue-600 cursor-pointer"
+                />
+              </label>
+
+              <div className={cn('grid grid-cols-2 gap-4 transition-opacity', !windowDraft.enabled && 'opacity-40 pointer-events-none')}>
+                {[
+                  { key: 'openHour',  label: 'Abre a las',  color: 'text-emerald-600' },
+                  { key: 'closeHour', label: 'Cierra a las', color: 'text-red-500' },
+                ].map(f => (
+                  <div key={f.key}>
+                    <label className={cn('text-[9px] font-mono font-bold uppercase tracking-[0.15em] block mb-2', f.color)}>
+                      {f.label}
+                    </label>
+                    <select
+                      value={windowDraft[f.key]}
+                      onChange={e => setWindowDraft(d => ({ ...d, [f.key]: parseInt(e.target.value, 10) }))}
+                      className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm font-mono font-bold text-gray-900 outline-none focus:border-gray-900 transition-all cursor-pointer"
+                    >
+                      {Array.from({ length: 24 }, (_, h) => (
+                        <option key={h} value={h}>{hourLabel(h)}</option>
+                      ))}
+                    </select>
+                  </div>
+                ))}
+              </div>
+
+              {windowDraft.enabled && (
+                <div className="rounded-2xl bg-gray-50 border border-gray-100 p-4">
+                  <p className="text-[9px] font-mono font-bold uppercase tracking-[0.15em] text-gray-400 mb-1.5">Resultado</p>
+                  {windowDraft.openHour === windowDraft.closeHour ? (
+                    <p className="text-xs font-bold text-red-500">
+                      La apertura y el cierre no pueden ser la misma hora.
+                    </p>
+                  ) : (
+                    <p className="text-xs font-bold text-gray-700 leading-relaxed">
+                      Se podrán crear OTs de <span className="font-mono text-emerald-600">{hourLabel(windowDraft.openHour)}</span> a{' '}
+                      <span className="font-mono text-red-500">{hourLabel(windowDraft.closeHour)}</span>, hora de México.
+                      {windowDraft.openHour > windowDraft.closeHour && ' El horario cruza la medianoche.'}
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="px-6 pb-6 flex gap-3">
+              <button onClick={() => setWindowModalOpen(false)} disabled={windowSaving}
+                      className="cursor-pointer flex-1 h-11 rounded-xl border border-gray-200 text-gray-600 font-semibold text-xs hover:bg-gray-50 transition-colors disabled:opacity-50">
+                Cancelar
+              </button>
+              <button onClick={saveOtWindow} disabled={windowSaving}
+                      className="cursor-pointer flex-1 h-11 rounded-xl bg-blue-600 text-white font-semibold text-xs hover:bg-blue-700 transition-colors disabled:opacity-50">
+                {windowSaving ? 'Guardando...' : 'Guardar horario'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* KPI GRID */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
@@ -1674,7 +1847,7 @@ export default function SupervisorOTs() {
 
                       {/* Título */}
                       <div>
-                        <label className="text-[9px] font-mono font-bold uppercase tracking-[0.15em] text-gray-500 block mb-2">Título de la Orden *</label>
+                        <label className="text-[9px] font-mono font-bold uppercase tracking-[0.15em] text-gray-500 block mb-2">Qué se va a hacer *</label>
                         <input
                           required
                           className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-900 outline-none focus:border-gray-900 focus:ring-2 focus:ring-gray-900/5 transition-all placeholder:text-gray-300"
@@ -1964,7 +2137,7 @@ export default function SupervisorOTs() {
                       {/* Equipo apoyo */}
                       {availableTechs.filter(t => t.id !== newOT.leadTechId).length > 0 && (
                         <div>
-                          <label className="text-[9px] font-mono font-bold uppercase tracking-[0.15em] text-gray-500 block mb-3">Equipo de Apoyo <span className="normal-case text-gray-300">(opcional)</span></label>
+                          <label className="text-[9px] font-mono font-bold uppercase tracking-[0.15em] text-gray-500 block mb-3">Miembros del Equipo <span className="normal-case text-gray-300">(opcional)</span></label>
                           <div className="flex flex-wrap gap-2">
                             {availableTechs.filter(t => t.id !== newOT.leadTechId).map(tech => {
                               const isSelected = newOT.assistantTechs?.some(t => t.id === tech.id);
@@ -1995,12 +2168,12 @@ export default function SupervisorOTs() {
                         </div>
                       )}
 
-                      {/* Presupuesto */}
+                      {/* Presupuesto inicial por viáticos */}
                       <div className="bg-gray-950 rounded-2xl p-6">
                         <div className="flex items-end justify-between gap-6">
                           <div>
                             <p className="text-[9px] font-mono font-bold uppercase tracking-[0.15em] text-gray-500 mb-2">
-                              {isEditMode ? 'Presupuesto Total' : 'Presupuesto Inicial'}
+                              {isEditMode ? 'Presupuesto Total por Viáticos' : 'Presupuesto Inicial por Viáticos'}
                             </p>
                             <p className="text-4xl font-black font-mono text-white tabular-nums">
                               ${(isEditMode
@@ -2012,7 +2185,7 @@ export default function SupervisorOTs() {
                           </div>
                           <div className="shrink-0 text-right">
                             <label className="text-[9px] font-mono font-bold uppercase tracking-widest text-gray-600 block mb-2">
-                              {isEditMode ? 'Agregar Fondos' : 'Monto'}
+                              {isEditMode ? 'Agregar Viáticos' : 'Monto'}
                             </label>
                             <div className="flex items-center gap-1.5">
                               <span className="text-gray-500 font-mono font-bold text-sm">$</span>
@@ -2026,6 +2199,72 @@ export default function SupervisorOTs() {
                                 placeholder="0"
                               />
                             </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Expectativas de la asignación — el técnico las recibe en Telegram y en su meta */}
+                      <div className="space-y-4 rounded-2xl border border-gray-200 p-5">
+                        <div className="flex items-center gap-4">
+                          <div className="flex-1 h-px bg-gray-100" />
+                          <span className="text-[9px] font-mono text-gray-300 uppercase tracking-widest">lo que verá el técnico</span>
+                          <div className="flex-1 h-px bg-gray-100" />
+                        </div>
+
+                        <div>
+                          <label className="text-[9px] font-mono font-bold uppercase tracking-[0.15em] text-violet-600 block mb-2">
+                            Meta del Cliente
+                          </label>
+                          <textarea
+                            rows={2}
+                            className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-900 outline-none focus:border-violet-500 transition-all resize-none placeholder:text-gray-300"
+                            value={newOT.clientGoal ?? ''}
+                            onChange={e => setNewOT({ ...newOT, clientGoal: e.target.value })}
+                            placeholder="¿Qué espera lograr el cliente con este trabajo? En sus palabras."
+                          />
+                        </div>
+
+                        <div>
+                          <label className="text-[9px] font-mono font-bold uppercase tracking-[0.15em] text-gray-500 block mb-2">
+                            Tiempo para completar la asignación
+                          </label>
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="number"
+                              min="1"
+                              className="w-32 px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm font-mono font-bold text-gray-900 outline-none focus:border-gray-900 transition-all placeholder:text-gray-300"
+                              value={newOT.timeLimitHours ?? ''}
+                              onChange={e => setNewOT({ ...newOT, timeLimitHours: e.target.value })}
+                              placeholder="8"
+                            />
+                            <span className="text-xs font-bold text-gray-400">horas</span>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div>
+                            <label className="text-[9px] font-mono font-bold uppercase tracking-[0.15em] text-emerald-600 block mb-2">
+                              Nivel de calidad · Alto
+                            </label>
+                            <textarea
+                              rows={3}
+                              className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-900 outline-none focus:border-emerald-500 transition-all resize-none placeholder:text-gray-300"
+                              value={newOT.qualityHigh ?? ''}
+                              onChange={e => setNewOT({ ...newOT, qualityHigh: e.target.value })}
+                              placeholder="El resultado ideal: qué debe entregar para considerarse un trabajo sobresaliente."
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[9px] font-mono font-bold uppercase tracking-[0.15em] text-amber-600 block mb-2">
+                              Nivel de calidad · Mínimo
+                            </label>
+                            <textarea
+                              rows={3}
+                              className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-900 outline-none focus:border-amber-500 transition-all resize-none placeholder:text-gray-300"
+                              value={newOT.qualityMin ?? ''}
+                              onChange={e => setNewOT({ ...newOT, qualityMin: e.target.value })}
+                              placeholder="Lo mínimo aceptable para dar la asignación por terminada."
+                            />
                           </div>
                         </div>
                       </div>

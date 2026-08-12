@@ -1,5 +1,6 @@
 import prisma from '../_lib/prisma.js'
 import { authMiddleware } from '../_lib/auth.js'
+import { OT_WINDOW_KEY, normalizeWindow } from '../_lib/otWindow.js'
 
 // Catálogo por defecto de Cultura (percepciones y escarmientos con su costo unitario).
 // Se usa solo si aún no se ha guardado un catálogo personalizado en SystemConfig.
@@ -81,6 +82,12 @@ export default async function handler(req, res) {
         return res.status(200).json(DEFAULT_CULTURA_CATALOG);
       }
 
+      // Ventana de creación de OTs: siempre se devuelve normalizada, para que la
+      // UI no tenga que adivinar si falta la clave o quedó a medias.
+      if (key === OT_WINDOW_KEY) {
+        return res.status(200).json(normalizeWindow(config?.value));
+      }
+
       return res.status(200).json(config?.value || []);
     } catch (error) {
       return res.status(500).json({ error: error.message });
@@ -91,6 +98,11 @@ export default async function handler(req, res) {
     try {
       const { key, value } = req.body;
       if (!key || !value) return res.status(400).json({ error: 'Faltan datos' });
+
+      // La ventana de creación de OTs solo la define un ADMIN
+      if (key === OT_WINDOW_KEY && !isAdmin) {
+        return res.status(403).json({ error: 'Solo un administrador puede cambiar el horario de creación de OTs' });
+      }
 
       // Si un SALES guarda el pipeline, se guarda con su clave personal
       const effectiveKey = (key === 'CRM_PIPELINE_STAGES' && isSales)

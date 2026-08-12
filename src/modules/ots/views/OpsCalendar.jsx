@@ -69,6 +69,7 @@ const BLANK_OT = {
   assistantTechs: [], workDescription: '', arrivalTime: '09:00',
   scheduledDate: new Date().toISOString().split('T')[0],
   priority: 'MEDIUM', assignedFunds: 0,
+  timeLimitHours: '', qualityHigh: '', qualityMin: '', clientGoal: '',
 };
 
 export default function OpsCalendar() {
@@ -400,7 +401,11 @@ export default function OpsCalendar() {
         method: 'POST',
         body: JSON.stringify({ ...convertOT, supervisorId: user.id })
       });
-      if (!res.ok) throw new Error('Error al crear OT');
+      if (!res.ok) {
+        // El servidor explica el motivo (p. ej. 403 fuera del horario de creación)
+        const payload = await res.json().catch(() => null);
+        throw new Error(payload?.error || 'Error al crear OT');
+      }
       const ot = await res.json();
       setConvertedOT({ otNumber: ot.otNumber });
       setIsConvertModalOpen(false);
@@ -1436,7 +1441,7 @@ export default function OpsCalendar() {
 
                       {/* Título */}
                       <div>
-                        <label className="text-[9px] font-mono font-bold uppercase tracking-[0.15em] text-gray-500 block mb-2">Título de la Orden *</label>
+                        <label className="text-[9px] font-mono font-bold uppercase tracking-[0.15em] text-gray-500 block mb-2">Qué se va a hacer *</label>
                         <input required className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-900 outline-none focus:border-gray-900 focus:ring-2 focus:ring-gray-900/5 transition-all placeholder:text-gray-300"
                           value={convertOT.title} onChange={e => setConvertOT({ ...convertOT, title: e.target.value })} placeholder="Ej. Mantenimiento preventivo sistema eléctrico..." />
                       </div>
@@ -1608,7 +1613,7 @@ export default function OpsCalendar() {
                       {/* Equipo apoyo */}
                       {availableTechs.filter(t => t.id !== convertOT.leadTechId).length > 0 && (
                         <div>
-                          <label className="text-[9px] font-mono font-bold uppercase tracking-[0.15em] text-gray-500 block mb-3">Equipo de Apoyo <span className="normal-case text-gray-300">(opcional)</span></label>
+                          <label className="text-[9px] font-mono font-bold uppercase tracking-[0.15em] text-gray-500 block mb-3">Miembros del Equipo <span className="normal-case text-gray-300">(opcional)</span></label>
                           <div className="flex flex-wrap gap-2">
                             {availableTechs.filter(t => t.id !== convertOT.leadTechId).map(tech => {
                               const isSelected = convertOT.assistantTechs?.some(t => t.id === tech.id);
@@ -1630,11 +1635,11 @@ export default function OpsCalendar() {
                         </div>
                       )}
 
-                      {/* Presupuesto */}
+                      {/* Presupuesto inicial por viáticos */}
                       <div className="bg-gray-950 rounded-2xl p-6">
                         <div className="flex items-end justify-between gap-6">
                           <div>
-                            <p className="text-[9px] font-mono font-bold uppercase tracking-[0.15em] text-gray-500 mb-2">Presupuesto Inicial</p>
+                            <p className="text-[9px] font-mono font-bold uppercase tracking-[0.15em] text-gray-500 mb-2">Presupuesto Inicial por Viáticos</p>
                             <p className="text-4xl font-black font-mono text-white tabular-nums">
                               ${parseFloat(convertOT.assignedFunds || 0).toLocaleString('es-MX')}
                             </p>
@@ -1647,6 +1652,72 @@ export default function OpsCalendar() {
                               <input type="number" className="w-32 px-3 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white font-mono font-bold text-sm outline-none focus:border-white/30 text-right"
                                 value={convertOT.assignedFunds} onChange={e => setConvertOT({ ...convertOT, assignedFunds: parseFloat(e.target.value) || 0 })} placeholder="0" />
                             </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Expectativas de la asignación — el técnico las recibe en Telegram y en su meta */}
+                      <div className="space-y-4 rounded-2xl border border-gray-200 p-5">
+                        <div className="flex items-center gap-4">
+                          <div className="flex-1 h-px bg-gray-100" />
+                          <span className="text-[9px] font-mono text-gray-300 uppercase tracking-widest">lo que verá el técnico</span>
+                          <div className="flex-1 h-px bg-gray-100" />
+                        </div>
+
+                        <div>
+                          <label className="text-[9px] font-mono font-bold uppercase tracking-[0.15em] text-violet-600 block mb-2">
+                            Meta del Cliente
+                          </label>
+                          <textarea
+                            rows={2}
+                            className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-900 outline-none focus:border-violet-500 transition-all resize-none placeholder:text-gray-300"
+                            value={convertOT.clientGoal ?? ''}
+                            onChange={e => setConvertOT({ ...convertOT, clientGoal: e.target.value })}
+                            placeholder="¿Qué espera lograr el cliente con este trabajo? En sus palabras."
+                          />
+                        </div>
+
+                        <div>
+                          <label className="text-[9px] font-mono font-bold uppercase tracking-[0.15em] text-gray-500 block mb-2">
+                            Tiempo para completar la asignación
+                          </label>
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="number"
+                              min="1"
+                              className="w-32 px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm font-mono font-bold text-gray-900 outline-none focus:border-gray-900 transition-all placeholder:text-gray-300"
+                              value={convertOT.timeLimitHours ?? ''}
+                              onChange={e => setConvertOT({ ...convertOT, timeLimitHours: e.target.value })}
+                              placeholder="8"
+                            />
+                            <span className="text-xs font-bold text-gray-400">horas</span>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div>
+                            <label className="text-[9px] font-mono font-bold uppercase tracking-[0.15em] text-emerald-600 block mb-2">
+                              Nivel de calidad · Alto
+                            </label>
+                            <textarea
+                              rows={3}
+                              className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-900 outline-none focus:border-emerald-500 transition-all resize-none placeholder:text-gray-300"
+                              value={convertOT.qualityHigh ?? ''}
+                              onChange={e => setConvertOT({ ...convertOT, qualityHigh: e.target.value })}
+                              placeholder="El resultado ideal: qué debe entregar para considerarse un trabajo sobresaliente."
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[9px] font-mono font-bold uppercase tracking-[0.15em] text-amber-600 block mb-2">
+                              Nivel de calidad · Mínimo
+                            </label>
+                            <textarea
+                              rows={3}
+                              className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-900 outline-none focus:border-amber-500 transition-all resize-none placeholder:text-gray-300"
+                              value={convertOT.qualityMin ?? ''}
+                              onChange={e => setConvertOT({ ...convertOT, qualityMin: e.target.value })}
+                              placeholder="Lo mínimo aceptable para dar la asignación por terminada."
+                            />
                           </div>
                         </div>
                       </div>

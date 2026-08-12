@@ -6,7 +6,7 @@ import {
   Wrench, Zap, ClipboardList, CheckCheck, RotateCcw, ExternalLink, Target, X, ChevronDown, Download,
   ScanSearch, HardDriveUpload, Boxes, TriangleAlert, GitBranch, Camera, ImagePlus,
   Shirt, CreditCard, Ruler, Scissors, Hammer, Briefcase, Layers, BadgeCheck, Tag,
-  LogIn, LogOut
+  LogIn, LogOut, Hourglass, Star, Wallet
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { apiFetch } from '@/lib/api';
@@ -1462,6 +1462,63 @@ export default function TechDailyAttendance() {
                   <p className="text-sm text-gray-300 font-bold">{g.notes}</p>
                 </div>
               )}
+
+              {/* Expectativas de la OT — tiempo límite, calidad y viáticos */}
+              {(g.ot?.clientGoal || g.ot?.timeLimitHours || g.ot?.qualityHigh || g.ot?.qualityMin || g.ot?.assignedFunds > 0) && (
+                <div className="border-t border-white/10 pt-2 space-y-2">
+                  {g.ot.clientGoal && (
+                    <div className="rounded-xl bg-violet-500/10 border border-violet-500/25 p-3 space-y-1">
+                      <div className="flex items-center gap-1.5">
+                        <Target className="h-3.5 w-3.5 text-violet-400 shrink-0" />
+                        <p className="text-[10px] font-black text-violet-300 uppercase tracking-widest">Meta del cliente</p>
+                      </div>
+                      <p className="text-xs font-bold text-gray-300 leading-relaxed">{g.ot.clientGoal}</p>
+                    </div>
+                  )}
+
+                  {g.ot.timeLimitHours > 0 && (
+                    <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-sky-500/15 border border-sky-500/30">
+                      <Hourglass className="h-3.5 w-3.5 text-sky-400 shrink-0" />
+                      <span className="text-[10px] font-black text-sky-300 uppercase tracking-widest">Tiempo para completar</span>
+                      <span className="text-xs font-black text-sky-200 ml-auto shrink-0 tabular-nums">
+                        {g.ot.timeLimitHours} {g.ot.timeLimitHours === 1 ? 'hora' : 'horas'}
+                      </span>
+                    </div>
+                  )}
+
+                  {(g.ot.qualityHigh || g.ot.qualityMin) && (
+                    <div className="rounded-xl bg-white/5 border border-white/10 p-3 space-y-2">
+                      <div className="flex items-center gap-1.5">
+                        <Star className="h-3.5 w-3.5 text-yellow-400 shrink-0" />
+                        <p className="text-[10px] font-black text-yellow-400 uppercase tracking-widest">Nivel de calidad esperado</p>
+                      </div>
+                      {g.ot.qualityHigh && (
+                        <div className="space-y-0.5">
+                          <p className="text-[9px] font-black text-emerald-400 uppercase tracking-widest">Alto</p>
+                          <p className="text-xs font-bold text-gray-300 leading-relaxed">{g.ot.qualityHigh}</p>
+                        </div>
+                      )}
+                      {g.ot.qualityMin && (
+                        <div className="space-y-0.5">
+                          <p className="text-[9px] font-black text-amber-400 uppercase tracking-widest">Mínimo</p>
+                          <p className="text-xs font-bold text-gray-300 leading-relaxed">{g.ot.qualityMin}</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {g.ot.assignedFunds > 0 && (
+                    <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/25">
+                      <Wallet className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+                      <span className="text-[10px] font-black text-emerald-300 uppercase tracking-widest">Viáticos</span>
+                      <span className="text-xs font-black text-emerald-200 ml-auto shrink-0 tabular-nums">
+                        ${g.ot.assignedFunds.toLocaleString('es-MX')}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Panoramización — solo si la OT tiene otNumber */}
               {g.otNumber && (() => {
                 const panora = panoramizaciones[g.otNumber];

@@ -57,7 +57,23 @@ export default async function handler(req, res) {
         include: { tech: { select: { id: true, name: true, avatar: true, position: true } } },
         orderBy: { date: 'asc' },
       });
-      return res.status(200).json(goals);
+
+      // La meta guarda el folio como texto (no hay relación con WorkOrder), así que
+      // traemos las expectativas de la OT en una sola consulta y las adjuntamos como `ot`.
+      const otNumbers = [...new Set(goals.flatMap(g => g.otNumber ? [g.otNumber] : []))];
+      if (otNumbers.length === 0) return res.status(200).json(goals);
+
+      const ots = await prisma.workOrder.findMany({
+        where: { otNumber: { in: otNumbers } },
+        select: {
+          otNumber: true, title: true, assignedFunds: true, clientGoal: true,
+          timeLimitHours: true, qualityHigh: true, qualityMin: true,
+        },
+      });
+      const byOtNumber = new Map(ots.map(o => [o.otNumber, o]));
+      return res.status(200).json(
+        goals.map(g => ({ ...g, ot: g.otNumber ? byOtNumber.get(g.otNumber) || null : null }))
+      );
     }
 
     if (method === 'POST' && resource === 'goals') {

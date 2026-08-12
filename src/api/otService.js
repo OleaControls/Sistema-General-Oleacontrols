@@ -212,7 +212,15 @@ export const otService = {
       method: 'POST',
       body: JSON.stringify(otData)
     });
-    if (!response.ok) throw new Error('Error al crear OT');
+    if (!response.ok) {
+      // El servidor explica el motivo (p. ej. 403 fuera del horario de creación)
+      let payload = null;
+      try { payload = await response.json(); } catch { /* respuesta sin JSON */ }
+      const err = new Error(payload?.error || 'Error al crear OT');
+      err.status  = response.status;
+      err.payload = payload;
+      throw err;
+    }
     return response.json();
   },
 
