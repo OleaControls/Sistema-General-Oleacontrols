@@ -41,6 +41,7 @@ const handlers = {
   payroll:       () => import('./_handlers/payroll.js'),
   lms:           () => import('./_handlers/lms.js'),
   projects:      () => import('./_handlers/projects.js'),
+  appointments:  () => import('./_handlers/appointments.js'),
 };
 
 export default async function handler(req, res) {

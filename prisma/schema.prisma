@@ -773,6 +773,37 @@ model CalendarEvent {
   @@index([otClientId])
 }
 
+// ── Citas solicitadas desde el login público (Coppel) ────────────────────────
+// El cliente escoge tipo de cita + fecha; cae en el calendario de Operaciones
+// y desde ahí se autocompleta para generar la OT del técnico.
+model Appointment {
+  id            String   @id @default(cuid())
+  folio         String   @unique              // CITA-2026-0001
+  type          String                        // AGENDAR, GARANTIAS, PENDIENTES, OTRO
+  clientName    String   @default("Coppel")   // Sólo Coppel usa el cupo de 2/día
+  storeNumber   String?
+  storeName     String?
+  contactName   String
+  contactPhone  String
+  contactEmail  String?
+  address       String?
+  description   String?
+
+  scheduledDate DateTime                      // Día de la cita (UTC 00:00, igual que WorkOrder)
+  preferredTime String   @default("09:00")
+
+  status        String   @default("PENDING")  // PENDING, CONFIRMED, CONVERTED, CANCELLED
+  workOrderId   String?                       // OT generada desde la cita
+  otNumber      String?
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([scheduledDate])
+  @@index([status])
+  @@index([clientName, scheduledDate])
+}
+
 // ── Comunicados / Anuncios ───────────────────────────────────────────────────
 model Announcement {
   id                   String   @id @default(cuid())

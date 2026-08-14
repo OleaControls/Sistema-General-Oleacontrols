@@ -80,6 +80,7 @@ const PropView = lazy(() => import('@/modules/prop/views/PropView'));
 // Misc
 const FeedbackForm = lazy(() => import('@/modules/feedback/FeedbackForm'));
 const ClientPortal = lazy(() => import('@/modules/ots/views/ClientPortal'));
+const AppointmentBooking = lazy(() => import('@/modules/ots/views/AppointmentBooking'));
 
 // ── Fallback de carga ─────────────────────────────────────────────────────────
 function PageLoader() {
@@ -162,6 +163,7 @@ export default function AppRouter() {
         <Routes>
           {/* Rutas Públicas - Deben ir primero */}
           <Route path="/portal" element={<ClientPortal />} />
+          <Route path="/cita" element={<AppointmentBooking />} />
           <Route path="/login" element={<Login />} />
           <Route path="/feedback/:type/:otId" element={<FeedbackForm />} />
 

@@ -27,6 +27,8 @@ import {
   DollarSign,
   Pencil,
   Trash2,
+  CalendarPlus,
+  Phone,
 } from 'lucide-react';
 import { MapContainer, TileLayer, Marker, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
@@ -39,9 +41,16 @@ import { cn } from '@/lib/utils';
 
 const EVENT_TYPES = {
   OT:          { label: 'Orden de Trabajo', icon: Briefcase,   pill: { bg: '#dbeafe', border: '#93c5fd', text: '#1e40af', dot: '#3b82f6' } },
+  CITA:        { label: 'Cita de Cliente',  icon: CalendarPlus, pill: { bg: '#dcfce7', border: '#86efac', text: '#15803d', dot: '#22c55e' } },
   VISIT:       { label: 'Visita Técnica',   icon: MapPin,      pill: { bg: '#fef3c7', border: '#fcd34d', text: '#92400e', dot: '#f59e0b' } },
   MAINTENANCE: { label: 'Mantenimiento',    icon: Wrench,      pill: { bg: '#d1fae5', border: '#6ee7b7', text: '#065f46', dot: '#10b981' } },
   OTHER:       { label: 'Otro',             icon: Info,        pill: { bg: '#ede9fe', border: '#c4b5fd', text: '#4c1d95', dot: '#7c3aed' } },
+};
+
+// Etiquetas de los 4 tipos que el cliente escoge en /cita
+const CITA_TYPES = {
+  AGENDAR:   'Agendar cita',
+  GARANTIAS: 'Garantías',
 };
 
 // Fix Leaflet default icon
@@ -77,6 +86,7 @@ export default function OpsCalendar() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [scrollTick, setScrollTick] = useState(0);
   const [events, setEvents] = useState([]);
+  const [appointments, setAppointments] = useState([]); // Citas generadas por clientes desde /cita
   const [ots, setOts] = useState([]);
   const [clients, setClients] = useState([]);
   const [templates, setTemplates] = useState([]);
@@ -120,25 +130,28 @@ export default function OpsCalendar() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [otsData, calendarRes, clientsRes, templatesData, allEmployees] = await Promise.all([
+      const [otsData, calendarRes, clientsRes, apptRes, templatesData, allEmployees] = await Promise.all([
         otService.getOTs(),
         apiFetch('/api/calendar'),
         apiFetch('/api/ot-clients'),
+        apiFetch('/api/appointments?status=PENDING,CONFIRMED,CONVERTED'),
         otService.getTemplates(),
         hrService.getEmployees(),
       ]);
       const eventsData = calendarRes.ok ? await calendarRes.json() : [];
       const clientsData = clientsRes.ok ? await clientsRes.json() : [];
+      const apptData = apptRes.ok ? await apptRes.json() : [];
       setOts(Array.isArray(otsData) ? otsData : []);
       setEvents(Array.isArray(eventsData) ? eventsData : []);
       setClients(Array.isArray(clientsData) ? clientsData : []);
+      setAppointments(Array.isArray(apptData) ? apptData : []);
       setTemplates(Array.isArray(templatesData) ? templatesData : []);
       const techs = (Array.isArray(allEmployees) ? allEmployees : [])
         .filter(emp => emp.roles?.includes(ROLES.TECH) || emp.roles?.includes('Tech'));
       setAvailableTechs(techs);
     } catch (error) {
       console.error('Error fetching calendar data:', error);
-      setOts([]); setEvents([]); setClients([]); setTemplates([]); setAvailableTechs([]);
+      setOts([]); setEvents([]); setClients([]); setAppointments([]); setTemplates([]); setAvailableTechs([]);
     } finally {
       setLoading(false);
     }
@@ -172,7 +185,18 @@ export default function OpsCalendar() {
       ...e, id: `ev-${e.id}`,
       time: new Date(e.startDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })
     }));
-    return [...dayOts, ...dayEvents].sort((a, b) => a.time.localeCompare(b.time));
+    // Citas solicitadas por el cliente desde el login público
+    const dayCitas = appointments
+      .filter(a => String(a.scheduledDate).startsWith(dateStr))
+      .map(a => ({
+        ...a,
+        appointment: a,
+        id: `cita-${a.id}`,
+        type: 'CITA',
+        title: `${CITA_TYPES[a.type] || 'Cita'} · ${a.storeName || (a.storeNumber ? `Suc. ${a.storeNumber}` : a.clientName)}`,
+        time: a.preferredTime || '09:00',
+      }));
+    return [...dayOts, ...dayEvents, ...dayCitas].sort((a, b) => a.time.localeCompare(b.time));
   };
 
   const handlePrevMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1));
@@ -299,9 +323,64 @@ export default function OpsCalendar() {
     }
   };
 
+  // ── Cancelar una cita de cliente (libera el cupo del día) ─────────────────
+  const handleCancelAppointment = async (appt) => {
+    if (!appt?.id) return;
+    if (!window.confirm(`¿Cancelar la cita ${appt.folio}? El cupo de ese día quedará libre.`)) return;
+    setDeleting(true);
+    try {
+      const res = await apiFetch(`/api/appointments?id=${appt.id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('No se pudo cancelar la cita');
+      setSelectedEvent(null);
+      fetchData();
+    } catch (err) {
+      alert('Error al cancelar: ' + err.message);
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   // ── Open Convert Modal pre-filled ─────────────────────────────────────────
   const openConvertModal = () => {
     if (!selectedEvent || selectedEvent.id.startsWith('ot-')) return;
+
+    // ── Cita generada por el cliente desde /cita ──
+    // Autocompleta la OT con lo que el cliente capturó; si su sucursal ya
+    // existe en el catálogo de OTClient, se completan también coordenadas.
+    const appt = selectedEvent.appointment;
+    if (appt) {
+      const known = clients.find(c =>
+        (appt.storeNumber && c.storeNumber === appt.storeNumber) ||
+        (appt.storeName && c.storeName === appt.storeName)
+      );
+      const prefilledCita = {
+        ...BLANK_OT,
+        title: CITA_TYPES[appt.type] || 'Cita de cliente',
+        workDescription: appt.description || '',
+        client: appt.clientName || 'Coppel',
+        storeNumber: appt.storeNumber || known?.storeNumber || '',
+        storeName: appt.storeName || known?.storeName || '',
+        address: appt.address || known?.address || '',
+        otReference: known?.otReference || '',
+        clientEmail: appt.contactEmail || known?.email || '',
+        clientPhone: appt.contactPhone || known?.phone || '',
+        contactName: appt.contactName || known?.contact || '',
+        contactEmail: appt.contactEmail || '',
+        contactPhone: appt.contactPhone || '',
+        lat: known?.latitude ?? BLANK_OT.lat,
+        lng: known?.longitude ?? BLANK_OT.lng,
+        scheduledDate: String(appt.scheduledDate).split('T')[0],
+        arrivalTime: appt.preferredTime || '09:00',
+      };
+      setConvertOT(prefilledCita);
+      setConvertMapCenter([prefilledCita.lat, prefilledCita.lng]);
+      setConvertOtClientSearch(known ? (known.storeName ? `${known.name} — ${known.storeName}` : known.name) : (appt.clientName || 'Coppel'));
+      setConvertStep(1);
+      setConvertedOT(null);
+      setIsConvertModalOpen(true);
+      return;
+    }
+
     const client = clients.find(c => c.id === selectedEvent.otClientId);
     const prefilled = {
       ...BLANK_OT,
@@ -407,8 +486,20 @@ export default function OpsCalendar() {
         throw new Error(payload?.error || 'Error al crear OT');
       }
       const ot = await res.json();
+
+      // Si venía de una cita del cliente, se marca como convertida para que
+      // libere el cupo del día (ahora lo ocupa la OT) y quede trazada.
+      const appt = selectedEvent?.appointment;
+      if (appt) {
+        await apiFetch('/api/appointments', {
+          method: 'PUT',
+          body: JSON.stringify({ id: appt.id, status: 'CONVERTED', workOrderId: ot.id, otNumber: ot.otNumber }),
+        }).catch(err => console.error('No se pudo marcar la cita como convertida:', err));
+      }
+
       setConvertedOT({ otNumber: ot.otNumber });
       setIsConvertModalOpen(false);
+      fetchData();
     } catch (err) {
       alert('Error al crear OT: ' + err.message);
     } finally {
@@ -723,9 +814,12 @@ export default function OpsCalendar() {
         const evMeta = EVENT_TYPES[selectedEvent.type] || EVENT_TYPES.OTHER;
         const EvIcon = evMeta.icon;
         const p = evMeta.pill;
-        const isCalendarEvent = !selectedEvent.id?.startsWith('ot-');
+        const isOT   = selectedEvent.id?.startsWith('ot-');
+        const isCita = selectedEvent.id?.startsWith('cita-');
+        // "Evento de calendario" = ni OT ni cita → es lo único editable vía /api/calendar
+        const isCalendarEvent = !isOT && !isCita;
         // Accent: more saturated version for the sidebar stripe
-        const accentBg = { OT: '#1e40af', VISIT: '#b45309', MAINTENANCE: '#065f46', OTHER: '#4c1d95' };
+        const accentBg = { OT: '#1e40af', CITA: '#15803d', VISIT: '#b45309', MAINTENANCE: '#065f46', OTHER: '#4c1d95' };
         const ac = { bg: accentBg[selectedEvent.type] || accentBg.OTHER, light: p.bg, border: p.border, text: p.text };
 
         return (
@@ -781,8 +875,60 @@ export default function OpsCalendar() {
                 {/* Body scrollable */}
                 <div style={{ flex: 1, overflowY: 'auto', padding: '24px 28px', display: 'flex', flexDirection: 'column', gap: 24 }}>
 
+                  {/* ── Sección Cita: quién la solicitó y desde dónde ── */}
+                  {isCita && (() => {
+                    const a = selectedEvent.appointment || {};
+                    const stMap = {
+                      PENDING:   ['Por confirmar', '#fef9c3', '#854d0e'],
+                      CONFIRMED: ['Confirmada',    '#dbeafe', '#1d4ed8'],
+                      CONVERTED: ['OT generada',   '#dcfce7', '#166534'],
+                      CANCELLED: ['Cancelada',     '#fee2e2', '#b91c1c'],
+                    };
+                    const [stLabel, stBg, stColor] = stMap[a.status] || ['—', '#f3f4f6', '#6b7280'];
+                    return (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: 11, fontFamily: 'monospace', fontWeight: 700, color: '#6b7280', background: '#f3f4f6', borderRadius: 8, padding: '4px 10px' }}>
+                            {a.folio}
+                          </span>
+                          <span style={{ fontSize: 11, fontWeight: 700, color: stColor, background: stBg, borderRadius: 8, padding: '4px 10px' }}>
+                            {stLabel}
+                          </span>
+                          {a.otNumber && (
+                            <span style={{ fontSize: 11, fontWeight: 600, color: '#16a34a', fontFamily: 'monospace' }}>
+                              → OT {a.otNumber}
+                            </span>
+                          )}
+                        </div>
+
+                        <div style={{ background: '#f9fafb', border: '1px solid #f3f4f6', borderRadius: 14, padding: '16px 18px' }}>
+                          <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase', color: '#9ca3af', margin: '0 0 14px' }}>
+                            Solicitada por el cliente
+                          </p>
+                          <div style={{ display: 'grid', gap: 10 }}>
+                            {[
+                              [User,      'Contacto',  a.contactName],
+                              [Phone,     'Teléfono',  a.contactPhone],
+                              [Building2, 'Sucursal',  [a.storeNumber, a.storeName].filter(Boolean).join(' · ')],
+                              [MapPin,    'Dirección', a.address],
+                              [Clock,     'Horario',   a.preferredTime],
+                            ].filter(([, , v]) => v).map(([Ico, label, value]) => (
+                              <div key={label} style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                                <Ico size={14} style={{ color: '#9ca3af', flexShrink: 0, marginTop: 2 }} />
+                                <div style={{ minWidth: 0 }}>
+                                  <p style={{ fontSize: 10, fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '.06em', margin: 0 }}>{label}</p>
+                                  <p style={{ fontSize: 13, color: '#374151', margin: '2px 0 0', fontWeight: 600 }}>{value}</p>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
+
                   {/* ── Sección OT: datos del equipo y generales ── */}
-                  {!isCalendarEvent && (() => {
+                  {isOT && (() => {
                     const stMap = { UNASSIGNED: ['Sin asignar', '#f3f4f6', '#6b7280'], ASSIGNED: ['Asignado', '#dbeafe', '#1d4ed8'], IN_PROGRESS: ['En progreso', '#fef9c3', '#854d0e'], COMPLETED: ['Completado', '#dcfce7', '#166534'], VALIDATED: ['Validado', '#f3e8ff', '#6b21a8'] };
                     const [stLabel, stBg, stColor] = stMap[selectedEvent.status] || ['—', '#f3f4f6', '#6b7280'];
                     const techName = selectedEvent.leadTechName || 'Sin asignar';
@@ -908,7 +1054,7 @@ export default function OpsCalendar() {
                   {selectedEvent.description ? (
                     <div style={{ background: '#f9fafb', border: '1px solid #f3f4f6', borderRadius: 14, padding: '16px 18px' }}>
                       <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase', color: '#9ca3af', marginBottom: 8 }}>
-                        {!isCalendarEvent ? 'Descripción del Trabajo' : 'Descripción'}
+                        {isOT ? 'Descripción del Trabajo' : isCita ? 'Detalle del requerimiento' : 'Descripción'}
                       </p>
                       <p style={{ fontSize: 14, color: '#374151', lineHeight: 1.75, margin: 0 }}>{selectedEvent.description}</p>
                     </div>
@@ -919,10 +1065,20 @@ export default function OpsCalendar() {
                   )}
 
                   {/* Convertir a OT */}
-                  {isCalendarEvent && (
+                  {(isCalendarEvent || isCita) && (
                     <div>
                       <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase', color: '#9ca3af', marginBottom: 10 }}>Orden de Trabajo</p>
-                      {convertedOT ? (
+                      {isCita && selectedEvent.appointment?.status === 'CONVERTED' && !convertedOT ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12, background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 14, padding: '14px 18px' }}>
+                          <div style={{ width: 40, height: 40, borderRadius: 12, background: '#16a34a', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                            <CheckCircle2 size={20} style={{ color: '#fff' }} />
+                          </div>
+                          <div style={{ flex: 1 }}>
+                            <p style={{ fontSize: 13, fontWeight: 700, color: '#15803d', margin: 0, marginBottom: 2 }}>Esta cita ya generó su OT</p>
+                            <p style={{ fontSize: 11, color: '#16a34a', fontFamily: 'monospace', margin: 0 }}>{selectedEvent.appointment.otNumber || '—'}</p>
+                          </div>
+                        </div>
+                      ) : convertedOT ? (
                         <div style={{ display: 'flex', alignItems: 'center', gap: 12, background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 14, padding: '14px 18px' }}>
                           <div style={{ width: 40, height: 40, borderRadius: 12, background: '#16a34a', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                             <CheckCircle2 size={20} style={{ color: '#fff' }} />
@@ -947,13 +1103,15 @@ export default function OpsCalendar() {
                           onMouseEnter={e => { e.currentTarget.style.background = '#dbeafe'; e.currentTarget.style.borderColor = '#93c5fd'; }}
                           onMouseLeave={e => { e.currentTarget.style.background = '#eff6ff'; e.currentTarget.style.borderColor = '#bfdbfe'; }}
                         >
-                          <ClipboardList size={16} /> Convertir Evento a Orden de Trabajo
+                          <ClipboardList size={16} />
+                          {isCita ? 'Generar OT desde esta Cita' : 'Convertir Evento a Orden de Trabajo'}
                         </button>
                       )}
                     </div>
                   )}
 
-                  {/* Evidencias */}
+                  {/* Evidencias — una cita todavía no tiene archivos asociados */}
+                  {!isCita && (
                   <div>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
                       <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase', color: '#9ca3af', margin: 0 }}>Evidencias · Reportes</p>
@@ -1001,6 +1159,7 @@ export default function OpsCalendar() {
                       </div>
                     )}
                   </div>
+                  )}
                 </div>
 
                 {/* Footer */}
@@ -1027,6 +1186,15 @@ export default function OpsCalendar() {
                         <Trash2 size={13} /> Eliminar
                       </button>
                     </div>
+                  ) : isCita && selectedEvent.appointment?.status !== 'CONVERTED' ? (
+                    <button
+                      type="button"
+                      onClick={() => handleCancelAppointment(selectedEvent.appointment)}
+                      disabled={deleting}
+                      style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 10, border: '1.5px solid #fecaca', background: '#fff5f5', fontSize: 12, fontWeight: 700, color: '#dc2626', cursor: deleting ? 'not-allowed' : 'pointer', opacity: deleting ? .6 : 1, transition: 'all .15s' }}
+                    >
+                      <Trash2 size={13} /> Cancelar cita
+                    </button>
                   ) : <div />}
 
                   <button
@@ -1101,7 +1269,7 @@ export default function OpsCalendar() {
               <div>
                 <label style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase', color: '#6b7280', display: 'block', marginBottom: 8 }}>Tipo</label>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8 }}>
-                  {Object.entries(EVENT_TYPES).filter(([k]) => k !== 'OT').map(([key, meta]) => {
+                  {Object.entries(EVENT_TYPES).filter(([k]) => k !== 'OT' && k !== 'CITA').map(([key, meta]) => {
                     const isActive = editEvent.type === key;
                     const Icon = meta.icon;
                     return (
@@ -1265,7 +1433,7 @@ export default function OpsCalendar() {
                 <div className="col-span-2">
                   <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1 mb-2 block">Tipo</label>
                   <div className="grid grid-cols-3 gap-3">
-                    {Object.entries(EVENT_TYPES).filter(([k]) => k !== 'OT').map(([key, meta]) => (
+                    {Object.entries(EVENT_TYPES).filter(([k]) => k !== 'OT' && k !== 'CITA').map(([key, meta]) => (
                       <button key={key} type="button" onClick={() => setNewEvent({ ...newEvent, type: key })} className={cn('flex flex-col items-center gap-2 p-4 rounded-2xl border-2 transition-all', newEvent.type === key ? 'bg-gray-950 border-gray-950 text-white' : 'bg-white border-gray-100 text-gray-400')}>
                         <meta.icon className="h-5 w-5" />
                         <span className="text-[9px] font-black uppercase tracking-widest">{meta.label.split(' ')[0]}</span>
@@ -1429,6 +1597,7 @@ export default function OpsCalendar() {
                               <option value="">Seleccionar tipo...</option>
                               {templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                             </select>
+                            
                           </div>
                         </div>
                       </div>

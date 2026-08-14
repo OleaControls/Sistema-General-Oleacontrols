@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/store/AuthContext';
 import {
   LayoutGrid, User, ArrowRight,
-  Lock, Mail, AlertCircle, Eye, EyeOff, Shield,
+  Lock, Mail, AlertCircle, Eye, EyeOff, Shield, CalendarPlus,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -116,6 +116,22 @@ const STYLES = `
     background: rgba(37,99,235,.18) !important;
     border-color: rgba(96,165,250,.5) !important;
     animation: lp-glow 2.2s ease-in-out infinite;
+  }
+
+  /* ── Acceso público: generar cita (clientes Coppel, sin contraseña) ── */
+  .lp-cita {
+    display: flex; align-items: center; gap: 14px;
+    padding: 14px 18px; border-radius: 14px; width: 100%;
+    background: rgba(34,197,94,.1);
+    border: 1px solid rgba(74,222,128,.28);
+    cursor: pointer; text-align: left;
+    transition: all .22s;
+  }
+  .lp-cita:hover {
+    background: rgba(34,197,94,.2);
+    border-color: rgba(74,222,128,.55);
+    transform: translateY(-2px);
+    box-shadow: 0 14px 34px rgba(22,163,74,.28);
   }
 
   /* ── Entradas escalonadas ── */
@@ -401,6 +417,36 @@ export default function Login() {
                 </button>
               );
             })}
+
+            {/* ── Acceso de clientes: generar cita sin credenciales ── */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', margin: '10px 0 2px' }}>
+              <div style={{ height: '1px', flex: 1, background: 'rgba(255,255,255,.08)' }} />
+              <span className="lp-display" style={{ fontSize: '8px', color: 'rgba(255,255,255,.9)', letterSpacing: '.35em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
+                ¿Es cliente?
+              </span>
+              <div style={{ height: '1px', flex: 1, background: 'rgba(255,255,255,.08)' }} />
+            </div>
+
+            <button onClick={() => navigate('/cita')} className="lp-cita lp-s4">
+              <div style={{
+                width: '42px', height: '42px', borderRadius: '11px', flexShrink: 0,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                background: 'rgba(34,197,94,.2)',
+                border: '1px solid rgba(74,222,128,.4)',
+                color: '#86efac',
+              }}>
+                <CalendarPlus size={18} />
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p className="lp-display" style={{ fontSize: '13px', fontWeight: 600, color: '#dcfce7', margin: 0, letterSpacing: '.02em' }}>
+                  Genere su Cita
+                </p>
+                <p style={{ fontSize: '9.5px', color: 'rgba(255,255,255,.85)', margin: '3px 0 0', letterSpacing: '.06em', textTransform: 'uppercase', fontFamily: 'Inter, sans-serif' }}>
+                  Coppel · Sin contraseña
+                </p>
+              </div>
+              <ArrowRight size={15} color="rgba(255,255,255,.5)" style={{ flexShrink: 0 }} />
+            </button>
           </div>
 
           {/* ── FOOTER ── */}
@@ -556,8 +602,34 @@ export default function Login() {
 
             </form>
 
+            {/* Acceso de clientes (visible también en móvil, donde el panel
+                izquierdo se oculta al llegar al paso 2) */}
+            <button
+              type="button"
+              onClick={() => navigate('/cita')}
+              className="lp-cita lp-s6"
+              style={{ marginTop: '28px' }}
+            >
+              <div style={{
+                width: '38px', height: '38px', borderRadius: '10px', flexShrink: 0,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                background: 'rgba(34,197,94,.2)', border: '1px solid rgba(74,222,128,.4)', color: '#86efac',
+              }}>
+                <CalendarPlus size={16} />
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p className="lp-display" style={{ fontSize: '12px', fontWeight: 600, color: '#dcfce7', margin: 0 }}>
+                  Genere su Cita
+                </p>
+                <p style={{ fontSize: '9px', color: 'rgba(255,255,255,.8)', margin: '2px 0 0', letterSpacing: '.06em', textTransform: 'uppercase' }}>
+                  Clientes Coppel · Sin credenciales
+                </p>
+              </div>
+              <ArrowRight size={14} color="rgba(255,255,255,.5)" style={{ flexShrink: 0 }} />
+            </button>
+
             {/* Footer form */}
-            <div className="lp-s7" style={{ marginTop: '40px', paddingTop: '24px', borderTop: '1px solid rgba(255,255,255,.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div className="lp-s7" style={{ marginTop: '32px', paddingTop: '24px', borderTop: '1px solid rgba(255,255,255,.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span className="lp-display" style={{ fontSize: '8px', color: 'rgba(255,255,255,.75)', letterSpacing: '.2em', textTransform: 'uppercase' }}>
                 Olea Controls © 2026
               </span>
