@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   MapPin, User2, Plus, Trash2, AlertTriangle, CheckCircle2, XCircle,
   Clock, ChevronLeft, ChevronRight, ClipboardList, Car, ShieldCheck, Pencil, FileDown,
-  ScanSearch, Camera, X, ZoomIn, LogIn, LogOut, UserCheck
+  ScanSearch, Camera, X, ZoomIn, LogIn, LogOut, UserCheck, CalendarDays, ChevronDown
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { apiFetch } from '@/lib/api';
@@ -47,6 +47,31 @@ const VEHICLE_LABELS = {
   cleanExterior: 'Estética', odometer: 'Tacómetro', functionality: 'Funcionalidad',
 };
 
+/* ── Utilidades de fecha (locales, sin UTC para no correr el día) ────────── */
+const toStr   = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const parseDay = (s) => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+const shiftDays = (s, n) => { const d = parseDay(s); d.setDate(d.getDate() + n); return toStr(d); };
+
+/** Los 7 días (Dom→Sáb) de la semana a la que pertenece `s`. */
+const weekOf = (s) => {
+  const start = parseDay(s);
+  start.setDate(start.getDate() - start.getDay());
+  return Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(start); d.setDate(start.getDate() + i); return toStr(d);
+  });
+};
+
+/** Celdas del mes con relleno inicial para alinear al día de la semana. */
+const monthCells = (y, m) => {
+  const firstDow = new Date(y, m, 1).getDay();
+  const total    = new Date(y, m + 1, 0).getDate();
+  const cells    = Array.from({ length: firstDow }, () => null);
+  for (let i = 1; i <= total; i++) cells.push(toStr(new Date(y, m, i)));
+  return cells;
+};
+
+const DOW_SHORT = ['D', 'L', 'M', 'M', 'J', 'V', 'S'];
+
 export default function TechAttendanceAdmin() {
   const { user } = useAuth();
   const today = (() => {
@@ -67,6 +92,13 @@ export default function TechAttendanceAdmin() {
   const [panoramizaciones, setPanoramizaciones] = useState([]);
   const [loadingPanora,    setLoadingPanora]    = useState(false);
   const [photoModal,       setPhotoModal]       = useState(null); // { photos, index }
+
+  // ── Navegación por día ────────────────────────────────────────────────────
+  const [showCal,   setShowCal]   = useState(false);
+  const [calCursor, setCalCursor] = useState(() => { const d = parseDay(today); return { y: d.getFullYear(), m: d.getMonth() }; });
+  const [expanded,  setExpanded]  = useState(null); // técnico con detalle abierto
+  const [openPano,  setOpenPano]  = useState(null); // panoramización abierta
+  const [openGoal,  setOpenGoal]  = useState(null); // meta con checklist abierto
 
   useEffect(() => {
     hrService.getEmployees().then(data => {
@@ -90,29 +122,27 @@ export default function TechAttendanceAdmin() {
 
   useEffect(() => { load(); }, [load]);
 
+  // Sólo las panoramizaciones del día en pantalla — antes se traían todas.
   const loadPanoramizaciones = useCallback(async () => {
     setLoadingPanora(true);
     try {
-      const r = await apiFetch('/api/tech-attendance/panoramizacion');
+      const r = await apiFetch(`/api/tech-attendance/panoramizacion?date=${viewDate}`);
       setPanoramizaciones(r.ok ? await r.json() : []);
     } catch { /* silencioso */ }
     finally { setLoadingPanora(false); }
-  }, []);
+  }, [viewDate]);
 
   useEffect(() => {
     if (activeTab === 'panoramizacion') loadPanoramizaciones();
   }, [activeTab, loadPanoramizaciones]);
 
-  const prevDay = () => {
-    const [y, m, day] = viewDate.split('-').map(Number);
-    const d = new Date(y, m - 1, day - 1);
-    setViewDate(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`);
-  };
-  const nextDay = () => {
-    const [y, m, day] = viewDate.split('-').map(Number);
-    const d = new Date(y, m - 1, day + 1);
-    setViewDate(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`);
-  };
+  const goToDay = (d) => { setViewDate(d); setExpanded(null); };
+  const prevDay = () => goToDay(shiftDays(viewDate, -1));
+  const nextDay = () => goToDay(shiftDays(viewDate, +1));
+
+  const week = weekOf(viewDate);
+  const calLabel = new Date(calCursor.y, calCursor.m, 1)
+    .toLocaleDateString('es-MX', { month: 'long', year: 'numeric' });
 
   const openNew = () => {
     setEditGoalId(null);
@@ -181,22 +211,79 @@ export default function TechAttendanceAdmin() {
           <h2 className="text-3xl font-black text-gray-900 leading-tight">Asistencia Técnicos</h2>
           <p className="text-sm text-gray-500 font-medium mt-1 capitalize">{dayLabel}</p>
         </div>
-        <div className="flex items-center gap-3">
-          {/* Navegador de día */}
-          <div className="flex items-center gap-1 bg-white border rounded-2xl px-3 py-2 shadow-sm">
-            <button onClick={prevDay} className="p-1 rounded-lg hover:bg-gray-100 transition-all">
-              <ChevronLeft className="h-4 w-4 text-gray-500" />
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => goToDay(today)}
+            disabled={viewDate === today}
+            className="px-3 py-2.5 rounded-2xl border bg-white text-[10px] font-black uppercase tracking-widest text-gray-600 hover:bg-gray-50 transition-all disabled:opacity-40 disabled:hover:bg-white"
+          >
+            Hoy
+          </button>
+
+          {/* Calendario — saltar a cualquier día */}
+          <div className="relative">
+            <button
+              onClick={() => setShowCal(v => !v)}
+              className={cn(
+                'flex items-center gap-2 px-3 py-2.5 rounded-2xl border text-[10px] font-black uppercase tracking-widest transition-all',
+                showCal ? 'bg-primary text-white border-primary' : 'bg-white text-gray-600 hover:bg-gray-50'
+              )}
+            >
+              <CalendarDays className="h-4 w-4" /> Calendario
             </button>
-            <input
-              type="date"
-              value={viewDate}
-              onChange={e => setViewDate(e.target.value)}
-              className="text-xs font-bold text-gray-700 bg-transparent border-none outline-none w-32 text-center"
-            />
-            <button onClick={nextDay} className="p-1 rounded-lg hover:bg-gray-100 transition-all">
-              <ChevronRight className="h-4 w-4 text-gray-500" />
-            </button>
+
+            {showCal && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setShowCal(false)} />
+                <div className="absolute right-0 mt-2 z-50 bg-white rounded-3xl border border-gray-100 shadow-2xl p-4 w-72">
+                  <div className="flex items-center justify-between mb-3">
+                    <button
+                      onClick={() => setCalCursor(({ y, m }) => { const d = new Date(y, m - 1, 1); return { y: d.getFullYear(), m: d.getMonth() }; })}
+                      className="p-1.5 rounded-lg hover:bg-gray-100 transition-all"
+                    >
+                      <ChevronLeft className="h-4 w-4 text-gray-500" />
+                    </button>
+                    <p className="text-xs font-black text-gray-900 capitalize">{calLabel}</p>
+                    <button
+                      onClick={() => setCalCursor(({ y, m }) => { const d = new Date(y, m + 1, 1); return { y: d.getFullYear(), m: d.getMonth() }; })}
+                      className="p-1.5 rounded-lg hover:bg-gray-100 transition-all"
+                    >
+                      <ChevronRight className="h-4 w-4 text-gray-500" />
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-7 gap-1 mb-1">
+                    {DOW_SHORT.map((d, i) => (
+                      <div key={i} className="text-center text-[9px] font-black text-gray-300 uppercase py-1">{d}</div>
+                    ))}
+                  </div>
+
+                  <div className="grid grid-cols-7 gap-1">
+                    {monthCells(calCursor.y, calCursor.m).map((cell, i) => {
+                      if (!cell) return <div key={`p-${i}`} />;
+                      const isSel = cell === viewDate;
+                      const isToday = cell === today;
+                      return (
+                        <button
+                          key={cell}
+                          onClick={() => { goToDay(cell); setShowCal(false); }}
+                          className={cn(
+                            'aspect-square rounded-xl text-xs font-black tabular-nums transition-all',
+                            isSel   ? 'bg-primary text-white shadow-md'
+                            : isToday ? 'bg-primary/10 text-primary'
+                            : 'text-gray-600 hover:bg-gray-100'
+                          )}
+                        >
+                          {Number(cell.slice(8))}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </>
+            )}
           </div>
+
           <button
             onClick={openNew}
             className="flex items-center gap-2 bg-primary text-white px-4 py-2.5 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all"
@@ -204,6 +291,47 @@ export default function TechAttendanceAdmin() {
             <Plus className="h-4 w-4" /> Asignar Meta
           </button>
         </div>
+      </div>
+
+      {/* Tira de la semana — un clic por día */}
+      <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-2 flex items-center gap-2">
+        <button onClick={prevDay} className="p-2 rounded-xl hover:bg-gray-100 transition-all shrink-0">
+          <ChevronLeft className="h-4 w-4 text-gray-400" />
+        </button>
+        <div className="flex-1 grid grid-cols-7 gap-1">
+          {week.map(d => {
+            const isSel   = d === viewDate;
+            const isToday = d === today;
+            const dow     = parseDay(d).getDay();
+            return (
+              <button
+                key={d}
+                onClick={() => goToDay(d)}
+                className={cn(
+                  'py-2 rounded-2xl flex flex-col items-center gap-0.5 transition-all',
+                  isSel ? 'bg-primary text-white shadow-md shadow-primary/20' : 'hover:bg-gray-50'
+                )}
+              >
+                <span className={cn(
+                  'text-[9px] font-black uppercase tracking-widest',
+                  isSel ? 'text-white/70' : dow === 0 ? 'text-rose-300' : 'text-gray-300'
+                )}>
+                  {DOW_SHORT[dow]}
+                </span>
+                <span className={cn(
+                  'text-sm font-black tabular-nums',
+                  isSel ? 'text-white' : isToday ? 'text-primary' : 'text-gray-700'
+                )}>
+                  {Number(d.slice(8))}
+                </span>
+                {isToday && !isSel && <span className="h-1 w-1 rounded-full bg-primary" />}
+              </button>
+            );
+          })}
+        </div>
+        <button onClick={nextDay} className="p-2 rounded-xl hover:bg-gray-100 transition-all shrink-0">
+          <ChevronRight className="h-4 w-4 text-gray-400" />
+        </button>
       </div>
 
       {/* Tabs */}
@@ -258,94 +386,135 @@ export default function TechAttendanceAdmin() {
           </p>
 
           {loading ? (
-            <div className="space-y-3">{[1,2,3].map(i => <div key={i} className="h-20 bg-gray-100 rounded-3xl animate-pulse" />)}</div>
+            <div className="bg-white rounded-3xl border border-gray-100 divide-y divide-gray-50">
+              {[1,2,3,4].map(i => <div key={i} className="h-14 animate-pulse bg-gray-50" />)}
+            </div>
           ) : attendanceRows.length === 0 ? (
             <div className="bg-white rounded-3xl p-10 border border-gray-100 shadow-sm text-center">
               <UserCheck className="h-10 w-10 text-gray-200 mx-auto mb-3" />
               <p className="font-black text-gray-400 text-sm">Sin técnicos registrados</p>
             </div>
-          ) : attendanceRows.map(({ tech, log, checkInTime, checkOutTime, checkIn, checkOut }) => {
-            const worked = workedLabel(checkInTime, checkOutTime);
-            const tone   = checkIn ? TONE_LIGHT[checkIn.tone] : null;
-            return (
-              <div key={tech.id} className={cn(
-                'bg-white rounded-3xl p-5 border shadow-sm space-y-3',
-                tone ? tone.card : 'border-gray-100',
-                checkIn?.key === 'tarde' && 'ring-1 ring-rose-200'
-              )}>
-                <div className="flex items-center gap-3">
-                  {tech.avatar
-                    ? <img src={tech.avatar} className="h-10 w-10 rounded-2xl object-cover border" alt="" />
-                    : <div className="h-10 w-10 rounded-2xl bg-gray-100 flex items-center justify-center text-sm font-black text-gray-500">{(tech.name || '?').charAt(0)}</div>
-                  }
-                  <div className="min-w-0">
-                    <p className="font-black text-gray-900 text-sm truncate">{tech.name}</p>
-                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest truncate">
-                      {tech.position || 'Técnico'}
-                    </p>
-                  </div>
-                  <div className="ml-auto flex flex-col items-end gap-1 shrink-0">
-                    {/* Puntualidad — verde / amarillo / rojo */}
-                    <span className={cn(
-                      'text-[9px] font-black px-2.5 py-1 rounded-full border uppercase tracking-wider',
-                      tone ? tone.pill : 'bg-gray-50 text-gray-400 border-gray-200'
-                    )}>
-                      {checkIn ? checkIn.label : 'Sin registrar'}
-                    </span>
-                    {checkInTime && (
-                      <span className="text-[9px] font-black text-gray-400 uppercase tracking-wider">
-                        {checkOutTime ? 'Jornada cerrada' : 'En jornada'}
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2">
-                  {[
-                    { label: 'Entrada', time: checkInTime,  icon: LogIn,  status: checkIn  },
-                    { label: 'Salida',  time: checkOutTime, icon: LogOut, status: checkOut },
-                  ].map(({ label, time, icon: Icon, status }) => {
-                    const t = status ? TONE_LIGHT[status.tone] : null;
-                    return (
-                      <div key={label} className={cn(
-                        'rounded-2xl p-3 border',
-                        t ? `${t.tile} ${t.text}` : 'bg-gray-50 border-gray-100 text-gray-300'
-                      )}>
-                        <div className="flex items-center gap-1.5 mb-0.5">
-                          <Icon className="h-3 w-3 shrink-0" />
-                          <p className="text-[9px] font-black uppercase tracking-widest">{label}</p>
-                        </div>
-                        <p className={cn('text-lg font-black tabular-nums', time ? 'text-gray-900' : 'text-gray-300')}>
-                          {time || '--:--'}
-                        </p>
-                        {status?.detail && (
-                          <p className="text-[9px] font-black uppercase tracking-widest mt-0.5">{status.detail}</p>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-
-                <div className="flex items-center gap-2 flex-wrap">
-                  {worked && (
-                    <span className="text-[9px] font-black text-gray-500 bg-gray-50 border border-gray-200 px-2 py-1 rounded-full uppercase tracking-wider flex items-center gap-1">
-                      <Clock className="h-3 w-3" /> Jornada de {worked}
-                    </span>
-                  )}
-                  {log?.goal?.otNumber && (
-                    <span className="text-[9px] font-black text-blue-600 bg-blue-50 border border-blue-200 px-2 py-1 rounded-full uppercase tracking-wider">
-                      {log.goal.otNumber}
-                    </span>
-                  )}
-                  {log?.status === 'COMPLETE' && (
-                    <span className="text-[9px] font-black text-violet-600 bg-violet-50 border border-violet-200 px-2 py-1 rounded-full uppercase tracking-wider flex items-center gap-1">
-                      <CheckCircle2 className="h-3 w-3" /> Checklist enviado
-                    </span>
-                  )}
-                </div>
+          ) : (
+            /* Lista compacta — un renglón por técnico, detalle bajo demanda */
+            <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
+              {/* Encabezado de columnas (sólo escritorio) */}
+              <div className="hidden md:grid grid-cols-[1fr_84px_84px_96px_120px_32px] gap-3 px-4 py-2.5 bg-gray-50/70 border-b border-gray-100">
+                {['Técnico', 'Entrada', 'Salida', 'Jornada', 'Puntualidad', ''].map((h, i) => (
+                  <p key={i} className="text-[9px] font-black text-gray-400 uppercase tracking-widest">{h}</p>
+                ))}
               </div>
-            );
-          })}
+
+              <div className="divide-y divide-gray-50">
+                {attendanceRows.map(({ tech, log, checkInTime, checkOutTime, checkIn, checkOut }) => {
+                  const worked  = workedLabel(checkInTime, checkOutTime);
+                  const tone    = checkIn ? TONE_LIGHT[checkIn.tone] : null;
+                  const outTone = checkOut ? TONE_LIGHT[checkOut.tone] : null;
+                  const isOpen  = expanded === tech.id;
+                  const chips = [
+                    log?.goal?.otNumber && { label: log.goal.otNumber, cls: 'text-blue-600 bg-blue-50 border-blue-200' },
+                    log?.status === 'COMPLETE' && { label: 'Checklist enviado', cls: 'text-violet-600 bg-violet-50 border-violet-200' },
+                    (log?.personalReportSent || log?.vehicleReportSent) && { label: 'Reporte de faltantes', cls: 'text-amber-600 bg-amber-50 border-amber-200' },
+                    checkInTime && { label: checkOutTime ? 'Jornada cerrada' : 'En jornada', cls: 'text-gray-500 bg-gray-50 border-gray-200' },
+                  ].filter(Boolean);
+
+                  return (
+                    <div key={tech.id} className={cn(checkIn?.key === 'tarde' && 'bg-rose-50/40')}>
+                      <button
+                        onClick={() => setExpanded(isOpen ? null : tech.id)}
+                        className="w-full grid grid-cols-[1fr_auto] md:grid-cols-[1fr_84px_84px_96px_120px_32px] gap-3 items-center px-4 py-3 text-left hover:bg-gray-50/60 transition-all"
+                      >
+                        {/* Técnico */}
+                        <div className="flex items-center gap-3 min-w-0">
+                          {tech.avatar
+                            ? <img src={tech.avatar} className="h-8 w-8 rounded-xl object-cover border shrink-0" alt="" />
+                            : <div className="h-8 w-8 rounded-xl bg-gray-100 flex items-center justify-center text-[11px] font-black text-gray-500 shrink-0">{(tech.name || '?').charAt(0)}</div>
+                          }
+                          <div className="min-w-0">
+                            <p className="font-black text-gray-900 text-[13px] truncate leading-tight">{tech.name}</p>
+                            <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest truncate">{tech.position || 'Técnico'}</p>
+                          </div>
+                        </div>
+
+                        {/* Entrada / Salida / Jornada — sólo escritorio */}
+                        <p className={cn('hidden md:block text-sm font-black tabular-nums', checkInTime ? (tone ? tone.text : 'text-gray-900') : 'text-gray-300')}>
+                          {checkInTime || '--:--'}
+                        </p>
+                        <p className={cn('hidden md:block text-sm font-black tabular-nums', checkOutTime ? (outTone ? outTone.text : 'text-gray-900') : 'text-gray-300')}>
+                          {checkOutTime || '--:--'}
+                        </p>
+                        <p className={cn('hidden md:block text-[11px] font-black', worked ? 'text-gray-600' : 'text-gray-300')}>
+                          {worked || '—'}
+                        </p>
+
+                        {/* Puntualidad + chevron */}
+                        <div className="flex items-center gap-2 justify-end md:justify-start">
+                          <span className={cn(
+                            'text-[9px] font-black px-2.5 py-1 rounded-full border uppercase tracking-wider whitespace-nowrap',
+                            tone ? tone.pill : 'bg-gray-50 text-gray-400 border-gray-200'
+                          )}>
+                            {checkIn ? checkIn.label : 'Sin registrar'}
+                          </span>
+                          <ChevronDown className={cn('h-4 w-4 text-gray-300 transition-transform md:hidden', isOpen && 'rotate-180')} />
+                        </div>
+                        <ChevronDown className={cn('hidden md:block h-4 w-4 text-gray-300 transition-transform justify-self-end', isOpen && 'rotate-180')} />
+                      </button>
+
+                      {/* Detalle */}
+                      {isOpen && (
+                        <div className="px-4 pb-4 pt-1 space-y-3 animate-in fade-in duration-200">
+                          <div className="grid grid-cols-2 gap-2">
+                            {[
+                              { label: 'Entrada', time: checkInTime,  icon: LogIn,  status: checkIn  },
+                              { label: 'Salida',  time: checkOutTime, icon: LogOut, status: checkOut },
+                            ].map(({ label, time, icon: Icon, status }) => {
+                              const t = status ? TONE_LIGHT[status.tone] : null;
+                              return (
+                                <div key={label} className={cn('rounded-2xl p-3 border', t ? `${t.tile} ${t.text}` : 'bg-gray-50 border-gray-100 text-gray-300')}>
+                                  <div className="flex items-center gap-1.5 mb-0.5">
+                                    <Icon className="h-3 w-3 shrink-0" />
+                                    <p className="text-[9px] font-black uppercase tracking-widest">{label}</p>
+                                  </div>
+                                  <p className={cn('text-lg font-black tabular-nums', time ? 'text-gray-900' : 'text-gray-300')}>{time || '--:--'}</p>
+                                  {status?.detail && <p className="text-[9px] font-black uppercase tracking-widest mt-0.5">{status.detail}</p>}
+                                </div>
+                              );
+                            })}
+                          </div>
+
+                          {chips.length > 0 && (
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              {worked && (
+                                <span className="text-[9px] font-black text-gray-500 bg-gray-50 border border-gray-200 px-2 py-1 rounded-full uppercase tracking-wider flex items-center gap-1">
+                                  <Clock className="h-3 w-3" /> Jornada de {worked}
+                                </span>
+                              )}
+                              {chips.map((c, i) => (
+                                <span key={i} className={cn('text-[9px] font-black px-2 py-1 rounded-full border uppercase tracking-wider', c.cls)}>
+                                  {c.label}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+
+                          {log?.goal && (
+                            <div className="rounded-2xl bg-gray-50 border border-gray-100 p-3">
+                              <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Meta del día</p>
+                              <p className="text-[13px] font-bold text-gray-800">{log.goal.clientName}</p>
+                              {log.goal.clientLocation && (
+                                <p className="text-[11px] font-bold text-gray-400 flex items-center gap-1 mt-0.5">
+                                  <MapPin className="h-3 w-3" /> {log.goal.clientLocation}
+                                </p>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -428,9 +597,19 @@ export default function TechAttendanceAdmin() {
                     </div>
                   )}
 
-                  {/* Checklist completo — visible cuando está completado */}
+                  {/* Checklist completo — plegado para no amontonar la lista */}
                   {log?.status === 'COMPLETE' && log?.checklistPersonal && (
-                    <div className="mt-3 pt-3 border-t border-gray-100 space-y-3">
+                    <button
+                      onClick={() => setOpenGoal(openGoal === g.id ? null : g.id)}
+                      className="mt-3 flex items-center gap-1.5 text-[9px] font-black text-gray-400 uppercase tracking-widest hover:text-gray-600 transition-all"
+                    >
+                      <ChevronDown className={cn('h-3.5 w-3.5 transition-transform', openGoal === g.id && 'rotate-180')} />
+                      {openGoal === g.id ? 'Ocultar checklist' : 'Ver checklist'}
+                    </button>
+                  )}
+
+                  {log?.status === 'COMPLETE' && log?.checklistPersonal && openGoal === g.id && (
+                    <div className="mt-3 pt-3 border-t border-gray-100 space-y-3 animate-in fade-in duration-200">
                       {/* EPP */}
                       <div>
                         <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Equipo Personal</p>
@@ -597,55 +776,62 @@ export default function TechAttendanceAdmin() {
           ) : panoramizaciones.length === 0 ? (
             <div className="bg-white rounded-3xl p-10 border border-gray-100 shadow-sm text-center">
               <ScanSearch className="h-10 w-10 text-violet-200 mx-auto mb-3" />
-              <p className="font-black text-gray-400 text-sm">Sin panoramizaciones registradas</p>
-              <p className="text-gray-300 text-[10px] font-bold uppercase tracking-widest mt-1">Los técnicos las completan al llegar al sitio</p>
+              <p className="font-black text-gray-400 text-sm">Sin panoramizaciones este día</p>
+              <p className="text-gray-300 text-[11px] font-bold mt-1 capitalize">{dayLabel}</p>
             </div>
-          ) : panoramizaciones.map(p => {
-            const tech = p.tech;
-            const dateStr = new Date(p.createdAt).toLocaleDateString('es-MX', {
-              weekday: 'short', day: '2-digit', month: 'short', year: 'numeric',
-              hour: '2-digit', minute: '2-digit'
-            });
-            const FIELDS = [
-              { key: 'condicionesSitio', label: 'Plática casual' },
-              { key: 'planEjecucion',    label: 'Meta del cliente' },
-              { key: 'requerimientos',   label: 'Objetivos' },
-              { key: 'obstaculos',       label: 'Obstáculos' },
-              { key: 'algoritmos',       label: 'Algoritmos' },
-              { key: 'deseaLoMejor',     label: 'Desea lo mejor' },
-            ];
-            return (
-              <div key={p.id} className="bg-white rounded-3xl p-6 border border-violet-100 shadow-sm space-y-4">
-                {/* Header */}
-                <div className="flex items-center gap-3">
-                  {tech?.avatar
-                    ? <img src={tech.avatar} className="h-10 w-10 rounded-2xl object-cover border" alt="" />
-                    : <div className="h-10 w-10 rounded-2xl bg-violet-100 flex items-center justify-center text-sm font-black text-violet-600">{(tech?.name || '?').charAt(0)}</div>
-                  }
-                  <div className="flex-1 min-w-0">
-                    <p className="font-black text-gray-900 text-sm">{tech?.name || p.techId}</p>
-                    <p className="text-[10px] font-bold text-gray-400 truncate">{dateStr}</p>
-                  </div>
-                  <span className="text-[9px] font-black text-violet-700 bg-violet-100 border border-violet-200 px-2.5 py-1 rounded-full uppercase tracking-widest shrink-0">
-                    {p.otNumber}
-                  </span>
-                </div>
+          ) : (
+            /* Una fila por panoramización; el detalle se abre bajo demanda */
+            <div className="bg-white rounded-3xl border border-violet-100 shadow-sm overflow-hidden divide-y divide-violet-50">
+              {panoramizaciones.map(p => {
+                const tech = p.tech;
+                const hora = new Date(p.createdAt).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
+                const FIELDS = [
+                  { key: 'condicionesSitio', label: 'Plática casual' },
+                  { key: 'planEjecucion',    label: 'Meta del cliente' },
+                  { key: 'requerimientos',   label: 'Objetivos' },
+                  { key: 'obstaculos',       label: 'Obstáculos' },
+                  { key: 'algoritmos',       label: 'Algoritmos' },
+                  { key: 'deseaLoMejor',     label: 'Desea lo mejor' },
+                ].filter(f => p[f.key]?.trim());
+                const isOpen = openPano === p.id;
 
-                {/* Respuestas */}
-                <div className="space-y-3">
-                  {/* Se omiten los campos vacíos: las panoramizaciones previas no traen todos */}
-                  {FIELDS.filter(f => p[f.key]?.trim()).map(f => (
-                    <div key={f.key} className="rounded-2xl bg-gray-50 border border-gray-100 p-4">
-                      <p className="text-[9px] font-black text-violet-600 uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
-                        <ScanSearch className="h-3 w-3" /> {f.label}
-                      </p>
-                      <p className="text-sm font-bold text-gray-800 leading-relaxed">{p[f.key]}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            );
-          })}
+                return (
+                  <div key={p.id}>
+                    <button
+                      onClick={() => setOpenPano(isOpen ? null : p.id)}
+                      className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-violet-50/40 transition-all"
+                    >
+                      {tech?.avatar
+                        ? <img src={tech.avatar} className="h-8 w-8 rounded-xl object-cover border shrink-0" alt="" />
+                        : <div className="h-8 w-8 rounded-xl bg-violet-100 flex items-center justify-center text-[11px] font-black text-violet-600 shrink-0">{(tech?.name || '?').charAt(0)}</div>
+                      }
+                      <div className="flex-1 min-w-0">
+                        <p className="font-black text-gray-900 text-[13px] truncate leading-tight">{tech?.name || p.techId}</p>
+                        <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">{hora} · {FIELDS.length} respuesta{FIELDS.length === 1 ? '' : 's'}</p>
+                      </div>
+                      <span className="text-[9px] font-black text-violet-700 bg-violet-100 border border-violet-200 px-2.5 py-1 rounded-full uppercase tracking-widest shrink-0">
+                        {p.otNumber}
+                      </span>
+                      <ChevronDown className={cn('h-4 w-4 text-gray-300 shrink-0 transition-transform', isOpen && 'rotate-180')} />
+                    </button>
+
+                    {isOpen && (
+                      <div className="px-4 pb-4 grid md:grid-cols-2 gap-2 animate-in fade-in duration-200">
+                        {FIELDS.map(f => (
+                          <div key={f.key} className="rounded-2xl bg-gray-50 border border-gray-100 p-3">
+                            <p className="text-[9px] font-black text-violet-600 uppercase tracking-widest mb-1 flex items-center gap-1.5">
+                              <ScanSearch className="h-3 w-3" /> {f.label}
+                            </p>
+                            <p className="text-[13px] font-bold text-gray-800 leading-relaxed">{p[f.key]}</p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 
@@ -661,8 +847,8 @@ export default function TechAttendanceAdmin() {
             {vehicleLogs.length === 0 ? (
               <div className="bg-white rounded-3xl p-10 border border-gray-100 shadow-sm text-center">
                 <Car className="h-10 w-10 text-gray-200 mx-auto mb-3" />
-                <p className="font-black text-gray-400 text-sm">Sin inspecciones de vehículo registradas hoy</p>
-                <p className="text-gray-300 text-[10px] font-bold uppercase tracking-widest mt-1">Los técnicos las completan al hacer el checklist</p>
+                <p className="font-black text-gray-400 text-sm">Sin inspecciones de vehículo este día</p>
+                <p className="text-gray-300 text-[11px] font-bold mt-1 capitalize">{dayLabel}</p>
               </div>
             ) : vehicleLogs.map(log => {
               const tech = techMap[log.techId] || log.tech;

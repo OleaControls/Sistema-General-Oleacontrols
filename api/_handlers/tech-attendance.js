@@ -243,6 +243,17 @@ export default async function handler(req, res) {
       }
       const where = {};
       if (techId) where.techId = techId;
+
+      // Filtro por día — createdAt es hora real, así que los límites del día se
+      // toman en hora de México (UTC-6) para no arrastrar las de la noche
+      // anterior al día siguiente.
+      const { date } = req.query;
+      if (date && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
+        const from = new Date(`${date}T06:00:00.000Z`);
+        const to   = new Date(from.getTime() + 24 * 60 * 60 * 1000);
+        where.createdAt = { gte: from, lt: to };
+      }
+
       const panoramizaciones = await prisma.otPanoramizacion.findMany({
         where,
         include: { tech: { select: { id: true, name: true, avatar: true } } },
