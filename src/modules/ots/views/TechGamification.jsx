@@ -8,6 +8,74 @@ import {
 import { cn } from '@/lib/utils';
 import { apiFetch } from '@/lib/api';
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   SALÓN DE CAMPEONES
+
+   Se abandonó el look de HUD de videojuego (morado neón, partículas, trofeos
+   meciéndose) por un tablero de campeonato: fondo tinta, metal de verdad en el
+   podio —oro, plata y bronce con brillo que recorre la superficie— y tipografía
+   de cartel. Anton para los titulares, IBM Plex Mono para las cifras.
+═══════════════════════════════════════════════════════════════════════════ */
+const LB_CSS = `
+  @import url('https://fonts.googleapis.com/css2?family=Anton&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap');
+
+  .lb-display { font-family:'Anton', ui-sans-serif, sans-serif !important; letter-spacing:.01em; }
+  .lb-num     { font-family:'IBM Plex Mono', ui-monospace, monospace !important; font-variant-numeric: tabular-nums; }
+
+  /* Fondo: tinta con vignette y grano fino, sin partículas */
+  .lb-bg { position:relative; background:#0a0d14; }
+  .lb-bg::before {
+    content:''; position:absolute; inset:0; pointer-events:none;
+    background:
+      radial-gradient(ellipse 70% 50% at 50% -8%, rgba(212,175,55,.16), transparent 62%),
+      radial-gradient(ellipse 90% 60% at 50% 108%, rgba(30,58,95,.35), transparent 65%);
+  }
+  .lb-bg::after {
+    content:''; position:absolute; inset:0; pointer-events:none; opacity:.5;
+    background-image:
+      linear-gradient(rgba(255,255,255,.022) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,.022) 1px, transparent 1px);
+    background-size: 64px 64px;
+    mask-image: radial-gradient(ellipse 70% 70% at 50% 30%, #000 20%, transparent 75%);
+  }
+
+  /* Metal: degradado con veta y brillo que recorre */
+  .lb-metal { position:relative; overflow:hidden; }
+  .lb-metal::after {
+    content:''; position:absolute; top:0; bottom:0; width:38%;
+    background: linear-gradient(100deg, transparent, rgba(255,255,255,.5), transparent);
+    animation: lb-sheen 4.5s ease-in-out infinite;
+  }
+  @keyframes lb-sheen { 0% { left:-45%; } 55%,100% { left:120%; } }
+
+  .lb-gold   { background: linear-gradient(160deg,#7a5c14 0%,#d4af37 28%,#f7e08a 48%,#d4af37 68%,#6b4f10 100%); }
+  .lb-silver { background: linear-gradient(160deg,#5b636e 0%,#b9c2cc 30%,#eef2f6 50%,#aab3bd 70%,#525a64 100%); }
+  .lb-bronze { background: linear-gradient(160deg,#5e3313 0%,#a9682f 30%,#d99a5c 50%,#9c5f28 70%,#4d2a0f 100%); }
+
+  /* Tarjeta de campeón */
+  .lb-card {
+    background: linear-gradient(180deg, rgba(23,29,42,.94), rgba(13,17,26,.94));
+    border:1px solid rgba(255,255,255,.09);
+    backdrop-filter: blur(14px);
+  }
+  .lb-card-1 { border-color: rgba(212,175,55,.42); box-shadow: 0 22px 60px -26px rgba(212,175,55,.55); }
+
+  /* Fila */
+  .lb-row { transition: background .16s, transform .16s; }
+  .lb-row:hover { background: rgba(255,255,255,.04); }
+
+  .lb-chip {
+    display:inline-flex; align-items:center; gap:6px;
+    padding:4px 10px; border-radius:999px;
+    font-size:9px; font-weight:700; letter-spacing:.14em; text-transform:uppercase;
+    border:1px solid;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .lb-metal::after { animation:none; display:none; }
+  }
+`;
+
 // ── Configuración de rangos ───────────────────────────────────────────────────
 const RANKS = {
   ELITE: {
@@ -188,95 +256,80 @@ function ProgressBar({ rank, progress, nextRank, lifetimePoints, nextAt }) {
 }
 
 // ── Tarjeta del podio ─────────────────────────────────────────────────────────
-function PodiumCard({ tech, place, delay = 0 }) {
-  const r = RANKS[tech.rank] || RANKS.BRONCE;
-  const isFirst = place === 1;
+/** Medalla metálica del podio: oro, plata o bronce con brillo que recorre. */
+const MEDAL = {
+  1: { metal: 'lb-gold',   ink: '#3d2c05', label: 'Oro',    pedestal: 'h-32' },
+  2: { metal: 'lb-silver', ink: '#2b3138', label: 'Plata',  pedestal: 'h-20' },
+  3: { metal: 'lb-bronze', ink: '#3a1f0a', label: 'Bronce', pedestal: 'h-14' },
+};
 
-  const placeConfig = {
-    1: { height: 'h-36', label: '👑', labelClass: 'text-4xl', scale: 'scale-110 z-10' },
-    2: { height: 'h-24', label: '2', labelClass: 'text-xl font-black text-slate-300' },
-    3: { height: 'h-16', label: '3', labelClass: 'text-xl font-black text-orange-600' },
-  }[place] || { height: 'h-16', label: place, labelClass: 'text-lg font-black text-gray-400' };
+function PodiumCard({ tech, place, delay = 0 }) {
+  const isFirst = place === 1;
+  const m = MEDAL[place] || MEDAL[3];
 
   return (
     <motion.div
-      className={cn('flex flex-col items-center gap-0', placeConfig.scale)}
-      initial={{ opacity: 0, y: 60 }}
+      className={cn('flex flex-col items-center', isFirst && 'lg:-mt-8 z-10')}
+      initial={{ opacity: 0, y: 50 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ delay, duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
+      transition={{ delay, duration: 0.65, ease: [0.22, 1, 0.36, 1] }}
     >
-      {/* Avatar + info */}
-      <div
-        className={cn(
-          'relative flex flex-col items-center gap-3 rounded-3xl border p-5 mb-0 w-full',
-          'bg-gray-900/80 backdrop-blur-xl',
-          r.border,
-        )}
-        style={{ boxShadow: isFirst ? r.glow : r.glowSm }}
-      >
-        {isFirst && (
-          <motion.div
-            className="absolute -top-5 left-1/2 -translate-x-1/2 text-3xl"
-            animate={{ y: [-3, 3, -3] }}
-            transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
-          >
-            👑
-          </motion.div>
-        )}
+      <div className={cn('relative w-full rounded-3xl p-5 lb-card', isFirst && 'lb-card-1')}>
 
-        <Avatar src={tech.avatar} name={tech.name} size={isFirst ? 'xl' : 'lg'} rank={tech.rank} />
-
-        <div className="text-center">
-          <p className={cn('font-black text-white leading-tight', isFirst ? 'text-base' : 'text-sm')}>
-            {tech.name}
-          </p>
-          <p className="text-[9px] text-gray-500 font-bold uppercase tracking-widest mt-0.5">
-            {tech.position || 'Técnico'}
-          </p>
-        </div>
-
-        <RankBadge rank={tech.rank} size={isFirst ? 'md' : 'sm'} />
-
-        <div className="text-center">
-          <p className={cn('font-black text-white tracking-tighter', isFirst ? 'text-3xl' : 'text-2xl')}>
-            {tech.points.toLocaleString()}
-          </p>
-          <p className="text-[8px] text-gray-500 font-black uppercase tracking-widest">pts período</p>
-        </div>
-
-        <div className="grid grid-cols-3 gap-3 w-full pt-3 border-t border-white/10 text-center">
-          <div>
-            <p className={cn('font-black text-white', isFirst ? 'text-sm' : 'text-xs')}>{tech.totalOTs}</p>
-            <p className="text-[7px] text-gray-500 font-black uppercase">OTs</p>
+        {/* Medalla — sustituye a la corona emoji */}
+        <div className="flex justify-center -mt-11 mb-3">
+          <div className={cn('lb-metal rounded-full flex items-center justify-center shadow-xl', m.metal)}
+               style={{ height: isFirst ? 56 : 46, width: isFirst ? 56 : 46 }}>
+            <span className="lb-display relative z-10" style={{ color: m.ink, fontSize: isFirst ? 26 : 21 }}>
+              {place}
+            </span>
           </div>
-          <div>
-            <p className={cn('font-black', isFirst ? 'text-sm' : 'text-xs', tech.avgRating ? 'text-amber-400' : 'text-gray-600')}>
-              {tech.avgRating ? `${tech.avgRating}★` : '—'}
+        </div>
+
+        <div className="flex flex-col items-center gap-3">
+          <Avatar src={tech.avatar} name={tech.name} size={isFirst ? 'xl' : 'lg'} rank={tech.rank} />
+
+          <div className="text-center">
+            <p className={cn('lb-display text-white uppercase leading-none', isFirst ? 'text-xl' : 'text-base')}>
+              {tech.name}
             </p>
-            <p className="text-[7px] text-gray-500 font-black uppercase">Rating</p>
+            <p className="text-[9px] text-gray-500 font-bold uppercase tracking-[0.2em] mt-1.5">
+              {tech.position || 'Técnico'}
+            </p>
           </div>
-          <div>
-            <p className={cn('font-black text-white', isFirst ? 'text-sm' : 'text-xs')}>{tech.leadOTs}</p>
-            <p className="text-[7px] text-gray-500 font-black uppercase">Líder</p>
+
+          <RankBadge rank={tech.rank} size={isFirst ? 'md' : 'sm'} />
+
+          {/* Puntos del período — el número que ordena la tabla */}
+          <div className="text-center">
+            <p className={cn('lb-num font-bold text-white leading-none', isFirst ? 'text-4xl' : 'text-3xl')}>
+              {tech.points.toLocaleString()}
+            </p>
+            <p className="text-[8px] text-gray-500 font-bold uppercase tracking-[0.24em] mt-1.5">puntos</p>
+          </div>
+
+          {/* Desglose real: OTs, cuántas como líder, tiempo medio de resolución */}
+          <div className="grid grid-cols-3 gap-2 w-full pt-3.5 border-t border-white/10 text-center">
+            {[
+              { v: tech.totalOTs, l: 'OTs' },
+              { v: tech.leadOTs,  l: 'Líder' },
+              { v: tech.avgResolution ? `${tech.avgResolution}h` : '—', l: 'Prom.' },
+            ].map(s => (
+              <div key={s.l}>
+                <p className={cn('lb-num font-bold text-white', isFirst ? 'text-base' : 'text-sm')}>{s.v}</p>
+                <p className="text-[7.5px] text-gray-500 font-bold uppercase tracking-widest mt-0.5">{s.l}</p>
+              </div>
+            ))}
           </div>
         </div>
       </div>
 
-      {/* Pedestal */}
-      <div
-        className={cn('w-full rounded-b-2xl', placeConfig.height, 'flex items-center justify-center')}
-        style={{
-          background: isFirst
-            ? 'linear-gradient(to bottom, #1a1500, #0a0800)'
-            : place === 2
-            ? 'linear-gradient(to bottom, #1a1a1a, #0d0d0d)'
-            : 'linear-gradient(to bottom, #1a1008, #0d0804)',
-          borderLeft: `2px solid ${r.bar}30`,
-          borderRight: `2px solid ${r.bar}30`,
-          borderBottom: `2px solid ${r.bar}30`,
-        }}
-      >
-        <span className={placeConfig.labelClass}>{!isFirst ? place : ''}</span>
+      {/* Pedestal metálico */}
+      <div className={cn('lb-metal w-[86%] rounded-b-xl flex items-start justify-center pt-2', m.metal, m.pedestal)}
+           style={{ opacity: .92 }}>
+        <span className="lb-display relative z-10 text-[10px] uppercase tracking-[0.3em]" style={{ color: m.ink }}>
+          {m.label}
+        </span>
       </div>
     </motion.div>
   );
@@ -342,17 +395,15 @@ function LeaderRow({ tech, index, delay = 0 }) {
         </p>
       </td>
 
-      {/* Rating */}
+      {/* Líder / Apoyo — reemplaza a la columna Rating, que la API todavía no
+          calcula (avgRating llega siempre en null) y salía vacía para todos. */}
       <td className="px-4 py-4 text-center hidden lg:table-cell">
-        {tech.avgRating ? (
-          <div>
-            <div className="flex items-center justify-center gap-1">
-              <Star className="h-3 w-3 text-amber-400 fill-amber-400" />
-              <span className="text-sm font-black text-amber-400">{tech.avgRating}</span>
-            </div>
-            <p className="text-[8px] text-gray-500 font-bold uppercase">{tech.evalCount} eval</p>
-          </div>
-        ) : <span className="text-gray-700 text-xs font-black">—</span>}
+        <div className="flex items-center justify-center gap-1 lb-num">
+          <span className="text-sm font-bold text-amber-400">{tech.leadOTs}</span>
+          <span className="text-gray-600 text-xs">/</span>
+          <span className="text-sm font-bold text-gray-400">{tech.supportOTs}</span>
+        </div>
+        <p className="text-[8px] text-gray-500 font-bold uppercase tracking-wider mt-0.5">Líder / Apoyo</p>
       </td>
 
       {/* Reacción */}
@@ -478,82 +529,71 @@ export default function TechGamification() {
   const podiumPlaces = top3.length === 3 ? [2, 1, 3] : [1, 2, 3];
 
   return (
-    <div
-      className="min-h-screen relative"
-      style={{ background: 'linear-gradient(160deg, #06060f 0%, #0d0b1a 40%, #060c15 100%)' }}
-    >
-      <Particles />
+    <div className="lb-bg min-h-screen relative">
+      <style dangerouslySetInnerHTML={{ __html: LB_CSS }} />
 
-      <div className="relative z-10 max-w-5xl mx-auto px-4 py-10 pb-24 space-y-8">
+      <div className="relative z-10 max-w-5xl mx-auto px-4 py-12 pb-24 space-y-8">
 
         {/* ── HEADER ──────────────────────────────────────────────────── */}
-        <motion.div
-          className="text-center space-y-3"
-          initial={{ opacity: 0, y: -30 }}
+        <motion.header
+          className="text-center"
+          initial={{ opacity: 0, y: -22 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
+          transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
         >
-          <div className="flex items-center justify-center gap-3 mb-2">
-            <motion.div
-              animate={{ rotate: [-5, 5, -5] }}
-              transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
-            >
-              <Trophy className="h-10 w-10 text-amber-400" style={{ filter: 'drop-shadow(0 0 16px rgba(251,191,36,0.8))' }} />
-            </motion.div>
-            <h1
-              className="text-5xl md:text-7xl font-black italic uppercase tracking-tighter text-white"
-              style={{ textShadow: '0 0 40px rgba(139,92,246,0.5), 0 0 80px rgba(139,92,246,0.2)' }}
-            >
-              Arena de Líderes
-            </h1>
-            <motion.div
-              animate={{ rotate: [5, -5, 5] }}
-              transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
-            >
-              <Trophy className="h-10 w-10 text-amber-400" style={{ filter: 'drop-shadow(0 0 16px rgba(251,191,36,0.8))' }} />
-            </motion.div>
-          </div>
-
-          <p className="text-[10px] font-black uppercase tracking-[0.5em] text-gray-500">
-            Métricas Reales · Técnicos Líder & Apoyo · OleaControls
+          <p className="lb-num text-[10px] font-semibold uppercase tracking-[0.42em] text-amber-500/70">
+            Olea Controls · Operaciones
           </p>
 
-          {/* Línea decorativa */}
-          <div className="flex items-center justify-center gap-3">
-            <div className="h-px w-24 bg-gradient-to-r from-transparent to-violet-500/60" />
-            <Sparkles className="h-4 w-4 text-violet-500" />
-            <div className="h-px w-24 bg-gradient-to-l from-transparent to-violet-500/60" />
+          <h1 className="lb-display text-white uppercase leading-[0.88] mt-3"
+              style={{ fontSize: 'clamp(2.9rem, 9vw, 5.5rem)' }}>
+            Salón de<br />
+            <span style={{
+              background: 'linear-gradient(100deg,#8a6a1c,#d4af37 35%,#f7e08a 50%,#d4af37 65%,#8a6a1c)',
+              WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
+            }}>
+              Campeones
+            </span>
+          </h1>
+
+          <div className="flex items-center justify-center gap-3 mt-5">
+            <div className="h-px w-16 bg-gradient-to-r from-transparent to-amber-500/50" />
+            <p className="lb-num text-[9px] font-medium uppercase tracking-[0.3em] text-gray-500">
+              Puntos por OTs como líder y apoyo
+            </p>
+            <div className="h-px w-16 bg-gradient-to-l from-transparent to-amber-500/50" />
           </div>
-        </motion.div>
+        </motion.header>
 
         {/* ── SELECTOR DE PERÍODO ─────────────────────────────────────── */}
-        <div className="flex items-center justify-center gap-2">
-          {PERIODS.map(p => {
-            const Icon = p.icon;
-            return (
-              <motion.button
-                key={p.id}
-                onClick={() => setPeriod(p.id)}
-                whileTap={{ scale: 0.95 }}
-                className={cn(
-                  'flex items-center gap-2 px-5 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-wider border transition-all duration-300',
-                  period === p.id
-                    ? 'bg-violet-600 text-white border-violet-500 shadow-lg shadow-violet-500/30'
-                    : 'bg-white/5 text-gray-400 border-white/10 hover:bg-white/10 hover:border-white/20'
-                )}
-              >
-                <Icon className="h-3.5 w-3.5" />
-                {p.label}
-              </motion.button>
-            );
-          })}
-          <motion.button
+        <div className="flex items-center justify-center gap-1.5">
+          <div className="flex items-center gap-1 p-1 rounded-2xl bg-white/[0.04] border border-white/10">
+            {PERIODS.map(p => {
+              const Icon = p.icon;
+              const on = period === p.id;
+              return (
+                <button
+                  key={p.id}
+                  onClick={() => setPeriod(p.id)}
+                  className={cn(
+                    'flex items-center gap-2 px-5 py-2.5 rounded-xl text-[10px] font-bold uppercase tracking-[0.14em] transition-all',
+                    on ? 'bg-amber-400 text-[#2a1f05] shadow-lg shadow-amber-500/25'
+                       : 'text-gray-400 hover:text-gray-200 hover:bg-white/5'
+                  )}
+                >
+                  <Icon className="h-3.5 w-3.5" />
+                  {p.label}
+                </button>
+              );
+            })}
+          </div>
+          <button
             onClick={handleRefresh}
-            whileTap={{ scale: 0.9 }}
-            className="p-2.5 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 transition-all"
+            title="Actualizar"
+            className="p-3 rounded-2xl border border-white/10 bg-white/[0.04] hover:bg-white/10 transition-all"
           >
             <RefreshCw className={cn('h-4 w-4 text-gray-400', (loading || refreshing) && 'animate-spin')} />
-          </motion.button>
+          </button>
         </div>
 
         {/* ── CARGANDO ────────────────────────────────────────────────── */}
@@ -625,15 +665,15 @@ export default function TechGamification() {
                 <table className="w-full text-left min-w-[700px]">
                   <thead>
                     <tr className="border-b border-white/5">
-                      {['#', 'Técnico', 'OTs', 'Rating', 'Reacción', 'Resolución', 'Puntos'].map(h => (
+                      {['#', 'Técnico', 'OTs', 'Líder/Apoyo', 'Reacción', 'Resolución', 'Puntos'].map(h => (
                         <th
                           key={h}
                           className={cn(
                             'px-5 py-3 text-[8px] font-black text-gray-600 uppercase tracking-widest',
-                            ['OTs', 'Rating', 'Reacción', 'Resolución', 'Puntos'].includes(h) && 'text-center',
+                            ['OTs', 'Líder/Apoyo', 'Reacción', 'Resolución', 'Puntos'].includes(h) && 'text-center',
                             h === 'Puntos' && 'text-right',
                             h === 'Reacción' || h === 'Resolución' ? 'hidden xl:table-cell' : '',
-                            h === 'Rating' ? 'hidden lg:table-cell' : '',
+                            h === 'Líder/Apoyo' ? 'hidden lg:table-cell' : '',
                             h === 'OTs' ? 'hidden md:table-cell' : '',
                           )}
                         >

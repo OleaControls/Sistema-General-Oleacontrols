@@ -95,18 +95,42 @@ function DarkTip({ active, payload, label }) {
 }
 
 // ── KPI card ──────────────────────────────────────────────────────────────────
+/* Tipografía y superficie del tablero. La sombra anterior era negra al 35% —
+   herencia del tema oscuro— y sobre el fondo claro ensuciaba cada tarjeta. */
+const METRICS_CSS = `
+  @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Roboto+Mono:wght@400;500;700&display=swap');
+
+  .mx-display { font-family:'Outfit', ui-sans-serif, sans-serif !important; }
+  .mx-num     { font-family:'Roboto Mono', ui-monospace, monospace !important; font-variant-numeric: tabular-nums; letter-spacing:-.02em; }
+
+  .mx-card {
+    background:#fff; border:1px solid #eaeef3; border-radius:18px;
+    box-shadow: 0 1px 2px rgba(15,23,42,.04), 0 8px 24px -18px rgba(15,23,42,.28);
+    transition: transform .18s, box-shadow .18s;
+  }
+  .mx-kpi { position:relative; overflow:hidden; padding:18px 20px; }
+  .mx-kpi::before {
+    content:''; position:absolute; top:0; left:0; right:0; height:3px;
+    background: var(--c); opacity:.8;
+  }
+  .mx-kpi:hover { transform: translateY(-2px); box-shadow: 0 1px 2px rgba(15,23,42,.05), 0 16px 34px -20px rgba(15,23,42,.4); }
+
+  @keyframes mx-rise { from { opacity:0; transform: translateY(10px) } to { opacity:1; transform:none } }
+  .mx-in { animation: mx-rise .45s cubic-bezier(.16,1,.3,1) both; }
+`;
+
 function KPICard({ icon:Icon, label, value, sub, color, dim }) {
   return (
-    <div style={{ background:D.surface, borderRadius:16, border:`1px solid ${D.border}`, padding:'18px 20px', position:'relative', overflow:'hidden', boxShadow:'0 4px 24px rgba(0,0,0,0.35)', opacity:dim?0.45:1, transition:'opacity 0.3s' }}>
-      <div style={{ position:'absolute', top:-24, right:-24, width:80, height:80, borderRadius:'50%', background:`${color}07`, pointerEvents:'none' }} />
-      <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:12 }}>
-        <div style={{ width:30, height:30, borderRadius:9, background:`${color}15`, border:`1px solid ${color}25`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+    <div className="mx-card mx-kpi" style={{ '--c': color, opacity: dim ? 0.5 : 1 }}>
+      <div style={{ position:'absolute', top:-26, right:-26, width:86, height:86, borderRadius:'50%', background:`${color}0d`, pointerEvents:'none' }} />
+      <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:14 }}>
+        <div style={{ width:30, height:30, borderRadius:10, background:`${color}17`, border:`1px solid ${color}2a`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
           <Icon style={{ width:14, height:14, color }} />
         </div>
-        <p style={{ fontSize:8, fontWeight:800, color:D.sub, textTransform:'uppercase', letterSpacing:'0.12em', lineHeight:1.2 }}>{label}</p>
+        <p style={{ fontSize:8.5, fontWeight:700, color:D.sub, textTransform:'uppercase', letterSpacing:'0.16em', lineHeight:1.2 }}>{label}</p>
       </div>
-      <p style={{ fontSize:30, fontWeight:900, color:color===D.sub?D.text:color, letterSpacing:'-0.04em', lineHeight:1 }}>{value}</p>
-      {sub && <p style={{ fontSize:8, fontWeight:700, color:D.sub, marginTop:6, textTransform:'uppercase', letterSpacing:'0.08em' }}>{sub}</p>}
+      <p className="mx-num" style={{ fontSize:32, fontWeight:700, color: color===D.sub ? D.text : color, lineHeight:1 }}>{value}</p>
+      {sub && <p style={{ fontSize:9, fontWeight:600, color:D.muted, marginTop:8, letterSpacing:'0.02em' }}>{sub}</p>}
     </div>
   );
 }
@@ -238,7 +262,10 @@ export default function OpsMetrics() {
     setSpinning(true);
     try {
       const [otsData, expData, propData] = await Promise.all([
-        otService.getOTs(),
+        // scope=metrics trae TODAS las OTs. Sin esto llegaban sólo 50 (el limit
+        // por defecto del listado) y todos los porcentajes salían calculados
+        // sobre una fracción de las órdenes.
+        otService.getOTs({ scope: 'metrics' }),
         expenseService.getAll(),
         apiFetch('/api/technician-props').then(r => r.ok ? r.json() : []).catch(() => []),
       ]);
@@ -265,25 +292,33 @@ export default function OpsMetrics() {
       return d >= cutoff;
     });
 
-    // Status
+    // Status — los cubos deben sumar el total. Antes ASSIGNED y ACCEPTED no
+    // caían en ninguno, así que las tarjetas nunca cuadraban con "OTs Totales".
     const sc = {};
     filtered.forEach(o => { sc[o.status] = (sc[o.status] || 0) + 1; });
-    const completed = (sc.COMPLETED||0) + (sc.VALIDATED||0);
-    const active    = sc.IN_PROGRESS || 0;
-    const pending   = (sc.PENDING||0) + (sc.UNASSIGNED||0);
-    const cancelled = sc.CANCELLED || 0;
-    const total     = filtered.length;
-    const efficiency = total > 0 ? Math.round((completed / total) * 100) : 0;
+    const completed  = (sc.COMPLETED||0) + (sc.VALIDATED||0);
+    const active     = sc.IN_PROGRESS || 0;
+    const scheduled  = (sc.ASSIGNED||0) + (sc.ACCEPTED||0);   // con técnico, sin arrancar
+    const unassigned = (sc.PENDING||0) + (sc.UNASSIGNED||0);  // sin técnico
+    const total      = filtered.length;
+    const pending    = scheduled + unassigned;                // todo lo que falta cerrar
+
+    // Efectividad sobre las órdenes ya resueltas: incluir en el denominador las
+    // que apenas se crearon castigaría el número sin que nadie fallara.
+    const closableSet = completed + active + scheduled + unassigned;
+    const efficiency  = closableSet > 0 ? Math.round((completed / closableSet) * 100) : 0;
 
     // Priority
     const pc = { URGENT:0, HIGH:0, MEDIUM:0, LOW:0 };
     filtered.forEach(o => { pc[o.priority] = (pc[o.priority]||0) + 1; });
 
-    // Systems (all OTs for stability)
+    // Sistemas — sobre el período elegido, igual que el resto de la vista.
+    // Antes usaba todas las OTs, así que el selector de período no lo afectaba
+    // y la gráfica contradecía a las tarjetas de arriba.
     const sys = {};
-    ots.forEach(o => { const k = o.systemType || 'Otros'; sys[k] = (sys[k]||0)+1; });
+    filtered.forEach(o => { const k = o.systemType || 'Sin especificar'; sys[k] = (sys[k]||0)+1; });
     const pieData = Object.entries(sys).sort((a,b)=>b[1]-a[1]).map(([name,value])=>({name,value}));
-    const totalOTs = ots.length;
+    const totalOTs = filtered.length;
 
     // Monthly trend (last 6 months, all OTs)
     const mm = {};
@@ -327,7 +362,7 @@ export default function OpsMetrics() {
       })
       .slice(0, 10);
 
-    return { total, completed, active, pending, cancelled, efficiency, sc, pc, pieData, totalOTs, chartData, ranking, upcoming, totalExp, approvedExp, pendingExp, rejectedExp };
+    return { total, completed, active, pending, scheduled, unassigned, efficiency, sc, pc, pieData, totalOTs, chartData, ranking, upcoming, totalExp, approvedExp, pendingExp, rejectedExp };
   }, [ots, expenses, period]);
 
   // ── Loading ──────────────────────────────────────────────────────────────────
@@ -347,11 +382,13 @@ export default function OpsMetrics() {
   return (
     <div style={{ background:D.bg, minHeight:'100%', borderRadius:20 }}>
       <style>{`
+        ${METRICS_CSS}
         @keyframes spin    { to { transform:rotate(360deg) } }
         @keyframes pdot    { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.4;transform:scale(0.75)} }
         @keyframes blink   { 0%,100%{opacity:1} 50%{opacity:0.25} }
         .ops-tr { transition:background 0.12s; }
-        .ops-tr:hover { background:rgba(255,255,255,0.025) !important; }
+        /* El hover era blanco translúcido (tema oscuro): invisible sobre fondo claro */
+        .ops-tr:hover { background:#f8fafc !important; }
       `}</style>
 
       {/* ── HEADER ────────────────────────────────────────────────────────── */}
@@ -415,12 +452,13 @@ export default function OpsMetrics() {
 
         {/* ── KPI GRID ──────────────────────────────────────────────────── */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-          <KPICard icon={ClipboardList} label="OTs Totales"    value={m.total}       color={D.blue}    sub="en periodo" />
-          <KPICard icon={CheckCheck}    label="Completadas"    value={m.completed}   color={D.emerald} sub={`${m.efficiency}% efectividad`} />
-          <KPICard icon={Activity}      label="En Proceso"     value={m.active}      color={D.blue}    sub="cuadrillas" />
-          <KPICard icon={Clock}         label="Por Atender"    value={m.pending}     color={D.amber}   sub="en cola" />
-          <KPICard icon={XCircle}       label="Canceladas"     value={m.cancelled}   color={D.red}     sub="en periodo" dim={m.cancelled===0} />
-          <KPICard icon={Target}        label="Eficiencia"     value={`${m.efficiency}%`} color={m.efficiency>=80?D.emerald:m.efficiency>=50?D.amber:D.red} sub="tasa de cierre" />
+          {/* Los cuatro primeros cubos suman exactamente OTs Totales */}
+          <KPICard icon={ClipboardList} label="OTs Totales"  value={m.total}      color={D.blue}    sub="en periodo" />
+          <KPICard icon={CheckCheck}    label="Completadas"  value={m.completed}  color={D.emerald} sub={`${m.efficiency}% de cierre`} />
+          <KPICard icon={Activity}      label="En Proceso"   value={m.active}     color={D.blue}    sub="cuadrillas activas" dim={m.active===0} />
+          <KPICard icon={Clock}         label="Programadas"  value={m.scheduled}  color={D.violet}  sub="con técnico asignado" dim={m.scheduled===0} />
+          <KPICard icon={XCircle}       label="Sin Asignar"  value={m.unassigned} color={D.amber}   sub="esperan técnico" dim={m.unassigned===0} />
+          <KPICard icon={Target}        label="Efectividad"  value={`${m.efficiency}%`} color={m.efficiency>=80?D.emerald:m.efficiency>=50?D.amber:D.red} sub="cerradas / total" />
         </div>
 
         {/* ── STATUS PIPELINE ───────────────────────────────────────────── */}

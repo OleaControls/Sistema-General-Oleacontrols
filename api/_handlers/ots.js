@@ -280,6 +280,27 @@ export default async function handler(req, res) {
       if (supervisorId) where.supervisorId = supervisorId;
       if (status && status !== 'ALL') where.status = status;
 
+      /* ── scope=metrics: TODAS las OTs, sin paginar y con carga ligera ──────
+         Los tableros de métricas necesitan el universo completo: con el limit
+         de 50 por defecto calculaban porcentajes sobre una fracción de las
+         órdenes y los números salían mal. Se devuelven sólo los campos que las
+         métricas agregan — sin gastos, evidencias ni evaluaciones — para que
+         traer cientos de registros siga siendo barato. */
+      if (req.query.scope === 'metrics') {
+        const all = await prisma.workOrder.findMany({
+          where,
+          select: {
+            id: true, otNumber: true, title: true, status: true, priority: true,
+            systemType: true, clientName: true, storeName: true,
+            scheduledDate: true, createdAt: true, startedAt: true, finishedAt: true,
+            assignedFunds: true, technicianId: true,
+            technician: { select: { id: true, name: true, avatar: true } },
+          },
+          orderBy: { createdAt: 'desc' },
+        });
+        return res.status(200).json({ data: all, total: all.length, scope: 'metrics' });
+      }
+
       // Paginación: page=1, limit=50 por defecto
       const page  = Math.max(1, parseInt(req.query.page  || '1',  10));
       const limit = Math.min(100, Math.max(1, parseInt(req.query.limit || '50', 10)));

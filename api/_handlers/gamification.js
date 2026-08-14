@@ -180,7 +180,14 @@ export default async function handler(req, res) {
         ratingBonus: 0,
       };
     })
-    .sort((a, b) => b.lifetimePoints - a.lifetimePoints || a.name.localeCompare(b.name))
+    // Se ordena por los puntos DEL PERÍODO elegido, que es el número que la
+    // tabla muestra en grande. Antes ordenaba siempre por lifetimePoints: al
+    // filtrar por "Mes" podía salir en #2 alguien con 0 puntos ese mes, por
+    // encima de quien más trabajó. El acumulado queda como desempate.
+    .sort((a, b) =>
+      b.points - a.points ||
+      b.lifetimePoints - a.lifetimePoints ||
+      a.name.localeCompare(b.name))
     .map((t, i) => ({ ...t, position: i + 1 }));
 
     return res.status(200).json(leaderboard);
