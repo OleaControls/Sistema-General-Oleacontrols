@@ -42,6 +42,7 @@ import { cn } from '@/lib/utils';
 const EVENT_TYPES = {
   OT:          { label: 'Orden de Trabajo', icon: Briefcase,   pill: { bg: '#dbeafe', border: '#93c5fd', text: '#1e40af', dot: '#3b82f6' } },
   CITA:        { label: 'Cita de Cliente',  icon: CalendarPlus, pill: { bg: '#dcfce7', border: '#86efac', text: '#15803d', dot: '#22c55e' } },
+  GARANTIA:    { label: 'Reporte de Garantía', icon: ShieldCheck, pill: { bg: '#fee2e2', border: '#fca5a5', text: '#b91c1c', dot: '#ef4444' } },
   VISIT:       { label: 'Visita Técnica',   icon: MapPin,      pill: { bg: '#fef3c7', border: '#fcd34d', text: '#92400e', dot: '#f59e0b' } },
   MAINTENANCE: { label: 'Mantenimiento',    icon: Wrench,      pill: { bg: '#d1fae5', border: '#6ee7b7', text: '#065f46', dot: '#10b981' } },
   OTHER:       { label: 'Otro',             icon: Info,        pill: { bg: '#ede9fe', border: '#c4b5fd', text: '#4c1d95', dot: '#7c3aed' } },
@@ -87,6 +88,7 @@ export default function OpsCalendar() {
   const [scrollTick, setScrollTick] = useState(0);
   const [events, setEvents] = useState([]);
   const [appointments, setAppointments] = useState([]); // Citas generadas por clientes desde /cita
+  const [claims, setClaims] = useState([]);             // Reportes de garantía levantados por clientes
   const [ots, setOts] = useState([]);
   const [clients, setClients] = useState([]);
   const [templates, setTemplates] = useState([]);
@@ -130,28 +132,31 @@ export default function OpsCalendar() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [otsData, calendarRes, clientsRes, apptRes, templatesData, allEmployees] = await Promise.all([
+      const [otsData, calendarRes, clientsRes, apptRes, claimRes, templatesData, allEmployees] = await Promise.all([
         otService.getOTs(),
         apiFetch('/api/calendar'),
         apiFetch('/api/ot-clients'),
         apiFetch('/api/appointments?status=PENDING,CONFIRMED,CONVERTED'),
+        apiFetch('/api/warranty?status=OPEN,IN_REVIEW,SCHEDULED,RESOLVED'),
         otService.getTemplates(),
         hrService.getEmployees(),
       ]);
       const eventsData = calendarRes.ok ? await calendarRes.json() : [];
       const clientsData = clientsRes.ok ? await clientsRes.json() : [];
       const apptData = apptRes.ok ? await apptRes.json() : [];
+      const claimData = claimRes.ok ? await claimRes.json() : [];
       setOts(Array.isArray(otsData) ? otsData : []);
       setEvents(Array.isArray(eventsData) ? eventsData : []);
       setClients(Array.isArray(clientsData) ? clientsData : []);
       setAppointments(Array.isArray(apptData) ? apptData : []);
+      setClaims(Array.isArray(claimData) ? claimData : []);
       setTemplates(Array.isArray(templatesData) ? templatesData : []);
       const techs = (Array.isArray(allEmployees) ? allEmployees : [])
         .filter(emp => emp.roles?.includes(ROLES.TECH) || emp.roles?.includes('Tech'));
       setAvailableTechs(techs);
     } catch (error) {
       console.error('Error fetching calendar data:', error);
-      setOts([]); setEvents([]); setClients([]); setAppointments([]); setTemplates([]); setAvailableTechs([]);
+      setOts([]); setEvents([]); setClients([]); setAppointments([]); setClaims([]); setTemplates([]); setAvailableTechs([]);
     } finally {
       setLoading(false);
     }
@@ -196,7 +201,19 @@ export default function OpsCalendar() {
         title: `${CITA_TYPES[a.type] || 'Cita'} · ${a.storeName || (a.storeNumber ? `Suc. ${a.storeNumber}` : a.clientName)}`,
         time: a.preferredTime || '09:00',
       }));
-    return [...dayOts, ...dayEvents, ...dayCitas].sort((a, b) => a.time.localeCompare(b.time));
+    // Reportes de garantía — caen el día en que el cliente los levantó
+    const dayClaims = claims
+      .filter(c => String(c.reportedAt).startsWith(dateStr))
+      .map(c => ({
+        ...c,
+        claim: c,
+        id: `gar-${c.id}`,
+        type: 'GARANTIA',
+        title: `Garantía · ${c.storeName || (c.storeNumber ? `Suc. ${c.storeNumber}` : c.clientName)}`,
+        description: c.problem,
+        time: new Date(c.reportedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }),
+      }));
+    return [...dayOts, ...dayEvents, ...dayCitas, ...dayClaims].sort((a, b) => a.time.localeCompare(b.time));
   };
 
   const handlePrevMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1));
@@ -340,9 +357,63 @@ export default function OpsCalendar() {
     }
   };
 
+  // ── Descartar un reporte de garantía ──────────────────────────────────────
+  const handleCancelClaim = async (claim) => {
+    if (!claim?.id) return;
+    if (!window.confirm(`¿Descartar el reporte ${claim.folio}? Dejará de aparecer en el calendario.`)) return;
+    setDeleting(true);
+    try {
+      const res = await apiFetch(`/api/warranty?id=${claim.id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('No se pudo descartar el reporte');
+      setSelectedEvent(null);
+      fetchData();
+    } catch (err) {
+      alert('Error al descartar: ' + err.message);
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   // ── Open Convert Modal pre-filled ─────────────────────────────────────────
   const openConvertModal = () => {
     if (!selectedEvent || selectedEvent.id.startsWith('ot-')) return;
+
+    // ── Reporte de garantía ──
+    // Operaciones escoge la fecha de la revisita: el prellenado deja
+    // scheduledDate en hoy (BLANK_OT) para que la ajuste a mano.
+    const claim = selectedEvent.claim;
+    if (claim) {
+      const known = clients.find(c =>
+        (claim.storeNumber && c.storeNumber === claim.storeNumber) ||
+        (claim.storeName && c.storeName === claim.storeName)
+      );
+      const prefilledGar = {
+        ...BLANK_OT,
+        title: `Garantía ${claim.folio}${claim.otNumber ? ` · revisión de OT ${claim.otNumber}` : ''}`,
+        workDescription: `Reporte de garantía ${claim.folio}\nCita original: ${claim.citaFolio || '—'}`
+          + `${claim.otNumber ? `\nOT reportada: ${claim.otNumber}` : ''}\n\nProblema reportado por el cliente:\n${claim.problem}`,
+        priority: 'HIGH',
+        client: claim.clientName || 'Coppel',
+        storeNumber: claim.storeNumber || known?.storeNumber || '',
+        storeName: claim.storeName || known?.storeName || '',
+        address: claim.address || known?.address || '',
+        otReference: known?.otReference || '',
+        clientEmail: claim.contactEmail || known?.email || '',
+        clientPhone: claim.contactPhone || known?.phone || '',
+        contactName: claim.contactName || known?.contact || '',
+        contactEmail: claim.contactEmail || '',
+        contactPhone: claim.contactPhone || '',
+        lat: known?.latitude ?? BLANK_OT.lat,
+        lng: known?.longitude ?? BLANK_OT.lng,
+      };
+      setConvertOT(prefilledGar);
+      setConvertMapCenter([prefilledGar.lat, prefilledGar.lng]);
+      setConvertOtClientSearch(known ? (known.storeName ? `${known.name} — ${known.storeName}` : known.name) : (claim.clientName || 'Coppel'));
+      setConvertStep(1);
+      setConvertedOT(null);
+      setIsConvertModalOpen(true);
+      return;
+    }
 
     // ── Cita generada por el cliente desde /cita ──
     // Autocompleta la OT con lo que el cliente capturó; si su sucursal ya
@@ -489,6 +560,15 @@ export default function OpsCalendar() {
 
       // Si venía de una cita del cliente, se marca como convertida para que
       // libere el cupo del día (ahora lo ocupa la OT) y quede trazada.
+      // Reporte de garantía → queda agendado con su OT correctiva
+      const claim = selectedEvent?.claim;
+      if (claim) {
+        await apiFetch('/api/warranty', {
+          method: 'PUT',
+          body: JSON.stringify({ id: claim.id, status: 'SCHEDULED', fixOtId: ot.id, fixOtNumber: ot.otNumber }),
+        }).catch(err => console.error('No se pudo enlazar la OT al reporte de garantía:', err));
+      }
+
       const appt = selectedEvent?.appointment;
       if (appt) {
         await apiFetch('/api/appointments', {
@@ -816,10 +896,11 @@ export default function OpsCalendar() {
         const p = evMeta.pill;
         const isOT   = selectedEvent.id?.startsWith('ot-');
         const isCita = selectedEvent.id?.startsWith('cita-');
-        // "Evento de calendario" = ni OT ni cita → es lo único editable vía /api/calendar
-        const isCalendarEvent = !isOT && !isCita;
+        const isGar  = selectedEvent.id?.startsWith('gar-');
+        // "Evento de calendario" = ni OT, ni cita, ni garantía → lo único editable vía /api/calendar
+        const isCalendarEvent = !isOT && !isCita && !isGar;
         // Accent: more saturated version for the sidebar stripe
-        const accentBg = { OT: '#1e40af', CITA: '#15803d', VISIT: '#b45309', MAINTENANCE: '#065f46', OTHER: '#4c1d95' };
+        const accentBg = { OT: '#1e40af', CITA: '#15803d', GARANTIA: '#b91c1c', VISIT: '#b45309', MAINTENANCE: '#065f46', OTHER: '#4c1d95' };
         const ac = { bg: accentBg[selectedEvent.type] || accentBg.OTHER, light: p.bg, border: p.border, text: p.text };
 
         return (
@@ -874,6 +955,68 @@ export default function OpsCalendar() {
 
                 {/* Body scrollable */}
                 <div style={{ flex: 1, overflowY: 'auto', padding: '24px 28px', display: 'flex', flexDirection: 'column', gap: 24 }}>
+
+                  {/* ── Sección Garantía: qué reportó el cliente ── */}
+                  {isGar && (() => {
+                    const g = selectedEvent.claim || {};
+                    const stMap = {
+                      OPEN:      ['Sin revisar',    '#fee2e2', '#b91c1c'],
+                      IN_REVIEW: ['En revisión',    '#fef9c3', '#854d0e'],
+                      SCHEDULED: ['Revisita agendada', '#dbeafe', '#1d4ed8'],
+                      RESOLVED:  ['Resuelta',       '#dcfce7', '#166534'],
+                      CANCELLED: ['Cancelada',      '#f3f4f6', '#6b7280'],
+                    };
+                    const [stLabel, stBg, stColor] = stMap[g.status] || ['—', '#f3f4f6', '#6b7280'];
+                    return (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: 11, fontFamily: 'monospace', fontWeight: 700, color: '#6b7280', background: '#f3f4f6', borderRadius: 8, padding: '4px 10px' }}>
+                            {g.folio}
+                          </span>
+                          <span style={{ fontSize: 11, fontWeight: 700, color: stColor, background: stBg, borderRadius: 8, padding: '4px 10px' }}>
+                            {stLabel}
+                          </span>
+                          {g.fixOtNumber && (
+                            <span style={{ fontSize: 11, fontWeight: 600, color: '#16a34a', fontFamily: 'monospace' }}>
+                              → OT correctiva {g.fixOtNumber}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* El problema, destacado: es el motivo del reporte */}
+                        <div style={{ background: '#fff5f5', border: '1px solid #fecaca', borderRadius: 14, padding: '16px 18px' }}>
+                          <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase', color: '#b91c1c', margin: '0 0 8px' }}>
+                            Problema reportado por el cliente
+                          </p>
+                          <p style={{ fontSize: 14, color: '#7f1d1d', lineHeight: 1.7, margin: 0, whiteSpace: 'pre-wrap' }}>{g.problem}</p>
+                        </div>
+
+                        <div style={{ background: '#f9fafb', border: '1px solid #f3f4f6', borderRadius: 14, padding: '16px 18px' }}>
+                          <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase', color: '#9ca3af', margin: '0 0 14px' }}>
+                            Trabajo reportado
+                          </p>
+                          <div style={{ display: 'grid', gap: 10 }}>
+                            {[
+                              [ClipboardList, 'Cita original', g.citaFolio],
+                              [Briefcase,     'OT reportada',  g.otNumber],
+                              [User,          'Contacto',      g.contactName],
+                              [Phone,         'Teléfono',      g.contactPhone],
+                              [Building2,     'Sucursal',      [g.storeNumber, g.storeName].filter(Boolean).join(' · ')],
+                              [MapPin,        'Dirección',     g.address],
+                            ].filter(([, , v]) => v).map(([Ico, label, value]) => (
+                              <div key={label} style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                                <Ico size={14} style={{ color: '#9ca3af', flexShrink: 0, marginTop: 2 }} />
+                                <div style={{ minWidth: 0 }}>
+                                  <p style={{ fontSize: 10, fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '.06em', margin: 0 }}>{label}</p>
+                                  <p style={{ fontSize: 13, color: '#374151', margin: '2px 0 0', fontWeight: 600 }}>{value}</p>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
 
                   {/* ── Sección Cita: quién la solicitó y desde dónde ── */}
                   {isCita && (() => {
@@ -1050,8 +1193,8 @@ export default function OpsCalendar() {
                     );
                   })()}
 
-                  {/* Descripción */}
-                  {selectedEvent.description ? (
+                  {/* Descripción — en garantías el problema ya se mostró arriba */}
+                  {isGar ? null : selectedEvent.description ? (
                     <div style={{ background: '#f9fafb', border: '1px solid #f3f4f6', borderRadius: 14, padding: '16px 18px' }}>
                       <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase', color: '#9ca3af', marginBottom: 8 }}>
                         {isOT ? 'Descripción del Trabajo' : isCita ? 'Detalle del requerimiento' : 'Descripción'}
@@ -1065,10 +1208,20 @@ export default function OpsCalendar() {
                   )}
 
                   {/* Convertir a OT */}
-                  {(isCalendarEvent || isCita) && (
+                  {(isCalendarEvent || isCita || isGar) && (
                     <div>
                       <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase', color: '#9ca3af', marginBottom: 10 }}>Orden de Trabajo</p>
-                      {isCita && selectedEvent.appointment?.status === 'CONVERTED' && !convertedOT ? (
+                      {isGar && selectedEvent.claim?.fixOtNumber && !convertedOT ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12, background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 14, padding: '14px 18px' }}>
+                          <div style={{ width: 40, height: 40, borderRadius: 12, background: '#16a34a', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                            <CheckCircle2 size={20} style={{ color: '#fff' }} />
+                          </div>
+                          <div style={{ flex: 1 }}>
+                            <p style={{ fontSize: 13, fontWeight: 700, color: '#15803d', margin: 0, marginBottom: 2 }}>Revisita ya agendada</p>
+                            <p style={{ fontSize: 11, color: '#16a34a', fontFamily: 'monospace', margin: 0 }}>{selectedEvent.claim.fixOtNumber}</p>
+                          </div>
+                        </div>
+                      ) : isCita && selectedEvent.appointment?.status === 'CONVERTED' && !convertedOT ? (
                         <div style={{ display: 'flex', alignItems: 'center', gap: 12, background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 14, padding: '14px 18px' }}>
                           <div style={{ width: 40, height: 40, borderRadius: 12, background: '#16a34a', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                             <CheckCircle2 size={20} style={{ color: '#fff' }} />
@@ -1104,14 +1257,16 @@ export default function OpsCalendar() {
                           onMouseLeave={e => { e.currentTarget.style.background = '#eff6ff'; e.currentTarget.style.borderColor = '#bfdbfe'; }}
                         >
                           <ClipboardList size={16} />
-                          {isCita ? 'Generar OT desde esta Cita' : 'Convertir Evento a Orden de Trabajo'}
+                          {isGar ? 'Generar OT Correctiva (escoja la fecha)'
+                            : isCita ? 'Generar OT desde esta Cita'
+                            : 'Convertir Evento a Orden de Trabajo'}
                         </button>
                       )}
                     </div>
                   )}
 
-                  {/* Evidencias — una cita todavía no tiene archivos asociados */}
-                  {!isCita && (
+                  {/* Evidencias — citas y garantías todavía no tienen archivos asociados */}
+                  {!isCita && !isGar && (
                   <div>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
                       <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase', color: '#9ca3af', margin: 0 }}>Evidencias · Reportes</p>
@@ -1186,6 +1341,15 @@ export default function OpsCalendar() {
                         <Trash2 size={13} /> Eliminar
                       </button>
                     </div>
+                  ) : isGar && selectedEvent.claim?.status !== 'SCHEDULED' && selectedEvent.claim?.status !== 'RESOLVED' ? (
+                    <button
+                      type="button"
+                      onClick={() => handleCancelClaim(selectedEvent.claim)}
+                      disabled={deleting}
+                      style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 10, border: '1.5px solid #fecaca', background: '#fff5f5', fontSize: 12, fontWeight: 700, color: '#dc2626', cursor: deleting ? 'not-allowed' : 'pointer', opacity: deleting ? .6 : 1, transition: 'all .15s' }}
+                    >
+                      <Trash2 size={13} /> Descartar reporte
+                    </button>
                   ) : isCita && selectedEvent.appointment?.status !== 'CONVERTED' ? (
                     <button
                       type="button"
@@ -1269,7 +1433,7 @@ export default function OpsCalendar() {
               <div>
                 <label style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase', color: '#6b7280', display: 'block', marginBottom: 8 }}>Tipo</label>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8 }}>
-                  {Object.entries(EVENT_TYPES).filter(([k]) => k !== 'OT' && k !== 'CITA').map(([key, meta]) => {
+                  {Object.entries(EVENT_TYPES).filter(([k]) => !['OT','CITA','GARANTIA'].includes(k)).map(([key, meta]) => {
                     const isActive = editEvent.type === key;
                     const Icon = meta.icon;
                     return (
@@ -1433,7 +1597,7 @@ export default function OpsCalendar() {
                 <div className="col-span-2">
                   <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1 mb-2 block">Tipo</label>
                   <div className="grid grid-cols-3 gap-3">
-                    {Object.entries(EVENT_TYPES).filter(([k]) => k !== 'OT' && k !== 'CITA').map(([key, meta]) => (
+                    {Object.entries(EVENT_TYPES).filter(([k]) => !['OT','CITA','GARANTIA'].includes(k)).map(([key, meta]) => (
                       <button key={key} type="button" onClick={() => setNewEvent({ ...newEvent, type: key })} className={cn('flex flex-col items-center gap-2 p-4 rounded-2xl border-2 transition-all', newEvent.type === key ? 'bg-gray-950 border-gray-950 text-white' : 'bg-white border-gray-100 text-gray-400')}>
                         <meta.icon className="h-5 w-5" />
                         <span className="text-[9px] font-black uppercase tracking-widest">{meta.label.split(' ')[0]}</span>

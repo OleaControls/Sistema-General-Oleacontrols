@@ -42,6 +42,7 @@ const handlers = {
   lms:           () => import('./_handlers/lms.js'),
   projects:      () => import('./_handlers/projects.js'),
   appointments:  () => import('./_handlers/appointments.js'),
+  warranty:      () => import('./_handlers/warranty.js'),
 };
 
 export default async function handler(req, res) {

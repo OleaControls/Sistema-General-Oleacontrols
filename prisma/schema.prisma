@@ -804,6 +804,43 @@ model Appointment {
   @@index([clientName, scheduledDate])
 }
 
+// ── Reportes de garantía levantados por el cliente desde /cita ───────────────
+// El cliente captura el folio de su cita y describe el problema con el trabajo
+// técnico. Cae en el calendario de Operaciones el día que se levantó; ahí se
+// convierte en OT correctiva (Operaciones escoge la fecha de la revisita).
+// No consume cupo de citas Coppel: es un reporte, no una cita agendada.
+model WarrantyClaim {
+  id            String   @id @default(cuid())
+  folio         String   @unique              // GAR-2026-0001
+
+  // Cita y OT a las que se refiere el reclamo
+  appointmentId String?
+  citaFolio     String?
+  workOrderId   String?
+  otNumber      String?
+
+  clientName    String   @default("Coppel")
+  storeNumber   String?
+  storeName     String?
+  address       String?
+  contactName   String
+  contactPhone  String
+  contactEmail  String?
+
+  problem       String                        // Qué salió mal con el trabajo
+  status        String   @default("OPEN")     // OPEN, IN_REVIEW, SCHEDULED, RESOLVED, CANCELLED
+  reportedAt    DateTime @default(now())      // Día en que aparece en el calendario
+
+  fixOtId       String?                       // OT correctiva generada
+  fixOtNumber   String?
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([reportedAt])
+  @@index([status])
+}
+
 // ── Comunicados / Anuncios ───────────────────────────────────────────────────
 model Announcement {
   id                   String   @id @default(cuid())

@@ -16,11 +16,11 @@ import { signUrlIfNeeded } from '../_lib/r2.js'
 export const DAILY_CAPACITY = 2;
 export const MIN_LEAD_DAYS  = 2;
 
-// Tipos que el cliente puede agendar. "Seguimiento de pendientes" no está
-// aquí a propósito: no genera cita, es una consulta por folio.
+// Único tipo que genera cita. Los otros apartados del portal no agendan:
+// "Garantías" levanta un reporte (ver warranty.js) y "Seguimiento de
+// pendientes" es una consulta por folio.
 export const APPOINTMENT_TYPES = {
-  AGENDAR:   'Agendar cita',
-  GARANTIAS: 'Garantías',
+  AGENDAR: 'Agendar cita',
 };
 
 // El cupo diario aplica sólo a este cliente.

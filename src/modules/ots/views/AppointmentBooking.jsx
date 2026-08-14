@@ -19,10 +19,12 @@ import {
 /* Los 4 tipos de cita. Para cambiar textos o agregar uno, edita sólo esta
    lista y APPOINTMENT_TYPES en api/_handlers/appointments.js. */
 /* action: 'book'  → abre el calendario y genera una cita nueva.
+   action: 'claim' → pide el folio y levanta un reporte de garantía.
    action: 'track' → pide el folio y consulta una cita existente.       */
 const TYPES = [
   { id: 'AGENDAR',    action: 'book',  label: 'Agendar cita', sub: 'Servicio programado en sucursal', Icon: CalendarDays },
-  { id: 'GARANTIAS',  action: 'book',  label: 'Garantías',    sub: 'Atención de equipo en garantía',  Icon: ShieldCheck  },
+  { id: 'GARANTIAS',  action: 'claim', label: 'Garantías',
+    sub: 'Reporte un problema con el trabajo técnico usando su folio', Icon: ShieldCheck },
   { id: 'PENDIENTES', action: 'track', view: 'pendientes',
     label: 'Seguimiento de pendientes', sub: 'Capture su folio y vea el formato de la OT', Icon: ClipboardList },
 ];
@@ -167,6 +169,64 @@ export default function AppointmentBooking() {
     setError(null);
   };
 
+  // ── Reporte de garantía ─────────────────────────────────────────────────
+  // Paso 1: validar el folio y mostrar a qué trabajo se refiere.
+  // Paso 2: describir el problema y enviar. Operaciones agenda la revisita.
+  const [claimFolio, setClaimFolio] = useState('');
+  const [claimCita, setClaimCita] = useState(null);   // cita validada
+  const [claimProblem, setClaimProblem] = useState('');
+  const [claimContact, setClaimContact] = useState({ contactName: '', contactPhone: '' });
+  const [claimLoading, setClaimLoading] = useState(false);
+  const [claimError, setClaimError] = useState(null);
+  const [claimDone, setClaimDone] = useState(null);
+
+  const openClaim = () => {
+    setMode('claim');
+    setClaimFolio(''); setClaimCita(null); setClaimProblem('');
+    setClaimContact({ contactName: '', contactPhone: '' });
+    setClaimError(null); setClaimDone(null); setError(null);
+  };
+
+  const verifyClaimFolio = async (e) => {
+    e?.preventDefault();
+    const folio = claimFolio.trim();
+    if (!folio) return;
+    setClaimLoading(true);
+    setClaimError(null);
+    try {
+      const res = await fetch(`/api/appointments?folio=${encodeURIComponent(folio)}`);
+      const payload = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(payload?.error || 'No se pudo validar el folio');
+      setClaimCita(payload);
+      setClaimContact({ contactName: payload.contactName || '', contactPhone: '' });
+    } catch (err) {
+      setClaimCita(null);
+      setClaimError(err.message);
+    } finally {
+      setClaimLoading(false);
+    }
+  };
+
+  const submitClaim = async (e) => {
+    e?.preventDefault();
+    setClaimLoading(true);
+    setClaimError(null);
+    try {
+      const res = await fetch('/api/warranty', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ citaFolio: claimCita.folio, problem: claimProblem, ...claimContact }),
+      });
+      const payload = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(payload?.error || 'No se pudo enviar el reporte');
+      setClaimDone(payload);
+    } catch (err) {
+      setClaimError(err.message);
+    } finally {
+      setClaimLoading(false);
+    }
+  };
+
   const lookupFolio = async (e) => {
     e?.preventDefault();
     const folio = folioInput.trim();
@@ -292,7 +352,8 @@ export default function AppointmentBooking() {
                 Olea Controls · Coppel
               </p>
               <h1 className="ap-display" style={{ margin: '4px 0 0', fontSize: 'clamp(24px,4vw,34px)', fontWeight: 700, color: '#f8fafc', letterSpacing: '-.01em' }}>
-                {mode !== 'track' ? 'GENERE SU CITA'
+                {mode === 'claim' ? 'REPORTE DE GARANTÍA'
+                  : mode !== 'track' ? 'GENERE SU CITA'
                   : trackView === 'pendientes' ? 'SUS PENDIENTES' : '¿CUÁNDO LLEGAN?'}
               </h1>
             </div>
@@ -302,8 +363,148 @@ export default function AppointmentBooking() {
           </button>
         </div>
 
-        {/* ══ MODO SEGUIMIENTO — "¿Cuándo llegan?" por folio ══ */}
-        {mode === 'track' ? (
+        {/* ══ MODO GARANTÍAS — reportar problema con el trabajo técnico ══ */}
+        {mode === 'claim' ? (
+          <div className="ap-in">
+            {claimDone ? (
+              <div style={{ background: 'rgba(10,18,40,.72)', border: '1px solid rgba(74,222,128,.3)', borderRadius: '22px', padding: 'clamp(28px,5vw,44px)', textAlign: 'center' }}>
+                <div style={{ width: '72px', height: '72px', borderRadius: '50%', margin: '0 auto 20px', background: 'rgba(34,197,94,.18)', border: '1px solid rgba(74,222,128,.4)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Check size={32} color="#4ade80" />
+                </div>
+                <h2 className="ap-display" style={{ color: '#f8fafc', fontSize: '24px', margin: '0 0 8px', fontWeight: 700 }}>Reporte enviado</h2>
+                <p style={{ color: 'rgba(255,255,255,.7)', fontSize: '14px', margin: '0 0 24px', lineHeight: 1.6 }}>
+                  Su reporte llegó a Operaciones. Se revisará el trabajo y le confirmaremos la fecha de la revisita al teléfono registrado.
+                </p>
+
+                <div style={{ maxWidth: '420px', margin: '0 auto 24px', padding: '18px', borderRadius: '16px', background: 'rgba(239,68,68,.12)', border: '1px solid rgba(248,113,113,.3)' }}>
+                  <p className="ap-display" style={{ margin: 0, fontSize: '8.5px', color: '#fca5a5', letterSpacing: '.3em', textTransform: 'uppercase' }}>
+                    Folio de su reporte
+                  </p>
+                  <p style={{ margin: '8px 0 0', fontFamily: 'monospace', fontSize: 'clamp(20px,4vw,26px)', fontWeight: 700, color: '#f8fafc', letterSpacing: '.06em' }}>
+                    {claimDone.folio}
+                  </p>
+                  <button type="button" onClick={() => navigator.clipboard?.writeText(claimDone.folio)} className="ap-ghost" style={{ marginTop: '12px', padding: '9px 14px' }}>
+                    <Copy size={13} /> Copiar folio
+                  </button>
+                </div>
+
+                <div style={{ display: 'grid', gap: '10px', textAlign: 'left', maxWidth: '420px', margin: '0 auto 28px' }}>
+                  {[
+                    ['Cita original', claimDone.citaFolio],
+                    ['OT relacionada', claimDone.otNumber || 'Sin OT generada'],
+                    ['Sucursal', [claimDone.storeNumber, claimDone.storeName].filter(Boolean).join(' · ') || '—'],
+                  ].map(([k, v]) => (
+                    <div key={k} style={{ display: 'flex', justifyContent: 'space-between', gap: '16px', padding: '12px 16px', background: 'rgba(255,255,255,.04)', borderRadius: '10px' }}>
+                      <span className="ap-display" style={{ fontSize: '9px', color: 'rgba(255,255,255,.6)', letterSpacing: '.2em', textTransform: 'uppercase', paddingTop: '2px' }}>{k}</span>
+                      <span style={{ fontSize: '13px', color: '#e2e8f0', fontWeight: 600, textAlign: 'right' }}>{v}</span>
+                    </div>
+                  ))}
+                </div>
+
+                <button className="ap-btn" style={{ margin: '0 auto' }} onClick={() => navigate('/login')}>
+                  Finalizar <ArrowRight size={15} />
+                </button>
+              </div>
+            ) : (
+              <>
+                {/* Paso 1 — validar folio */}
+                <form
+                  onSubmit={verifyClaimFolio}
+                  style={{ background: 'rgba(10,18,40,.7)', border: '1px solid rgba(255,255,255,.1)', borderRadius: '22px', padding: 'clamp(22px,4vw,32px)', backdropFilter: 'blur(20px)', marginBottom: '20px' }}
+                >
+                  <p className="ap-display" style={LBL}>Folio de la cita que quiere reportar</p>
+                  <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                    <input
+                      className="ap-input"
+                      style={{ flex: '1 1 220px', fontFamily: 'monospace', letterSpacing: '.06em', textTransform: 'uppercase' }}
+                      placeholder="CITA-2026-0001"
+                      value={claimFolio}
+                      onChange={e => { setClaimFolio(e.target.value); setClaimCita(null); }}
+                      autoFocus
+                    />
+                    <button type="submit" className="ap-btn" disabled={!claimFolio.trim() || claimLoading}>
+                      {claimLoading && !claimCita ? <><Loader2 size={15} className="ap-spin" /> Validando…</> : <><Search size={15} /> Validar folio</>}
+                    </button>
+                  </div>
+                  <p style={{ margin: '12px 0 0', fontSize: '11.5px', color: 'rgba(255,255,255,.55)', lineHeight: 1.6 }}>
+                    Necesitamos el folio para saber a qué trabajo se refiere el problema.
+                  </p>
+                </form>
+
+                {claimError && (
+                  <div style={{ marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '10px', padding: '14px 18px', borderRadius: '12px', background: 'rgba(239,68,68,.12)', border: '1px solid rgba(239,68,68,.3)', color: '#fca5a5', fontSize: '13px' }}>
+                    <AlertCircle size={15} style={{ flexShrink: 0 }} /> {claimError}
+                  </div>
+                )}
+
+                {/* Paso 2 — describir el problema */}
+                {claimCita && (
+                  <form onSubmit={submitClaim} className="ap-in" style={{ background: 'rgba(10,18,40,.7)', border: '1px solid rgba(255,255,255,.1)', borderRadius: '22px', padding: 'clamp(22px,4vw,32px)', backdropFilter: 'blur(20px)' }}>
+                    {/* A qué trabajo se refiere */}
+                    <p className="ap-display" style={LBL}>Trabajo que va a reportar</p>
+                    <div style={{ display: 'grid', gap: '10px', marginBottom: '24px' }}>
+                      {[
+                        ['Folio',    claimCita.folio],
+                        ['OT',       claimCita.ot?.otNumber || 'Sin OT generada'],
+                        ['Trabajo',  claimCita.ot?.title],
+                        ['Técnico',  claimCita.ot?.technicianName],
+                        ['Sucursal', [claimCita.storeNumber, claimCita.storeName].filter(Boolean).join(' · ')],
+                        ['Atendida', claimCita.ot?.scheduledDate
+                          ? new Date(`${String(claimCita.ot.scheduledDate).slice(0, 10)}T12:00:00`).toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric' })
+                          : null],
+                      ].filter(([, v]) => v).map(([k, v]) => (
+                        <div key={k} style={{ display: 'flex', justifyContent: 'space-between', gap: '16px', padding: '12px 16px', background: 'rgba(255,255,255,.04)', borderRadius: '10px' }}>
+                          <span className="ap-display" style={{ fontSize: '9px', color: 'rgba(255,255,255,.55)', letterSpacing: '.2em', textTransform: 'uppercase', paddingTop: '2px', flexShrink: 0 }}>{k}</span>
+                          <span style={{ fontSize: '13px', color: '#e2e8f0', fontWeight: 600, textAlign: 'right' }}>{v}</span>
+                        </div>
+                      ))}
+                    </div>
+
+                    <Field label="¿Qué problema tuvo con el trabajo? *">
+                      <textarea
+                        className="ap-input" rows={5} required style={{ resize: 'vertical' }}
+                        placeholder="Describa qué falló, desde cuándo y en qué equipo. Entre más detalle, más rápido lo resolvemos."
+                        value={claimProblem}
+                        onChange={e => setClaimProblem(e.target.value)}
+                      />
+                    </Field>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))', gap: '16px', marginTop: '16px' }}>
+                      <Field label="Nombre de contacto" icon={User}>
+                        <input className="ap-input" placeholder="Quién reporta" value={claimContact.contactName}
+                          onChange={e => setClaimContact(c => ({ ...c, contactName: e.target.value }))} />
+                      </Field>
+                      <Field label="Teléfono de contacto" icon={Phone}>
+                        <input className="ap-input" type="tel" placeholder="10 dígitos" value={claimContact.contactPhone}
+                          onChange={e => setClaimContact(c => ({ ...c, contactPhone: e.target.value }))} />
+                      </Field>
+                    </div>
+                    <p style={{ margin: '10px 0 0', fontSize: '11px', color: 'rgba(255,255,255,.45)', lineHeight: 1.6 }}>
+                      Si los deja vacíos usaremos los datos de la cita original.
+                    </p>
+
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '26px' }}>
+                      <button type="submit" className="ap-btn" disabled={claimProblem.trim().length < 10 || claimLoading}>
+                        {claimLoading
+                          ? <><Loader2 size={15} className="ap-spin" /> Enviando…</>
+                          : <><ShieldCheck size={15} /> Enviar reporte</>}
+                      </button>
+                    </div>
+                  </form>
+                )}
+
+                <div style={{ marginTop: '24px' }}>
+                  <button type="button" className="ap-ghost" onClick={() => setMode('book')}>
+                    <ArrowLeft size={14} /> Volver
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        ) :
+
+        /* ══ MODO SEGUIMIENTO — "¿Cuándo llegan?" por folio ══ */
+        mode === 'track' ? (
           <div className="ap-in">
             <form
               onSubmit={lookupFolio}
@@ -656,6 +857,7 @@ export default function AppointmentBooking() {
                         onClick={() => {
                           const t = TYPES.find(x => x.id === id);
                           if (t.action === 'track') { openTracker('', t.view); return; }
+                          if (t.action === 'claim') { openClaim(); return; }
                           setType(id); setStep(2);
                         }}
                         className={`ap-type${type === id ? ' on' : ''}`}

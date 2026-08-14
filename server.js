@@ -37,6 +37,7 @@ import surveysHandler        from './api/_handlers/surveys.js';
 import payrollHandler        from './api/_handlers/payroll.js';
 import projectsHandler       from './api/_handlers/projects.js';
 import appointmentsHandler   from './api/_handlers/appointments.js';
+import warrantyHandler       from './api/_handlers/warranty.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -93,6 +94,9 @@ app.put('/api/expenses', adaptHandler(expensesHandler));
 
 // Citas públicas (Coppel) — GET/POST sin token, PUT/DELETE con token
 app.all('/api/appointments', adaptHandler(appointmentsHandler));
+
+// Reportes de garantía — GET/POST sin token, PUT/DELETE con token
+app.all('/api/warranty', adaptHandler(warrantyHandler));
 
 // Categories
 app.get('/api/categories', adaptHandler(categoriesHandler));
