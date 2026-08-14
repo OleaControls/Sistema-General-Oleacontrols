@@ -115,3 +115,31 @@
     display: none;
   }
 }
+
+/* ── Mapas (Leaflet) ────────────────────────────────────────────────────────
+   La atribución es obligatoria por la licencia de OpenStreetMap y CARTO, pero
+   no tiene por qué gritar: se deja legible y discreta en todos los mapas. */
+.leaflet-control-attribution {
+  font-size: 9px !important;
+  line-height: 1.5 !important;
+  padding: 1px 7px !important;
+  background: rgba(255, 255, 255, 0.72) !important;
+  backdrop-filter: blur(4px);
+  color: #94a3b8 !important;
+  border-radius: 8px 0 0 0 !important;
+}
+.leaflet-control-attribution a {
+  color: #94a3b8 !important;
+  text-decoration: none;
+}
+.leaflet-control-attribution a:hover { color: #475569 !important; }
+
+/* Controles de zoom acordes al resto de la interfaz */
+.leaflet-control-zoom a {
+  border-radius: 10px !important;
+  border: 1px solid #e5e7eb !important;
+  color: #64748b !important;
+  font-weight: 700;
+}
+.leaflet-control-zoom a:hover { background: #f8fafc !important; color: #0f172a !important; }
+.leaflet-bar { border: none !important; box-shadow: 0 4px 14px -6px rgba(15, 23, 42, 0.35) !important; }

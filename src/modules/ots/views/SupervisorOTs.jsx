@@ -10,6 +10,7 @@ import {
 import { MapContainer, TileLayer, Marker, useMap, useMapEvents, Popup } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import { TILE_LAYER } from '@/lib/mapTiles';
 import { otService } from '@/api/otService';
 import { crmService } from '@/api/crmService';
 import { hrService } from '@/api/hrService';
@@ -21,6 +22,152 @@ import {
 } from '@/lib/otWindow';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SALA DE CONTROL — lenguaje visual de esta vista.
+
+   La idea: esto no es un CRUD, es un tablero de despacho. Una barra de mando
+   oscura ancla la vista y todo lo demás vive en claro, en alto contraste.
+   Bricolage Grotesque da carácter a los titulares; JetBrains Mono hace que
+   folios, importes y contadores se lean como telemetría.
+═══════════════════════════════════════════════════════════════════════════ */
+const OPS_CSS = `
+  @import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&family=JetBrains+Mono:wght@400;500;700;800&display=swap');
+
+  .ops-display { font-family:'Bricolage Grotesque', ui-sans-serif, sans-serif !important; }
+  .ops-mono    { font-family:'JetBrains Mono', ui-monospace, monospace !important; font-variant-numeric: tabular-nums; }
+
+  /* ── Entrada escalonada: una sola coreografía al cargar ── */
+  @keyframes ops-rise { from { opacity:0; transform: translateY(14px); } to { opacity:1; transform:none; } }
+  .ops-rise   { animation: ops-rise .5s cubic-bezier(.16,1,.3,1) both; }
+  .ops-rise-2 { animation: ops-rise .5s cubic-bezier(.16,1,.3,1) .07s both; }
+  .ops-rise-3 { animation: ops-rise .5s cubic-bezier(.16,1,.3,1) .14s both; }
+  .ops-rise-4 { animation: ops-rise .5s cubic-bezier(.16,1,.3,1) .21s both; }
+
+  /* ── Barra de mando ── */
+  .ops-deck {
+    position: relative; overflow: hidden;
+    border-radius: 28px;
+    background: linear-gradient(135deg, #0b1220 0%, #111c33 48%, #0a1526 100%);
+    box-shadow: 0 24px 60px -24px rgba(8,15,30,.7), inset 0 1px 0 rgba(255,255,255,.06);
+  }
+  /* Retícula técnica de fondo */
+  .ops-deck-grid {
+    position:absolute; inset:0; pointer-events:none; opacity:.5;
+    background-image:
+      linear-gradient(rgba(148,180,255,.055) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(148,180,255,.055) 1px, transparent 1px);
+    background-size: 46px 46px;
+    mask-image: radial-gradient(ellipse 80% 120% at 20% 0%, #000 35%, transparent 78%);
+  }
+  .ops-deck-glow {
+    position:absolute; top:-55%; right:-12%; width:46rem; height:46rem;
+    pointer-events:none; border-radius:50%;
+    background: radial-gradient(circle, rgba(37,99,235,.28) 0%, transparent 62%);
+  }
+  .ops-deck-mark {
+    height:44px; width:44px; border-radius:14px; flex-shrink:0;
+    display:flex; align-items:center; justify-content:center;
+    color:#bfdbfe;
+    background: rgba(37,99,235,.22);
+    border:1px solid rgba(147,197,253,.28);
+    box-shadow: 0 0 26px rgba(37,99,235,.32);
+  }
+
+  /* ── Telemetría ── */
+  .ops-stat {
+    display:inline-flex; align-items:center; gap:7px;
+    font-size:11.5px; color: rgba(226,232,240,.62);
+  }
+  .ops-stat b { color:#fff; font-weight:700; }
+
+  .ops-led { height:6px; width:6px; border-radius:50%; flex-shrink:0; }
+  .ops-led-green { background:#4ade80; box-shadow:0 0 9px #4ade80; animation: ops-blink 2.4s ease-in-out infinite; }
+  .ops-led-amber { background:#fbbf24; box-shadow:0 0 9px #fbbf24; animation: ops-blink 1.5s ease-in-out infinite; }
+  .ops-led-red   { background:#f87171; box-shadow:0 0 9px #f87171; animation: ops-blink 1.1s ease-in-out infinite; }
+  .ops-led-off   { background: rgba(148,163,184,.35); }
+  @keyframes ops-blink { 0%,100%{opacity:1} 50%{opacity:.35} }
+
+  /* ── Chip de ventana horaria ── */
+  .ops-window {
+    display:flex; align-items:center; gap:10px;
+    padding:9px 14px; border-radius:14px;
+    border:1px solid; backdrop-filter: blur(8px);
+  }
+  .ops-window-open { background: rgba(16,185,129,.1);  border-color: rgba(52,211,153,.3); color:#a7f3d0; }
+  .ops-window-shut { background: rgba(239,68,68,.1);   border-color: rgba(248,113,113,.32); color:#fecaca; }
+  .ops-window-edit {
+    margin-left:2px; height:26px; width:26px; border-radius:8px; cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+    background: rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.12);
+    color: inherit; transition: background .18s;
+  }
+  .ops-window-edit:hover { background: rgba(255,255,255,.18); }
+
+  /* ── Botones de la barra ── */
+  .ops-btn-ghost, .ops-btn-primary {
+    height:40px; padding:0 18px; border-radius:14px; cursor:pointer;
+    display:inline-flex; align-items:center; gap:8px; white-space:nowrap;
+    font-size:12px; font-weight:600; transition: all .18s;
+  }
+  .ops-btn-ghost {
+    background: rgba(255,255,255,.07); color:#e2e8f0;
+    border:1px solid rgba(255,255,255,.13);
+  }
+  .ops-btn-ghost:hover { background: rgba(255,255,255,.14); }
+  .ops-btn-primary {
+    background: linear-gradient(135deg,#3b82f6,#2563eb); color:#fff; border:none;
+    box-shadow: 0 10px 26px -8px rgba(37,99,235,.85);
+  }
+  .ops-btn-primary:hover:not(.ops-btn-locked) { transform: translateY(-1px); box-shadow: 0 16px 34px -8px rgba(37,99,235,.95); }
+  .ops-btn-locked {
+    background: rgba(248,113,113,.14); color:#fca5a5;
+    border:1px solid rgba(248,113,113,.3); box-shadow:none; cursor:not-allowed;
+  }
+
+  /* ── Riel de estado: el número ES el filtro ── */
+  .ops-seg {
+    position:relative; overflow:hidden; cursor:pointer; text-align:left;
+    padding:16px 18px 14px; border-radius:20px;
+    background:#fff; border:1px solid #eef1f5;
+    transition: transform .18s, box-shadow .18s, border-color .18s;
+  }
+  .ops-seg::before {
+    content:''; position:absolute; top:0; left:0; right:0; height:3px;
+    background: var(--hue); opacity:.22; transition: opacity .18s, height .18s;
+  }
+  .ops-seg:hover { transform: translateY(-2px); box-shadow: 0 12px 26px -14px rgba(15,23,42,.4); }
+  .ops-seg:hover::before { opacity:.5; }
+  .ops-seg-on {
+    border-color: color-mix(in srgb, var(--hue) 42%, #fff);
+    box-shadow: 0 14px 30px -16px color-mix(in srgb, var(--hue) 70%, transparent);
+  }
+  .ops-seg-on::before { opacity:1; height:4px; }
+
+  /* ── Encabezado de panel ── */
+  .ops-panel-head {
+    display:flex; align-items:center; justify-content:space-between;
+    padding:13px 18px; border-bottom:1px solid #f1f3f7;
+  }
+  .ops-panel-title {
+    display:flex; align-items:center; gap:8px;
+    font-size:10px; font-weight:800; letter-spacing:.16em; text-transform:uppercase; color:#64748b;
+  }
+
+  /* ── Tabla ── */
+  .ops-th {
+    font-size:9px; font-weight:800; letter-spacing:.18em; text-transform:uppercase; color:#94a3b8;
+  }
+  .ops-row { transition: background .13s; }
+  .ops-row:hover { background:#f8fafc; }
+  .ops-row .ops-actions { opacity:.35; transition: opacity .15s; }
+  .ops-row:hover .ops-actions { opacity:1; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .ops-rise, .ops-rise-2, .ops-rise-3, .ops-rise-4 { animation:none; }
+    .ops-led-green, .ops-led-amber, .ops-led-red { animation:none; }
+  }
+`;
 
 // Custom Marker Icons — DivIcon SVG (no external URLs)
 const otIcon = new L.DivIcon({
@@ -68,7 +215,7 @@ function ChangeView({ center }) {
 const OTsMap = memo(function OTsMap({ ots, techLocations, otIcon, techIcon }) {
   return (
     <MapContainer center={[19.4326, -99.1332]} zoom={11} style={{ height: '100%', width: '100%' }}>
-      <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+      <TileLayer {...TILE_LAYER} />
       {ots.filter(o => o.lat && o.lng).map(ot => (
         <Marker key={ot.id} position={[ot.lat, ot.lng]} icon={otIcon}>
           <Popup>
@@ -112,6 +259,40 @@ const OTsMap = memo(function OTsMap({ ots, techLocations, otIcon, techIcon }) {
     </MapContainer>
   );
 });
+
+/**
+ * Foto del técnico asignado, con caída a la inicial si no tiene avatar.
+ * El listado de OTs ya incluye `technician.avatar`, así que no hace falta
+ * pedir nada extra al servidor.
+ */
+function TechAvatar({ ot, size = 32, tone = 'amber' }) {
+  const name = ot.technician?.name || ot.leadTechName || '';
+  const src  = ot.technician?.avatar;
+  const [failed, setFailed] = useState(false);
+
+  const TONES = {
+    amber: 'bg-amber-100 text-amber-700 ring-amber-200',
+    red:   'bg-red-100 text-red-700 ring-red-200',
+    slate: 'bg-gray-100 text-gray-400 ring-gray-200',
+  };
+  const hasName = name && name !== 'Sin asignar';
+  const initial = hasName ? name.charAt(0).toUpperCase() : '?';
+
+  return (
+    <div
+      className={cn(
+        'rounded-xl overflow-hidden flex items-center justify-center font-black shrink-0 ring-1',
+        !src || failed ? TONES[hasName ? tone : 'slate'] : 'ring-gray-200 bg-gray-100'
+      )}
+      style={{ height: size, width: size, fontSize: size * 0.36 }}
+      title={hasName ? name : 'Sin asignar'}
+    >
+      {src && !failed
+        ? <img src={src} alt={name} onError={() => setFailed(true)} className="h-full w-full object-cover" />
+        : initial}
+    </div>
+  );
+}
 
 export default function SupervisorOTs() {
   const { user: currentUser } = useAuth();
@@ -802,61 +983,108 @@ export default function SupervisorOTs() {
     LOW:    { label: 'Baja',    badge: 'bg-slate-50 text-slate-500 border-slate-200',     bar: 'bg-slate-300' },
   };
 
-  return (
-    <div className="space-y-4 pb-24">
+  /* ── Rail de estado — un solo control que reemplaza los KPIs + las pestañas ──
+     Antes eran dos filas con los mismos seis grupos: tarjetas arriba, tabs
+     abajo. Ahora es un solo riel donde el número es el filtro. */
+  const STATUS_RAIL = [
+    { key: 'ALL',         label: 'Todas',       sub: 'Órdenes totales',   value: kpis.total,      hue: '#2563eb' },
+    { key: 'UNASSIGNED',  label: 'Sin asignar', sub: 'Esperan técnico',   value: kpis.pending,    hue: '#64748b' },
+    { key: 'ACCEPTED',    label: 'Aceptadas',   sub: 'Confirmadas',       value: kpis.accepted,   hue: '#0284c7' },
+    { key: 'IN_PROGRESS', label: 'En proceso',  sub: 'Ahora mismo',       value: kpis.inProgress, hue: '#d97706', live: kpis.inProgress > 0 },
+    { key: 'COMPLETED',   label: 'Completadas', sub: 'Finalizadas',       value: kpis.completed,  hue: '#059669' },
+  ];
 
-      {/* HEADER */}
-      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 pt-1 pb-4 border-b border-gray-100">
-        <div className="flex items-start gap-3">
-          <div className="mt-1 h-9 w-1 rounded-full bg-blue-500 shrink-0" />
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-blue-500 mb-0.5">
-              Operaciones · {new Date().getFullYear()}
-            </p>
-            <h1 className="text-[1.75rem] font-extrabold text-gray-900 leading-none tracking-tight">
-              Control de Operaciones
-            </h1>
-            <p className="text-sm text-gray-400 mt-1">
-              {kpis.total} órdenes totales
-              {kpis.inProgress > 0 && <> · <span className="text-amber-600 font-semibold">{kpis.inProgress} en proceso</span></>}
-              {kpis.urgent > 0 && <> · <span className="text-red-500 font-semibold">{kpis.urgent} alta prioridad</span></>}
-            </p>
+  const techsOnline = Object.keys(techLocations).length;
+
+  return (
+    <div className="ops-root space-y-4 pb-24">
+      <style dangerouslySetInnerHTML={{ __html: OPS_CSS }} />
+
+      {/* ══════════════════════════════════════════════════════════════════════
+          BARRA DE MANDO — el ancla oscura de la vista.
+          Concentra estado en vivo (técnicos, órdenes activas, ventana horaria)
+          y las acciones primarias.
+      ══════════════════════════════════════════════════════════════════════ */}
+      <header className="ops-deck ops-rise">
+        <div className="ops-deck-grid" />
+        <div className="ops-deck-glow" />
+
+        <div className="relative flex flex-col xl:flex-row xl:items-center justify-between gap-6 px-6 py-6 sm:px-8">
+          {/* Identidad */}
+          <div className="flex items-start gap-4 min-w-0">
+            <div className="ops-deck-mark">
+              <Layers className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <p className="ops-mono text-[9px] font-bold uppercase tracking-[0.32em] text-blue-300/80">
+                Sala de control · Operaciones
+              </p>
+              <h1 className="ops-display text-[2rem] sm:text-[2.4rem] font-extrabold text-white leading-[0.95] tracking-[-0.02em] mt-1">
+                Órdenes de Trabajo
+              </h1>
+
+              {/* Telemetría en vivo */}
+              <div className="flex items-center gap-x-5 gap-y-2 flex-wrap mt-3">
+                <span className="ops-stat">
+                  <span className={cn('ops-led', kpis.inProgress > 0 ? 'ops-led-amber' : 'ops-led-off')} />
+                  <b className="ops-mono">{kpis.inProgress}</b> en proceso
+                </span>
+                <span className="ops-stat">
+                  <span className={cn('ops-led', techsOnline > 0 ? 'ops-led-green' : 'ops-led-off')} />
+                  <b className="ops-mono">{techsOnline}</b> técnicos en campo
+                </span>
+                {kpis.urgent > 0 && (
+                  <span className="ops-stat">
+                    <span className="ops-led ops-led-red" />
+                    <b className="ops-mono">{kpis.urgent}</b> alta prioridad
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Ventana horaria + acciones */}
+          <div className="flex flex-col sm:flex-row xl:flex-col 2xl:flex-row items-stretch sm:items-center gap-3 shrink-0">
+            {/* Estado de la ventana de creación */}
+            <div className={cn('ops-window', windowIsClosed ? 'ops-window-shut' : 'ops-window-open')}>
+              <span className={cn('ops-led', windowIsClosed ? 'ops-led-red' : 'ops-led-green')} />
+              <div className="leading-tight">
+                <p className="ops-mono text-[8.5px] font-bold uppercase tracking-[0.22em] opacity-70">
+                  {otWindow.enabled ? (windowIsClosed ? 'Creación cerrada' : 'Creación abierta') : 'Sin restricción'}
+                </p>
+                <p className="ops-mono text-[11px] font-bold">
+                  {otWindow.enabled ? windowLabel(otWindow) : '24 h'}
+                </p>
+              </div>
+              {isAdmin && (
+                <button
+                  onClick={() => { setWindowDraft(otWindow); setWindowModalOpen(true); }}
+                  title="Configurar horario de creación de OTs"
+                  className="ops-window-edit"
+                >
+                  <TimerReset className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button onClick={() => navigate('/ots/leaderboard')} className="ops-btn-ghost">
+                <Trophy className="h-3.5 w-3.5" /> Ranking
+              </button>
+              <button
+                onClick={openCreateModal}
+                disabled={windowIsClosed}
+                title={windowIsClosed ? `Cerrado · horario permitido ${windowLabel(otWindow)}` : undefined}
+                className={cn('ops-btn-primary', windowIsClosed && 'ops-btn-locked')}
+              >
+                {windowIsClosed
+                  ? <><Lock className="h-3.5 w-3.5" /> Cerrado</>
+                  : <><ClipboardList className="h-3.5 w-3.5" /> Nueva OT</>}
+              </button>
+            </div>
           </div>
         </div>
-        <div className="flex items-center gap-2 shrink-0 pb-1">
-          <button
-            onClick={() => navigate('/ots/leaderboard')}
-            className="cursor-pointer h-9 px-4 rounded-xl border border-gray-200 bg-white text-gray-600 font-semibold text-xs flex items-center gap-2 hover:border-gray-300 hover:bg-gray-50 transition-colors shadow-sm"
-          >
-            <Trophy className="h-3.5 w-3.5 text-amber-500" /> Ranking
-          </button>
-          {isAdmin && (
-            <button
-              onClick={() => { setWindowDraft(otWindow); setWindowModalOpen(true); }}
-              title="Horario de creación de OTs"
-              className="cursor-pointer h-9 px-4 rounded-xl border border-gray-200 bg-white text-gray-600 font-semibold text-xs flex items-center gap-2 hover:border-gray-300 hover:bg-gray-50 transition-colors shadow-sm"
-            >
-              <TimerReset className="h-3.5 w-3.5 text-blue-500" />
-              {otWindow.enabled ? windowLabel(otWindow) : 'Horario'}
-            </button>
-          )}
-          <button
-            onClick={openCreateModal}
-            disabled={windowIsClosed}
-            title={windowIsClosed ? `Cerrado · horario permitido ${windowLabel(otWindow)}` : undefined}
-            className={cn(
-              'h-9 px-5 rounded-xl font-semibold text-xs flex items-center gap-2 transition-colors shadow-sm',
-              windowIsClosed
-                ? 'bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed'
-                : 'cursor-pointer bg-blue-600 text-white hover:bg-blue-700'
-            )}
-          >
-            {windowIsClosed
-              ? <><Lock className="h-3.5 w-3.5" /> Cerrado · {windowLabel(otWindow)}</>
-              : <><ClipboardList className="h-3.5 w-3.5" /> Nueva OT</>}
-          </button>
-        </div>
-      </div>
+      </header>
 
       {/* ── MODAL: horario de creación de OTs (solo ADMIN) ─────────────────── */}
       {windowModalOpen && isAdmin && (
@@ -949,116 +1177,152 @@ export default function SupervisorOTs() {
         </div>
       )}
 
-      {/* KPI GRID */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-        {[
-          { label: 'Total',         value: kpis.total,      sub: 'todas las órdenes', color: '#3b82f6', bg: '#eff6ff',  icon: <ClipboardList className="h-4 w-4" style={{color:'#3b82f6'}} /> },
-          { label: 'Sin Asignar',   value: kpis.pending,    sub: 'esperando técnico', color: '#94a3b8', bg: '#f8fafc',  icon: <Clock className="h-4 w-4" style={{color:'#94a3b8'}} /> },
-          { label: 'Aceptadas',     value: kpis.accepted,   sub: 'confirmadas',       color: '#0ea5e9', bg: '#f0f9ff',  icon: <Check className="h-4 w-4" style={{color:'#0ea5e9'}} /> },
-          { label: 'En Proceso',    value: kpis.inProgress, sub: 'actualmente',       color: '#d97706', bg: '#fffbeb',  icon: <Zap className="h-4 w-4" style={{color:'#d97706'}} />,  pulse: kpis.inProgress > 0 },
-          { label: 'Completadas',   value: kpis.completed,  sub: 'finalizadas',       color: '#10b981', bg: '#ecfdf5',  icon: <Star className="h-4 w-4" style={{color:'#10b981'}} /> },
-          { label: 'Alta Prioridad',value: kpis.urgent,     sub: 'urgente / alta',    color: '#ef4444', bg: '#fef2f2',  icon: <AlertCircle className="h-4 w-4" style={{color:'#ef4444'}} />, pulse: kpis.urgent > 0 },
-        ].map((card) => (
-          <div key={card.label} className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm flex flex-col gap-2 hover:shadow-md transition-shadow duration-200 relative overflow-hidden">
-            <div className="absolute top-0 left-0 right-0 h-0.5 rounded-t-2xl" style={{background: card.color, opacity: card.value > 0 ? 1 : 0.2}} />
-            <div className="flex items-center justify-between">
-              <div className="h-8 w-8 rounded-xl flex items-center justify-center" style={{background: card.bg}}>
-                {card.icon}
+      {/* ══════════════════════════════════════════════════════════════════════
+          RIEL DE ESTADO — sustituye a las tarjetas KPI y a las pestañas de la
+          tabla, que mostraban exactamente los mismos grupos duplicados.
+          Aquí el número es el filtro: se hace clic y la tabla responde.
+      ══════════════════════════════════════════════════════════════════════ */}
+      <nav className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 ops-rise-2" aria-label="Filtrar por estado">
+        {STATUS_RAIL.map(s => {
+          const isOn = filters.status === s.key;
+          return (
+            <button
+              key={s.key}
+              onClick={() => handleStatusFilter(s.key)}
+              aria-pressed={isOn}
+              style={{ '--hue': s.hue }}
+              className={cn('ops-seg', isOn && 'ops-seg-on')}
+            >
+              <div className="flex items-baseline gap-2">
+                <span
+                  className="ops-mono text-[2rem] font-extrabold leading-none"
+                  style={{ color: s.value > 0 ? s.hue : '#cbd5e1' }}
+                >
+                  {s.value}
+                </span>
+                {s.live && <span className="ops-led ops-led-amber mb-1" />}
               </div>
-              {card.pulse && <div className="h-2 w-2 rounded-full animate-pulse" style={{background: card.color}} />}
-            </div>
-            <div>
-              <p className="text-2xl font-black tabular-nums leading-none" style={{color: card.value > 0 ? card.color : '#cbd5e1'}}>
-                {card.value}
-              </p>
-              <p className="text-[10px] font-semibold text-gray-500 mt-0.5">{card.label}</p>
-            </div>
-          </div>
-        ))}
-      </div>
+              <p className="ops-display text-[13px] font-semibold text-gray-800 mt-2 leading-none">{s.label}</p>
+              <p className="text-[10px] text-gray-400 mt-1 leading-none">{s.sub}</p>
+            </button>
+          );
+        })}
+      </nav>
+
+      {/* Filtro rápido de prioridad — vive aparte porque cruza cualquier estado */}
+      {kpis.urgent > 0 && (
+        <button
+          onClick={() => setFilters(f => ({ ...f, priority: f.priority === 'ALL' ? 'URGENT' : 'ALL' }))}
+          className={cn(
+            'ops-rise-2 flex items-center gap-2.5 px-4 py-2.5 rounded-2xl border text-[11px] font-semibold transition-all cursor-pointer',
+            filters.priority === 'URGENT'
+              ? 'bg-red-500 border-red-500 text-white shadow-lg shadow-red-500/25'
+              : 'bg-red-50 border-red-100 text-red-600 hover:bg-red-100'
+          )}
+        >
+          <AlertCircle className="h-3.5 w-3.5" />
+          <span className="ops-mono font-bold">{kpis.urgent}</span>
+          órdenes de alta prioridad abiertas
+          <span className="opacity-60">· {filters.priority === 'URGENT' ? 'quitar filtro' : 'ver solo urgentes'}</span>
+        </button>
+      )}
 
       {/* MAPA + PANEL LATERAL */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 ops-rise-3">
         {/* Mapa */}
-        <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col">
-          <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between shrink-0">
-            <div className="flex items-center gap-2">
-              <MapPin className="h-3.5 w-3.5 text-blue-500" />
-              <p className="text-xs font-bold text-gray-700">Mapa de Operaciones</p>
-            </div>
+        <div className="lg:col-span-2 bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden flex flex-col">
+          <div className="ops-panel-head shrink-0">
+            <p className="ops-panel-title">
+              <MapPin className="h-3.5 w-3.5 text-blue-500" /> Despliegue en campo
+            </p>
             <div className="flex items-center gap-4">
-              <div className="flex items-center gap-1.5">
+              <span className="flex items-center gap-1.5 text-[10px] text-gray-400">
                 <span className="inline-block w-2 h-2 rounded-full bg-blue-500" />
-                <p className="text-[9px] font-semibold text-gray-400">{ots.filter(o => o.lat && o.lng).length} OTs</p>
-              </div>
-              <div className="flex items-center gap-1.5">
+                <b className="ops-mono text-gray-600">{ots.filter(o => o.lat && o.lng).length}</b> órdenes
+              </span>
+              <span className="flex items-center gap-1.5 text-[10px] text-gray-400">
                 <span className="inline-block w-2 h-2 rounded-full bg-emerald-500" />
-                <p className="text-[9px] font-semibold text-gray-400">{Object.keys(techLocations).length} técnicos</p>
-              </div>
+                <b className="ops-mono text-gray-600">{techsOnline}</b> técnicos
+              </span>
             </div>
           </div>
-          <div className="relative z-0 flex-1 min-h-[240px]">
+          <div className="relative z-0 flex-1 min-h-[300px]">
             <OTsMap ots={ots} techLocations={techLocations} otIcon={otIcon} techIcon={techIcon} />
           </div>
         </div>
 
         {/* Panel lateral */}
-        <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-4">
           {/* En Proceso ahora */}
-          <div className="bg-white border border-gray-100 rounded-2xl shadow-sm flex-1 overflow-hidden">
-            <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Zap className="h-3.5 w-3.5 text-amber-500" />
-                <p className="text-xs font-bold text-gray-700">En proceso ahora</p>
-              </div>
-              <span className={cn("text-[10px] font-mono font-black tabular-nums px-2 py-0.5 rounded-lg", kpis.inProgress > 0 ? "bg-amber-50 text-amber-600" : "bg-gray-50 text-gray-300")}>
+          <div className="bg-white border border-gray-100 rounded-3xl shadow-sm flex-1 overflow-hidden">
+            <div className="ops-panel-head">
+              <p className="ops-panel-title">
+                <Zap className="h-3.5 w-3.5 text-amber-500" /> En proceso ahora
+              </p>
+              <span className={cn(
+                'ops-mono text-[11px] font-bold px-2 py-0.5 rounded-lg',
+                kpis.inProgress > 0 ? 'bg-amber-50 text-amber-600' : 'bg-gray-50 text-gray-300'
+              )}>
                 {kpis.inProgress}
               </span>
             </div>
-            <div className="p-3 space-y-1">
+            <div className="p-2.5 space-y-0.5">
               {ots.filter(o => o.status === 'IN_PROGRESS').slice(0, 5).map(o => (
                 <button
                   key={o.id}
                   onClick={() => navigate(`/ots/${o.id}`)}
-                  className="cursor-pointer w-full flex items-center gap-2.5 text-left hover:bg-amber-50/60 rounded-xl px-2.5 py-2 transition-colors duration-150 group"
+                  className="cursor-pointer w-full flex items-center gap-3 text-left hover:bg-amber-50/70 rounded-2xl px-3 py-2.5 transition-colors group"
                 >
-                  <div className="h-7 w-7 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center text-[10px] font-black shrink-0">
-                    {o.leadTechName?.charAt(0) || '?'}
+                  <div className="relative shrink-0">
+                    <TechAvatar ot={o} size={34} tone="amber" />
+                    <span className="ops-led ops-led-amber absolute -top-0.5 -right-0.5 ring-2 ring-white" />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="text-[11px] font-bold text-gray-800 truncate leading-none">{o.otNumber}</p>
+                    <p className="ops-mono text-[11px] font-bold text-gray-800 truncate leading-none">{o.otNumber}</p>
+                    <p className="text-[10px] text-gray-500 truncate mt-1 font-medium">
+                      {o.technician?.name || o.leadTechName || 'Sin asignar'}
+                    </p>
                     <p className="text-[9px] text-gray-400 truncate mt-0.5">{o.clientName || o.client}</p>
                   </div>
-                  <Eye className="h-3 w-3 text-gray-200 group-hover:text-amber-400 transition-colors shrink-0" />
+                  <Eye className="h-3.5 w-3.5 text-gray-200 group-hover:text-amber-500 transition-colors shrink-0" />
                 </button>
               ))}
               {kpis.inProgress === 0 && (
-                <p className="text-[10px] text-gray-300 font-semibold text-center py-5">Sin órdenes activas</p>
+                <p className="text-[11px] text-gray-300 font-semibold text-center py-8">Ninguna orden activa</p>
               )}
             </div>
           </div>
 
           {/* Urgentes */}
-          <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
-            <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <AlertCircle className="h-3.5 w-3.5 text-red-400" />
-                <p className="text-xs font-bold text-gray-700">Alta prioridad</p>
-              </div>
-              {kpis.urgent > 0 && <div className="h-2 w-2 rounded-full bg-red-400 animate-pulse" />}
+          <div className="bg-white border border-gray-100 rounded-3xl shadow-sm overflow-hidden">
+            <div className="ops-panel-head">
+              <p className="ops-panel-title">
+                <AlertCircle className="h-3.5 w-3.5 text-red-400" /> Alta prioridad
+              </p>
+              {kpis.urgent > 0 && <span className="ops-led ops-led-red" />}
             </div>
-            <div className="p-3 space-y-1">
+            <div className="p-2.5 space-y-0.5">
               {ots.filter(o => (o.priority === 'URGENT' || o.priority === 'HIGH') && o.status !== 'COMPLETED' && o.status !== 'VALIDATED').slice(0, 4).map(o => (
-                <div key={o.id} className="flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-red-50/40 transition-colors">
-                  <div className={cn("h-1.5 w-1.5 rounded-full shrink-0", o.priority === 'URGENT' ? 'bg-red-500' : 'bg-orange-400')} />
-                  <p className="text-[10px] font-semibold text-gray-700 truncate flex-1">{o.otNumber}</p>
-                  <span className={cn("text-[8px] font-bold px-1.5 py-0.5 rounded-lg border shrink-0", PRIORITY_META[o.priority]?.badge)}>
+                <button
+                  key={o.id}
+                  onClick={() => navigate(`/ots/${o.id}`)}
+                  className="cursor-pointer w-full flex items-center gap-2.5 px-3 py-2 rounded-2xl hover:bg-red-50/50 transition-colors text-left"
+                >
+                  <div className={cn('h-8 w-[3px] rounded-full shrink-0', PRIORITY_META[o.priority]?.bar)} />
+                  <TechAvatar ot={o} size={30} tone="red" />
+                  <div className="min-w-0 flex-1">
+                    <p className="ops-mono text-[11px] font-bold text-gray-700 truncate leading-none">{o.otNumber}</p>
+                    <p className="text-[9.5px] text-gray-400 truncate mt-1">
+                      {o.technician?.name || o.leadTechName || 'Sin asignar'}
+                    </p>
+                  </div>
+                  <span className={cn('text-[8px] font-bold px-2 py-0.5 rounded-md border shrink-0 uppercase tracking-wide', PRIORITY_META[o.priority]?.badge)}>
                     {PRIORITY_META[o.priority]?.label}
                   </span>
-                </div>
+                </button>
               ))}
               {kpis.urgent === 0 && (
-                <p className="text-[10px] text-gray-300 font-semibold text-center py-3">Sin alertas</p>
+                <p className="text-[11px] text-gray-300 font-semibold text-center py-5">Sin alertas</p>
               )}
             </div>
           </div>
@@ -1066,37 +1330,32 @@ export default function SupervisorOTs() {
       </div>
 
       {/* TABLA DE ÓRDENES */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+      <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden ops-rise-4">
 
-        {/* Toolbar */}
-        <div className="px-5 pt-4 pb-0 border-b border-gray-100">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-0">
-            {/* Tabs */}
-            <div className="flex items-end gap-0 flex-wrap md:flex-nowrap md:overflow-x-auto">
-              {['ALL', 'UNASSIGNED', 'ASSIGNED', 'ACCEPTED', 'IN_PROGRESS', 'COMPLETED'].map(s => {
-                const meta = STATUS_META[s];
-                const isActive = filters.status === s;
-                const count = s === 'ALL' ? otTotal : ots.filter(o => o.status === s).length;
-                return (
-                  <button
-                    key={s}
-                    onClick={() => handleStatusFilter(s)}
-                    className={cn(
-                      "cursor-pointer shrink-0 flex items-center gap-1.5 px-4 py-3 text-[10px] font-bold uppercase tracking-wide border-b-2 transition-all duration-150 whitespace-nowrap",
-                      isActive
-                        ? "border-blue-500 text-blue-600"
-                        : "border-transparent text-gray-400 hover:text-gray-600 hover:border-gray-200"
-                    )}
-                  >
-                    {isActive && <div className={cn("h-1.5 w-1.5 rounded-full shrink-0", meta.dot)} />}
-                    {meta.label}
-                    <span className={cn("font-mono text-[9px]", isActive ? "text-blue-400" : "text-gray-300")}>{count}</span>
-                  </button>
-                );
-              })}
+        {/* Toolbar — el filtro de estado vive en el riel de arriba, aquí sólo
+            quedan técnico y búsqueda para no duplicar controles. */}
+        <div className="px-5 py-4 border-b border-gray-100">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              <p className="ops-panel-title">
+                <ClipboardList className="h-3.5 w-3.5 text-gray-400" />
+                {STATUS_META[filters.status]?.label || 'Todas'}
+              </p>
+              <span className="ops-mono text-[11px] font-bold text-gray-400">
+                {filteredOts.length}
+                {filteredOts.length !== otTotal && <span className="text-gray-300"> / {otTotal}</span>}
+              </span>
+              {filters.priority !== 'ALL' && (
+                <button
+                  onClick={() => setFilters(f => ({ ...f, priority: 'ALL' }))}
+                  className="cursor-pointer flex items-center gap-1 text-[9px] font-bold uppercase tracking-wide text-red-600 bg-red-50 border border-red-100 px-2 py-1 rounded-lg hover:bg-red-100 transition-colors"
+                >
+                  Solo urgentes <X className="h-3 w-3" />
+                </button>
+              )}
             </div>
             {/* Filtros: técnico + búsqueda */}
-            <div className="flex flex-col sm:flex-row sm:items-center gap-2 mb-2 sm:mb-1 sm:shrink-0 w-full sm:w-auto">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:shrink-0 w-full sm:w-auto">
               {/* Filtro por técnico */}
               <div className="relative w-full sm:w-auto">
                 <User className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-300 pointer-events-none" />
@@ -1133,24 +1392,14 @@ export default function SupervisorOTs() {
         {/* Tabla (escritorio) */}
         <div className="overflow-x-auto hidden md:block">
           <table className="w-full min-w-[820px]">
-            <thead>
-              <tr className="bg-gray-50/60 border-b border-gray-100">
+            <thead className="sticky top-0 z-10">
+              <tr className="bg-gray-50/90 backdrop-blur border-b border-gray-100">
                 <th className="w-10 px-4 py-3" />
-                <th className="px-5 py-3 text-left">
-                  <span className="text-[9px] font-bold uppercase tracking-[0.15em] text-gray-400">Folio</span>
-                </th>
-                <th className="px-5 py-3 text-left">
-                  <span className="text-[9px] font-bold uppercase tracking-[0.15em] text-gray-400">Servicio · Cliente</span>
-                </th>
-                <th className="px-5 py-3 text-left">
-                  <span className="text-[9px] font-bold uppercase tracking-[0.15em] text-gray-400">Técnico · Fondos</span>
-                </th>
-                <th className="px-5 py-3 text-left">
-                  <span className="text-[9px] font-bold uppercase tracking-[0.15em] text-gray-400">Estado</span>
-                </th>
-                <th className="px-5 py-3 text-right">
-                  <span className="text-[9px] font-bold uppercase tracking-[0.15em] text-gray-400">Acciones</span>
-                </th>
+                <th className="px-5 py-3 text-left"><span className="ops-th">Folio</span></th>
+                <th className="px-5 py-3 text-left"><span className="ops-th">Servicio · Cliente</span></th>
+                <th className="px-5 py-3 text-left"><span className="ops-th">Técnico · Fondos</span></th>
+                <th className="px-5 py-3 text-left"><span className="ops-th">Estado</span></th>
+                <th className="px-5 py-3 text-right"><span className="ops-th">Acciones</span></th>
               </tr>
             </thead>
             <tbody>
@@ -1173,8 +1422,8 @@ export default function SupervisorOTs() {
                     <tr
                       onClick={() => toggleOtAccordion(ot.id)}
                       className={cn(
-                        "cursor-pointer border-b border-gray-50 transition-colors duration-100 group relative",
-                        isExpanded ? "bg-blue-50/30" : "hover:bg-gray-50/70"
+                        "ops-row cursor-pointer border-b border-gray-50 group relative",
+                        isExpanded && "bg-blue-50/40"
                       )}
                     >
                       {/* Borde izquierdo de prioridad */}
@@ -1194,8 +1443,8 @@ export default function SupervisorOTs() {
 
                       {/* Folio + prioridad */}
                       <td className="px-5 py-4">
-                        <p className="font-mono font-bold text-[13px] text-gray-900 leading-none">{ot.otNumber}</p>
-                        <span className={cn("inline-flex items-center gap-1 mt-1.5 text-[8px] font-mono font-bold px-2 py-0.5 rounded-md border uppercase", prioMeta.badge)}>
+                        <p className="ops-mono font-bold text-[13px] text-gray-900 leading-none">{ot.otNumber}</p>
+                        <span className={cn("inline-flex items-center gap-1 mt-1.5 text-[8px] font-bold px-2 py-0.5 rounded-md border uppercase tracking-wide", prioMeta.badge)}>
                           {prioMeta.label}
                         </span>
                       </td>
@@ -1210,7 +1459,7 @@ export default function SupervisorOTs() {
                         {ot.scheduledDate && (
                           <div className="flex items-center gap-1 mt-0.5">
                             <Clock className="h-3 w-3 text-gray-200 shrink-0" />
-                            <p className="text-[9px] text-gray-300 font-mono">
+                            <p className="ops-mono text-[9px] text-gray-300">
                               {new Date(ot.scheduledDate.split('T')[0] + 'T12:00:00').toLocaleDateString('es-MX', { day: '2-digit', month: 'short' })}
                             </p>
                           </div>
@@ -1220,17 +1469,12 @@ export default function SupervisorOTs() {
                       {/* Técnico + fondos */}
                       <td className="px-5 py-4">
                         <div className="flex items-center gap-2">
-                          <div className={cn(
-                            "h-8 w-8 rounded-lg flex items-center justify-center font-mono font-black text-xs shrink-0",
-                            ot.leadTechName ? "bg-blue-50 text-blue-600" : "bg-gray-50 text-gray-300"
-                          )}>
-                            {ot.leadTechName?.charAt(0) || '—'}
-                          </div>
+                          <TechAvatar ot={ot} size={32} tone="amber" />
                           <div>
                             <p className="text-xs font-bold text-gray-700 leading-none truncate max-w-[110px]">
                               {ot.leadTechName || 'Sin asignar'}
                             </p>
-                            <p className="text-[9px] font-mono text-gray-400 mt-0.5">
+                            <p className="ops-mono text-[10px] text-gray-400 mt-1">
                               ${ot.assignedFunds?.toLocaleString() || '0'}
                             </p>
                           </div>
@@ -1240,7 +1484,7 @@ export default function SupervisorOTs() {
                       {/* Estado */}
                       <td className="px-5 py-4">
                         <span className={cn(
-                          "inline-flex items-center gap-1.5 text-[9px] font-mono font-bold px-2.5 py-1 rounded-lg border uppercase tracking-wide",
+                          "inline-flex items-center gap-1.5 text-[9px] font-bold px-2.5 py-1 rounded-lg border uppercase tracking-wide",
                           statMeta.badge
                         )}>
                           <div className={cn("h-1.5 w-1.5 rounded-full shrink-0", statMeta.dot, ot.status === 'IN_PROGRESS' && "animate-pulse")} />
@@ -1248,9 +1492,9 @@ export default function SupervisorOTs() {
                         </span>
                       </td>
 
-                      {/* Acciones */}
+                      {/* Acciones — se revelan al pasar el cursor sobre el renglón */}
                       <td className="px-5 py-4" onClick={e => e.stopPropagation()}>
-                        <div className="flex items-center justify-end gap-1">
+                        <div className="ops-actions flex items-center justify-end gap-1">
                           {ot.status === 'COMPLETED' && (
                             <button
                               onClick={() => ot.deliveryActUrl ? window.open(ot.deliveryActUrl, '_blank') : handleExportAER(ot)}
@@ -1428,7 +1672,7 @@ export default function SupervisorOTs() {
                                     return (
                                       <div key={ev.id} className="bg-gray-50 rounded-lg p-3.5 space-y-2.5">
                                         <div className="flex items-center justify-between">
-                                          <span className={cn("text-[8px] font-mono font-bold px-2 py-0.5 rounded-md border uppercase", TYPE_COLOR[ev.type] || 'text-gray-500 bg-gray-100 border-gray-200')}>
+                                          <span className={cn("text-[8px] font-bold px-2 py-0.5 rounded-md border uppercase", TYPE_COLOR[ev.type] || 'text-gray-500 bg-gray-100 border-gray-200')}>
                                             {TYPE_LABEL[ev.type] || ev.type}
                                           </span>
                                           <span className="text-[8px] font-mono text-gray-400">
@@ -1517,10 +1761,10 @@ export default function SupervisorOTs() {
                 {/* Folio + prioridad · Estado (siempre visible) */}
                 <div className="flex items-center justify-between gap-2 mb-2 pl-2">
                   <div className="flex items-center gap-2 min-w-0">
-                    <p className="font-mono font-bold text-[13px] text-gray-900 leading-none shrink-0">{ot.otNumber}</p>
-                    <span className={cn("text-[8px] font-mono font-bold px-2 py-0.5 rounded-md border uppercase shrink-0", prioMeta.badge)}>{prioMeta.label}</span>
+                    <p className="ops-mono font-bold text-[13px] text-gray-900 leading-none shrink-0">{ot.otNumber}</p>
+                    <span className={cn("text-[8px] font-bold px-2 py-0.5 rounded-md border uppercase shrink-0", prioMeta.badge)}>{prioMeta.label}</span>
                   </div>
-                  <span className={cn("inline-flex items-center gap-1.5 text-[9px] font-mono font-bold px-2.5 py-1 rounded-lg border uppercase tracking-wide shrink-0", statMeta.badge)}>
+                  <span className={cn("inline-flex items-center gap-1.5 text-[9px] font-bold px-2.5 py-1 rounded-lg border uppercase tracking-wide shrink-0", statMeta.badge)}>
                     <div className={cn("h-1.5 w-1.5 rounded-full shrink-0", statMeta.dot, ot.status === 'IN_PROGRESS' && "animate-pulse")} />
                     {statMeta.label}
                   </span>
@@ -1536,7 +1780,7 @@ export default function SupervisorOTs() {
                       <>
                         <span className="text-gray-200">·</span>
                         <Clock className="h-3 w-3 text-gray-200 shrink-0" />
-                        <p className="text-[9px] text-gray-300 font-mono">
+                        <p className="ops-mono text-[9px] text-gray-300">
                           {new Date(ot.scheduledDate.split('T')[0] + 'T12:00:00').toLocaleDateString('es-MX', { day: '2-digit', month: 'short' })}
                         </p>
                       </>
@@ -1546,12 +1790,9 @@ export default function SupervisorOTs() {
 
                 {/* Técnico + fondos */}
                 <div className="pl-2 flex items-center gap-2 mb-3">
-                  <div className={cn("h-7 w-7 rounded-lg flex items-center justify-center font-mono font-black text-[11px] shrink-0",
-                    ot.leadTechName ? "bg-blue-50 text-blue-600" : "bg-gray-50 text-gray-300")}>
-                    {ot.leadTechName?.charAt(0) || '—'}
-                  </div>
+                  <TechAvatar ot={ot} size={28} tone="amber" />
                   <p className="text-xs font-bold text-gray-700 truncate">{ot.leadTechName || 'Sin asignar'}</p>
-                  <span className="text-[9px] font-mono text-gray-400 ml-auto shrink-0">${ot.assignedFunds?.toLocaleString() || '0'}</span>
+                  <span className="ops-mono text-[10px] text-gray-400 ml-auto shrink-0">${ot.assignedFunds?.toLocaleString() || '0'}</span>
                 </div>
 
                 {/* Acciones (Acta + Ver + editar/eliminar) */}
@@ -1727,7 +1968,7 @@ export default function SupervisorOTs() {
                   {newOT.title && <p className="text-[10px] font-bold text-white leading-tight line-clamp-2">{newOT.title}</p>}
                   {newOT.client && <p className="text-[9px] text-gray-500 mt-1 font-mono truncate">{newOT.client}</p>}
                   {newOT.priority && (
-                    <span className={cn("inline-block mt-2 text-[8px] font-mono font-bold px-2 py-0.5 rounded uppercase",
+                    <span className={cn("inline-block mt-2 text-[8px] font-bold px-2 py-0.5 rounded uppercase",
                       newOT.priority === 'URGENT' ? 'bg-red-900/50 text-red-400'
                       : newOT.priority === 'HIGH' ? 'bg-orange-900/50 text-orange-400'
                       : newOT.priority === 'MEDIUM' ? 'bg-blue-900/50 text-blue-400'
@@ -1812,7 +2053,7 @@ export default function SupervisorOTs() {
                                   >
                                     <p className="text-xs font-bold text-gray-800 leading-none">{c.name}</p>
                                     {(c.storeNumber || c.storeName) && (
-                                      <p className="text-[9px] font-mono text-gray-400 mt-0.5">
+                                      <p className="ops-mono text-[10px] text-gray-400 mt-0.5">
                                         {c.storeNumber && `#${c.storeNumber}`}{c.storeNumber && c.storeName && ' · '}{c.storeName}
                                       </p>
                                     )}
@@ -1982,7 +2223,7 @@ export default function SupervisorOTs() {
                       <div>
                         <div className="rounded-xl overflow-hidden border border-gray-200 relative z-0" style={{ height: 220 }}>
                           <MapContainer center={mapCenter} zoom={15} style={{ height: '100%', width: '100%' }}>
-                            <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+                            <TileLayer {...TILE_LAYER} />
                             <Marker position={[newOT.lat, newOT.lng]} icon={otIcon} />
                             <MapEvents onLocationSelect={async (latlng) => {
                               setNewOT(prev => ({ ...prev, lat: latlng.lat, lng: latlng.lng }));
@@ -1995,7 +2236,7 @@ export default function SupervisorOTs() {
                             <ChangeView center={mapCenter} />
                           </MapContainer>
                         </div>
-                        <p className="text-[9px] font-mono text-gray-400 mt-2 text-center">Haz clic en el mapa para ajustar la ubicación</p>
+                        <p className="ops-mono text-[10px] text-gray-400 mt-2 text-center">Haz clic en el mapa para ajustar la ubicación</p>
                       </div>
 
                       {/* Separador contacto */}

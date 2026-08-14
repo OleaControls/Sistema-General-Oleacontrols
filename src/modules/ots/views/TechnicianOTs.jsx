@@ -8,6 +8,7 @@ import { useNavigate } from 'react-router-dom';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import { TILE_LAYER } from '@/lib/mapTiles';
 import { otService } from '@/api/otService';
 import { useAuth } from '@/store/AuthContext';
 import { cn } from '@/lib/utils';
@@ -438,7 +439,7 @@ export default function TechnicianOTs() {
               zoom={12}
               style={{ height: '100%', width: '100%' }}
             >
-              <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+              <TileLayer {...TILE_LAYER} />
               <MapResizer />
               {ots.filter(o => !['COMPLETED','VALIDATED'].includes(o.status) && o.lat && o.lng).map(o => (
                 <Marker key={o.id} position={[o.lat, o.lng]} icon={otIcon}>

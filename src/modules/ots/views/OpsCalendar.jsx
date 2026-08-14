@@ -33,6 +33,7 @@ import {
 import { MapContainer, TileLayer, Marker, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import { TILE_LAYER } from '@/lib/mapTiles';
 import { otService } from '@/api/otService';
 import { hrService } from '@/api/hrService';
 import { apiFetch } from '@/lib/api';
@@ -1862,7 +1863,7 @@ export default function OpsCalendar() {
                       <div>
                         <div className="rounded-xl overflow-hidden border border-gray-200 relative z-0" style={{ height: 220 }}>
                           <MapContainer center={convertMapCenter} zoom={15} style={{ height: '100%', width: '100%' }}>
-                            <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+                            <TileLayer {...TILE_LAYER} />
                             <Marker position={[convertOT.lat, convertOT.lng]} />
                             <MapEvents onLocationSelect={async (latlng) => {
                               setConvertOT(prev => ({ ...prev, lat: latlng.lat, lng: latlng.lng }));

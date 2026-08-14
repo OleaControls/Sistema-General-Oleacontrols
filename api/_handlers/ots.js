@@ -242,11 +242,16 @@ export default async function handler(req, res) {
       const where = {};
       
       if (search) {
+        // `contains` en Postgres distingue mayúsculas. Sin `mode: 'insensitive'`
+        // teclear "coppel" nunca encontraba "Coppel" ni el folio "OT-COPP-…",
+        // que están en mayúscula: el buscador devolvía siempre cero.
+        const q = { contains: search.trim(), mode: 'insensitive' };
         where.OR = [
-          { otNumber: { contains: search } },
-          { clientName: { contains: search } },
-          { storeName: { contains: search } },
-          { storeNumber: { contains: search } },
+          { otNumber:    q },
+          { clientName:  q },
+          { storeName:   q },
+          { storeNumber: q },
+          { title:       q },
         ];
       }
 
