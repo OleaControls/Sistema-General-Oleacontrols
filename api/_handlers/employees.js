@@ -397,19 +397,91 @@ export default async function handler(req, res) {
     if (!id) return res.status(400).json({ error: 'ID requerido' });
 
     try {
-      // 1. Eliminar credenciales asociadas primero (por la relación)
-      await prisma.credentials.deleteMany({
-        where: { employeeId: id }
-      });
+      /* Un empleado con historial NO se borra: sus OTs, gastos, ventas y
+         asistencia quedarían huérfanos o se perderían. Antes se intentaba el
+         borrado duro y Postgres lo rechazaba por llave foránea, devolviendo un
+         500 con un mensaje ilegible. Ahora se revisa primero y, si hay
+         historial, se da de baja (status INACTIVE) conservando todo.
 
-      // 2. Eliminar al empleado
-      await prisma.employee.delete({
-        where: { id }
-      });
+         Las llaves de RELACIONES son los nombres de relación del modelo
+         Employee en schema.prisma; si ahí se agrega una relación nueva hay que
+         sumarla aquí. `credentials` se omite a propósito: es el acceso al
+         sistema, no historial, y se borra junto con el empleado. */
+      const RELACIONES = {
+        techOTs:             'OTs como técnico',
+        supervisorOTs:       'OTs como supervisor',
+        createdOTs:          'OTs creadas',
+        assignedOTs:         'OTs asignadas',
+        panoramizaciones:    'panoramizaciones',
+        expenses:            'gastos',
+        assignedLeads:       'leads asignados',
+        assignedDeals:       'negociaciones asignadas',
+        quotesCreated:       'cotizaciones creadas',
+        quotesSold:          'cotizaciones vendidas',
+        ownedClients:        'clientes a su cargo',
+        salesBitacora:       'registros de bitácora de ventas',
+        salesReports:        'reportes diarios de ventas',
+        salesPortfolio:      'registros de cartera de ventas',
+        evaluationsReceived: 'evaluaciones recibidas',
+        evaluationsGiven:    'evaluaciones realizadas',
+        assets:              'activos o EPP asignados',
+        calendarEvents:      'eventos de calendario',
+        attendanceRecords:   'registros de asistencia',
+        techAttendance:      'registros de jornada',
+        techGoals:           'metas diarias',
+        goalsSet:            'metas asignadas a otros',
+        vacationRequests:    'solicitudes de vacaciones',
+      };
 
-      return res.status(200).json({ message: 'Empleado eliminado exitosamente' });
+      const employee = await prisma.employee.findUnique({
+        where: { id },
+        select: {
+          id: true,
+          name: true,
+          status: true,
+          _count: { select: Object.fromEntries(Object.keys(RELACIONES).map(k => [k, true])) },
+        },
+      });
+      if (!employee) return res.status(404).json({ error: 'Empleado no encontrado' });
+
+      const historial = Object.entries(RELACIONES)
+        .map(([rel, label]) => ({ label, n: employee._count[rel] || 0 }))
+        .filter(x => x.n > 0);
+
+      if (historial.length > 0) {
+        await prisma.employee.update({ where: { id }, data: { status: 'INACTIVE' } });
+        // Solo los 3 rubros con más registros: el detalle completo va en `historial`.
+        const top = [...historial].sort((a, b) => b.n - a.n).slice(0, 3);
+        const detalle = top.map(x => `${x.n} ${x.label}`).join(', ');
+        const resto = historial.length - top.length;
+        return res.status(200).json({
+          softDeleted: true,
+          message: `${employee.name} se dio de baja. No se eliminó porque tiene historial (${detalle}${resto > 0 ? ` y ${resto} rubro${resto > 1 ? 's' : ''} más` : ''}); esos registros se conservan.`,
+          historial,
+        });
+      }
+
+      // Sin historial: se puede borrar de verdad.
+      await prisma.credentials.deleteMany({ where: { employeeId: id } });
+      await prisma.employee.delete({ where: { id } });
+
+      return res.status(200).json({
+        softDeleted: false,
+        message: `${employee.name} se eliminó permanentemente.`,
+      });
     } catch (error) {
       console.error('❌ DELETE ERROR:', error);
+      // Red de seguridad: si quedó alguna relación no contemplada arriba,
+      // se da de baja igualmente en vez de devolver un 500 sin explicación.
+      if (error.code === 'P2003') {
+        try {
+          await prisma.employee.update({ where: { id }, data: { status: 'INACTIVE' } });
+          return res.status(200).json({
+            softDeleted: true,
+            message: 'El empleado se dio de baja: tiene registros ligados que no se pueden eliminar.',
+          });
+        } catch { /* cae al error genérico */ }
+      }
       return res.status(500).json({ error: error.message });
     }
   }

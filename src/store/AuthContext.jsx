@@ -66,12 +66,21 @@ export function AuthProvider({ children }) {
                 localStorage.setItem('olea_user', JSON.stringify(fullUser));
                 // Opcional: guardar el token por separado para mayor facilidad si se prefiere
                 if (token) localStorage.setItem('olea_token', token);
-                return true;
+                return { ok: true };
             }
-        return false;
+
+        /* Solo el 403 (empleado dado de baja) propaga su mensaje: de otro modo
+           se vería igual que una contraseña incorrecta y el usuario no sabría a
+           quién acudir. El resto usa el texto genérico de la pantalla para no
+           filtrar detalles internos de un 500. */
+        if (response.status === 403) {
+            const body = await response.json().catch(() => ({}));
+            return { ok: false, error: body.error };
+        }
+        return { ok: false };
     } catch (error) {
         console.error('Login error:', error);
-        return false;
+        return { ok: false };
     }
   };
 

@@ -1,16 +1,33 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { 
-  ChevronLeft, FileText, User, Mail, MapPin, CheckCircle2, 
+import {
+  ChevronLeft, FileText, User, Mail, MapPin, CheckCircle2,
   Camera, Trash2, Plus, Send, X, Signature as SignatureIcon,
-  ShieldCheck, Smartphone, Info, Download, Loader2, Store, Phone, Hash
+  ShieldCheck, Smartphone, Info, Download, Loader2, Store, Phone, Hash,
+  RotateCcw
 } from 'lucide-react';
 import SignaturePad from '@/components/shared/SignaturePad';
 import { otService } from '@/api/otService';
 import { useAuth } from '@/store/AuthContext';
 import { cn } from '@/lib/utils';
+import { saveDraft, loadDraft, clearDraft } from '@/lib/draftStore';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+
+/* Un borrador solo cuenta si el técnico llegó a capturar algo suyo. Los datos
+   de contacto se prellenan desde la OT, así que no bastan para considerarlo
+   recuperable: si no, tras descartar un borrador el aviso volvería a salir. */
+function tieneContenido(draft) {
+    const f = draft.formData || {};
+    return Boolean(
+        f.systemType ||
+        f.deliveryDetails?.trim() ||
+        f.photos?.length ||
+        f.pendingTasks?.some(t => t.description?.trim()) ||
+        draft.tscSignature?.length ||
+        draft.clientSignature?.length
+    );
+}
 
 const SYSTEM_TYPES = [
     { id: 'SDI', label: 'SDI: Sistema De Incendio' },
@@ -46,7 +63,79 @@ export default function DeliveryAct() {
     // Eliminamos tscSignature y clientSignature del state para evitar re-renders innecesarios
   });
 
-  // Quitamos el useEffect que restauraba firmas ya que causaba conflictos al scroll/resize en móviles
+  /* ── Borrador automático ────────────────────────────────────────────────
+     El acta se llena en sitio, en móvil, y si el técnico se salía (cambiar de
+     app, una llamada, o que el navegador descarte la pestaña) perdía todo lo
+     escrito. Ahora cada cambio se persiste en IndexedDB y se restaura al
+     volver. Las firmas se guardan como TRAZOS (toData), no como imagen: así
+     sobreviven al resize del canvas, que es lo que hacía fallar el intento
+     anterior de restaurarlas. */
+  const DRAFT_KEY = `delivery-act:${id}`;
+  const DRAFT_MAX_AGE = 7 * 24 * 60 * 60 * 1000; // 7 días
+
+  const formDataRef = useRef(formData);
+  const tscSigData = useRef(null);
+  const clientSigData = useRef(null);
+  const saveTimer = useRef(null);
+  const draftReady = useRef(false); // no guardar hasta haber intentado restaurar
+  const [draftRecovered, setDraftRecovered] = useState(false);
+  const [draftSavedAt, setDraftSavedAt] = useState(null);
+
+  useEffect(() => { formDataRef.current = formData; }, [formData]);
+
+  const persistDraft = useCallback(async () => {
+    if (!draftReady.current) return;
+    const ok = await saveDraft(DRAFT_KEY, {
+      savedAt: Date.now(),
+      formData: formDataRef.current,
+      tscSignature: tscSigData.current,
+      clientSignature: clientSigData.current,
+    });
+    if (ok) setDraftSavedAt(Date.now());
+  }, [DRAFT_KEY]);
+
+  // Se agrupan los cambios: escribir en IndexedDB en cada tecla sería costoso
+  // con fotos en base64 dentro del borrador.
+  const scheduleSave = useCallback(() => {
+    if (!draftReady.current) return;
+    clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(persistDraft, 800);
+  }, [persistDraft]);
+
+  useEffect(() => { scheduleSave(); }, [formData, scheduleSave]);
+
+  /* El caso que reportan los técnicos es justo este: se van a otra app. El
+     navegador móvil puede descartar la pestaña sin previo aviso, así que al
+     ocultarse la página se fuerza el guardado pendiente en vez de esperar. */
+  useEffect(() => {
+    const flush = () => {
+      if (document.visibilityState === 'hidden') {
+        clearTimeout(saveTimer.current);
+        persistDraft();
+      }
+    };
+    document.addEventListener('visibilitychange', flush);
+    window.addEventListener('pagehide', flush);
+    return () => {
+      document.removeEventListener('visibilitychange', flush);
+      window.removeEventListener('pagehide', flush);
+    };
+  }, [persistDraft]);
+
+  useEffect(() => () => clearTimeout(saveTimer.current), []);
+
+  /* onEnd debe ser estable: SignaturePad lo tiene en las dependencias de su
+     useEffect y una función nueva en cada render reinicializaría el pad,
+     borrando la firma a medio trazar. */
+  const handleTscSigEnd = useCallback(() => {
+    tscSigData.current = tscSigPad.current?.toData?.() || null;
+    scheduleSave();
+  }, [scheduleSave]);
+
+  const handleClientSigEnd = useCallback(() => {
+    clientSigData.current = clientSigPad.current?.toData?.() || null;
+    scheduleSave();
+  }, [scheduleSave]);
 
   useEffect(() => {
     loadData();
@@ -54,10 +143,23 @@ export default function DeliveryAct() {
 
   const loadData = async () => {
     setLoading(true);
+    draftReady.current = false;
     try {
-        const data = await otService.getOTDetail(id);
+        const [data, draft] = await Promise.all([
+            otService.getOTDetail(id),
+            loadDraft(DRAFT_KEY, DRAFT_MAX_AGE),
+        ]);
         setOt(data);
-        if (data) {
+
+        if (draft?.formData && tieneContenido(draft)) {
+            // El borrador ya trae los datos del cliente que el técnico pudo
+            // haber corregido, así que tiene prioridad sobre los de la OT.
+            setFormData(draft.formData);
+            tscSigData.current = draft.tscSignature || null;
+            clientSigData.current = draft.clientSignature || null;
+            setDraftSavedAt(draft.savedAt || null);
+            setDraftRecovered(true);
+        } else if (data) {
             setFormData(prev => ({
                 ...prev,
                 clientName: data.contactName?.split(' ')[0] || '',
@@ -66,7 +168,45 @@ export default function DeliveryAct() {
             }));
         }
     } catch (err) { console.error(err); }
-    finally { setLoading(false); }
+    finally {
+        setLoading(false);
+        draftReady.current = true;
+    }
+  };
+
+  // Las firmas se repintan cuando los pads ya están montados. El retraso deja
+  // pasar el resizeCanvas inicial del SignaturePad (50 ms), que si no borraría
+  // lo restaurado.
+  useEffect(() => {
+    if (loading || !draftRecovered) return;
+    const t = setTimeout(() => {
+        if (tscSigData.current?.length) tscSigPad.current?.fromData?.(tscSigData.current);
+        if (clientSigData.current?.length) clientSigPad.current?.fromData?.(clientSigData.current);
+    }, 250);
+    return () => clearTimeout(t);
+  }, [loading, draftRecovered]);
+
+  const handleDiscardDraft = async () => {
+    if (!confirm('¿Descartar lo recuperado y empezar el acta en blanco? No se puede deshacer.')) return;
+    clearTimeout(saveTimer.current);
+    draftReady.current = false;
+    await clearDraft(DRAFT_KEY);
+    tscSigData.current = null;
+    clientSigData.current = null;
+    tscSigPad.current?.clear();
+    clientSigPad.current?.clear();
+    setFormData({
+        systemType: '',
+        deliveryDetails: '',
+        pendingTasks: [{ id: Date.now(), description: '' }],
+        clientName: ot?.contactName?.split(' ')[0] || '',
+        clientLastName: ot?.contactName?.split(' ').slice(1).join(' ') || '',
+        clientEmail: ot?.contactEmail || '',
+        photos: [],
+    });
+    setDraftRecovered(false);
+    setDraftSavedAt(null);
+    draftReady.current = true;
   };
 
   const handleAddPending = () => {
@@ -531,6 +671,12 @@ export default function DeliveryAct() {
           finishedAt: new Date().toISOString()
       });
 
+      // El acta ya está en el servidor: el borrador local deja de ser útil y
+      // ocupa espacio con las fotos en base64.
+      clearTimeout(saveTimer.current);
+      draftReady.current = false;
+      await clearDraft(DRAFT_KEY);
+
       log('✅ COMPLETADO');
       // Descargar PDF localmente usando la URL de R2 (fuera del flujo de fetch para no interrumpirlo)
       try { window.open(pdfUrl, '_blank'); } catch (e) { /* no bloquear navegación si falla */ }
@@ -557,6 +703,28 @@ export default function DeliveryAct() {
         </div>
         <div className="w-12" />
       </header>
+
+      {/* Aviso de borrador recuperado: el técnico debe saber que lo que ve es
+          lo que él escribió antes y no datos de otra acta. */}
+      {draftRecovered && (
+        <div className="flex flex-col sm:flex-row sm:items-center gap-4 justify-between bg-amber-50 border border-amber-200 rounded-[2rem] px-8 py-5 animate-in fade-in slide-in-from-top-2 duration-500">
+          <div className="flex items-start gap-3">
+            <RotateCcw className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-xs font-black text-amber-900 uppercase tracking-wide">Se recuperó tu borrador</p>
+              <p className="text-[11px] font-bold text-amber-700 mt-1">
+                Recuperamos lo que habías llenado{draftSavedAt ? ` el ${new Date(draftSavedAt).toLocaleString('es-MX', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}` : ''}. Revísalo antes de cerrar el acta.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={handleDiscardDraft}
+            className="shrink-0 text-[10px] font-black text-amber-700 uppercase tracking-widest border border-amber-300 px-4 py-2 rounded-xl hover:bg-amber-100 transition-colors"
+          >
+            Empezar en blanco
+          </button>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-8">
@@ -638,10 +806,11 @@ export default function DeliveryAct() {
                     <div className="space-y-4">
                         <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] text-center">Técnico Responsable (TSC)</p>
                         <div className="h-64 border-2 border-gray-100 rounded-[2.5rem] bg-gray-50/50 overflow-hidden shadow-inner relative group">
-                            <SignaturePad 
-                                ref={tscSigPad} 
+                            <SignaturePad
+                                ref={tscSigPad}
                                 placeholder="Firma del Técnico"
                                 penColor="#0f172a"
+                                onEnd={handleTscSigEnd}
                             />
                         </div>
                         <div className="px-4">
@@ -652,10 +821,11 @@ export default function DeliveryAct() {
                     <div className="space-y-4">
                         <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] text-center">Firma del Cliente</p>
                         <div className="h-64 border-2 border-gray-100 rounded-[2.5rem] bg-gray-50/50 overflow-hidden shadow-inner relative group">
-                            <SignaturePad 
-                                ref={clientSigPad} 
+                            <SignaturePad
+                                ref={clientSigPad}
                                 placeholder="Firma de Conformidad"
                                 penColor="#1e3a8a"
+                                onEnd={handleClientSigEnd}
                             />
                         </div>
                         <div className="space-y-2 mt-4 px-2">
@@ -707,6 +877,12 @@ export default function DeliveryAct() {
                     {isSaving ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
                     Cerrar Acta
                 </button>
+                {draftSavedAt && (
+                    <p className="flex items-center justify-center gap-1.5 text-[9px] font-bold text-gray-500 uppercase tracking-widest">
+                        <CheckCircle2 className="h-3 w-3 text-emerald-500 shrink-0" />
+                        Guardado en este equipo {new Date(draftSavedAt).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}
+                    </p>
+                )}
             </div>
         </div>
       </div>

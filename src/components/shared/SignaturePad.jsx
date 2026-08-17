@@ -58,7 +58,18 @@ const SignaturePadComponent = React.forwardRef(({
       ref.current = {
         clear: () => pad.clear(),
         toDataURL: () => pad.toDataURL(),
-        isEmpty: () => pad.isEmpty(),
+        /* Se consultan los trazos y no pad.isEmpty(): la librería solo marca
+           "no vacío" al dibujar a mano y su fromData() no lo actualiza. Como
+           resizeCanvas repinta con clear()+fromData(), pad.isEmpty() devolvía
+           true tras un simple giro de pantalla y el acta rechazaba una firma
+           que estaba a la vista. */
+        isEmpty: () => !pad.toData()?.length,
+        // Trazos crudos: es lo que se persiste en los borradores. A diferencia
+        // de un dataURL, sobrevive al resizeCanvas de arriba (que hace
+        // toData -> fromData), así que restaurar no se pierde al rotar o al
+        // aparecer/ocultarse la barra del navegador en móvil.
+        toData: () => pad.toData(),
+        fromData: (data) => pad.fromData(data),
         undo: () => {
           const data = pad.toData();
           if (data) {

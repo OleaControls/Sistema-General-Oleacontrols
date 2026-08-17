@@ -113,12 +113,19 @@ export default function EmployeeDirectory() {
         alert("No puedes eliminar tu propio perfil de administrador.");
         return;
     }
-    if (confirm(`¿Estás seguro de eliminar permanentemente a ${name}? Esta acción borrará su expediente y sus credenciales de acceso.`)) {
+    // El backend decide si borra o solo da de baja según el historial del
+    // empleado, así que la confirmación describe ambos desenlaces posibles.
+    const confirmMsg =
+      `¿Dar de baja a ${name}?\n\n` +
+      `• Si tiene historial (OTs, ventas, gastos, asistencia) se conserva su expediente y solo queda marcado como INACTIVO.\n` +
+      `• Si no tiene ningún registro asociado, se elimina permanentemente junto con sus credenciales de acceso.`;
+    if (confirm(confirmMsg)) {
         try {
-            await hrService.deleteEmployee(id);
+            const result = await hrService.deleteEmployee(id);
             await loadData();
-            setSuccessMsg('Empleado eliminado.');
-            setTimeout(() => setSuccessMsg(''), 3000);
+            setSuccessMsg(result?.message || 'Empleado eliminado.');
+            // La baja lógica explica por qué no se borró: necesita más tiempo en pantalla.
+            setTimeout(() => setSuccessMsg(''), result?.softDeleted ? 8000 : 3000);
         } catch (error) {
             alert(error.message);
         }
@@ -171,8 +178,9 @@ export default function EmployeeDirectory() {
   return (
     <div className="space-y-6">
       {successMsg && (
-        <div className="fixed top-20 right-8 z-[60] bg-emerald-500 text-white px-6 py-3 rounded-2xl shadow-xl font-bold flex items-center gap-2">
-            <Shield className="h-5 w-5" /> {successMsg}
+        <div className="fixed top-20 right-8 z-[60] max-w-sm bg-emerald-500 text-white px-6 py-3 rounded-2xl shadow-xl font-bold flex items-start gap-2">
+            <Shield className="h-5 w-5 shrink-0 mt-0.5" />
+            <span className="text-sm leading-snug">{successMsg}</span>
         </div>
       )}
 
@@ -243,19 +251,31 @@ export default function EmployeeDirectory() {
               {filteredEmployees.map((emp) => (
                 <tr
                   key={emp.id}
-                  className="hover:bg-gray-50/60 transition-colors cursor-pointer group"
+                  className={cn(
+                    'hover:bg-gray-50/60 transition-colors cursor-pointer group',
+                    // Los empleados dados de baja siguen en la lista para poder
+                    // consultar su expediente, pero se distinguen a simple vista.
+                    emp.status === 'INACTIVE' && 'opacity-55 bg-gray-50/40'
+                  )}
                   onClick={() => navigate(`/hr/employee/${emp.id}`)}
                 >
                   <td className="px-6 py-3">
                     <div className="flex items-center gap-3">
                       {emp.avatar
-                        ? <img src={emp.avatar} className="h-9 w-9 rounded-xl object-cover border border-gray-100 shrink-0" alt="" />
+                        ? <img src={emp.avatar} className={cn('h-9 w-9 rounded-xl object-cover border border-gray-100 shrink-0', emp.status === 'INACTIVE' && 'grayscale')} alt="" />
                         : <div className="h-9 w-9 rounded-xl bg-primary/10 flex items-center justify-center font-black text-xs text-primary shrink-0">
                             {emp.name?.[0] || '?'}
                           </div>
                       }
                       <div>
-                        <p className="text-sm font-black text-gray-900 leading-none">{emp.name}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-black text-gray-900 leading-none">{emp.name}</p>
+                          {emp.status === 'INACTIVE' && (
+                            <span className="text-[8px] font-black uppercase tracking-wider text-gray-500 bg-gray-200 border border-gray-300 px-1.5 py-0.5 rounded">
+                              Baja
+                            </span>
+                          )}
+                        </div>
                         <p className="text-[10px] font-bold text-gray-400 mt-0.5">#{emp.employeeId || emp.id?.slice(0,8)}</p>
                       </div>
                     </div>
@@ -307,7 +327,7 @@ export default function EmployeeDirectory() {
                         <button
                           onClick={(e) => handleDeleteEmployee(e, emp.id, emp.name)}
                           className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-all"
-                          title="Eliminar empleado"
+                          title={emp.status === 'INACTIVE' ? 'Empleado ya dado de baja' : 'Dar de baja / eliminar empleado'}
                         >
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>

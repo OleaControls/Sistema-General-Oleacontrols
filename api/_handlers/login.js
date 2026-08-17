@@ -35,6 +35,13 @@ export default async function handler(req, res) {
           throw new Error('Employee record missing for these credentials')
         }
 
+        /* Dar de baja a un empleado con historial ya no borra sus credenciales
+           (se conservan sus OTs, gastos y asistencia), así que el acceso se
+           corta aquí: sin este check un empleado INACTIVE seguiría entrando. */
+        if (credentials.employee.status === 'INACTIVE') {
+          return res.status(403).json({ error: 'Este usuario está dado de baja. Contacta a Recursos Humanos.' })
+        }
+
         const user = {
           id: credentials.employee.id,
           name: credentials.employee.name,

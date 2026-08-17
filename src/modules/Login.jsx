@@ -247,7 +247,7 @@ export default function Login() {
     setError(null);
     setIsLoggingIn(true);
     try {
-      const ok = await loginWithCredentials(email, password, portal);
+      const { ok, error: motivo } = await loginWithCredentials(email, password, portal);
       if (ok) {
         setWelcomeMsg('Acceso concedido.');
         setTimeout(() => {
@@ -256,7 +256,7 @@ export default function Login() {
         }, 4500);
       } else {
         setIsLoggingIn(false);
-        setError('Credenciales inválidas. Verifique su correo y contraseña.');
+        setError(motivo || 'Credenciales inválidas. Verifique su correo y contraseña.');
       }
     } catch {
       setIsLoggingIn(false);
