@@ -1,5 +1,22 @@
 import prisma from '../_lib/prisma.js'
 import { uploadToR2 } from '../_lib/r2.js'
+import { authMiddleware } from '../_lib/auth.js'
+
+/* Gastos de campo. Todo pasa por sesión: este endpoint mueve dinero —quién
+   comprueba y quién aprueba— así que ninguna de sus ramas es pública.
+
+   Quién puede qué:
+     · Aprobar o rechazar (cambiar `status`) → solo ADMIN y SUPERVISOR.
+     · Ver todos los gastos                 → solo ADMIN y SUPERVISOR.
+     · Ver los propios, comprobar y corregir mientras siguen PENDING → cada quien.
+
+   El filtro "cada técnico ve solo lo suyo" ya existía, pero vivía en la
+   pantalla (ExpensesList.jsx): el servidor mandaba los gastos de todos y
+   cualquiera con la pestaña de red abierta los leía. Aquí se aplica de verdad. */
+
+const ROLES_APROBADORES = ['ADMIN', 'SUPERVISOR'];
+const rolesDe = (auth) => (Array.isArray(auth?.roles) ? auth.roles : [auth?.roles].filter(Boolean));
+const puedeAprobar = (auth) => rolesDe(auth).some(r => ROLES_APROBADORES.includes(r));
 
 export const config = {
   api: {
@@ -10,8 +27,11 @@ export const config = {
 };
 
 export default async function handler(req, res) {
+  const auth = authMiddleware(req, res);
+  if (!auth) return; // authMiddleware ya respondió 401
+
   const { method } = req;
-// ... (GET permanece igual)
+  const aprobador = puedeAprobar(auth);
 
   if (method === 'GET') {
     const { userId, otId, status } = req.query;
@@ -19,6 +39,10 @@ export default async function handler(req, res) {
       const where = {};
       if (userId) where.employeeId = userId;
       if (status) where.status = status;
+
+      // Quien no aprueba solo ve sus propios gastos, sin importar lo que pida
+      // en la consulta.
+      if (!aprobador) where.employeeId = auth.id;
       
       // Si recibimos otId, buscamos la OT real primero
       if (otId) {
@@ -102,7 +126,11 @@ export default async function handler(req, res) {
       if (!category) {
           return res.status(400).json({ error: 'Categoría requerida', message: 'Debe seleccionar una categoría.' });
       }
-      if (!userId) {
+      // El dueño del gasto sale de la sesión, no del cuerpo de la petición: si
+      // no, cualquiera podría comprobar a nombre de otro. Un aprobador sí puede
+      // capturar por alguien más (gasto levantado en oficina).
+      const dueñoId = aprobador ? (userId || auth.id) : auth.id;
+      if (!dueñoId) {
           return res.status(400).json({ error: 'Usuario no identificado', message: 'No se encontró el ID del usuario en la petición.' });
       }
 
@@ -146,7 +174,7 @@ export default async function handler(req, res) {
           receipt: r2Url,
           status: 'PENDING',
           workOrderId: workOrderId,
-          employeeId: userId,
+          employeeId: dueñoId,
           createdAt: date ? new Date(date) : new Date()
         }
       });
@@ -164,14 +192,41 @@ export default async function handler(req, res) {
 
   if (method === 'PUT') {
     const { id, status, comment } = req.body;
+    if (!id) return res.status(400).json({ error: 'Falta el id del gasto' });
+
     try {
-      const updated = await prisma.expense.update({
+      const actual = await prisma.expense.findUnique({
         where: { id },
-        data: { 
-            status,
-            comment: comment || null
-        }
+        select: { id: true, employeeId: true, status: true },
       });
+      if (!actual) return res.status(404).json({ error: 'Gasto no encontrado' });
+
+      // Aprobar o rechazar es la decisión que mueve el dinero: solo Operaciones
+      // y Admin. Antes esta rama no pedía nada — bastaba con conocer la
+      // dirección para autorizarse el propio reembolso.
+      if (status !== undefined && !aprobador) {
+        return res.status(403).json({ error: 'Solo Operaciones o Admin pueden aprobar o rechazar un gasto' });
+      }
+
+      // Corregir el propio comprobante se permite mientras nadie lo haya
+      // resuelto todavía; ya aprobado o rechazado, queda como está.
+      if (!aprobador) {
+        if (actual.employeeId !== auth.id) {
+          return res.status(403).json({ error: 'Solo puedes modificar tus propios gastos' });
+        }
+        if (actual.status !== 'PENDING') {
+          return res.status(409).json({ error: 'Este gasto ya fue resuelto y no se puede modificar' });
+        }
+      }
+
+      const data = {};
+      if (status !== undefined) data.status = status;
+      if (comment !== undefined) data.comment = comment || null;
+      if (Object.keys(data).length === 0) {
+        return res.status(400).json({ error: 'No hay nada que actualizar' });
+      }
+
+      const updated = await prisma.expense.update({ where: { id }, data });
       return res.status(200).json(updated);
     } catch (error) {
       return res.status(500).json({ error: error.message });

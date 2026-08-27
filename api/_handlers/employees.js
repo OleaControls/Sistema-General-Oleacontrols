@@ -1,6 +1,6 @@
 import prisma from '../_lib/prisma.js'
 import { uploadToR2, signUrlIfNeeded } from '../_lib/r2.js'
-import { authMiddleware } from '../_lib/auth.js'
+import { authMiddleware, hashPassword } from '../_lib/auth.js'
 
 export default async function handler(req, res) {
   const auth = authMiddleware(req, res);
@@ -229,11 +229,14 @@ export default async function handler(req, res) {
         }
       });
 
-      // 6. Crear Credenciales por separado
+      // 6. Crear Credenciales por separado.
+      // La contraseña se guarda hasheada: en la base nunca hay texto plano, ni
+      // siquiera la de arranque. Si no se captura una, se pone la de siempre y
+      // el empleado la cambia al entrar.
       await prisma.credentials.create({
           data: {
               email: normalizedEmail,
-              password: password || 'olea2026',
+              password: await hashPassword(password || 'olea2026'),
               roles: finalRoles,
               employeeId: employee.id
           }
@@ -357,18 +360,21 @@ export default async function handler(req, res) {
       // 2. Actualizar o crear credenciales de forma independiente
       if (email) {
           const normalizedUpdEmail = email.trim().toLowerCase();
+          // Igual que en el alta: nunca se escribe la contraseña en claro.
+          // Al editar, solo se toca si de verdad viene una nueva.
+          const nuevaPass = password && password.trim() !== '' ? password.trim() : null;
           await prisma.credentials.upsert({
             where: { employeeId: id },
             create: {
               email: normalizedUpdEmail,
-              password: password || 'olea2026',
+              password: await hashPassword(nuevaPass || 'olea2026'),
               roles: roles || ['COLLABORATOR'],
               employeeId: id
             },
             update: {
               email: normalizedUpdEmail,
               roles: roles || undefined,
-              ...(password && password.trim() !== "" ? { password } : {})
+              ...(nuevaPass ? { password: await hashPassword(nuevaPass) } : {})
             }
           });
       }

@@ -17,18 +17,18 @@ export default async function handler(req, res) {
     })
 
     if (credentials) {
-      let isMatch = false;
+      /* La contraseña se valida SOLO contra el hash.
 
-      try {
-        isMatch = await comparePassword(password, credentials.password);
-      } catch (e) {
-        isMatch = credentials.password === password;
-      }
+         Antes, si bcrypt fallaba o no coincidía, se volvía a comparar la
+         contraseña tal cual contra lo guardado. La intención era no dejar
+         fuera a las cuentas viejas, pero el efecto era que el hash dejaba de
+         garantizar nada: bastaba con que una fila estuviera en claro para que
+         se entrara así, y nada avisaba cuáles estaban en ese estado.
 
-      // Segundo intento si el primero fue false (por si acaso la DB tiene texto plano)
-      if (!isMatch) {
-        isMatch = credentials.password === password;
-      }
+         Las credenciales existentes se hashearon con
+         prisma/migrations-manual/hashear-credenciales.mjs (mismas contraseñas,
+         ahora con candado) y employees.js ya solo escribe hashes. */
+      const isMatch = await comparePassword(password, credentials.password).catch(() => false);
 
       if (isMatch) {
         if (!credentials.employee) {
