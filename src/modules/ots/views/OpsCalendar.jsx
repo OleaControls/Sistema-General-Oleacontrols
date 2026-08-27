@@ -394,7 +394,7 @@ export default function OpsCalendar() {
         workDescription: `Reporte de garantía ${claim.folio}\nCita original: ${claim.citaFolio || '—'}`
           + `${claim.otNumber ? `\nOT reportada: ${claim.otNumber}` : ''}\n\nProblema reportado por el cliente:\n${claim.problem}`,
         priority: 'HIGH',
-        client: claim.clientName || 'Coppel',
+        client: claim.clientName || claim.brand || 'Tienda',
         storeNumber: claim.storeNumber || known?.storeNumber || '',
         storeName: claim.storeName || known?.storeName || '',
         address: claim.address || known?.address || '',
@@ -409,7 +409,7 @@ export default function OpsCalendar() {
       };
       setConvertOT(prefilledGar);
       setConvertMapCenter([prefilledGar.lat, prefilledGar.lng]);
-      setConvertOtClientSearch(known ? (known.storeName ? `${known.name} — ${known.storeName}` : known.name) : (claim.clientName || 'Coppel'));
+      setConvertOtClientSearch(known ? (known.storeName ? `${known.name} — ${known.storeName}` : known.name) : (claim.clientName || claim.brand || 'Tienda'));
       setConvertStep(1);
       setConvertedOT(null);
       setIsConvertModalOpen(true);
@@ -429,7 +429,7 @@ export default function OpsCalendar() {
         ...BLANK_OT,
         title: CITA_TYPES[appt.type] || 'Cita de cliente',
         workDescription: appt.description || '',
-        client: appt.clientName || 'Coppel',
+        client: appt.clientName || appt.brand || 'Tienda',
         storeNumber: appt.storeNumber || known?.storeNumber || '',
         storeName: appt.storeName || known?.storeName || '',
         address: appt.address || known?.address || '',
@@ -446,7 +446,7 @@ export default function OpsCalendar() {
       };
       setConvertOT(prefilledCita);
       setConvertMapCenter([prefilledCita.lat, prefilledCita.lng]);
-      setConvertOtClientSearch(known ? (known.storeName ? `${known.name} — ${known.storeName}` : known.name) : (appt.clientName || 'Coppel'));
+      setConvertOtClientSearch(known ? (known.storeName ? `${known.name} — ${known.storeName}` : known.name) : (appt.clientName || appt.brand || 'Tienda'));
       setConvertStep(1);
       setConvertedOT(null);
       setIsConvertModalOpen(true);
@@ -1292,21 +1292,37 @@ export default function OpsCalendar() {
 
                     {selectedEvent.evidences?.length > 0 ? (
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10 }}>
-                        {selectedEvent.evidences.map((evi, idx) => (
+                        {selectedEvent.evidences.map((evi, idx) => {
+                          // Las incidencias también son fotos, pero se marcan aparte.
+                          const esIncidencia = evi.type === 'INCIDENT';
+                          const esFoto = evi.type === 'IMAGE' || esIncidencia;
+                          return (
                           <a key={idx} href={evi.url} target="_blank" rel="noreferrer"
-                            style={{ borderRadius: 14, overflow: 'hidden', aspectRatio: '1', border: '1px solid #e5e7eb', display: 'block', position: 'relative', transition: 'transform .15s, box-shadow .15s' }}
+                            title={evi.description || undefined}
+                            style={{ borderRadius: 14, overflow: 'hidden', aspectRatio: '1', border: esIncidencia ? '1px solid #fecaca' : '1px solid #e5e7eb', display: 'block', position: 'relative', transition: 'transform .15s, box-shadow .15s' }}
                             onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.03)'; e.currentTarget.style.boxShadow = '0 8px 20px rgba(0,0,0,.1)'; }}
                             onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = 'none'; }}
                           >
-                            {evi.type === 'IMAGE'
-                              ? <img src={evi.url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" />
+                            {esFoto
+                              ? <img src={evi.url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt={evi.description || ''} />
                               : <div style={{ minHeight: 90, background: '#fef2f2', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6, height: '100%' }}>
                                   <FileText size={24} style={{ color: '#f87171' }} />
                                   <span style={{ fontSize: 9, color: '#fca5a5', fontFamily: 'monospace', textTransform: 'uppercase', fontWeight: 700 }}>PDF</span>
                                 </div>
                             }
+                            {esIncidencia && (
+                              <span style={{ position: 'absolute', top: 6, left: 6, background: '#dc2626', color: '#fff', fontSize: 8, fontWeight: 800, letterSpacing: '.06em', textTransform: 'uppercase', padding: '2px 6px', borderRadius: 6 }}>
+                                Incidencia
+                              </span>
+                            )}
+                            {evi.description && (
+                              <span style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'linear-gradient(transparent, rgba(0,0,0,.75))', color: '#fff', fontSize: 9, fontWeight: 600, padding: '14px 6px 5px', lineHeight: 1.3, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                                {evi.description}
+                              </span>
+                            )}
                           </a>
-                        ))}
+                          );
+                        })}
                       </div>
                     ) : !uploading && (
                       <div style={{ textAlign: 'center', padding: '28px 20px', background: '#f9fafb', border: '1px dashed #e5e7eb', borderRadius: 14 }}>
@@ -1790,7 +1806,7 @@ export default function OpsCalendar() {
                         <div className="col-span-2">
                           <label className="text-[9px] font-mono font-bold uppercase tracking-[0.15em] text-gray-500 block mb-2">Nombre de Sitio</label>
                           <input className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-900 outline-none focus:border-gray-900 transition-all placeholder:text-gray-300"
-                            value={convertOT.storeName} onChange={e => setConvertOT({ ...convertOT, storeName: e.target.value })} placeholder="Coppel Insurgentes Norte" />
+                            value={convertOT.storeName} onChange={e => setConvertOT({ ...convertOT, storeName: e.target.value })} placeholder="Insurgentes Norte" />
                         </div>
                       </div>
 
@@ -1799,7 +1815,7 @@ export default function OpsCalendar() {
                         <div className="relative">
                           <Briefcase className="absolute left-3.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-300 pointer-events-none" />
                           <input className="w-full pl-9 pr-4 py-3 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-900 outline-none focus:border-gray-900 transition-all placeholder:text-gray-300"
-                            value={convertOT.client} onChange={e => setConvertOT({ ...convertOT, client: e.target.value })} placeholder="Coppel S.A. de C.V." />
+                            value={convertOT.client} onChange={e => setConvertOT({ ...convertOT, client: e.target.value })} placeholder="Razón social del cliente" />
                         </div>
                       </div>
 

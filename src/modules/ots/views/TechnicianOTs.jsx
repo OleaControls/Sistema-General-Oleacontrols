@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   ClipboardList, MapPin, Clock, ArrowRight, CheckCircle2,
   Store, Calendar, AlertTriangle, Trophy, User, Zap,
-  Circle, Filter, RefreshCw, ChevronRight, Star, Navigation, Navigation2, WifiOff
+  Circle, Filter, RefreshCw, ChevronRight, Star, Navigation, Navigation2, WifiOff, ShieldAlert
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
@@ -12,6 +12,8 @@ import { TILE_LAYER } from '@/lib/mapTiles';
 import { otService } from '@/api/otService';
 import { useAuth } from '@/store/AuthContext';
 import { cn } from '@/lib/utils';
+import techDocsService from '@/api/techDocsService';
+import { resumenExpediente, DOC_STATUS } from '@/lib/fieldDocs';
 
 // ── Leaflet icons ──────────────────────────────────────────────────────────────
 const otIcon = new L.Icon({
@@ -233,6 +235,17 @@ export default function TechnicianOTs() {
   const [loading, setLoading] = useState(true);
   const [showMap, setShowMap] = useState(false);
   const [filter, setFilter] = useState('all');
+
+  // Expediente de campo propio: se avisa al técnico, no se le bloquea nada.
+  const [misDocsRaw, setMisDocsRaw] = useState([]);
+  useEffect(() => {
+    let vivo = true;
+    techDocsService.list()
+      .then(d => { if (vivo) setMisDocsRaw(Array.isArray(d) ? d : []); })
+      .catch(() => {});
+    return () => { vivo = false; };
+  }, []);
+  const misDocs = useMemo(() => resumenExpediente(misDocsRaw), [misDocsRaw]);
   // 'idle' | 'requesting' | 'active' | 'denied'
   const [locationStatus, setLocationStatus] = useState('idle');
   const watchIdRef = useRef(null);
@@ -509,6 +522,26 @@ export default function TechnicianOTs() {
           </div>
         )}
       </div>
+
+      {/* ── DOCUMENTACIÓN DE CAMPO — informativo, no bloquea ───────────────── */}
+      {misDocs.alerta && (
+        <div className="rounded-3xl border border-red-200 bg-red-50 px-5 py-4 flex items-start gap-3">
+          <ShieldAlert className="h-5 w-5 text-red-500 shrink-0 mt-0.5" />
+          <div className="min-w-0">
+            <p className="text-[11px] font-black text-red-700 uppercase tracking-widest">Documentación pendiente</p>
+            <p className="text-[11px] font-medium text-red-600 mt-1 leading-relaxed">
+              Para entrar a tienda necesitas tus documentos vigentes. Avisa a tu supervisor para que los cargue.
+            </p>
+            <div className="flex flex-wrap gap-1.5 mt-2.5">
+              {misDocs.items.filter(i => i.required && i.status !== 'VIGENTE').map(i => (
+                <span key={i.key} className={cn('text-[9px] font-black uppercase tracking-wider px-2 py-1 rounded-md border', DOC_STATUS[i.status].cls)}>
+                  {i.label} · {DOC_STATUS[i.status].label}
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── FILTROS ───────────────────────────────────────────────────────── */}
       <div className="flex gap-2">

@@ -37,6 +37,11 @@ import surveysHandler        from './api/_handlers/surveys.js';
 import payrollHandler        from './api/_handlers/payroll.js';
 import projectsHandler       from './api/_handlers/projects.js';
 import appointmentsHandler   from './api/_handlers/appointments.js';
+import techDocsHandler from './api/_handlers/tech-docs.js';
+import storeInventoryHandler from './api/_handlers/store-inventory.js';
+import zonesHandler from './api/_handlers/zones.js';
+import trainingsHandler from './api/_handlers/trainings.js';
+import improvementsHandler from './api/_handlers/improvements.js';
 import warrantyHandler       from './api/_handlers/warranty.js';
 
 const app = express();
@@ -92,11 +97,22 @@ app.get('/api/expenses', adaptHandler(expensesHandler));
 app.post('/api/expenses', adaptHandler(expensesHandler));
 app.put('/api/expenses', adaptHandler(expensesHandler));
 
-// Citas públicas (Coppel) — GET/POST sin token, PUT/DELETE con token
+// Citas públicas de tiendas — GET/POST sin token, PUT/DELETE con token
 app.all('/api/appointments', adaptHandler(appointmentsHandler));
 
 // Reportes de garantía — GET/POST sin token, PUT/DELETE con token
 app.all('/api/warranty', adaptHandler(warrantyHandler));
+
+// Documentación de campo del técnico (vigencias)
+app.all('/api/tech-docs', adaptHandler(techDocsHandler));
+
+// Inventario de tiendas — uno solo para todos los proyectos de tienda
+app.all('/api/store-inventory', adaptHandler(storeInventoryHandler));
+
+// Sistema General: mapa de zonas, capacitación y mejora continua
+app.all('/api/zones', adaptHandler(zonesHandler));
+app.all('/api/trainings', adaptHandler(trainingsHandler));
+app.all('/api/improvements', adaptHandler(improvementsHandler));
 
 // Categories
 app.get('/api/categories', adaptHandler(categoriesHandler));

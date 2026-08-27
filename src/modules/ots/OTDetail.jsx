@@ -5,7 +5,8 @@ import {
   X, Send, ArrowRight, Store, Map as MapIcon, AlertTriangle, Wallet, Plus, Coins,
   Phone, Mail, Info, Users, Hash, Calendar, Zap, Activity, Timer, ArrowUpCircle, ArrowDownCircle,
   MessageCircle, Pause, Play, Flag, Check, BarChart2, Coffee, LockOpen, ShieldAlert,
-  ScanSearch, ClipboardCheck, LogIn, Lock, Target
+  ScanSearch, ClipboardCheck, LogIn, Lock, Target,
+  Boxes, PackagePlus, FolderOpen, ListTodo, Camera
 } from 'lucide-react';
 import { otService } from '@/api/otService';
 import { expenseService } from '@/api/expenseService';
@@ -14,6 +15,10 @@ import { apiFetch } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import NewExpenseForm from '../expenses/components/NewExpenseForm';
 import PanoramizacionModal from './components/PanoramizacionModal';
+import OTProjectTabs from './components/OTProjectTabs';
+import OTEvidenceTab from './components/OTEvidenceTab';
+import FieldDocsAlert from './components/FieldDocsAlert';
+import techDocsService from '@/api/techDocsService';
 
 // ── Requisitos previos — tarjeta de puerta ───────────────────────────────────
 // Muestra qué falta antes de aceptar la OT o iniciar la jornada. `blocking`
@@ -150,7 +155,18 @@ const JornadasHistorial = ({ jornadas }) => (
 const TABS = [
   { id: 'INFO', label: 'Hoja de Servicio', icon: FileText },
   { id: 'ACTIONS', label: 'Ejecución', icon: Activity },
+  // Evidencias e incidentes en vivo: aplica a toda OT, no solo a las de tienda.
+  { id: 'EVIDENCE', label: 'Evidencias', icon: Camera },
   { id: 'EXPENSES', label: 'Viáticos', icon: Receipt },
+];
+
+/* Las OT de tienda se gestionan como proyecto. Estas pestañas solo aparecen
+   cuando la orden es de tienda y ya está vinculada a un proyecto. */
+const PROJECT_TABS = [
+  { id: 'RESOURCES', label: 'Recursos',      icon: PackagePlus },
+  { id: 'INVENTORY', label: 'Inventario',    icon: Boxes },
+  { id: 'DOCS',      label: 'Documentación', icon: FolderOpen },
+  { id: 'PENDINGS',  label: 'Pendientes',    icon: ListTodo },
 ];
 
 export default function OTDetail() {
@@ -178,6 +194,9 @@ export default function OTDetail() {
   const isSupervisor = userRoles.includes(ROLES.OPS) || userRoles.includes(ROLES.ADMIN);
   const isAdmin = userRoles.includes(ROLES.ADMIN);
   const isCompleted = ot?.status === 'COMPLETED';
+  // Solo las OT de tienda vinculadas a un proyecto muestran las cuatro pestañas.
+  const esTienda = ot?.kind === 'TIENDA';
+  const tieneProyecto = esTienda && !!ot?.projectId;
 
   const [finishData, setFinishData] = useState({
     report: '',
@@ -188,6 +207,29 @@ export default function OTDetail() {
   // ── Requisitos previos (asistencia + checklist + panoramización) ───────────
   const [gate, setGate] = useState({ checkInTime: null, checklistDone: false, panoraDone: false, loaded: false });
   const [isPanoraModalOpen, setIsPanoraModalOpen] = useState(false);
+
+  // Proyecto vinculado (solo OT de tienda). Se carga aparte porque vive en el
+  // módulo de proyectos y llega por una ruta acotada de /api/ots.
+  const [project, setProject] = useState(null);
+  const [projectLoading, setProjectLoading] = useState(false);
+  const [projectError, setProjectError] = useState(null);
+
+  // Documentación de campo de la cuadrilla (informativa, no bloquea).
+  const [fieldDocs, setFieldDocs] = useState([]);
+  const [fieldDocsLoading, setFieldDocsLoading] = useState(true);
+
+  const loadProject = useCallback(async () => {
+    if (!id) return;
+    setProjectLoading(true);
+    setProjectError(null);
+    try {
+      setProject(await otService.getOTProject(id));
+    } catch (err) {
+      setProjectError(err.message);
+    } finally {
+      setProjectLoading(false);
+    }
+  }, [id]);
 
   // El técnico ve su propio avance; el supervisor ve el del técnico asignado
   const gateTechId = isSupervisor ? (ot?.technicianId || ot?.leadTechId || null) : user?.id;
@@ -228,6 +270,24 @@ export default function OTDetail() {
   const canStartJornada = !gateBlocks || startReqsMet;
 
   useEffect(() => { loadOT(); }, [id]);
+
+  // El expediente se consulta una vez por OT; si falla no estorba la vista.
+  useEffect(() => {
+    let vivo = true;
+    setFieldDocsLoading(true);
+    techDocsService.byOT(id)
+      .then(d => { if (vivo) setFieldDocs(Array.isArray(d) ? d : []); })
+      .catch(() => { if (vivo) setFieldDocs([]); })
+      .finally(() => { if (vivo) setFieldDocsLoading(false); });
+    return () => { vivo = false; };
+  }, [id]);
+
+  // El proyecto se carga solo cuando el técnico entra a una de sus pestañas.
+  useEffect(() => {
+    if (tieneProyecto && PROJECT_TABS.some(t => t.id === activeTab) && !project && !projectLoading) {
+      loadProject();
+    }
+  }, [activeTab, tieneProyecto, project, projectLoading, loadProject]);
 
   // Init jornadas from OT (with legacy fallback)
   useEffect(() => {
@@ -519,6 +579,19 @@ export default function OTDetail() {
   const pm = PRIORITY_MAP[ot.priority] || PRIORITY_MAP.MEDIUM;
   const activeJornada = jornadas.find(j => j.status === 'ACTIVE');
 
+  /* Datos del cierre. Las evidencias y las incidencias comparten tabla y se
+     distinguen por `type`; las OT anteriores al cambio no traen descripción. */
+  const evidencias    = Array.isArray(ot.evidences) ? ot.evidences : [];
+  const evidenciasFoto = evidencias.filter(e => e.type !== 'INCIDENT');
+  const incidencias    = evidencias.filter(e => e.type === 'INCIDENT');
+  const pendientesActa = (Array.isArray(ot.pendingTasks) ? ot.pendingTasks : [])
+    .filter(t => t?.description?.trim());
+  // El apoyo se guardó históricamente en dos campos distintos.
+  const apoyos = [
+    ...(Array.isArray(ot.assistantTechs) ? ot.assistantTechs : []),
+    ...(Array.isArray(ot.supportTechs)   ? ot.supportTechs   : []),
+  ].filter((t, i, arr) => t && arr.findIndex(x => (x.id || x.name) === (t.id || t.name)) === i);
+
   return (
     <div className="max-w-5xl mx-auto pb-28 animate-in fade-in duration-500">
 
@@ -574,37 +647,43 @@ export default function OTDetail() {
               </div>
             </div>
 
-            {/* Right: unlock button (admin) + tabs */}
-            <div className="shrink-0 flex items-center gap-2">
-              {/* Botón desbloquear — solo ADMIN en OTs cerradas */}
-              {isSupervisor && (ot.status === 'COMPLETED' || ot.status === 'VALIDATED') && (
-                <button
-                  onClick={() => setIsUnlockModalOpen(true)}
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100 transition-all"
-                  title="Desbloquear OT para modificar el acta"
-                >
-                  <LockOpen className="h-3.5 w-3.5" />
-                  <span className="hidden sm:inline">Desbloquear</span>
-                </button>
-              )}
+            {/* Right: botón desbloquear — solo ADMIN en OTs cerradas */}
+            {isSupervisor && (ot.status === 'COMPLETED' || ot.status === 'VALIDATED') && (
+              <button
+                onClick={() => setIsUnlockModalOpen(true)}
+                className="cursor-pointer shrink-0 self-start md:self-auto flex items-center gap-1.5 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100 transition-all"
+                title="Desbloquear OT para modificar el acta"
+              >
+                <LockOpen className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Desbloquear</span>
+              </button>
+            )}
+          </div>
 
-              <div className="flex items-center gap-1 bg-gray-50 rounded-xl p-1 border border-gray-100">
-                {TABS.filter(tab => tab.id === 'INFO' || isInvolved || isSupervisor).map(tab => (
-                  <button
-                    key={tab.id}
-                    onClick={() => setActiveTab(tab.id)}
-                    className={cn(
-                      "cursor-pointer flex items-center gap-1.5 px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all",
-                      activeTab === tab.id
-                        ? "bg-gray-950 text-white shadow-sm"
-                        : "text-gray-400 hover:text-gray-600"
-                    )}
-                  >
-                    <tab.icon className="h-3.5 w-3.5" />
-                    <span className="hidden sm:inline">{tab.label}</span>
-                  </button>
-                ))}
-              </div>
+          {/* Pestañas en su propia fila: con las cuatro de proyecto llegan a ocho
+              y no caben junto al título en escritorio. Si aún sobran, la fila
+              hace scroll horizontal en vez de desbordarse. */}
+          <div className="pb-4 -mt-1 overflow-x-auto scrollbar-hide">
+            <div className="inline-flex items-center gap-1 bg-gray-50 rounded-xl p-1 border border-gray-100">
+              {[
+                ...TABS.filter(tab => tab.id === 'INFO' || isInvolved || isSupervisor),
+                // Las pestañas del proyecto solo existen para OT de tienda ya vinculadas.
+                ...(esTienda && (isInvolved || isSupervisor) ? PROJECT_TABS : []),
+              ].map(tab => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={cn(
+                    "cursor-pointer shrink-0 whitespace-nowrap flex items-center gap-1.5 px-3 lg:px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all",
+                    activeTab === tab.id
+                      ? "bg-gray-950 text-white shadow-sm"
+                      : "text-gray-400 hover:text-gray-600"
+                  )}
+                >
+                  <tab.icon className="h-3.5 w-3.5 shrink-0" />
+                  <span className="hidden sm:inline">{tab.label}</span>
+                </button>
+              ))}
             </div>
           </div>
         </div>
@@ -650,11 +729,34 @@ export default function OTDetail() {
 
       {/* ── CONTENT ─────────────────────────────────────────────────────────── */}
       <div className="mt-4 px-4 md:px-0">
+        {PROJECT_TABS.some(t => t.id === activeTab) && (
+          <OTProjectTabs
+            tab={activeTab}
+            otId={id}
+            project={project}
+            loading={projectLoading}
+            error={projectError}
+            onReload={loadProject}
+            puedeEditar={isInvolved || isSupervisor}
+          />
+        )}
+
+        {activeTab === 'EVIDENCE' && (
+          <OTEvidenceTab
+            otId={id}
+            otCerrada={['COMPLETED', 'VALIDATED'].includes(ot.status)}
+            puedeEditar={isInvolved || isSupervisor}
+          />
+        )}
+
         {activeTab === 'INFO' && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 animate-in fade-in duration-300">
 
             {/* ── LEFT COLUMN ── */}
             <div className="lg:col-span-2 space-y-4">
+
+              {/* Documentación de la cuadrilla para entrar a sitio */}
+              <FieldDocsAlert tecnicos={fieldDocs} cargando={fieldDocsLoading} />
 
               {/* Cliente y Sitio */}
               <div className="bg-white border border-gray-100 rounded-[1.75rem] overflow-hidden shadow-sm">
@@ -674,15 +776,54 @@ export default function OTDetail() {
                       <span className="font-bold text-gray-700 text-sm truncate">{ot.storeName || 'Central'}</span>
                     </div>
                   </div>
+                  {(ot.clientPhone || ot.clientEmail) && (
+                    <div className="col-span-2 flex flex-wrap gap-x-8 gap-y-3">
+                      {ot.clientPhone && (
+                        <div>
+                          <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-1">Teléfono de la empresa</p>
+                          <a href={`tel:${ot.clientPhone}`} className="flex items-center gap-2 text-sm font-bold text-gray-700 hover:text-gray-900 transition-colors">
+                            <Phone className="h-3.5 w-3.5 text-gray-300" /> {ot.clientPhone}
+                          </a>
+                        </div>
+                      )}
+                      {ot.clientEmail && (
+                        <div>
+                          <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-1">Correo de la empresa</p>
+                          <a href={`mailto:${ot.clientEmail}`} className="flex items-center gap-2 text-sm font-bold text-gray-700 hover:text-gray-900 transition-colors">
+                            <Mail className="h-3.5 w-3.5 text-gray-300" /> {ot.clientEmail}
+                          </a>
+                        </div>
+                      )}
+                    </div>
+                  )}
                   <div className="col-span-2">
                     <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-2">Dirección</p>
                     <div className="flex items-start gap-3 p-4 bg-gray-50 rounded-2xl border border-gray-100">
                       <MapPin className="h-4 w-4 text-gray-400 mt-0.5 shrink-0" />
-                      <div>
+                      <div className="min-w-0 flex-1">
                         <p className="text-sm font-bold text-gray-800 leading-relaxed">{ot.address}</p>
-                        {ot.secondaryAddress && <p className="text-xs text-gray-400 font-medium mt-1">{ot.secondaryAddress}</p>}
-                        {(ot.otAddress || ot.otReference) && (
-                          <p className="text-xs text-gray-400 font-medium mt-1 italic">Ref: {ot.otAddress} {ot.otReference}</p>
+                        {ot.secondaryAddress && (
+                          <p className="text-xs text-gray-400 font-medium mt-1">Alterna: {ot.secondaryAddress}</p>
+                        )}
+                        {ot.otAddress && (
+                          <p className="text-xs text-gray-400 font-medium mt-1">Dirección de la OT: {ot.otAddress}</p>
+                        )}
+                        {ot.otReference && (
+                          <p className="text-xs text-gray-400 font-medium mt-1 italic">Referencias: {ot.otReference}</p>
+                        )}
+                        {(ot.lat ?? ot.latitude) != null && (ot.lng ?? ot.longitude) != null && (
+                          <a
+                            href={`https://www.google.com/maps/search/?api=1&query=${ot.lat ?? ot.latitude},${ot.lng ?? ot.longitude}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 mt-2.5 text-[10px] font-black text-gray-500 hover:text-gray-900 uppercase tracking-widest transition-colors"
+                          >
+                            <MapIcon className="h-3 w-3" />
+                            Abrir en mapa
+                            <span className="font-mono normal-case tracking-normal text-gray-300">
+                              {Number(ot.lat ?? ot.latitude).toFixed(5)}, {Number(ot.lng ?? ot.longitude).toFixed(5)}
+                            </span>
+                          </a>
                         )}
                       </div>
                     </div>
@@ -723,17 +864,44 @@ export default function OTDetail() {
                 </div>
               </div>
 
-              {/* Meta del Cliente — qué espera lograr con este trabajo */}
-              {ot.clientGoal && (
+              {/* Expectativas de la asignación — lo que el supervisor definió al asignarla */}
+              {(ot.clientGoal || ot.timeLimitHours || ot.qualityHigh || ot.qualityMin) && (
                 <div className="bg-violet-600 rounded-[1.75rem] overflow-hidden">
                   <div className="px-7 py-5 border-b border-white/10 flex items-center gap-3">
                     <Target className="h-4 w-4 text-violet-200" />
-                    <h3 className="text-[10px] font-black text-violet-100 uppercase tracking-widest">Meta del Cliente</h3>
+                    <h3 className="text-[10px] font-black text-violet-100 uppercase tracking-widest">Expectativas de la Asignación</h3>
                   </div>
-                  <div className="px-7 py-6">
-                    <p className="text-base md:text-lg font-bold leading-relaxed text-white">
-                      {ot.clientGoal}
-                    </p>
+                  <div className="px-7 py-6 space-y-5">
+                    {ot.clientGoal && (
+                      <div>
+                        <p className="text-[8px] font-black text-violet-200 uppercase tracking-widest mb-1.5">Meta del cliente</p>
+                        <p className="text-base md:text-lg font-bold leading-relaxed text-white">{ot.clientGoal}</p>
+                      </div>
+                    )}
+                    {ot.timeLimitHours != null && ot.timeLimitHours !== '' && (
+                      <div className="flex items-center gap-2.5">
+                        <Timer className="h-4 w-4 text-violet-200 shrink-0" />
+                        <p className="text-sm font-bold text-white">
+                          Tiempo objetivo: {ot.timeLimitHours} h
+                        </p>
+                      </div>
+                    )}
+                    {(ot.qualityHigh || ot.qualityMin) && (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {ot.qualityHigh && (
+                          <div className="bg-white/10 border border-white/15 rounded-2xl px-4 py-3.5">
+                            <p className="text-[8px] font-black text-violet-200 uppercase tracking-widest mb-1.5">Resultado ideal</p>
+                            <p className="text-sm font-bold text-white leading-relaxed">{ot.qualityHigh}</p>
+                          </div>
+                        )}
+                        {ot.qualityMin && (
+                          <div className="bg-white/10 border border-white/15 rounded-2xl px-4 py-3.5">
+                            <p className="text-[8px] font-black text-violet-200 uppercase tracking-widest mb-1.5">Mínimo aceptable</p>
+                            <p className="text-sm font-bold text-white leading-relaxed">{ot.qualityMin}</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -775,6 +943,99 @@ export default function OTDetail() {
                   </div>
                 </div>
               )}
+
+              {/* Pendientes registrados al cerrar el acta */}
+              {pendientesActa.length > 0 && (
+                <div className="bg-white border border-gray-100 rounded-[1.75rem] overflow-hidden shadow-sm">
+                  <div className="px-7 py-5 border-b border-gray-50 flex items-center gap-3">
+                    <Flag className="h-4 w-4 text-gray-400" />
+                    <h3 className="text-[10px] font-black text-gray-700 uppercase tracking-widest">Pendientes en Sitio</h3>
+                    <span className="ml-auto text-[9px] font-black bg-gray-100 text-gray-500 px-2 py-1 rounded-md">{pendientesActa.length}</span>
+                  </div>
+                  <ol className="divide-y divide-gray-50">
+                    {pendientesActa.map((t, i) => (
+                      <li key={t.id ?? i} className="px-7 py-4 flex items-start gap-4">
+                        <span className="shrink-0 h-6 w-6 rounded-lg bg-gray-100 text-gray-500 text-[10px] font-black flex items-center justify-center">{i + 1}</span>
+                        <p className="text-sm font-medium text-gray-700 leading-relaxed">{t.description}</p>
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+              )}
+
+              {/* Evidencia fotográfica del cierre */}
+              {evidenciasFoto.length > 0 && (
+                <div className="bg-white border border-gray-100 rounded-[1.75rem] overflow-hidden shadow-sm">
+                  <div className="px-7 py-5 border-b border-gray-50 flex items-center gap-3">
+                    <ScanSearch className="h-4 w-4 text-gray-400" />
+                    <h3 className="text-[10px] font-black text-gray-700 uppercase tracking-widest">Evidencia Fotográfica</h3>
+                    <span className="ml-auto text-[9px] font-black bg-gray-100 text-gray-500 px-2 py-1 rounded-md">{evidenciasFoto.length}</span>
+                  </div>
+                  <div className="p-7 grid grid-cols-2 sm:grid-cols-3 gap-4">
+                    {evidenciasFoto.map((ev, i) => (
+                      <a key={ev.id ?? i} href={ev.url} target="_blank" rel="noopener noreferrer" className="group">
+                        <div className="aspect-square rounded-2xl overflow-hidden border border-gray-100 bg-gray-50 relative">
+                          <img src={ev.url} alt={ev.description || `Evidencia ${i + 1}`} className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105" />
+                        </div>
+                        <p className="text-[11px] font-medium text-gray-600 mt-2 leading-snug">
+                          {ev.description || <span className="text-gray-300 italic">Sin descripción</span>}
+                        </p>
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Reporte de incidencias — interno, no se muestra al cliente */}
+              {incidencias.length > 0 && (
+                <div className="bg-white border border-red-100 rounded-[1.75rem] overflow-hidden shadow-sm">
+                  <div className="px-7 py-5 border-b border-red-50 flex items-center gap-3 bg-red-50/50">
+                    <AlertTriangle className="h-4 w-4 text-red-500" />
+                    <h3 className="text-[10px] font-black text-red-700 uppercase tracking-widest">Reporte de Incidencias</h3>
+                    <span className="ml-auto text-[9px] font-black bg-red-100 text-red-600 px-2 py-1 rounded-md">{incidencias.length}</span>
+                  </div>
+                  <div className="p-7 space-y-4">
+                    {incidencias.map((inc, i) => (
+                      <div key={inc.id ?? i} className="flex gap-4 items-start">
+                        <a href={inc.url} target="_blank" rel="noopener noreferrer" className="shrink-0 h-24 w-24 rounded-2xl overflow-hidden border border-red-100 bg-gray-50">
+                          <img src={inc.url} alt={inc.description || `Incidencia ${i + 1}`} className="w-full h-full object-cover" />
+                        </a>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-[9px] font-black text-red-500 uppercase tracking-widest">Incidencia {i + 1}</p>
+                          <p className="text-sm font-medium text-gray-700 leading-relaxed mt-1.5">
+                            {inc.description || <span className="text-gray-300 italic">Sin descripción</span>}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Firmas de conformidad */}
+              {(ot.signature || ot.clientSignature || ot.clientSignature2) && (
+                <div className="bg-white border border-gray-100 rounded-[1.75rem] overflow-hidden shadow-sm">
+                  <div className="px-7 py-5 border-b border-gray-50 flex items-center gap-3">
+                    <CheckCircle2 className="h-4 w-4 text-gray-400" />
+                    <h3 className="text-[10px] font-black text-gray-700 uppercase tracking-widest">Firmas de Conformidad</h3>
+                  </div>
+                  <div className="p-7 grid grid-cols-1 sm:grid-cols-2 gap-6">
+                    {[
+                      { url: ot.signature, rol: 'Técnico responsable', nombre: techName },
+                      { url: ot.clientSignature, rol: 'Cliente', nombre: ot.contactName },
+                      { url: ot.clientSignature2, rol: 'Segundo firmante', nombre: ot.clientContact2?.name },
+                    ].filter(f => f.url).map((f, i) => (
+                      <div key={i}>
+                        <div className="h-28 rounded-2xl border border-gray-100 bg-gray-50/60 flex items-center justify-center overflow-hidden">
+                          <img src={f.url} alt={`Firma ${f.rol}`} className="max-h-full max-w-full object-contain" />
+                        </div>
+                        <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest mt-2.5">{f.rol}</p>
+                        <p className="text-xs font-black text-gray-800">{f.nombre || '—'}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* ── RIGHT SIDEBAR ── */}
@@ -808,16 +1069,71 @@ export default function OTDetail() {
                       <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Apoyo</p>
                     </div>
                     <div className="text-right">
-                      {(ot.assistantTechs?.length || 0) > 0
+                      {apoyos.length > 0
                         ? <div className="flex flex-wrap justify-end gap-1">
-                            {ot.assistantTechs.map((st, i) => (
-                              <span key={i} className="text-[8px] font-black bg-gray-100 text-gray-500 px-2 py-0.5 rounded-md uppercase">{st.name}</span>
+                            {apoyos.map((st, i) => (
+                              <span key={st.id ?? i} className="text-[8px] font-black bg-gray-100 text-gray-500 px-2 py-0.5 rounded-md uppercase">{st.name}</span>
                             ))}
                           </div>
                         : <span className="text-xs text-gray-300 italic">Sin apoyo</span>
                       }
                     </div>
                   </div>
+                  <div className="px-6 py-4 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <ShieldAlert className="h-4 w-4 text-gray-300" />
+                      <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Supervisor</p>
+                    </div>
+                    <p className="text-xs font-black text-gray-700 text-right">{ot.supervisor?.name || '—'}</p>
+                  </div>
+                  {ot.systemType && (
+                    <div className="px-6 py-4 flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <Zap className="h-4 w-4 text-gray-300" />
+                        <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Sistema</p>
+                      </div>
+                      <p className="text-xs font-black text-gray-700">{ot.systemType}</p>
+                    </div>
+                  )}
+                  {ot.startedAt && (
+                    <div className="px-6 py-4 flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <Play className="h-4 w-4 text-gray-300" />
+                        <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Inicio real</p>
+                      </div>
+                      <p className="text-[10px] font-mono text-gray-500">{new Date(ot.startedAt).toLocaleString('es-MX', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</p>
+                    </div>
+                  )}
+                  {ot.finishedAt && (
+                    <div className="px-6 py-4 flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <Flag className="h-4 w-4 text-gray-300" />
+                        <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Cierre real</p>
+                      </div>
+                      <p className="text-[10px] font-mono text-gray-500">{new Date(ot.finishedAt).toLocaleString('es-MX', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</p>
+                    </div>
+                  )}
+                  <div className="px-6 py-4 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <ClipboardList className="h-4 w-4 text-gray-300" />
+                      <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Tipo</p>
+                    </div>
+                    <p className="text-xs font-black text-gray-700">{esTienda ? (ot.brand ? `OT ${ot.brand}` : 'OT de Tienda') : 'Asignación'}</p>
+                  </div>
+                  {tieneProyecto && (
+                    <div className="px-6 py-4 flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <Boxes className="h-4 w-4 text-gray-300" />
+                        <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Proyecto</p>
+                      </div>
+                      <button
+                        onClick={() => setActiveTab('RESOURCES')}
+                        className="cursor-pointer text-[10px] font-black text-violet-600 hover:text-violet-800 uppercase tracking-widest transition-colors"
+                      >
+                        Ver apartados
+                      </button>
+                    </div>
+                  )}
                   <div className="px-6 py-4 flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <Hash className="h-4 w-4 text-gray-300" />
@@ -832,6 +1148,24 @@ export default function OTDetail() {
                     </div>
                     <p className="text-[10px] font-mono text-gray-500">{new Date(ot.createdAt).toLocaleDateString('es-MX')}</p>
                   </div>
+                  {ot.updatedAt && (
+                    <div className="px-6 py-4 flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <Clock className="h-4 w-4 text-gray-300" />
+                        <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Últ. cambio</p>
+                      </div>
+                      <p className="text-[10px] font-mono text-gray-500">{new Date(ot.updatedAt).toLocaleString('es-MX', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</p>
+                    </div>
+                  )}
+                  {ot.isLocked && (
+                    <div className="px-6 py-4 flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <Lock className="h-4 w-4 text-blue-400" />
+                        <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Bloqueo</p>
+                      </div>
+                      <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest">Validada y bloqueada</p>
+                    </div>
+                  )}
                 </div>
               </div>
 

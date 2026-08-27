@@ -572,7 +572,7 @@ export default function OTCatalogs() {
                   <>
                     <div className="space-y-2">
                       <label className="text-[10px] font-black uppercase text-gray-400">Razón Social / Empresa *</label>
-                      <input required className="w-full px-4 py-3 border rounded-2xl font-bold outline-none focus:border-primary transition-colors" placeholder="Coppel S.A. de C.V." value={newOTClient.name} onChange={e => setNewOTClient({ ...newOTClient, name: e.target.value })} />
+                      <input required className="w-full px-4 py-3 border rounded-2xl font-bold outline-none focus:border-primary transition-colors" placeholder="Razón social del cliente" value={newOTClient.name} onChange={e => setNewOTClient({ ...newOTClient, name: e.target.value })} />
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">

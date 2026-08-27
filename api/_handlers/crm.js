@@ -130,11 +130,10 @@ export default async function handler(req, res) {
       // ── Métricas por vendedor ──────────────────────────────────────────
       if (resource === 'sales-metrics') {
         const period = req.query.period || 'month';
+        const PERIOD_DAYS = { week: 7, fortnight: 15, month: 30, quarter: 90, year: 365 };
+        const days = PERIOD_DAYS[period] ?? 30;
         const now = new Date();
-        let since;
-        if (period === 'week')           since = new Date(now - 7  * 86400000);
-        else if (period === 'fortnight') since = new Date(now - 15 * 86400000);
-        else                             since = new Date(now - 30 * 86400000);
+        const since = new Date(now - days * 86400000);
 
         // ADMIN ve todos los SALES; SALES solo se ve a sí mismo
         const employeeWhere = isSales

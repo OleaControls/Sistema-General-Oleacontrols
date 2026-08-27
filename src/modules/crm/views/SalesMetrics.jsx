@@ -1,19 +1,16 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  DollarSign, Target, TrendingUp, Users, Award, Percent,
-  BarChart2, Activity, Calendar, ChevronRight, ChevronDown, RefreshCw,
+  DollarSign, Target, TrendingUp, Users, Activity, Calendar, ChevronDown, RefreshCw,
   CheckCircle2, XCircle, Clock, Briefcase, Star,
-  MessageSquare, PhoneCall, Send, Coffee, ArrowRight, User, Building2,
-  FileText, MapPin, BookOpen, Layers, UserPlus, UserCheck,
-  Package, AlertTriangle, LayoutGrid, Eye, TrendingDown, ShoppingBag,
-  ClipboardList, Hash, Plus, Loader2
+  MessageSquare, PhoneCall, Send, Coffee, ArrowRight, Building2,
+  FileText, UserPlus, UserCheck, Package, AlertTriangle, LayoutGrid, Eye,
+  TrendingDown, ClipboardList, ArrowUpRight, ArrowDownRight, Minus,
+  Download, Timer, Gauge, Snowflake, CalendarClock,
 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
-  Legend, ResponsiveContainer, Cell, RadarChart, PolarGrid,
-  PolarAngleAxis, PolarRadiusAxis, Radar, LineChart, Line,
-  PieChart, Pie,
+  ResponsiveContainer, Cell, AreaChart, Area,
 } from 'recharts';
 import { apiFetch } from '@/lib/api';
 import { useAuth, ROLES } from '@/store/AuthContext';
@@ -29,11 +26,159 @@ const SELLER_COLORS = [
 const fmt     = (n) => `$${Number(n || 0).toLocaleString('es-MX', { maximumFractionDigits: 0 })}`;
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' }) : '';
 
+/** Moneda abreviada para KPIs grandes: $1.2M, $340k, $980 */
+const fmtShort = (n) => {
+  const v = Number(n || 0), a = Math.abs(v), s = v < 0 ? '-' : '';
+  if (a >= 1e9) return `${s}$${(a / 1e9).toFixed(1).replace(/\.0$/, '')}B`;
+  if (a >= 1e6) return `${s}$${(a / 1e6).toFixed(1).replace(/\.0$/, '')}M`;
+  if (a >= 1e4) return `${s}$${Math.round(a / 1e3)}k`;
+  if (a >= 1e3) return `${s}$${(a / 1e3).toFixed(1).replace(/\.0$/, '')}k`;
+  return `${s}$${Math.round(a)}`;
+};
+
+/** Variación % vs. período anterior. `null` = sin base comparable (no se inventa un %). */
+const pctDelta = (cur, prev) => {
+  if (!prev) return null;
+  return Math.round(((cur - prev) / Math.abs(prev)) * 100);
+};
+
 const PERIODS = [
-  { key: 'week',      label: 'Semana',   days: 7  },
-  { key: 'fortnight', label: '15 Días',  days: 15 },
-  { key: 'month',     label: 'Mes',      days: 30 },
+  { key: 'week',      label: '7 días',  days: 7  },
+  { key: 'fortnight', label: '15 días', days: 15 },
+  { key: 'month',     label: '30 días', days: 30 },
+  { key: 'quarter',   label: '90 días', days: 90 },
 ];
+
+const isOpenStage   = (stage) => !['CLOSED_WON', 'CLOSED_LOST'].includes(stage);
+/** El CRM no persiste `closedAt`; para tratos cerrados `updatedAt` es la mejor aproximación. */
+const closedAtOf    = (d) => new Date(d.updatedAt || d.createdAt);
+const createdAtOf   = (d) => new Date(d.createdAt);
+const STALL_DAYS    = 30;
+
+/**
+ * Motor de métricas: calcula el período actual, el período inmediatamente anterior
+ * (misma duración) para comparar, la serie de tendencia y el avance del embudo.
+ */
+function buildAnalytics({ deals = [], quotes = [], activities = [], days }) {
+  const now       = Date.now();
+  const windowMs  = days * 86400000;
+  const sinceTs   = now - windowMs;
+  const prevTs    = now - windowMs * 2;
+
+  const inWindow = (d) => d.getTime() >= sinceTs;
+  const inPrev   = (d) => d.getTime() >= prevTs && d.getTime() < sinceTs;
+
+  const won  = deals.filter(d => d.stage === 'CLOSED_WON');
+  const lost = deals.filter(d => d.stage === 'CLOSED_LOST');
+  const open = deals.filter(d => isOpenStage(d.stage));
+
+  const sliceBy = (test) => {
+    const w       = won.filter(d => test(closedAtOf(d)));
+    const l       = lost.filter(d => test(closedAtOf(d)));
+    const created = deals.filter(d => test(createdAtOf(d)));
+    const q       = quotes.filter(x => test(new Date(x.createdAt)));
+    const qOk     = q.filter(x => x.status === 'ACCEPTED');
+    const acts    = activities.filter(a => test(new Date(a.createdAt)));
+
+    const wonValue = w.reduce((s, d) => s + (d.value || 0), 0);
+    const closedN  = w.length + l.length;
+    const cycles   = w
+      .map(d => (closedAtOf(d) - createdAtOf(d)) / 86400000)
+      .filter(n => Number.isFinite(n) && n >= 0);
+
+    return {
+      wonCount:       w.length,
+      lostCount:      l.length,
+      wonValue,
+      newDeals:       created.length,
+      newValue:       created.reduce((s, d) => s + (d.value || 0), 0),
+      winRate:        closedN ? Math.round((w.length / closedN) * 100) : 0,
+      avgTicket:      w.length ? Math.round(wonValue / w.length) : 0,
+      cycleDays:      cycles.length ? Math.round(cycles.reduce((a, b) => a + b, 0) / cycles.length) : 0,
+      quotes:         q.length,
+      quotedValue:    q.reduce((s, x) => s + (x.total || 0), 0),
+      acceptedQuotes: qOk.length,
+      acceptedValue:  qOk.reduce((s, x) => s + (x.total || 0), 0),
+      quoteWinRate:   q.length ? Math.round((qOk.length / q.length) * 100) : 0,
+      activities:     acts.length,
+    };
+  };
+
+  const current  = sliceBy(inWindow);
+  const previous = sliceBy(inPrev);
+
+  // ── Fotografía del embudo abierto (independiente de la ventana) ────────────
+  const openValue     = open.reduce((s, d) => s + (d.value || 0), 0);
+  const weightedValue = open.reduce((s, d) => s + ((d.value || 0) * (d.probability ?? 0)) / 100, 0);
+  const stalled       = open.filter(d => now - new Date(d.updatedAt || d.createdAt).getTime() > STALL_DAYS * 86400000);
+  const slipping      = open.filter(d => d.expectedClose && new Date(d.expectedClose).getTime() < now);
+
+  // ── Serie de tendencia ────────────────────────────────────────────────────
+  const buckets = days <= 15 ? days : days <= 30 ? 15 : 12;
+  const step    = windowMs / buckets;
+  const trend   = Array.from({ length: buckets }, (_, i) => {
+    const a = sinceTs + i * step;
+    const b = a + step;
+    const within = (t) => t >= a && t < b;
+    const w = won.filter(d => within(closedAtOf(d).getTime()));
+    const c = deals.filter(d => within(createdAtOf(d).getTime()));
+    const q = quotes.filter(x => within(new Date(x.createdAt).getTime()));
+    return {
+      label:    new Date(a).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' }),
+      ganado:   w.reduce((s, d) => s + (d.value || 0), 0),
+      creado:   c.reduce((s, d) => s + (d.value || 0), 0),
+      cotizado: q.reduce((s, x) => s + (x.total || 0), 0),
+      tratos:   c.length,
+    };
+  });
+
+  return {
+    since: new Date(sinceTs),
+    current, previous,
+    openCount: open.length, openValue, weightedValue,
+    stalled, slipping,
+    wonTotalValue: won.reduce((s, d) => s + (d.value || 0), 0),
+    trend,
+  };
+}
+
+/**
+ * Avance del embudo: cuántos tratos alcanzaron cada etapa. Como el CRM no guarda
+ * el historial de etapas, se infiere por el orden del pipeline (un trato en
+ * "Negociación 2" ya pasó por las etapas previas). Los perdidos se excluyen
+ * porque no se sabe hasta dónde llegaron antes de caerse.
+ */
+function buildFunnel(deals, stages) {
+  const order = stages.filter(s => s.key !== 'CLOSED_LOST');
+  const index = Object.fromEntries(order.map((s, i) => [s.key, i]));
+  const alive = deals.filter(d => d.stage !== 'CLOSED_LOST' && index[d.stage] !== undefined);
+  const top   = alive.length || 1;
+
+  return order.map((stage, i) => {
+    const reached = alive.filter(d => index[d.stage] >= i);
+    const here    = alive.filter(d => d.stage === stage.key);
+    const prev    = i === 0 ? alive.length : alive.filter(d => index[d.stage] >= i - 1).length;
+    return {
+      ...stage,
+      reached:    reached.length,
+      here:       here.length,
+      hereValue:  here.reduce((s, d) => s + (d.value || 0), 0),
+      pctOfTop:   Math.round((reached.length / top) * 100),
+      stepRate:   prev ? Math.round((reached.length / prev) * 100) : 0,
+    };
+  });
+}
+
+/** Descarga un CSV generado en el navegador (sin dependencias). */
+function downloadCsv(filename, rows) {
+  const esc  = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+  const body = rows.map(r => r.map(esc).join(',')).join('\r\n');
+  const url  = URL.createObjectURL(new Blob(['﻿' + body], { type: 'text/csv;charset=utf-8;' }));
+  const a    = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+}
 
 // ── Acordeón de sección ───────────────────────────────────────────────────────
 function AccordionSection({ title, subtitle, icon: Icon, accent = '#1d4ed8', defaultOpen = true, badge, children }) {
@@ -113,16 +258,6 @@ const ACT_META = {
   STAGE_CHANGE: { label: 'Cambio de etapa', icon: ArrowRight,    color: '#6366f1' },
 };
 
-function timeAgo(d) {
-  const diff = Date.now() - new Date(d).getTime();
-  const m = Math.floor(diff / 60000);
-  if (m < 1)  return 'ahora';
-  if (m < 60) return `${m}m`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h`;
-  return `${Math.floor(h / 24)}d`;
-}
-
 // ── Sistema de diseño ─────────────────────────────────────────────────────────
 const D = {
   card:  'bg-white rounded-2xl border border-slate-200 shadow-[0_1px_3px_rgba(0,0,0,0.06),0_4px_20px_rgba(0,0,0,0.04)] overflow-hidden',
@@ -155,6 +290,160 @@ function SectionHeader({ icon: Icon, title, subtitle, accent = '#1d4ed8', extra 
 
 function CardAccent({ color }) {
   return <div style={{ height: 3, background: `linear-gradient(90deg, ${color}, ${color}55)` }} />;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// TARJETA DE KPI CON VARIACIÓN VS. PERÍODO ANTERIOR
+// ══════════════════════════════════════════════════════════════════════════════
+/**
+ * @param invert  true cuando "menos es mejor" (ciclo de venta, tratos perdidos)
+ * @param delta   variación % vs. período anterior; null = sin base comparable
+ */
+function KpiTile({ label, value, hint, icon: Icon, accent, delta, invert = false, onClick }) {
+  const neutral   = delta === null || delta === 0;
+  const isGood    = neutral ? null : invert ? delta < 0 : delta > 0;
+  const DeltaIcon = neutral ? Minus : delta > 0 ? ArrowUpRight : ArrowDownRight;
+  const deltaColor = neutral ? '#94a3b8' : isGood ? '#059669' : '#dc2626';
+  const deltaBg    = neutral ? '#f1f5f9' : isGood ? '#ecfdf5' : '#fef2f2';
+
+  return (
+    <div
+      onClick={onClick}
+      style={{
+        background: '#fff', borderRadius: 16, border: '1px solid #e8edf5',
+        padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 10,
+        boxShadow: '0 1px 2px rgba(15,23,42,0.04)', cursor: onClick ? 'pointer' : 'default',
+        transition: 'box-shadow 0.18s, transform 0.18s, border-color 0.18s',
+      }}
+      onMouseEnter={e => { if (!onClick) return; e.currentTarget.style.boxShadow = '0 10px 28px rgba(15,23,42,0.10)'; e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.borderColor = `${accent}55`; }}
+      onMouseLeave={e => { if (!onClick) return; e.currentTarget.style.boxShadow = '0 1px 2px rgba(15,23,42,0.04)'; e.currentTarget.style.transform = 'none'; e.currentTarget.style.borderColor = '#e8edf5'; }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+          <div style={{ width: 26, height: 26, borderRadius: 8, background: `${accent}14`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <Icon style={{ width: 13, height: 13, color: accent }} />
+          </div>
+          <span style={{ fontSize: 10, fontWeight: 700, color: '#64748b', letterSpacing: '0.03em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span>
+        </div>
+        {delta !== undefined && (
+          <span
+            title={delta === null ? 'Sin datos en el período anterior para comparar' : `${delta > 0 ? '+' : ''}${delta}% vs. período anterior`}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 2, background: deltaBg, color: deltaColor, borderRadius: 7, padding: '3px 7px', fontSize: 10, fontWeight: 800, flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}
+          >
+            <DeltaIcon style={{ width: 11, height: 11 }} />
+            {delta === null ? '—' : `${Math.abs(delta)}%`}
+          </span>
+        )}
+      </div>
+      <p style={{ fontSize: 26, fontWeight: 800, color: '#0a0f1e', letterSpacing: '-0.035em', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{value}</p>
+      {hint && <p style={{ fontSize: 10, fontWeight: 600, color: '#94a3b8', lineHeight: 1.3 }}>{hint}</p>}
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// GRÁFICO DE TENDENCIA
+// ══════════════════════════════════════════════════════════════════════════════
+const TrendTooltip = ({ active, payload, label }) => {
+  if (!active || !payload?.length) return null;
+  return (
+    <div style={{ background: 'rgba(10,15,30,0.97)', borderRadius: 12, padding: '10px 13px', boxShadow: '0 16px 40px rgba(0,0,0,0.35)' }}>
+      <p style={{ color: '#94a3b8', fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>{label}</p>
+      {payload.map((e, i) => (
+        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 7, marginTop: 3 }}>
+          <div style={{ width: 8, height: 8, borderRadius: 2, background: e.color || e.stroke, flexShrink: 0 }} />
+          <span style={{ color: '#94a3b8', fontSize: 11, fontWeight: 600, textTransform: 'capitalize' }}>{e.name}</span>
+          <span style={{ color: '#f8fafc', fontSize: 11, fontWeight: 800, marginLeft: 'auto', fontVariantNumeric: 'tabular-nums' }}>{fmt(e.value)}</span>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+function TrendChart({ data }) {
+  const empty = data.every(d => !d.ganado && !d.creado && !d.cotizado);
+  if (empty) {
+    return (
+      <div style={{ height: 260, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, color: '#cbd5e1' }}>
+        <TrendingUp style={{ width: 28, height: 28 }} />
+        <p style={{ fontSize: 11, fontWeight: 700 }}>Sin movimiento registrado en el período</p>
+      </div>
+    );
+  }
+  return (
+    <ResponsiveContainer width="100%" height={260}>
+      <AreaChart data={data} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}>
+        <defs>
+          <linearGradient id="gWon" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%"   stopColor="#059669" stopOpacity={0.35} />
+            <stop offset="100%" stopColor="#059669" stopOpacity={0} />
+          </linearGradient>
+          <linearGradient id="gQuoted" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%"   stopColor="#0284c7" stopOpacity={0.22} />
+            <stop offset="100%" stopColor="#0284c7" stopOpacity={0} />
+          </linearGradient>
+          <linearGradient id="gNew" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%"   stopColor="#7c3aed" stopOpacity={0.18} />
+            <stop offset="100%" stopColor="#7c3aed" stopOpacity={0} />
+          </linearGradient>
+        </defs>
+        <CartesianGrid strokeDasharray="3 3" stroke="#eef2f7" vertical={false} />
+        <XAxis dataKey="label" tick={{ fontSize: 10, fontWeight: 700, fill: '#94a3b8' }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
+        <YAxis tickFormatter={fmtShort} tick={{ fontSize: 10, fontWeight: 700, fill: '#94a3b8' }} axisLine={false} tickLine={false} width={64} />
+        <Tooltip content={<TrendTooltip />} />
+        <Area type="monotone" dataKey="creado"   name="Creado"     stroke="#7c3aed" strokeWidth={1.5} fill="url(#gNew)"    strokeDasharray="4 3" />
+        <Area type="monotone" dataKey="cotizado" name="Cotizado"   stroke="#0284c7" strokeWidth={2}   fill="url(#gQuoted)" />
+        <Area type="monotone" dataKey="ganado"   name="Ganado"     stroke="#059669" strokeWidth={2.5} fill="url(#gWon)" />
+      </AreaChart>
+    </ResponsiveContainer>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// EMBUDO DE CONVERSIÓN
+// ══════════════════════════════════════════════════════════════════════════════
+const FUNNEL_COLORS = ['#94a3b8','#60a5fa','#6366f1','#8b5cf6','#f59e0b','#f97316','#a855f7','#ec4899','#f43f5e','#eab308','#10b981'];
+
+function ConversionFunnel({ rows }) {
+  if (!rows.length) return null;
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+      {rows.map((r, i) => {
+        const color = FUNNEL_COLORS[i % FUNNEL_COLORS.length];
+        const drop  = i > 0 && r.stepRate < 100;
+        return (
+          <div key={r.key}>
+            {i > 0 && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '2px 0 2px 10px' }}>
+                <div style={{ width: 1, height: 12, background: '#e2e8f0' }} />
+                <span style={{ fontSize: 9, fontWeight: 800, color: drop ? '#dc2626' : '#059669', letterSpacing: '0.02em' }}>
+                  {r.stepRate}% avanza
+                </span>
+                {drop && <span style={{ fontSize: 9, fontWeight: 600, color: '#cbd5e1' }}>· se detienen {100 - r.stepRate}%</span>}
+              </div>
+            )}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8, marginBottom: 4 }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: '#334155', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.label}</span>
+                  <span style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}>
+                    {r.here > 0 ? `${r.here} aquí · ${fmtShort(r.hereValue)}` : '—'}
+                  </span>
+                </div>
+                <div style={{ position: 'relative', height: 26, background: '#f4f7fb', borderRadius: 7, overflow: 'hidden' }}>
+                  <div style={{ position: 'absolute', inset: 0, width: `${Math.max(r.pctOfTop, 2)}%`, background: `linear-gradient(90deg, ${color}, ${color}b0)`, borderRadius: 7, transition: 'width 0.7s ease' }} />
+                  <span style={{ position: 'absolute', left: 10, top: 0, height: '100%', display: 'flex', alignItems: 'center', fontSize: 11, fontWeight: 800, color: r.pctOfTop > 14 ? '#fff' : '#475569', fontVariantNumeric: 'tabular-nums' }}>
+                    {r.reached}
+                  </span>
+                </div>
+              </div>
+              <span style={{ width: 42, textAlign: 'right', fontSize: 12, fontWeight: 800, color: '#0a0f1e', flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}>{r.pctOfTop}%</span>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
 }
 
 // ── Tarjeta de KPI del vendedor ───────────────────────────────────────────────
@@ -576,7 +865,7 @@ function ComparisonTable({ metrics, colors }) {
       <table className="w-full">
         <thead>
           <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
-            {['#', 'Vendedor', 'Deals', 'Ganados', 'Perdidos', 'Embudo', 'Cotiz.', 'Aceptadas', 'Valor Ganado', 'Cierre %'].map(h => (
+            {['#', 'Vendedor', 'Tratos', 'Ganados', 'Perdidos', 'Activos', 'Cotiz.', 'Aceptadas', 'Valor Ganado', 'Cierre %'].map(h => (
               <th key={h} style={{ padding: '10px 16px 10px 0', textAlign: 'left', fontSize: 9, fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.08em', whiteSpace: 'nowrap' }}>
                 {h}
               </th>
@@ -645,252 +934,6 @@ function ComparisonTable({ metrics, colors }) {
   );
 }
 
-// eslint-disable-next-line no-unused-vars
-function ActivityTable_UNUSED({ activities, deals, metrics }) {
-  const [tab,          setTab]          = useState('pipeline');
-  const [filterSeller, setFilterSeller] = useState('');
-  const [filterType,   setFilterType]   = useState('');
-
-  const sellers = metrics.map(m => m.seller);
-
-  const filteredDeals = deals.filter(d => {
-    return !filterSeller || d.assignedTo?.id === filterSeller;
-  });
-
-  const filteredActs = activities.filter(a => {
-    const sellerOk = !filterSeller || a.deal?.assignedTo?.id === filterSeller;
-    const typeOk   = !filterType   || a.type === filterType;
-    return sellerOk && typeOk;
-  });
-
-  const count = tab === 'pipeline' ? filteredDeals.length : filteredActs.length;
-
-  return (
-    <section className="space-y-4">
-      <SectionHeader icon={Activity} title="Seguimiento de Embudo y Actividad" subtitle={`${count} registros`} accent="#b45309" />
-
-      <div className={D.card}>
-        <CardAccent color="#b45309" />
-
-        {/* Tabs + filtros */}
-        <div className="flex flex-wrap items-center gap-3 px-5 py-4 border-b border-gray-50">
-          {/* Tabs */}
-          <div className="flex bg-gray-100 rounded-xl p-1 gap-1">
-            {[
-              { key:'pipeline',   label:'Embudo / Tratos' },
-              { key:'activities', label:'Registro de Actividad' },
-            ].map(t => (
-              <button key={t.key} onClick={() => setTab(t.key)}
-                className={cn(
-                  'px-3 py-1.5 rounded-lg font-black text-[10px] uppercase tracking-widest transition-all',
-                  tab === t.key ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-400 hover:text-gray-600'
-                )}
-              >{t.label}</button>
-            ))}
-          </div>
-
-          {/* Filtro vendedor */}
-          <select
-            className="bg-gray-50 rounded-xl px-3 py-2 font-bold text-xs text-gray-700 outline-none cursor-pointer border border-gray-100"
-            value={filterSeller}
-            onChange={e => setFilterSeller(e.target.value)}
-          >
-            <option value="">Todos los vendedores</option>
-            {sellers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-          </select>
-
-          {/* Filtro tipo (solo en tab actividades) */}
-          {tab === 'activities' && (
-            <select
-              className="bg-gray-50 rounded-xl px-3 py-2 font-bold text-xs text-gray-700 outline-none cursor-pointer border border-gray-100"
-              value={filterType}
-              onChange={e => setFilterType(e.target.value)}
-            >
-              <option value="">Todos los tipos</option>
-              {Object.entries(ACT_META).map(([k, v]) => (
-                <option key={k} value={k}>{v.label}</option>
-              ))}
-            </select>
-          )}
-        </div>
-
-        {/* ── TAB: PIPELINE ────────────────────────────────────────────────── */}
-        {tab === 'pipeline' && (
-          filteredDeals.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-14 gap-3">
-              <Briefcase className="w-10 h-10 text-gray-200" />
-              <p className="text-[10px] font-black text-gray-300 uppercase tracking-widest">Sin tratos registrados</p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="border-b border-gray-100">
-                    {['Vendedor','Trato','Empresa','Etapa','Valor','Probabilidad','Cierre Esp.','Actos','Motivo de cierre'].map(h => (
-                      <th key={h} className="text-left px-5 py-3 text-[9px] font-black text-gray-400 uppercase tracking-widest whitespace-nowrap">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50">
-                  {filteredDeals.map(deal => {
-                    const stage   = STAGE_LABELS[deal.stage] || deal.stage || '—';
-                    const dot     = STAGE_DOT[deal.stage] || '#94a3b8';
-                    const close   = deal.expectedClose
-                      ? new Date(deal.expectedClose).toLocaleDateString('es-MX', { day:'2-digit', month:'short', year:'numeric' })
-                      : '—';
-                    const isWon   = deal.stage === 'CLOSED_WON';
-                    const isLost  = deal.stage === 'CLOSED_LOST';
-                    const isClosed = isWon || isLost;
-                    return (
-                      <tr key={deal.id} className="hover:bg-amber-50/20 transition-colors">
-                        <td className="px-5 py-3 whitespace-nowrap">
-                          {deal.assignedTo ? (
-                            <div className="flex items-center gap-2">
-                              <div style={{ width:24,height:24,borderRadius:8,background:'#f1f5f9',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0 }}>
-                                <span style={{ fontSize:10,fontWeight:900,color:'#475569' }}>{deal.assignedTo.name.charAt(0)}</span>
-                              </div>
-                              <span className="font-black text-gray-800 text-[11px]">{deal.assignedTo.name}</span>
-                            </div>
-                          ) : <span className="text-gray-300 text-[11px]">Sin asignar</span>}
-                        </td>
-                        <td className="px-5 py-3">
-                          <span className="font-black text-gray-900 text-[11px]">{deal.title}</span>
-                        </td>
-                        <td className="px-5 py-3 whitespace-nowrap">
-                          <span className="font-bold text-gray-500 text-[11px]">{deal.company || '—'}</span>
-                        </td>
-                        <td className="px-5 py-3 whitespace-nowrap">
-                          <div className="flex items-center gap-1.5">
-                            <div style={{ width:6,height:6,borderRadius:'50%',background:dot,flexShrink:0 }} />
-                            <span className="font-bold text-gray-700 text-[10px]">{stage}</span>
-                          </div>
-                        </td>
-                        <td className="px-5 py-3 whitespace-nowrap">
-                          <span className="font-black text-emerald-600 text-[11px]">{fmt(deal.value)}</span>
-                        </td>
-                        <td className="px-5 py-3 whitespace-nowrap">
-                          <div className="flex items-center gap-2">
-                            <div style={{ width:48,height:4,background:'#f1f5f9',borderRadius:999,overflow:'hidden' }}>
-                              <div style={{ height:'100%',width:`${deal.probability||0}%`,background:dot,borderRadius:999 }} />
-                            </div>
-                            <span className="font-black text-[10px]" style={{ color:dot }}>{deal.probability||0}%</span>
-                          </div>
-                        </td>
-                        <td className="px-5 py-3 whitespace-nowrap">
-                          <span className="font-bold text-gray-500 text-[10px]">{close}</span>
-                        </td>
-                        <td className="px-5 py-3 whitespace-nowrap">
-                          <span className="font-black text-gray-700 text-[11px]">{deal._count?.activities ?? 0}</span>
-                        </td>
-                        <td className="px-5 py-3" style={{ maxWidth:200 }}>
-                          {isClosed ? (
-                            deal.closeReason
-                              ? <span title={deal.closeReason} style={{ fontSize:11, fontWeight:600, color: isWon ? '#059669' : '#dc2626', display:'block', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', cursor:'help' }}>{deal.closeReason}</span>
-                              : <span className="text-[10px] font-semibold text-gray-300 italic">Sin motivo</span>
-                          ) : <span className="text-gray-200">—</span>}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )
-        )}
-
-        {/* ── TAB: ACTIVIDADES ─────────────────────────────────────────────── */}
-        {tab === 'activities' && (
-          filteredActs.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-14 gap-3">
-              <Activity className="w-10 h-10 text-gray-200" />
-              <p className="text-[10px] font-black text-gray-300 uppercase tracking-widest">Sin actividad registrada</p>
-              <p className="text-[9px] font-bold text-gray-300">Las actividades se crean al mover tratos o registrar notas/llamadas en el embudo</p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="border-b border-gray-100">
-                    {['Estado','Fecha','Fecha/Hora Act.','Vendedor','Trato','Empresa','Etapa actual','Tipo','Detalle','Registrado por'].map(h => (
-                      <th key={h} className="text-left px-5 py-3 text-[9px] font-black text-gray-400 uppercase tracking-widest whitespace-nowrap">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50">
-                  {filteredActs.map(act => {
-                    const meta  = ACT_META[act.type] || ACT_META.NOTE;
-                    const Icon  = meta.icon;
-                    const stage = STAGE_LABELS[act.deal?.stage] || act.deal?.stage || '—';
-                    const dot   = STAGE_DOT[act.deal?.stage] || '#94a3b8';
-                    const sMeta  = STATUS_META[act.status] || STATUS_META.PENDING;
-                    const created = new Date(act.createdAt).toLocaleDateString('es-MX', {
-                      day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit'
-                    });
-                    const due = act.dueDate
-                      ? new Date(act.dueDate).toLocaleString('es-MX', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' })
-                      : '—';
-                    return (
-                      <tr key={act.id} className="hover:bg-amber-50/30 transition-colors">
-                        {/* Semáforo */}
-                        <td className="px-5 py-3 whitespace-nowrap">
-                          <div className="flex items-center gap-2">
-                            <div style={{ width:10, height:10, borderRadius:'50%', background:sMeta.color, flexShrink:0 }} />
-                            <span style={{ fontSize:9, fontWeight:800, color:sMeta.color }}>{sMeta.label}</span>
-                          </div>
-                        </td>
-                        <td className="px-5 py-3 whitespace-nowrap">
-                          <span className="text-[10px] font-bold text-gray-500">{created}</span>
-                        </td>
-                        <td className="px-5 py-3 whitespace-nowrap">
-                          <span className="text-[10px] font-bold text-gray-500">{due}</span>
-                        </td>
-                        <td className="px-5 py-3 whitespace-nowrap">
-                          {act.deal?.assignedTo ? (
-                            <div className="flex items-center gap-2">
-                              <div style={{ width:24,height:24,borderRadius:8,background:'#f1f5f9',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0 }}>
-                                <span style={{ fontSize:10,fontWeight:900,color:'#475569' }}>{act.deal.assignedTo.name.charAt(0)}</span>
-                              </div>
-                              <span className="font-black text-gray-800 text-[11px]">{act.deal.assignedTo.name}</span>
-                            </div>
-                          ) : <span className="text-gray-300">—</span>}
-                        </td>
-                        <td className="px-5 py-3">
-                          <span className="font-black text-gray-900 text-[11px]">{act.deal?.title || '—'}</span>
-                        </td>
-                        <td className="px-5 py-3 whitespace-nowrap">
-                          <span className="font-bold text-gray-500 text-[11px]">{act.deal?.company || '—'}</span>
-                        </td>
-                        <td className="px-5 py-3 whitespace-nowrap">
-                          <div className="flex items-center gap-1.5">
-                            <div style={{ width:6,height:6,borderRadius:'50%',background:dot,flexShrink:0 }} />
-                            <span className="font-bold text-gray-700 text-[10px]">{stage}</span>
-                          </div>
-                        </td>
-                        <td className="px-5 py-3 whitespace-nowrap">
-                          <div style={{ display:'inline-flex',alignItems:'center',gap:4,background:`${meta.color}15`,borderRadius:8,padding:'3px 8px' }}>
-                            <Icon style={{ width:10,height:10,color:meta.color }} />
-                            <span style={{ fontSize:9,fontWeight:800,color:meta.color,textTransform:'uppercase',letterSpacing:'0.05em' }}>{meta.label}</span>
-                          </div>
-                        </td>
-                        <td className="px-5 py-3 max-w-xs">
-                          <span className="font-medium text-gray-600 text-[11px] line-clamp-2">{act.content}</span>
-                        </td>
-                        <td className="px-5 py-3 whitespace-nowrap">
-                          <span className="font-bold text-gray-400 text-[10px]">{act.authorName || '—'}</span>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )
-        )}
-      </div>
-    </section>
-  );
-}
-
 // ═══════════════════════════════════════════════════════════════════════════════
 export default function SalesMetrics() {
   const { user } = useAuth();
@@ -906,21 +949,19 @@ export default function SalesMetrics() {
   const [sellerModal, setSellerModal] = useState(null);
 
   const [closedDeals, setClosedDeals] = useState([]);
-  const [seguimientos,        setSeguimientos]        = useState([]);
-  const [seguimientosLoading, setSeguimientosLoading] = useState(false);
-  const [newSeg,    setNewSeg]    = useState({ dealId: '', observations: '', date: new Date().toISOString().split('T')[0] });
-  const [addingSeg, setAddingSeg] = useState(false);
-  const [allQuotes, setAllQuotes] = useState([]);
+  const [allQuotes, setAllQuotes]     = useState([]);
+  const [clients, setClients]         = useState([]);
 
   const fetchMetrics = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const [metricsRes, dealsRes, actsRes, quotesRes] = await Promise.all([
+      const [metricsRes, dealsRes, actsRes, quotesRes, clientsRes] = await Promise.all([
         apiFetch(`/api/crm/sales-metrics?period=${period}`),
         apiFetch('/api/crm/deals'),
         apiFetch('/api/crm/activity-feed?limit=200'),
-        isAdmin ? apiFetch('/api/quotes') : Promise.resolve(null),
+        isAdmin ? apiFetch('/api/quotes')      : Promise.resolve(null),
+        isAdmin ? apiFetch('/api/crm/clients') : Promise.resolve(null),
       ]);
 
       const [metricsData, dealsData] = await Promise.all([
@@ -934,17 +975,12 @@ export default function SalesMetrics() {
 
       const actsData = await actsRes.json();
       setActivities(Array.isArray(actsData) ? actsData : []);
-      if (quotesRes) { const d = await quotesRes.json(); setAllQuotes(Array.isArray(d) ? d : []); }
+      if (quotesRes)  { const d = await quotesRes.json();  setAllQuotes(Array.isArray(d) ? d : []); }
+      if (clientsRes) { const d = await clientsRes.json(); setClients(Array.isArray(d) ? d : []); }
 
       const closed = (Array.isArray(dealsData) ? dealsData : [])
         .filter(d => d.stage === 'CLOSED_WON' || d.stage === 'CLOSED_LOST');
       setClosedDeals(closed);
-
-      setSeguimientosLoading(true);
-      try {
-        const segRes = await apiFetch('/api/crm/seguimientos');
-        if (segRes.ok) { const segData = await segRes.json(); setSeguimientos(Array.isArray(segData) ? segData : []); }
-      } catch (_) {} finally { setSeguimientosLoading(false); }
     } catch (err) {
       setError(err.message);
     } finally {
@@ -954,60 +990,37 @@ export default function SalesMetrics() {
 
   useEffect(() => { fetchMetrics(); }, [fetchMetrics]);
 
-  // ── Totales globales ──────────────────────────────────────────────────────
-  const totals = metrics.reduce((acc, m) => ({
-    deals:          acc.deals          + m.deals,
-    wonDeals:       acc.wonDeals       + m.wonDeals,
-    wonValue:       acc.wonValue       + m.wonValue,
-    pipelineValue:  acc.pipelineValue  + m.pipelineValue,
-    quotes:         acc.quotes         + m.quotes,
-    leads:          acc.leads          + m.leads,
-    activities:     acc.activities     + (m.activities || 0),
-    avgCloseRate:   0,
-  }), { deals: 0, wonDeals: 0, wonValue: 0, pipelineValue: 0, quotes: 0, leads: 0, activities: 0 });
-  totals.avgCloseRate = metrics.length > 0
-    ? Math.round(metrics.reduce((s, m) => s + m.closeRate, 0) / metrics.length)
-    : 0;
+  const currentPeriod = PERIODS.find(p => p.key === period) || PERIODS[2];
 
-  // "Valor ganado" real del pipeline: TODOS los tratos ganados (igual que el Kanban),
-  // para que el KPI y las tarjetas concuerden con el pipeline y entre sí.
-  const wonValueAll = deals
-    .filter(d => d.stage === 'CLOSED_WON')
-    .reduce((s, d) => s + (d.value || 0), 0);
-  const wonValueBySeller = (sellerId) => deals
+  // ── Motor de métricas (período actual vs. anterior, tendencia y embudo) ────
+  const A = useMemo(
+    () => buildAnalytics({ deals, quotes: allQuotes, activities, days: currentPeriod.days }),
+    [deals, allQuotes, activities, currentPeriod.days]
+  );
+  const funnel = useMemo(() => buildFunnel(deals, KANBAN_STAGES), [deals]);
+
+  // Valor ganado por vendedor calculado sobre el pipeline real, para que las
+  // tarjetas concuerden con el Kanban y entre sí.
+  const wonValueBySeller = useCallback((sellerId) => deals
     .filter(d => d.stage === 'CLOSED_WON' && (d.assignedTo?.id === sellerId || d.assignedToId === sellerId))
-    .reduce((s, d) => s + (d.value || 0), 0);
+    .reduce((s, d) => s + (d.value || 0), 0), [deals]);
 
-  const addSeguimiento = async (e) => {
-    e.preventDefault();
-    if (!newSeg.dealId || !newSeg.observations.trim()) return;
-    setAddingSeg(true);
-    try {
-      const res = await apiFetch('/api/crm/deal-activities', {
-        method: 'POST',
-        body: JSON.stringify({
-          dealId: newSeg.dealId,
-          type: 'SEGUIMIENTO',
-          content: newSeg.observations,
-          dueDate: newSeg.date ? new Date(newSeg.date).toISOString() : null,
-          authorName: user?.name || 'Usuario',
-          status: 'PENDING',
-        })
-      });
-      if (res.ok) {
-        setNewSeg({ dealId: '', observations: '', date: new Date().toISOString().split('T')[0] });
-        // Refrescar seguimientos
-        setSeguimientosLoading(true);
-        try {
-          const segRes = await apiFetch('/api/crm/seguimientos');
-          if (segRes.ok) { const d = await segRes.json(); setSeguimientos(Array.isArray(d) ? d : []); }
-        } catch (_) {} finally { setSeguimientosLoading(false); }
-      }
-    } catch (err) { console.error(err); }
-    finally { setAddingSeg(false); }
-  };
+  const overdueCount = useMemo(
+    () => activities.filter(a => a.status === 'PENDING' && a.dueDate && new Date(a.dueDate) < new Date()).length,
+    [activities]
+  );
 
-  const currentPeriod = PERIODS.find(p => p.key === period);
+  const exportCsv = useCallback(() => {
+    const head = ['Vendedor','Tratos','Ganados','Perdidos','Activos','Valor ganado','Embudo','Cotizaciones','Cotiz. aceptadas','Tasa de cierre %'];
+    const rows = [...metrics]
+      .sort((a, b) => wonValueBySeller(b.seller.id) - wonValueBySeller(a.seller.id))
+      .map(m => [
+        m.seller.name, m.deals, m.wonDeals, m.lostDeals, m.activeDeals,
+        wonValueBySeller(m.seller.id), m.pipelineValue, m.quotes, m.acceptedQuotes, m.closeRate,
+      ]);
+    const stamp = new Date().toISOString().slice(0, 10);
+    downloadCsv(`metricas-comerciales-${currentPeriod.days}d-${stamp}.csv`, [head, ...rows]);
+  }, [metrics, wonValueBySeller, currentPeriod.days]);
 
   if (loading) return (
     <div className="flex flex-col items-center justify-center h-64 gap-4">
@@ -1026,74 +1039,184 @@ export default function SalesMetrics() {
     </div>
   );
 
-  const activeDeals = deals.filter(d => !['CLOSED_WON','CLOSED_LOST'].includes(d.stage));
-  const overdueCount = activities.filter(a => a.status === 'PENDING' && a.dueDate && new Date(a.dueDate) < new Date()).length;
+  const { current: C, previous: P } = A;
 
   return (
     <div className="space-y-4 pb-12">
 
-      {/* ── HEADER ────────────────────────────────────────────────────────────── */}
-      <div style={{ position:'relative', overflow:'hidden', background:'linear-gradient(135deg, #0f172a 0%, #1e293b 55%, #0b1220 100%)', borderRadius:24, padding:'28px 32px', boxShadow:'0 12px 44px rgba(15,23,42,0.20)' }}>
-        <div style={{ position:'absolute', inset:0, backgroundImage:'radial-gradient(circle, rgba(255,255,255,.05) 1px, transparent 1px)', backgroundSize:'26px 26px' }} />
-        <div style={{ position:'absolute', right:-90, top:-90, width:340, height:340, background:'radial-gradient(circle, rgba(59,130,246,.10) 0%, transparent 65%)' }} />
-        <div style={{ position:'absolute', left:'35%', bottom:-60, width:220, height:220, background:'radial-gradient(circle, rgba(16,185,129,.08) 0%, transparent 70%)' }} />
-        <div style={{ position:'relative', zIndex:1 }}>
-          <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', flexWrap:'wrap', gap:16 }}>
-            <div>
-              <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:8 }}>
-                <div style={{ width:6, height:6, borderRadius:'50%', background:'#10b981' }} />
-                <span style={{ fontSize:9, fontWeight:700, color:'#64748b', textTransform:'uppercase', letterSpacing:'0.22em', fontFamily:'monospace' }}>Panel Comercial · Oleacontrols</span>
-              </div>
-              <h2 style={{ fontSize:'clamp(1.6rem, 4vw, 2.4rem)', fontWeight:900, color:'#f1f5f9', letterSpacing:'-0.03em', margin:0, lineHeight:1 }}>Embudo Comercial</h2>
-              <p style={{ fontSize:11, color:'#64748b', fontWeight:600, marginTop:8 }}>
-                {metrics.length} vendedor{metrics.length !== 1 ? 'es' : ''}&ensp;·&ensp;Últimos {currentPeriod?.days} días&ensp;·&ensp;{activeDeals.length} tratos activos
-              </p>
+      {/* ── ENCABEZADO ────────────────────────────────────────────────────────── */}
+      <div style={{ position:'relative', overflow:'hidden', background:'linear-gradient(135deg, #0b1220 0%, #16233b 55%, #0b1220 100%)', borderRadius:22, padding:'26px 30px', boxShadow:'0 10px 36px rgba(11,18,32,0.22)' }}>
+        <div style={{ position:'absolute', inset:0, backgroundImage:'radial-gradient(circle, rgba(255,255,255,.045) 1px, transparent 1px)', backgroundSize:'26px 26px' }} />
+        <div style={{ position:'absolute', right:-90, top:-90, width:340, height:340, background:'radial-gradient(circle, rgba(59,130,246,.12) 0%, transparent 65%)' }} />
+        <div style={{ position:'absolute', left:'38%', bottom:-70, width:240, height:240, background:'radial-gradient(circle, rgba(16,185,129,.09) 0%, transparent 70%)' }} />
+
+        <div style={{ position:'relative', zIndex:1, display:'flex', alignItems:'flex-start', justifyContent:'space-between', flexWrap:'wrap', gap:16 }}>
+          <div>
+            <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:9 }}>
+              <div style={{ width:6, height:6, borderRadius:'50%', background:'#10b981', boxShadow:'0 0 0 3px rgba(16,185,129,.18)' }} />
+              <span style={{ fontSize:9, fontWeight:700, color:'#7c8ba1', textTransform:'uppercase', letterSpacing:'0.2em', fontFamily:'ui-monospace, monospace' }}>
+                Panel Comercial · Oleacontrols
+              </span>
             </div>
-            <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
-              <div style={{ display:'flex', background:'rgba(255,255,255,.06)', border:'1px solid rgba(255,255,255,.08)', borderRadius:12, padding:3, gap:2 }}>
-                {PERIODS.map(p => (
-                  <button key={p.key} onClick={() => setPeriod(p.key)} style={{
-                    padding:'6px 14px', borderRadius:9, fontSize:11, fontWeight:800, cursor:'pointer', transition:'all 0.15s',
-                    background: period === p.key ? '#fff' : 'transparent',
-                    color: period === p.key ? '#0f172a' : '#94a3b8',
-                    border:'none',
-                  }}>
-                    {p.label}
-                  </button>
-                ))}
-              </div>
-              <button onClick={fetchMetrics} style={{
-                width:36, height:36, borderRadius:10, display:'flex', alignItems:'center', justifyContent:'center',
-                background:'rgba(255,255,255,.06)', border:'1px solid rgba(255,255,255,.08)', cursor:'pointer', color:'#94a3b8', transition:'all 0.15s',
-              }}
-                onMouseEnter={e => { e.currentTarget.style.background='rgba(255,255,255,.12)'; e.currentTarget.style.color='#fff'; }}
-                onMouseLeave={e => { e.currentTarget.style.background='rgba(255,255,255,.06)'; e.currentTarget.style.color='#94a3b8'; }}
-              >
-                <RefreshCw style={{ width:14, height:14 }} />
-              </button>
-            </div>
+            <h2 style={{ fontSize:'clamp(1.55rem, 4vw, 2.2rem)', fontWeight:800, color:'#f1f5f9', letterSpacing:'-0.035em', margin:0, lineHeight:1.02 }}>
+              Métricas de Ventas
+            </h2>
+            <p style={{ fontSize:11.5, color:'#7c8ba1', fontWeight:600, marginTop:9 }}>
+              Últimos {currentPeriod.days} días&ensp;·&ensp;desde el {A.since.toLocaleDateString('es-MX', { day:'2-digit', month:'long' })}
+              &ensp;·&ensp;{metrics.length} vendedor{metrics.length !== 1 ? 'es' : ''}
+              &ensp;·&ensp;comparado contra los {currentPeriod.days} días previos
+            </p>
           </div>
 
-          {/* KPIs */}
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(130px, 1fr))', gap:12, marginTop:22 }}>
+          <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
+            <div style={{ display:'flex', background:'rgba(255,255,255,.05)', border:'1px solid rgba(255,255,255,.09)', borderRadius:11, padding:3, gap:2 }}>
+              {PERIODS.map(p => (
+                <button key={p.key} onClick={() => setPeriod(p.key)} style={{
+                  padding:'6px 13px', borderRadius:8, fontSize:11, fontWeight:700, cursor:'pointer', transition:'all 0.15s',
+                  background: period === p.key ? '#f8fafc' : 'transparent',
+                  color:      period === p.key ? '#0b1220' : '#8b9ab1',
+                  border:'none',
+                }}>{p.label}</button>
+              ))}
+            </div>
             {[
-              { label:'Deals activos',  value: activeDeals.length,        icon: Briefcase,    color:'#93c5fd' },
-              { label:'Valor ganado',   value: fmt(wonValueAll),           icon: DollarSign,   color:'#6ee7b7' },
-              { label:'Embudo',         value: fmt(totals.pipelineValue),  icon: TrendingUp,   color:'#c4b5fd' },
-              { label:'Cotizaciones',   value: totals.quotes,              icon: FileText,     color:'#7dd3fc' },
-              { label:'Actividades',    value: totals.activities,          icon: Activity,     color:'#fcd34d' },
-              { label:'Tasa de cierre', value: `${totals.avgCloseRate}%`,  icon: Target,       color:'#6ee7b7' },
-            ].map(({ label, value, icon: Icon, color }) => (
-              <div key={label} style={{ background:'rgba(255,255,255,.05)', borderRadius:14, padding:'13px 16px', border:'1px solid rgba(255,255,255,.07)', backdropFilter:'blur(4px)' }}>
-                <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:8 }}>
-                  <Icon style={{ width:11, height:11, color }} />
-                  <span style={{ fontSize:8, fontWeight:800, color:'#64748b', textTransform:'uppercase', letterSpacing:'0.1em' }}>{label}</span>
-                </div>
-                <p style={{ fontSize:22, fontWeight:900, color, letterSpacing:'-0.03em', lineHeight:1, fontFamily:'monospace' }}>{value}</p>
-              </div>
+              { icon: Download,  label: 'Exportar CSV',        onClick: exportCsv,    show: metrics.length > 0 },
+              { icon: RefreshCw, label: 'Actualizar métricas', onClick: fetchMetrics, show: true },
+            ].filter(b => b.show).map(({ icon: Icon, label, onClick }) => (
+              <button key={label} onClick={onClick} title={label} aria-label={label} style={{
+                width:36, height:36, borderRadius:10, display:'flex', alignItems:'center', justifyContent:'center',
+                background:'rgba(255,255,255,.05)', border:'1px solid rgba(255,255,255,.09)', cursor:'pointer', color:'#8b9ab1', transition:'all 0.15s',
+              }}
+                onMouseEnter={e => { e.currentTarget.style.background='rgba(255,255,255,.13)'; e.currentTarget.style.color='#fff'; }}
+                onMouseLeave={e => { e.currentTarget.style.background='rgba(255,255,255,.05)'; e.currentTarget.style.color='#8b9ab1'; }}
+              >
+                <Icon style={{ width:14, height:14 }} />
+              </button>
             ))}
           </div>
         </div>
+      </div>
+
+      {/* ── KPIs PRINCIPALES (con variación vs. período anterior) ──────────────── */}
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(210px, 1fr))', gap:12 }}>
+        <KpiTile
+          label="Ingreso ganado" accent="#059669" icon={DollarSign}
+          value={fmtShort(C.wonValue)}
+          hint={`${C.wonCount} trato${C.wonCount !== 1 ? 's' : ''} cerrado${C.wonCount !== 1 ? 's' : ''} · ${fmt(C.wonValue)}`}
+          delta={pctDelta(C.wonValue, P.wonValue)}
+        />
+        <KpiTile
+          label="Embudo abierto" accent="#7c3aed" icon={TrendingUp}
+          value={fmtShort(A.openValue)}
+          hint={`${A.openCount} tratos activos · ${fmtShort(A.weightedValue)} ponderado por probabilidad`}
+        />
+        <KpiTile
+          label="Tasa de cierre" accent="#0284c7" icon={Target}
+          value={`${C.winRate}%`}
+          hint={`${C.wonCount} ganados vs. ${C.lostCount} perdidos en el período`}
+          delta={pctDelta(C.winRate, P.winRate)}
+        />
+        <KpiTile
+          label="Ticket promedio" accent="#b45309" icon={Gauge}
+          value={fmtShort(C.avgTicket)}
+          hint={C.wonCount ? `Promedio de ${C.wonCount} cierre${C.wonCount !== 1 ? 's' : ''}` : 'Sin cierres en el período'}
+          delta={pctDelta(C.avgTicket, P.avgTicket)}
+        />
+        <KpiTile
+          label="Ciclo de venta" accent="#0d9488" icon={Timer}
+          value={C.cycleDays ? `${C.cycleDays} d` : '—'}
+          hint="Días promedio entre alta y cierre del trato"
+          delta={pctDelta(C.cycleDays, P.cycleDays)} invert
+        />
+        <KpiTile
+          label="Cotizado autorizado" accent="#1d4ed8" icon={FileText}
+          value={fmtShort(C.acceptedValue)}
+          hint={`${C.acceptedQuotes} de ${C.quotes} cotizaciones · ${C.quoteWinRate}% de aceptación`}
+          delta={pctDelta(C.acceptedValue, P.acceptedValue)}
+        />
+      </div>
+
+      {/* ── TENDENCIA + EMBUDO ────────────────────────────────────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)] gap-3">
+        <div className={D.card}>
+          <CardAccent color="#059669" />
+          <div style={{ padding:'18px 20px 8px' }}>
+            <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', flexWrap:'wrap', gap:12 }}>
+              <div>
+                <h3 style={{ fontSize:13, fontWeight:800, color:D.ink, letterSpacing:'-0.01em', margin:0 }}>Evolución del período</h3>
+                <p style={{ fontSize:10, fontWeight:600, color:D.faint, marginTop:3 }}>
+                  Monto cerrado, cotizado y dado de alta durante los últimos {currentPeriod.days} días
+                </p>
+              </div>
+              <div style={{ display:'flex', gap:14, flexWrap:'wrap' }}>
+                {[
+                  { c:'#059669', l:'Ganado',   v: C.wonValue },
+                  { c:'#0284c7', l:'Cotizado', v: C.quotedValue },
+                  { c:'#7c3aed', l:'Creado',   v: C.newValue },
+                ].map(({ c, l, v }) => (
+                  <div key={l} style={{ display:'flex', alignItems:'center', gap:6 }}>
+                    <div style={{ width:8, height:8, borderRadius:2, background:c, flexShrink:0 }} />
+                    <div>
+                      <p style={{ fontSize:9, fontWeight:700, color:'#94a3b8', textTransform:'uppercase', letterSpacing:'0.06em' }}>{l}</p>
+                      <p style={{ fontSize:12, fontWeight:800, color:'#0a0f1e', fontVariantNumeric:'tabular-nums' }}>{fmtShort(v)}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+          <div style={{ padding:'0 12px 12px' }}>
+            <TrendChart data={A.trend} />
+          </div>
+        </div>
+
+        <div className={D.card}>
+          <CardAccent color="#7c3aed" />
+          <div style={{ padding:'18px 20px' }}>
+            <h3 style={{ fontSize:13, fontWeight:800, color:D.ink, letterSpacing:'-0.01em', margin:0 }}>Avance del embudo</h3>
+            <p style={{ fontSize:10, fontWeight:600, color:D.faint, marginTop:3, marginBottom:16 }}>
+              Tratos que alcanzaron cada etapa. Los perdidos se excluyen: el CRM no guarda hasta dónde llegaron.
+            </p>
+            <ConversionFunnel rows={funnel} />
+          </div>
+        </div>
+      </div>
+
+      {/* ── SEÑALES DE RIESGO ─────────────────────────────────────────────────── */}
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(210px, 1fr))', gap:12 }}>
+        {[
+          { label:'Tratos estancados', icon: Snowflake, accent:'#dc2626',
+            value: A.stalled.length,
+            money: A.stalled.reduce((s, d) => s + (d.value || 0), 0),
+            hint: `Sin movimiento en más de ${STALL_DAYS} días` },
+          { label:'Cierre vencido', icon: CalendarClock, accent:'#ea580c',
+            value: A.slipping.length,
+            money: A.slipping.reduce((s, d) => s + (d.value || 0), 0),
+            hint: 'Pasó la fecha de cierre esperada y siguen abiertos' },
+          { label:'Actividades vencidas', icon: AlertTriangle, accent:'#b45309',
+            value: overdueCount, money: null,
+            hint: 'Tareas pendientes fuera de fecha' },
+          { label:'Actividades del período', icon: Activity, accent:'#0284c7',
+            value: C.activities, money: null,
+            hint: `${C.newDeals} tratos nuevos dados de alta`, delta: pctDelta(C.activities, P.activities) },
+        ].map(({ label, icon: Icon, accent, value, money, hint, delta }) => (
+          <div key={label} style={{ background:'#fff', borderRadius:16, border:'1px solid #e8edf5', padding:'14px 16px', display:'flex', alignItems:'center', gap:13, boxShadow:'0 1px 2px rgba(15,23,42,0.04)' }}>
+            <div style={{ width:38, height:38, borderRadius:12, background:`${accent}12`, border:`1px solid ${accent}22`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+              <Icon style={{ width:16, height:16, color:accent }} />
+            </div>
+            <div style={{ minWidth:0, flex:1 }}>
+              <div style={{ display:'flex', alignItems:'baseline', gap:7 }}>
+                <p style={{ fontSize:21, fontWeight:800, color: value > 0 ? accent : '#0a0f1e', letterSpacing:'-0.03em', lineHeight:1, fontVariantNumeric:'tabular-nums' }}>{value}</p>
+                {money > 0 && <span style={{ fontSize:11, fontWeight:700, color:'#64748b', fontVariantNumeric:'tabular-nums' }}>{fmtShort(money)}</span>}
+                {delta !== undefined && delta !== null && (
+                  <span style={{ fontSize:10, fontWeight:800, color: delta >= 0 ? '#059669' : '#dc2626' }}>{delta > 0 ? '+' : ''}{delta}%</span>
+                )}
+              </div>
+              <p style={{ fontSize:10.5, fontWeight:700, color:'#334155', marginTop:4 }}>{label}</p>
+              <p style={{ fontSize:9.5, fontWeight:600, color:'#94a3b8', marginTop:1 }}>{hint}</p>
+            </div>
+          </div>
+        ))}
       </div>
 
       {/* ══ KANBAN — siempre visible ══════════════════════════════════════════ */}
@@ -1111,6 +1234,18 @@ export default function SalesMetrics() {
           </AccordionSection>
         )}
 
+        {/* 2 · Tabla comparativa de vendedores — abierta por defecto */}
+        {metrics.length > 0 && (
+          <AccordionSection icon={ClipboardList} title="Comparativa de Vendedores" subtitle={`Ranking por valor ganado · últimos ${currentPeriod.days} días`} accent="#0f172a" badge={metrics.length} defaultOpen={true}>
+            <div style={{ padding:'8px 20px 16px' }}>
+              <ComparisonTable
+                metrics={metrics.map(m => ({ ...m, wonValue: wonValueBySeller(m.seller.id) }))}
+                colors={SELLER_COLORS}
+              />
+            </div>
+          </AccordionSection>
+        )}
+
         {/* 3 · Desempeño por Vendedor */}
         {metrics.length > 0 && (
           <AccordionSection icon={Users} title="Desempeño por Vendedor" subtitle={`${metrics.length} vendedores · clic en card para ver detalle`} accent="#1d4ed8" badge={metrics.length} defaultOpen={false}>
@@ -1121,19 +1256,21 @@ export default function SalesMetrics() {
                 metrics.length === 2 ? 'grid-cols-1 sm:grid-cols-2' :
                 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3'
               )}>
-                {[...metrics].sort((a, b) => b.wonValue - a.wonValue).map((m, i) => {
-                  const color = SELLER_COLORS[i % SELLER_COLORS.length];
-                  const acceptedValue = allQuotes
-                    .filter(q => q.status === 'ACCEPTED' && (q.sellerId === m.seller.id || q.creatorId === m.seller.id))
-                    .reduce((s, q) => s + (q.total || 0), 0);
-                  const cardData = { ...m, acceptedValue, wonValue: wonValueBySeller(m.seller.id) };
-                  return (
-                    <div key={m.seller.id} onClick={() => isAdmin && setSellerModal({ data: cardData, color, rank: i + 1 })}
-                      style={{ cursor: isAdmin ? 'pointer' : 'default' }}>
-                      <SellerCard data={cardData} color={color} rank={i + 1} />
-                    </div>
-                  );
-                })}
+                {[...metrics]
+                  .sort((a, b) => wonValueBySeller(b.seller.id) - wonValueBySeller(a.seller.id))
+                  .map((m, i) => {
+                    const color = SELLER_COLORS[i % SELLER_COLORS.length];
+                    const acceptedValue = allQuotes
+                      .filter(q => q.status === 'ACCEPTED' && (q.sellerId === m.seller.id || q.creatorId === m.seller.id))
+                      .reduce((s, q) => s + (q.total || 0), 0);
+                    const cardData = { ...m, acceptedValue, wonValue: wonValueBySeller(m.seller.id) };
+                    return (
+                      <div key={m.seller.id} onClick={() => isAdmin && setSellerModal({ data: cardData, color, rank: i + 1 })}
+                        style={{ cursor: isAdmin ? 'pointer' : 'default' }}>
+                        <SellerCard data={cardData} color={color} rank={i + 1} />
+                      </div>
+                    );
+                  })}
               </div>
             </div>
           </AccordionSection>
@@ -1144,6 +1281,24 @@ export default function SalesMetrics() {
           <AccordionSection icon={FileText} title="Cotizaciones" subtitle={`${allQuotes.length} cotizaciones · clic para ver detalle`} accent="#0284c7" badge={allQuotes.length} defaultOpen={false}>
             <div style={{ padding:'20px' }}>
               <QuotesViewerSection quotes={allQuotes} metrics={metrics} />
+            </div>
+          </AccordionSection>
+        )}
+
+        {/* 4b · Líneas / productos más vendidos */}
+        {isAdmin && allQuotes.length > 0 && (
+          <AccordionSection icon={Package} title="Venta por Líneas / Productos" subtitle={`Top productos cotizados · últimos ${currentPeriod.days} días`} accent="#7c3aed" defaultOpen={false}>
+            <div style={{ padding:'20px' }}>
+              <ProductLinesSection quotes={allQuotes} sinceDate={A.since} />
+            </div>
+          </AccordionSection>
+        )}
+
+        {/* 4c · Análisis de clientes */}
+        {isAdmin && clients.length > 0 && (
+          <AccordionSection icon={UserCheck} title="Análisis de Clientes" subtitle={`${clients.length} clientes en cartera · nuevos, recuperados y top por valor`} accent="#059669" badge={clients.length} defaultOpen={false}>
+            <div style={{ padding:'20px' }}>
+              <ClientInsightsSection clients={clients} deals={deals} quotes={allQuotes} sinceDate={A.since} colors={SELLER_COLORS} />
             </div>
           </AccordionSection>
         )}
@@ -1183,132 +1338,6 @@ export default function SalesMetrics() {
       )}
 
     </div>
-  );
-}
-
-// eslint-disable-next-line no-unused-vars
-function QuoteStatusSection_UNUSED({ quotes, sinceDate, metrics, colors }) {
-  const [filterSeller, setFilterSeller] = useState('');
-
-  const filtered = filterSeller
-    ? quotes.filter(q => q.sellerId === filterSeller || q.creatorId === filterSeller)
-    : quotes;
-
-  const inPeriod = filtered.filter(q => new Date(q.createdAt) >= sinceDate);
-
-  const byStatus = {};
-  Object.keys(QUOTE_STATUS).forEach(k => {
-    byStatus[k] = { count: 0, value: 0 };
-  });
-  inPeriod.forEach(q => {
-    const st = q.status || 'PENDING';
-    if (byStatus[st]) { byStatus[st].count++; byStatus[st].value += q.total || 0; }
-  });
-
-  const total = inPeriod.length;
-  const totalValue = inPeriod.reduce((s, q) => s + (q.total || 0), 0);
-
-  // Por vendedor
-  const sellerQuotes = {};
-  metrics.forEach(m => { sellerQuotes[m.seller.id] = { name: m.seller.name, counts: { PENDING:0, ACCEPTED:0, REJECTED:0, EXPIRED:0 }, value: 0 }; });
-  inPeriod.forEach(q => {
-    const sid = q.sellerId || q.creatorId;
-    if (sid && sellerQuotes[sid]) {
-      sellerQuotes[sid].counts[q.status || 'PENDING']++;
-      sellerQuotes[sid].value += q.total || 0;
-    }
-  });
-
-  const pieData = Object.entries(byStatus)
-    .filter(([, v]) => v.count > 0)
-    .map(([k, v]) => ({ name: QUOTE_STATUS[k].label, value: v.count, color: QUOTE_STATUS[k].color }));
-
-  const sellers = metrics.map(m => m.seller);
-
-  return (
-    <section className="space-y-4">
-      <SectionHeader icon={FileText} title="Estatus de Cotizaciones" subtitle={`${total} cotizaciones · ${fmt(totalValue)} en valor`} accent="#b45309"
-        extra={
-          <select style={{ background:'#f8fafc', borderRadius:10, padding:'6px 12px', fontWeight:700, fontSize:11, color:'#334155', outline:'none', cursor:'pointer', border:'1px solid #e2e8f0' }}
-            value={filterSeller} onChange={e => setFilterSeller(e.target.value)}>
-            <option value="">Todos los vendedores</option>
-            {sellers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-          </select>
-        }
-      />
-
-      <div className={D.card}>
-        <CardAccent color="#b45309" />
-        <div className="p-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Cards de estado */}
-          <div className="space-y-3">
-            {Object.entries(QUOTE_STATUS).map(([key, meta]) => {
-              const Icon = meta.icon;
-              const data = byStatus[key] || { count: 0, value: 0 };
-              const pct  = total ? Math.round((data.count / total) * 100) : 0;
-              return (
-                <div key={key} style={{ background: meta.bg, borderRadius:14, padding:'14px 16px', display:'flex', alignItems:'center', gap:14, border:`1px solid ${meta.color}18` }}>
-                  <div style={{ width:40, height:40, borderRadius:12, background:'white', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, boxShadow:`0 1px 4px ${meta.color}20, 0 0 0 1px ${meta.color}15` }}>
-                    <Icon style={{ width:16, height:16, color: meta.color }} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between mb-1">
-                      <span style={{ fontSize:9, fontWeight:800, color: meta.color, textTransform:'uppercase', letterSpacing:'0.08em' }}>{meta.label}</span>
-                      <span style={{ fontSize:9, fontWeight:700, color:'#94a3b8' }}>{pct}%</span>
-                    </div>
-                    <div style={{ height:4, background:'rgba(0,0,0,0.06)', borderRadius:999, overflow:'hidden', marginBottom:6 }}>
-                      <div style={{ height:'100%', width:`${pct}%`, background: meta.color, borderRadius:999, transition:'width 0.8s ease' }} />
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span style={{ fontSize:18, fontWeight:900, color:'#0f172a' }}>{data.count}</span>
-                      <span style={{ fontSize:11, fontWeight:800, color: meta.color }}>{fmt(data.value)}</span>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Pie + tabla por vendedor */}
-          <div className="space-y-4">
-            {pieData.length > 0 && (
-              <ResponsiveContainer width="100%" height={180}>
-                <PieChart>
-                  <Pie data={pieData} cx="50%" cy="50%" innerRadius={50} outerRadius={80} dataKey="value" paddingAngle={3}>
-                    {pieData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
-                  </Pie>
-                  <Tooltip formatter={(v, n) => [v, n]} />
-                  <Legend wrapperStyle={{ fontSize:10, fontWeight:700 }} />
-                </PieChart>
-              </ResponsiveContainer>
-            )}
-            {/* Tabla por vendedor */}
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="border-b border-gray-100">
-                    {['Vendedor','Pend.','Aprobadas','No Conc.','Valor'].map(h => (
-                      <th key={h} className="text-left pb-2 pr-3 text-[8px] font-black text-gray-400 uppercase tracking-widest whitespace-nowrap">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50">
-                  {Object.values(sellerQuotes).filter(s => Object.values(s.counts).some(v => v > 0)).map((sq, i) => (
-                    <tr key={i} className="hover:bg-gray-50/60">
-                      <td className="py-2 pr-3 font-black text-gray-900 text-[11px] whitespace-nowrap">{sq.name.split(' ')[0]}</td>
-                      <td className="py-2 pr-3"><span style={{ fontWeight:900, color:'#f59e0b', fontSize:12 }}>{sq.counts.PENDING}</span></td>
-                      <td className="py-2 pr-3"><span style={{ fontWeight:900, color:'#10b981', fontSize:12 }}>{sq.counts.ACCEPTED}</span></td>
-                      <td className="py-2 pr-3"><span style={{ fontWeight:900, color:'#ef4444', fontSize:12 }}>{sq.counts.REJECTED}</span></td>
-                      <td className="py-2"><span style={{ fontWeight:900, color:'#0f172a', fontSize:11 }}>{fmt(sq.value)}</span></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
   );
 }
 
@@ -1923,8 +1952,8 @@ function PipelineKanbanReadOnly({ deals, metrics, colors, onDealClick }) {
                 {/* Cards */}
                 <div className="flex-1 overflow-y-auto p-2 space-y-2" style={{ minHeight: 200 }}>
                   {stageDeals.map(deal => {
-                    const daysUntil = deal.expectedCloseDate
-                      ? Math.ceil((new Date(deal.expectedCloseDate) - Date.now()) / 86400000)
+                    const daysUntil = deal.expectedClose
+                      ? Math.ceil((new Date(deal.expectedClose) - Date.now()) / 86400000)
                       : null;
                     const closeColor = daysUntil === null ? null
                       : daysUntil < 0  ? 'text-red-500'
@@ -1956,11 +1985,11 @@ function PipelineKanbanReadOnly({ deals, metrics, colors, onDealClick }) {
                               <div className={cn('h-full rounded-full', stage.color)} style={{ width: `${prob}%` }} />
                             </div>
                           </div>
-                          {deal.expectedCloseDate && (
+                          {deal.expectedClose && (
                             <div className="flex items-center gap-1">
                               <Calendar className="h-2.5 w-2.5 text-gray-300 flex-shrink-0" />
                               <span className={cn('text-[8px] font-black', closeColor || 'text-gray-400')}>
-                                {fmtDate(deal.expectedCloseDate)}
+                                {fmtDate(deal.expectedClose)}
                               </span>
                               {daysUntil !== null && (
                                 <span className={cn('text-[7px] font-bold', closeColor)}>
@@ -2476,870 +2505,6 @@ function CloseReasonsSection({ deals, colors }) {
             </div>
           );
         })}
-      </div>
-    </section>
-  );
-}
-
-// ══════════════════════════════════════════════════════════════════════════════
-// SECCIÓN GESTIÓN DE DATOS
-// ══════════════════════════════════════════════════════════════════════════════
-const DETAIL_PERIODS = [
-  { key: 'day',       label: 'Hoy',      days: 1  },
-  { key: 'week',      label: 'Semana',   days: 7  },
-  { key: 'fortnight', label: '15 Días',  days: 15 },
-  { key: 'month',     label: 'Mes',      days: 30 },
-];
-
-// eslint-disable-next-line no-unused-vars
-function GestionDatosSection_UNUSED({ isAdmin, salesSummary, myReporte, myBitacora, myCartera, allBitacora, allReporte, allCartera, colors, sinceDate }) {
-  const [detailTab,    setDetailTab]    = useState('bitacora');
-  const [detailPeriod, setDetailPeriod] = useState('month');
-
-  // ── Totales individuales (SALES) ──────────────────────────────────────────
-  const myTotals = myReporte.reduce((acc, r) => ({
-    llamadas:     acc.llamadas     + (r.llamadas     || 0),
-    efec:         acc.efec         + (r.efec         || 0),
-    visitas:      acc.visitas      + (r.visitas      || 0),
-    correos:      acc.correos      + (r.correos      || 0),
-    mensajes:     acc.mensajes     + (r.mensajes     || 0),
-    decisorR:     acc.decisorR     + (r.decisorR     || 0),
-    decisorFinal: acc.decisorFinal + (r.decisorFinal || 0),
-    cotizaciones: acc.cotizaciones + (r.cotizaciones || 0),
-    cierres:      acc.cierres      + (r.cierres      || 0),
-    venta:        acc.venta        + (r.venta        || 0),
-  }), { llamadas:0, efec:0, visitas:0, correos:0, mensajes:0, decisorR:0, decisorFinal:0, cotizaciones:0, cierres:0, venta:0 });
-
-  const myEficiencia  = myTotals.llamadas  ? Math.round((myTotals.efec      / myTotals.llamadas)  * 100) : 0;
-  const myTasaCierre  = myTotals.cotizaciones ? Math.round((myTotals.cierres / myTotals.cotizaciones) * 100) : 0;
-  const myPotenciales = myBitacora.filter(b => b.potencial).length;
-  const myDecisores   = myBitacora.filter(b => b.decisor).length;
-
-  // ── Totales globales admin ────────────────────────────────────────────────
-  const adminTotals = salesSummary.reduce((acc, s) => ({
-    llamadas:     acc.llamadas     + s.totalLlamadas,
-    efec:         acc.efec         + s.totalEfec,
-    visitas:      acc.visitas      + s.totalVisitas,
-    cotizaciones: acc.cotizaciones + s.totalCotizaciones,
-    cierres:      acc.cierres      + s.totalCierres,
-    venta:        acc.venta        + s.totalVenta,
-    bitacora:     acc.bitacora     + s.bitacora,
-    cartera:      acc.cartera      + s.cartera,
-  }), { llamadas:0, efec:0, visitas:0, cotizaciones:0, cierres:0, venta:0, bitacora:0, cartera:0 });
-
-  // ── Datos para gráfica comparativa admin ─────────────────────────────────
-  const adminBarData = salesSummary.map((s, i) => ({
-    name:         s.seller.name.split(' ')[0],
-    'Llamadas':   s.totalLlamadas,
-    'Efectivas':  s.totalEfec,
-    'Visitas':    s.totalVisitas,
-    'Cotizac.':   s.totalCotizaciones,
-    'Cierres':    s.totalCierres,
-    'Venta $':    Math.round(s.totalVenta),
-    'Eficiencia': s.eficiencia,
-    'T.Cierre %': s.tasaCierre,
-    fill:         colors[i % colors.length],
-  }));
-
-  // ── Datos reporte individual para gráfica línea ───────────────────────────
-  const reporteLineData = [...myReporte]
-    .sort((a, b) => new Date(a.semana) - new Date(b.semana))
-    .map(r => ({
-      dia:          r.dia || r.semana || '',
-      'Llamadas':   r.llamadas,
-      'Efectivas':  r.efec,
-      'Visitas':    r.visitas,
-      'Cotizac.':   r.cotizaciones,
-      'Cierres':    r.cierres,
-    }));
-
-  const hasData = isAdmin ? salesSummary.length > 0 : (myReporte.length > 0 || myBitacora.length > 0 || myCartera.length > 0);
-
-  return (
-    <section className="space-y-6">
-      {/* Header sección */}
-      <div className="flex items-center gap-3">
-        <div style={{ width:36, height:36, borderRadius:12, background:'#fdf4ff', display:'flex', alignItems:'center', justifyContent:'center' }}>
-          <Layers style={{ width:16, height:16, color:'#a855f7' }} />
-        </div>
-        <div>
-          <h3 className="font-black text-gray-900 text-sm uppercase tracking-wider">Gestión de Datos de Ventas</h3>
-          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-0.5">
-            Bitácora · Reporte Diario · Cartera
-            {isAdmin && salesSummary.length > 0 && ` · ${salesSummary.length} vendedores`}
-          </p>
-        </div>
-        <div className="flex-1 h-px ml-2" style={{ background:'linear-gradient(90deg, #a855f730, transparent)' }} />
-      </div>
-
-      {!hasData ? (
-        <div className={`${D.card} flex flex-col items-center justify-center py-16 gap-3`}>
-          <BookOpen className="w-10 h-10 text-gray-200" />
-          <p className="text-[10px] font-black text-gray-300 uppercase tracking-widest">Sin registros de gestión aún</p>
-          <p className="text-[9px] font-bold text-gray-300">Ingresa datos en Bitácora, Reporte Diario o Cartera</p>
-        </div>
-      ) : (
-        <>
-          {/* ── KPI CARDS ─────────────────────────────────────────────────────── */}
-          {/* ── KPI CARDS (solo SALES) ────────────────────────────────────────── */}
-          {!isAdmin && <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
-            {([
-              { label:'Llamadas',    value: myTotals.llamadas,               color:'#3b82f6', bg:'#eff6ff',  icon: PhoneCall },
-              { label:'Efectivas',   value: myTotals.efec,                   color:'#10b981', bg:'#ecfdf5',  icon: CheckCircle2 },
-              { label:'Visitas',     value: myTotals.visitas,                color:'#8b5cf6', bg:'#f5f3ff',  icon: MapPin },
-              { label:'Cotizac.',    value: myTotals.cotizaciones,           color:'#f59e0b', bg:'#fffbeb',  icon: FileText },
-              { label:'Cierres',     value: myTotals.cierres,                color:'#22c55e', bg:'#f0fdf4',  icon: Award },
-              { label:'Venta Total', value: fmt(myTotals.venta),             color:'#10b981', bg:'#ecfdf5',  icon: DollarSign },
-              { label:'Eficiencia',  value: `${myEficiencia}%`,              color:'#0ea5e9', bg:'#f0f9ff',  icon: Percent },
-              { label:'T.Cierre',    value: `${myTasaCierre}%`,              color:'#a855f7', bg:'#fdf4ff',  icon: Target },
-            ]).map(({ label, value, color, bg, icon: Icon }) => (
-              <div key={label} style={{ background: bg, borderRadius:16, padding:'12px 14px' }}>
-                <Icon style={{ width:12, height:12, color, marginBottom:6 }} />
-                <p style={{ fontSize:18, fontWeight:900, color:'#0f172a', lineHeight:1 }}>{value}</p>
-                <p style={{ fontSize:8, fontWeight:800, color:'#64748b', textTransform:'uppercase', letterSpacing:'0.06em', marginTop:4 }}>{label}</p>
-              </div>
-            ))}
-          </div>}
-
-          {/* ── GRÁFICAS ──────────────────────────────────────────────────────── */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-
-            {/* Admin: comparativa actividad por vendedor */}
-            {isAdmin && salesSummary.length >= 2 && (
-              <div className={D.card}>
-                <CardAccent color="#1d4ed8" />
-                <div className="p-5 space-y-4">
-                  <div className="flex items-center gap-2">
-                    <PhoneCall style={{ width:13, height:13, color:'#3b82f6' }} />
-                    <div>
-                      <h4 className="font-black text-gray-900 text-[11px] uppercase tracking-widest">Actividad por Vendedor</h4>
-                      <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mt-0.5">Llamadas · Efectivas · Visitas</p>
-                    </div>
-                  </div>
-                  <ResponsiveContainer width="100%" height={220}>
-                    <BarChart data={adminBarData} margin={{ top:4, right:4, left:0, bottom:0 }} barGap={3}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-                      <XAxis dataKey="name" tick={{ fontSize:10, fontWeight:700, fill:'#64748b' }} axisLine={false} tickLine={false} />
-                      <YAxis tick={{ fontSize:9, fontWeight:700, fill:'#94a3b8' }} axisLine={false} tickLine={false} />
-                      <Tooltip content={<RichTooltip />} />
-                      <Legend wrapperStyle={{ fontSize:10, fontWeight:700 }} />
-                      <Bar dataKey="Llamadas"  fill="#3b82f6" radius={[5,5,0,0]} maxBarSize={28} />
-                      <Bar dataKey="Efectivas" fill="#10b981" radius={[5,5,0,0]} maxBarSize={28} />
-                      <Bar dataKey="Visitas"   fill="#8b5cf6" radius={[5,5,0,0]} maxBarSize={28} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-            )}
-
-            {/* Admin: comparativa cierres y venta */}
-            {isAdmin && salesSummary.length >= 2 && (
-              <div className={D.card}>
-                <CardAccent color="#059669" />
-                <div className="p-5 space-y-4">
-                  <div className="flex items-center gap-2">
-                    <DollarSign style={{ width:13, height:13, color:'#10b981' }} />
-                    <div>
-                      <h4 className="font-black text-gray-900 text-[11px] uppercase tracking-widest">Cierres y Venta</h4>
-                      <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mt-0.5">Cotizaciones · Cierres · Venta $</p>
-                    </div>
-                  </div>
-                  <ResponsiveContainer width="100%" height={220}>
-                    <BarChart data={adminBarData} margin={{ top:4, right:4, left:0, bottom:0 }} barGap={3}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-                      <XAxis dataKey="name" tick={{ fontSize:10, fontWeight:700, fill:'#64748b' }} axisLine={false} tickLine={false} />
-                      <YAxis yAxisId="left"  tick={{ fontSize:9, fontWeight:700, fill:'#94a3b8' }} axisLine={false} tickLine={false} />
-                      <YAxis yAxisId="right" orientation="right" tick={{ fontSize:9, fontWeight:700, fill:'#94a3b8' }} axisLine={false} tickLine={false} tickFormatter={v => `$${(v/1000).toFixed(0)}k`} />
-                      <Tooltip content={<RichTooltip />} />
-                      <Legend wrapperStyle={{ fontSize:10, fontWeight:700 }} />
-                      <Bar yAxisId="left"  dataKey="Cotizac." fill="#f59e0b" radius={[5,5,0,0]} maxBarSize={28} />
-                      <Bar yAxisId="left"  dataKey="Cierres"  fill="#22c55e" radius={[5,5,0,0]} maxBarSize={28} />
-                      <Bar yAxisId="right" dataKey="Venta $"  fill="#10b981" radius={[5,5,0,0]} maxBarSize={28} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-            )}
-
-            {/* Individual: línea de actividad por día */}
-            {!isAdmin && reporteLineData.length >= 2 && (
-              <div className={D.card}>
-                <CardAccent color="#1d4ed8" />
-                <div className="p-5 space-y-4">
-                  <div className="flex items-center gap-2">
-                    <Activity style={{ width:13, height:13, color:'#3b82f6' }} />
-                    <div>
-                      <h4 className="font-black text-gray-900 text-[11px] uppercase tracking-widest">Mi Actividad en el Tiempo</h4>
-                      <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mt-0.5">Llamadas · Visitas · Cierres</p>
-                    </div>
-                  </div>
-                  <ResponsiveContainer width="100%" height={220}>
-                    <LineChart data={reporteLineData} margin={{ top:4, right:4, left:0, bottom:0 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-                      <XAxis dataKey="dia" tick={{ fontSize:9, fontWeight:700, fill:'#64748b' }} axisLine={false} tickLine={false} />
-                      <YAxis tick={{ fontSize:9, fontWeight:700, fill:'#94a3b8' }} axisLine={false} tickLine={false} />
-                      <Tooltip content={<RichTooltip />} />
-                      <Legend wrapperStyle={{ fontSize:10, fontWeight:700 }} />
-                      <Line type="monotone" dataKey="Llamadas"  stroke="#3b82f6" strokeWidth={2} dot={{ r:3 }} />
-                      <Line type="monotone" dataKey="Efectivas" stroke="#10b981" strokeWidth={2} dot={{ r:3 }} />
-                      <Line type="monotone" dataKey="Visitas"   stroke="#8b5cf6" strokeWidth={2} dot={{ r:3 }} />
-                      <Line type="monotone" dataKey="Cierres"   stroke="#22c55e" strokeWidth={2} dot={{ r:3 }} strokeDasharray="4 2" />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-            )}
-
-            {/* Individual: KPIs bitácora */}
-            {!isAdmin && myBitacora.length > 0 && (
-              <div className={D.card}>
-                <CardAccent color="#9333ea" />
-                <div className="p-5 space-y-4">
-                  <div className="flex items-center gap-2">
-                    <MapPin style={{ width:13, height:13, color:'#a855f7' }} />
-                    <div>
-                      <h4 className="font-black text-gray-900 text-[11px] uppercase tracking-widest">Mi Bitácora de Visitas</h4>
-                      <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mt-0.5">{myBitacora.length} visitas registradas</p>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-3 gap-3">
-                    {[
-                      { label:'Total Visitas',  value: myBitacora.length,   color:'#a855f7', bg:'#fdf4ff' },
-                      { label:'Con Potencial',  value: myPotenciales,       color:'#f59e0b', bg:'#fffbeb' },
-                      { label:'Decisor Pres.',  value: myDecisores,         color:'#10b981', bg:'#ecfdf5' },
-                    ].map(({ label, value, color, bg }) => (
-                      <div key={label} style={{ background:bg, borderRadius:14, padding:'12px' }} className="text-center">
-                        <p style={{ fontSize:22, fontWeight:900, color, lineHeight:1 }}>{value}</p>
-                        <p style={{ fontSize:8, fontWeight:800, color:'#64748b', textTransform:'uppercase', letterSpacing:'0.05em', marginTop:4 }}>{label}</p>
-                      </div>
-                    ))}
-                  </div>
-                  {/* Tabla bitácora resumida */}
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-xs">
-                      <thead>
-                        <tr className="border-b border-gray-100">
-                          {['Fecha','Empresa','Contacto','Potencial','Decisor','Resultado'].map(h => (
-                            <th key={h} className="text-left pb-2 pr-3 text-[8px] font-black text-gray-400 uppercase tracking-widest whitespace-nowrap">{h}</th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-50">
-                        {myBitacora.slice(0, 5).map(b => (
-                          <tr key={b.id} className="hover:bg-purple-50/30 transition-colors">
-                            <td className="py-2 pr-3 text-[10px] font-bold text-gray-500 whitespace-nowrap">{b.dia ? new Date(b.dia).toLocaleDateString('es-MX', { day:'2-digit', month:'short' }) : '—'}</td>
-                            <td className="py-2 pr-3 text-[10px] font-black text-gray-800 whitespace-nowrap">{b.empresaVisitada || '—'}</td>
-                            <td className="py-2 pr-3 text-[10px] font-bold text-gray-500 whitespace-nowrap">{b.nombre || '—'}</td>
-                            <td className="py-2 pr-3">
-                              <span style={{ fontSize:8, fontWeight:800, padding:'2px 6px', borderRadius:6, background: b.potencial ? '#ecfdf5' : '#f1f5f9', color: b.potencial ? '#10b981' : '#94a3b8' }}>
-                                {b.potencial ? 'Sí' : 'No'}
-                              </span>
-                            </td>
-                            <td className="py-2 pr-3">
-                              <span style={{ fontSize:8, fontWeight:800, padding:'2px 6px', borderRadius:6, background: b.decisor ? '#eff6ff' : '#f1f5f9', color: b.decisor ? '#3b82f6' : '#94a3b8' }}>
-                                {b.decisor ? 'Sí' : 'No'}
-                              </span>
-                            </td>
-                            <td className="py-2 text-[10px] font-bold text-gray-500 max-w-[120px] truncate">{b.resultado || '—'}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                    {myBitacora.length > 5 && (
-                      <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mt-2 text-right">+{myBitacora.length - 5} más en Gestión de Datos</p>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* ── TABLA COMPARATIVA ADMIN (Gestión) ─────────────────────────────── */}
-          {isAdmin && salesSummary.length > 0 && (
-            <div className={D.card}>
-              <CardAccent color="#9333ea" />
-              <div className="p-6 space-y-4">
-                <div className="flex items-center gap-2">
-                  <Layers style={{ width:13, height:13, color:'#a855f7' }} />
-                  <div>
-                    <h4 className="font-black text-gray-900 text-[11px] uppercase tracking-widest">Comparativa de Gestión por Vendedor</h4>
-                    <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mt-0.5">Bitácora · Reporte Diario · Cartera</p>
-                  </div>
-                </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-gray-100">
-                        {['#','Vendedor','Visitas','Llamadas','Efectivas','Correos/Msg','Cotizac.','Cierres','Venta Total','Eficiencia','T.Cierre','Cartera'].map(h => (
-                          <th key={h} className="text-left pb-3 pr-4 text-[9px] font-black text-gray-400 uppercase tracking-widest whitespace-nowrap">{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-50">
-                      {[...salesSummary]
-                        .sort((a, b) => b.totalVenta - a.totalVenta)
-                        .map((s, i) => {
-                          const color = colors[i % colors.length];
-                          return (
-                            <tr key={s.seller.id} className="hover:bg-purple-50/20 transition-colors">
-                              <td className="py-3 pr-4">
-                                <span style={{ width:22, height:22, borderRadius:8, fontSize:10, fontWeight:900, background: i===0?'#fef3c7':'#f1f5f9', color: i===0?'#d97706':'#475569', display:'inline-flex', alignItems:'center', justifyContent:'center' }}>{i+1}</span>
-                              </td>
-                              <td className="py-3 pr-4">
-                                <div className="flex items-center gap-2">
-                                  <div style={{ width:28, height:28, borderRadius:9, background:`${color}18`, flexShrink:0, display:'flex', alignItems:'center', justifyContent:'center' }}>
-                                    <span style={{ fontSize:11, fontWeight:900, color }}>{s.seller.name.charAt(0)}</span>
-                                  </div>
-                                  <span className="font-black text-gray-900 text-xs whitespace-nowrap">{s.seller.name}</span>
-                                </div>
-                              </td>
-                              <td className="py-3 pr-4 font-black text-purple-600 text-sm">{s.bitacora}</td>
-                              <td className="py-3 pr-4 font-black text-blue-600 text-sm">{s.totalLlamadas}</td>
-                              <td className="py-3 pr-4 font-black text-emerald-600 text-sm">{s.totalEfec}</td>
-                              <td className="py-3 pr-4 font-black text-sky-500 text-sm">{s.totalVisitas}</td>
-                              <td className="py-3 pr-4 font-black text-amber-600 text-sm">{s.totalCotizaciones}</td>
-                              <td className="py-3 pr-4 font-black text-green-600 text-sm">{s.totalCierres}</td>
-                              <td className="py-3 pr-4 font-black text-gray-900 text-sm whitespace-nowrap">{fmt(s.totalVenta)}</td>
-                              <td className="py-3 pr-4">
-                                <span style={{ fontSize:11, fontWeight:900, color, background:`${color}15`, borderRadius:8, padding:'2px 8px', display:'inline-block' }}>{s.eficiencia}%</span>
-                              </td>
-                              <td className="py-3 pr-4">
-                                <span style={{ fontSize:11, fontWeight:900, color:'#22c55e', background:'#f0fdf4', borderRadius:8, padding:'2px 8px', display:'inline-block' }}>{s.tasaCierre}%</span>
-                              </td>
-                              <td className="py-3 font-black text-violet-600 text-sm">{s.cartera}</td>
-                            </tr>
-                          );
-                        })
-                      }
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* ── REGISTROS DETALLADOS ADMIN ────────────────────────────────────── */}
-          {isAdmin && (allBitacora.length > 0 || allReporte.length > 0 || allCartera.length > 0) && (() => {
-            const dpDays = DETAIL_PERIODS.find(p => p.key === detailPeriod)?.days || 30;
-            const dpSince = new Date(Date.now() - dpDays * 24 * 60 * 60 * 1000);
-            const filtBit = allBitacora.filter(b => new Date(b.createdAt) >= dpSince);
-            const filtRep = allReporte.filter(r => new Date(r.createdAt) >= dpSince);
-            const filtCar = allCartera.filter(c => new Date(c.createdAt) >= dpSince);
-            return (
-            <div className={D.card}>
-              <CardAccent color="#7c3aed" />
-              <div className="p-6 space-y-4">
-                {/* Header + periodo + tabs */}
-                <div className="flex items-center gap-3 flex-wrap">
-                  <div className="flex items-center gap-2 flex-1">
-                    <BookOpen style={{ width:13, height:13, color:'#7c3aed' }} />
-                    <div>
-                      <h4 className="font-black text-gray-900 text-[11px] uppercase tracking-widest">Registros Detallados</h4>
-                      <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mt-0.5">Todos los vendedores · fecha y hora de cada registro</p>
-                    </div>
-                  </div>
-                  {/* Selector de período */}
-                  <div style={{ display:'flex', gap:3, background:'#f1f5f9', borderRadius:10, padding:3 }}>
-                    {DETAIL_PERIODS.map(p => (
-                      <button key={p.key} onClick={() => setDetailPeriod(p.key)}
-                        style={{ padding:'4px 10px', borderRadius:7, border:'none', cursor:'pointer', fontSize:9, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.06em',
-                          background: detailPeriod === p.key ? '#7c3aed' : 'transparent',
-                          color: detailPeriod === p.key ? '#fff' : '#64748b',
-                          transition:'all 0.15s' }}>
-                        {p.label}
-                      </button>
-                    ))}
-                  </div>
-                  {/* Tabs de tipo */}
-                  <div style={{ display:'flex', gap:4 }}>
-                    {[
-                      { key:'bitacora', label:`Bitácora (${filtBit.length})`, color:'#a855f7' },
-                      { key:'reporte',  label:`Reporte Diario (${filtRep.length})`, color:'#f59e0b' },
-                      { key:'cartera',  label:`Cartera (${filtCar.length})`, color:'#0ea5e9' },
-                    ].map(t => (
-                      <button key={t.key} onClick={() => setDetailTab(t.key)}
-                        style={{ padding:'5px 12px', borderRadius:8, border:'none', cursor:'pointer', fontSize:9, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.06em',
-                          background: detailTab === t.key ? t.color : '#f1f5f9',
-                          color: detailTab === t.key ? '#fff' : '#64748b',
-                          transition:'all 0.15s' }}>
-                        {t.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Tabla Bitácora */}
-                {detailTab === 'bitacora' && (
-                  <div style={{ maxHeight:400, overflowY:'auto' }}>
-                    <table className="w-full text-xs">
-                      <thead style={{ position:'sticky', top:0, zIndex:1 }}>
-                        <tr style={{ background:'#f8fafc', borderBottom:'2px solid #e2e8f0' }}>
-                          {['Vendedor','Fecha Visita','Registrado','Empresa','Contacto','Potencial','Decisor','Resultado'].map(h => (
-                            <th key={h} style={{ padding:'8px 12px 8px 0', textAlign:'left', fontSize:8, fontWeight:800, color:'#94a3b8', textTransform:'uppercase', letterSpacing:'0.08em', whiteSpace:'nowrap' }}>{h}</th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {filtBit.length === 0 ? (
-                          <tr><td colSpan={8} style={{ padding:'24px', textAlign:'center', fontSize:10, fontWeight:700, color:'#cbd5e1' }}>Sin registros en este período</td></tr>
-                        ) : filtBit.map((b, i) => (
-                          <tr key={b.id} style={{ borderBottom:'1px solid #f1f5f9', background: i%2===0 ? 'transparent' : '#fafafa' }}>
-                            <td style={{ padding:'8px 12px 8px 0', whiteSpace:'nowrap' }}>
-                              <div style={{ display:'flex', alignItems:'center', gap:6 }}>
-                                <div style={{ width:22, height:22, borderRadius:7, background:'#ede9fe', display:'flex', alignItems:'center', justifyContent:'center', fontSize:9, fontWeight:900, color:'#7c3aed', flexShrink:0 }}>
-                                  {(b.seller?.name || '?').charAt(0)}
-                                </div>
-                                <span style={{ fontSize:10, fontWeight:800, color:'#0f172a' }}>{b.seller?.name?.split(' ')[0] || '—'}</span>
-                              </div>
-                            </td>
-                            <td style={{ padding:'8px 12px 8px 0', fontSize:10, fontWeight:700, color:'#64748b', whiteSpace:'nowrap' }}>
-                              {b.dia ? new Date(b.dia).toLocaleDateString('es-MX', { day:'2-digit', month:'short', year:'numeric' }) : '—'}
-                            </td>
-                            <td style={{ padding:'8px 12px 8px 0', fontSize:10, fontWeight:700, color:'#94a3b8', whiteSpace:'nowrap' }}>
-                              {b.createdAt ? new Date(b.createdAt).toLocaleString('es-MX', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' }) : '—'}
-                            </td>
-                            <td style={{ padding:'8px 12px 8px 0', fontSize:11, fontWeight:800, color:'#0f172a', whiteSpace:'nowrap' }}>{b.empresaVisitada || '—'}</td>
-                            <td style={{ padding:'8px 12px 8px 0', fontSize:10, fontWeight:700, color:'#475569', whiteSpace:'nowrap' }}>{b.nombre || '—'}</td>
-                            <td style={{ padding:'8px 12px 8px 0' }}>
-                              <span style={{ fontSize:8, fontWeight:800, padding:'2px 7px', borderRadius:6, background: b.potencial?'#ecfdf5':'#f1f5f9', color: b.potencial?'#10b981':'#94a3b8' }}>{b.potencial ? 'Sí' : 'No'}</span>
-                            </td>
-                            <td style={{ padding:'8px 12px 8px 0' }}>
-                              <span style={{ fontSize:8, fontWeight:800, padding:'2px 7px', borderRadius:6, background: b.decisor?'#eff6ff':'#f1f5f9', color: b.decisor?'#3b82f6':'#94a3b8' }}>{b.decisor ? 'Sí' : 'No'}</span>
-                            </td>
-                            <td style={{ padding:'8px 0 8px 0', fontSize:10, fontWeight:600, color:'#475569', maxWidth:180, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{b.resultado || '—'}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-
-                {/* Tabla Reporte Diario */}
-                {detailTab === 'reporte' && (
-                  <div style={{ maxHeight:400, overflowY:'auto' }}>
-                    <table className="w-full text-xs">
-                      <thead style={{ position:'sticky', top:0, zIndex:1 }}>
-                        <tr style={{ background:'#f8fafc', borderBottom:'2px solid #e2e8f0' }}>
-                          {['Vendedor','Semana','Día','Registrado','Llam.','Efec.','Visit.','Correos','Msg','Dec.R','Dec.F','Cotizac.','Cierres','Venta'].map(h => (
-                            <th key={h} style={{ padding:'8px 12px 8px 0', textAlign:'left', fontSize:8, fontWeight:800, color:'#94a3b8', textTransform:'uppercase', letterSpacing:'0.08em', whiteSpace:'nowrap' }}>{h}</th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {filtRep.length === 0 ? (
-                          <tr><td colSpan={14} style={{ padding:'24px', textAlign:'center', fontSize:10, fontWeight:700, color:'#cbd5e1' }}>Sin registros en este período</td></tr>
-                        ) : filtRep.map((r, i) => (
-                          <tr key={r.id} style={{ borderBottom:'1px solid #f1f5f9', background: i%2===0 ? 'transparent' : '#fafafa' }}>
-                            <td style={{ padding:'8px 12px 8px 0', whiteSpace:'nowrap' }}>
-                              <div style={{ display:'flex', alignItems:'center', gap:6 }}>
-                                <div style={{ width:22, height:22, borderRadius:7, background:'#fef9c3', display:'flex', alignItems:'center', justifyContent:'center', fontSize:9, fontWeight:900, color:'#b45309', flexShrink:0 }}>
-                                  {(r.seller?.name || '?').charAt(0)}
-                                </div>
-                                <span style={{ fontSize:10, fontWeight:800, color:'#0f172a' }}>{r.seller?.name?.split(' ')[0] || '—'}</span>
-                              </div>
-                            </td>
-                            <td style={{ padding:'8px 12px 8px 0', fontSize:10, fontWeight:700, color:'#64748b', whiteSpace:'nowrap' }}>
-                              {r.semana ? new Date(r.semana).toLocaleDateString('es-MX', { day:'2-digit', month:'short', year:'numeric' }) : '—'}
-                            </td>
-                            <td style={{ padding:'8px 12px 8px 0', fontSize:10, fontWeight:700, color:'#475569' }}>{r.dia || '—'}</td>
-                            <td style={{ padding:'8px 12px 8px 0', fontSize:10, fontWeight:700, color:'#94a3b8', whiteSpace:'nowrap' }}>
-                              {r.createdAt ? new Date(r.createdAt).toLocaleString('es-MX', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' }) : '—'}
-                            </td>
-                            <td style={{ padding:'8px 12px 8px 0', fontSize:10, fontWeight:900, color:'#3b82f6' }}>{r.llamadas}</td>
-                            <td style={{ padding:'8px 12px 8px 0', fontSize:10, fontWeight:900, color:'#10b981' }}>{r.efec}</td>
-                            <td style={{ padding:'8px 12px 8px 0', fontSize:10, fontWeight:900, color:'#8b5cf6' }}>{r.visitas}</td>
-                            <td style={{ padding:'8px 12px 8px 0', fontSize:10, fontWeight:700, color:'#64748b' }}>{r.correos}</td>
-                            <td style={{ padding:'8px 12px 8px 0', fontSize:10, fontWeight:700, color:'#64748b' }}>{r.mensajes}</td>
-                            <td style={{ padding:'8px 12px 8px 0', fontSize:10, fontWeight:700, color:'#64748b' }}>{r.decisorR}</td>
-                            <td style={{ padding:'8px 12px 8px 0', fontSize:10, fontWeight:700, color:'#64748b' }}>{r.decisorFinal}</td>
-                            <td style={{ padding:'8px 12px 8px 0', fontSize:10, fontWeight:900, color:'#f59e0b' }}>{r.cotizaciones}</td>
-                            <td style={{ padding:'8px 12px 8px 0', fontSize:10, fontWeight:900, color:'#22c55e' }}>{r.cierres}</td>
-                            <td style={{ padding:'8px 0 8px 0', fontSize:10, fontWeight:900, color:'#0f172a', whiteSpace:'nowrap' }}>{fmt(r.venta)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-
-                {/* Tabla Cartera */}
-                {detailTab === 'cartera' && (
-                  <div style={{ maxHeight:400, overflowY:'auto' }}>
-                    <table className="w-full text-xs">
-                      <thead style={{ position:'sticky', top:0, zIndex:1 }}>
-                        <tr style={{ background:'#f8fafc', borderBottom:'2px solid #e2e8f0' }}>
-                          {['Vendedor','Registrado','Empresa','Mes','Tipo','Últ.Contacto','Próx.Contacto','Decisor','Resultado','Motivo'].map(h => (
-                            <th key={h} style={{ padding:'8px 12px 8px 0', textAlign:'left', fontSize:8, fontWeight:800, color:'#94a3b8', textTransform:'uppercase', letterSpacing:'0.08em', whiteSpace:'nowrap' }}>{h}</th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {filtCar.length === 0 ? (
-                          <tr><td colSpan={10} style={{ padding:'24px', textAlign:'center', fontSize:10, fontWeight:700, color:'#cbd5e1' }}>Sin registros en este período</td></tr>
-                        ) : filtCar.map((c, i) => (
-                          <tr key={c.id} style={{ borderBottom:'1px solid #f1f5f9', background: i%2===0 ? 'transparent' : '#fafafa' }}>
-                            <td style={{ padding:'8px 12px 8px 0', whiteSpace:'nowrap' }}>
-                              <div style={{ display:'flex', alignItems:'center', gap:6 }}>
-                                <div style={{ width:22, height:22, borderRadius:7, background:'#e0f2fe', display:'flex', alignItems:'center', justifyContent:'center', fontSize:9, fontWeight:900, color:'#0284c7', flexShrink:0 }}>
-                                  {(c.seller?.name || '?').charAt(0)}
-                                </div>
-                                <span style={{ fontSize:10, fontWeight:800, color:'#0f172a' }}>{c.seller?.name?.split(' ')[0] || '—'}</span>
-                              </div>
-                            </td>
-                            <td style={{ padding:'8px 12px 8px 0', fontSize:10, fontWeight:700, color:'#94a3b8', whiteSpace:'nowrap' }}>
-                              {c.createdAt ? new Date(c.createdAt).toLocaleString('es-MX', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' }) : '—'}
-                            </td>
-                            <td style={{ padding:'8px 12px 8px 0', fontSize:11, fontWeight:800, color:'#0f172a', whiteSpace:'nowrap' }}>{c.empresa || '—'}</td>
-                            <td style={{ padding:'8px 12px 8px 0', fontSize:10, fontWeight:700, color:'#475569' }}>{c.mes || '—'}</td>
-                            <td style={{ padding:'8px 12px 8px 0' }}>
-                              <span style={{ fontSize:8, fontWeight:800, padding:'2px 7px', borderRadius:6, background:'#eff6ff', color:'#3b82f6' }}>{c.tipo || '—'}</span>
-                            </td>
-                            <td style={{ padding:'8px 12px 8px 0', fontSize:10, fontWeight:700, color:'#64748b', whiteSpace:'nowrap' }}>
-                              {c.fechaUltContacto ? new Date(c.fechaUltContacto).toLocaleDateString('es-MX', { day:'2-digit', month:'short', year:'numeric' }) : '—'}
-                            </td>
-                            <td style={{ padding:'8px 12px 8px 0', fontSize:10, fontWeight:700, color:'#0ea5e9', whiteSpace:'nowrap' }}>
-                              {c.proxContacto ? new Date(c.proxContacto).toLocaleDateString('es-MX', { day:'2-digit', month:'short', year:'numeric' }) : '—'}
-                            </td>
-                            <td style={{ padding:'8px 12px 8px 0' }}>
-                              <span style={{ fontSize:8, fontWeight:800, padding:'2px 7px', borderRadius:6, background: c.decisor?'#eff6ff':'#f1f5f9', color: c.decisor?'#3b82f6':'#94a3b8' }}>{c.decisor ? 'Sí' : 'No'}</span>
-                            </td>
-                            <td style={{ padding:'8px 12px 8px 0', fontSize:10, fontWeight:600, color:'#475569', maxWidth:140, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{c.resultado || '—'}</td>
-                            <td style={{ padding:'8px 0 8px 0', fontSize:10, fontWeight:600, color:'#94a3b8', maxWidth:120, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{c.motivo || '—'}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
-            </div>
-            );
-          })()}
-
-          {/* ── REPORTE DIARIO INDIVIDUAL ──────────────────────────────────────── */}
-          {!isAdmin && myReporte.length > 0 && (
-            <div className={D.card}>
-              <CardAccent color="#b45309" />
-              <div className="p-6 space-y-4">
-                <div className="flex items-center gap-2">
-                  <BarChart2 style={{ width:13, height:13, color:'#f59e0b' }} />
-                  <div>
-                    <h4 className="font-black text-gray-900 text-[11px] uppercase tracking-widest">Mi Reporte Diario</h4>
-                    <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mt-0.5">{myReporte.length} registros</p>
-                  </div>
-                </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-xs">
-                    <thead>
-                      <tr className="border-b border-gray-100">
-                        {['Semana','Día','Llam.','Efec.','Visit.','Correos','Msg','Dec.R','Dec.F','Cotizac.','Cierres','Venta'].map(h => (
-                          <th key={h} className="text-left pb-2 pr-3 text-[8px] font-black text-gray-400 uppercase tracking-widest whitespace-nowrap">{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-50">
-                      {myReporte.map(r => (
-                        <tr key={r.id} className="hover:bg-amber-50/30 transition-colors">
-                          <td className="py-2 pr-3 text-[10px] font-bold text-gray-500 whitespace-nowrap">{r.semana ? new Date(r.semana).toLocaleDateString('es-MX', { day:'2-digit', month:'short' }) : '—'}</td>
-                          <td className="py-2 pr-3 text-[10px] font-black text-gray-800">{r.dia || '—'}</td>
-                          <td className="py-2 pr-3 text-[10px] font-black text-blue-600">{r.llamadas}</td>
-                          <td className="py-2 pr-3 text-[10px] font-black text-emerald-600">{r.efec}</td>
-                          <td className="py-2 pr-3 text-[10px] font-black text-purple-600">{r.visitas}</td>
-                          <td className="py-2 pr-3 text-[10px] font-black text-gray-600">{r.correos}</td>
-                          <td className="py-2 pr-3 text-[10px] font-black text-gray-600">{r.mensajes}</td>
-                          <td className="py-2 pr-3 text-[10px] font-black text-gray-600">{r.decisorR}</td>
-                          <td className="py-2 pr-3 text-[10px] font-black text-gray-600">{r.decisorFinal}</td>
-                          <td className="py-2 pr-3 text-[10px] font-black text-amber-600">{r.cotizaciones}</td>
-                          <td className="py-2 pr-3 text-[10px] font-black text-green-600">{r.cierres}</td>
-                          <td className="py-2 text-[10px] font-black text-gray-900 whitespace-nowrap">{fmt(r.venta)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* ── CARTERA INDIVIDUAL ─────────────────────────────────────────────── */}
-          {!isAdmin && myCartera.length > 0 && (
-            <div className={D.card}>
-              <CardAccent color="#0284c7" />
-              <div className="p-6 space-y-4">
-                <div className="flex items-center gap-2">
-                  <Layers style={{ width:13, height:13, color:'#0ea5e9' }} />
-                  <div>
-                    <h4 className="font-black text-gray-900 text-[11px] uppercase tracking-widest">Mi Cartera de Clientes</h4>
-                    <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mt-0.5">{myCartera.length} cuentas en seguimiento</p>
-                  </div>
-                </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-xs">
-                    <thead>
-                      <tr className="border-b border-gray-100">
-                        {['Empresa','Mes','Tipo','Últ.Contacto','Próx.Contacto','Decisor','Resultado','Motivo'].map(h => (
-                          <th key={h} className="text-left pb-2 pr-3 text-[8px] font-black text-gray-400 uppercase tracking-widest whitespace-nowrap">{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-50">
-                      {myCartera.map(c => (
-                        <tr key={c.id} className="hover:bg-sky-50/30 transition-colors">
-                          <td className="py-2 pr-3 text-[10px] font-black text-gray-900 whitespace-nowrap">{c.empresa || '—'}</td>
-                          <td className="py-2 pr-3 text-[10px] font-bold text-gray-500">{c.mes || '—'}</td>
-                          <td className="py-2 pr-3">
-                            <span style={{ fontSize:8, fontWeight:800, padding:'2px 6px', borderRadius:6, background:'#eff6ff', color:'#3b82f6' }}>{c.tipo || '—'}</span>
-                          </td>
-                          <td className="py-2 pr-3 text-[10px] font-bold text-gray-500 whitespace-nowrap">{c.fechaUltContacto ? new Date(c.fechaUltContacto).toLocaleDateString('es-MX', { day:'2-digit', month:'short' }) : '—'}</td>
-                          <td className="py-2 pr-3 text-[10px] font-bold text-sky-600 whitespace-nowrap">{c.proxContacto ? new Date(c.proxContacto).toLocaleDateString('es-MX', { day:'2-digit', month:'short' }) : '—'}</td>
-                          <td className="py-2 pr-3">
-                            <span style={{ fontSize:8, fontWeight:800, padding:'2px 6px', borderRadius:6, background: c.decisor?'#eff6ff':'#f1f5f9', color: c.decisor?'#3b82f6':'#94a3b8' }}>
-                              {c.decisor ? 'Sí' : 'No'}
-                            </span>
-                          </td>
-                          <td className="py-2 pr-3 text-[10px] font-bold text-gray-600 max-w-[120px] truncate">{c.resultado || '—'}</td>
-                          <td className="py-2 text-[10px] font-bold text-gray-500 max-w-[100px] truncate">{c.motivo || '—'}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-          )}
-        </>
-      )}
-    </section>
-  );
-}
-
-// ══════════════════════════════════════════════════════════════════════════════
-// PANEL DE SEGUIMIENTOS
-// ══════════════════════════════════════════════════════════════════════════════
-const TIPO_BADGE = {
-  NOTE:         { label: 'Nota',          color: '#64748b', bg: '#f1f5f9' },
-  CALL:         { label: 'Llamada',       color: '#3b82f6', bg: '#eff6ff' },
-  EMAIL:        { label: 'Email',         color: '#8b5cf6', bg: '#f5f3ff' },
-  MEETING:      { label: 'Reunión',       color: '#f59e0b', bg: '#fffbeb' },
-  TASK:         { label: 'Tarea',         color: '#10b981', bg: '#ecfdf5' },
-  SEGUIMIENTO:  { label: 'Seguimiento',   color: '#1d4ed8', bg: '#eff6ff' },
-  STAGE_CHANGE: { label: 'Cambio etapa', color: '#6366f1', bg: '#eef2ff' },
-};
-
-function SeguimientosPanel({ seguimientos, loading, newSeg, setNewSeg, deals, onAdd, adding, isAdmin }) {
-  const [filterSeller, setFilterSeller] = useState('');
-  const [filterType,   setFilterType]   = useState('');
-  const [filterDeal,   setFilterDeal]   = useState('');
-
-  const fmtFecha = (d) => d ? new Date(d).toLocaleDateString('es-MX', {
-    day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
-  }) : '—';
-
-  const sellers = [...new Map(
-    seguimientos.filter(s => s.authorName).map(s => [s.authorName, s.authorName])
-  ).values()];
-
-  // Tratos que tienen al menos un seguimiento
-  const dealsWithSeg = [...new Map(
-    seguimientos.filter(s => s.deal?.id).map(s => [s.deal.id, s.deal])
-  ).values()];
-
-  const filtered = seguimientos.filter(s => {
-    const sellerOk = !filterSeller || s.authorName === filterSeller;
-    const typeOk   = !filterType   || s.type === filterType;
-    const dealOk   = !filterDeal   || s.deal?.id === filterDeal;
-    return sellerOk && typeOk && dealOk;
-  });
-
-  return (
-    <section className="space-y-4">
-      <SectionHeader
-        icon={ClipboardList}
-        title="Seguimientos"
-        subtitle={`${filtered.length} registros · historial completo de actividades del vendedor`}
-        accent="#1d4ed8"
-      />
-
-      <div className={D.card}>
-        <CardAccent color="#1d4ed8" />
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 divide-y lg:divide-y-0 lg:divide-x divide-gray-100">
-
-          {/* ── Formulario ── */}
-          <form onSubmit={onAdd} className="p-6 space-y-4">
-            <p style={{ fontSize: 9, fontWeight: 800, color: D.faint, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
-              Registrar nuevo seguimiento
-            </p>
-
-            <div className="space-y-1">
-              <label style={{ fontSize: 8, fontWeight: 800, color: D.faint, textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', marginBottom: 4 }}>
-                Trato *
-              </label>
-              <select
-                required
-                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 font-bold text-xs outline-none focus:border-blue-500 transition-colors"
-                value={newSeg.dealId}
-                onChange={e => setNewSeg(f => ({ ...f, dealId: e.target.value }))}
-              >
-                <option value="">— Seleccionar trato —</option>
-                {deals.map(d => (
-                  <option key={d.id} value={d.id}>{d.title}{d.company ? ` · ${d.company}` : ''}</option>
-                ))}
-              </select>
-            </div>
-
-            <div className="space-y-1">
-              <label style={{ fontSize: 8, fontWeight: 800, color: D.faint, textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', marginBottom: 4 }}>
-                Fecha
-              </label>
-              <input
-                type="date"
-                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 font-bold text-xs outline-none focus:border-blue-500 transition-colors"
-                value={newSeg.date}
-                onChange={e => setNewSeg(f => ({ ...f, date: e.target.value }))}
-              />
-            </div>
-
-            <div className="space-y-1">
-              <label style={{ fontSize: 8, fontWeight: 800, color: D.faint, textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', marginBottom: 4 }}>
-                Observaciones *
-              </label>
-              <textarea
-                required
-                rows={5}
-                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 font-medium text-xs outline-none focus:border-blue-500 transition-colors resize-none"
-                placeholder="Describe las acciones realizadas, acuerdos, próximos pasos..."
-                value={newSeg.observations}
-                onChange={e => setNewSeg(f => ({ ...f, observations: e.target.value }))}
-              />
-            </div>
-
-            <button
-              type="submit"
-              disabled={adding || !newSeg.dealId || !newSeg.observations.trim()}
-              style={{
-                width: '100%', background: adding ? '#94a3b8' : '#0a0f1e',
-                color: '#fff', border: 'none', borderRadius: 12, padding: '12px 0',
-                fontWeight: 800, fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.1em',
-                cursor: adding ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center',
-                justifyContent: 'center', gap: 8, transition: 'all 0.2s',
-              }}
-            >
-              {adding
-                ? <><Loader2 style={{ width: 14, height: 14 }} /> Guardando...</>
-                : <><Plus style={{ width: 14, height: 14 }} /> Registrar Seguimiento</>
-              }
-            </button>
-          </form>
-
-          {/* ── Tabla ── */}
-          <div className="lg:col-span-2">
-            {/* Filtros */}
-            <div className="flex flex-wrap gap-3 px-5 py-4 border-b border-gray-50">
-              {isAdmin && sellers.length > 0 && (
-                <select
-                  className="bg-gray-50 rounded-xl px-3 py-2 font-bold text-xs text-gray-700 outline-none cursor-pointer border border-gray-100"
-                  value={filterSeller}
-                  onChange={e => setFilterSeller(e.target.value)}
-                >
-                  <option value="">Todos los vendedores</option>
-                  {sellers.map(s => <option key={s} value={s}>{s}</option>)}
-                </select>
-              )}
-              {dealsWithSeg.length > 0 && (
-                <select
-                  className="bg-gray-50 rounded-xl px-3 py-2 font-bold text-xs text-gray-700 outline-none cursor-pointer border border-gray-100"
-                  value={filterDeal}
-                  onChange={e => setFilterDeal(e.target.value)}
-                >
-                  <option value="">Todos los tratos</option>
-                  {dealsWithSeg.map(d => (
-                    <option key={d.id} value={d.id}>{d.title}{d.company ? ` · ${d.company}` : ''}</option>
-                  ))}
-                </select>
-              )}
-              <select
-                className="bg-gray-50 rounded-xl px-3 py-2 font-bold text-xs text-gray-700 outline-none cursor-pointer border border-gray-100"
-                value={filterType}
-                onChange={e => setFilterType(e.target.value)}
-              >
-                <option value="">Todos los tipos</option>
-                {Object.entries(TIPO_BADGE).map(([k, v]) => (
-                  <option key={k} value={k}>{v.label}</option>
-                ))}
-              </select>
-              <span style={{ fontSize: 9, fontWeight: 700, color: D.faint, marginLeft: 'auto', alignSelf: 'center' }}>
-                {filtered.length} registro{filtered.length !== 1 ? 's' : ''}
-              </span>
-            </div>
-
-            {loading ? (
-              <div className="flex items-center justify-center h-40 gap-2" style={{ color: D.faint }}>
-                <Loader2 style={{ width: 18, height: 18 }} className="animate-spin" />
-                <span style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Cargando...</span>
-              </div>
-            ) : filtered.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-40 gap-2" style={{ color: '#e2e8f0' }}>
-                <ClipboardList style={{ width: 32, height: 32 }} />
-                <p style={{ fontSize: 9, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: D.faint }}>
-                  Sin seguimientos registrados
-                </p>
-              </div>
-            ) : (
-              <div style={{ maxHeight: 360, overflowY: 'auto' }}>
-                <table className="w-full text-xs">
-                  <thead style={{ position: 'sticky', top: 0, zIndex: 1 }}>
-                    <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
-                      {['#', 'Fecha', 'Tipo', 'Trato', 'Observaciones', 'Vendedor'].map(h => (
-                        <th key={h} style={{ padding: '10px 16px 10px 0', textAlign: 'left', fontSize: 9, fontWeight: 800, color: D.faint, textTransform: 'uppercase', letterSpacing: '0.08em', whiteSpace: 'nowrap' }}>
-                          {h === '#' ? <Hash style={{ width: 12, height: 12 }} /> : h}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filtered.map((seg, i) => {
-                      const tipo = TIPO_BADGE[seg.type] || { label: seg.type, color: '#64748b', bg: '#f1f5f9' };
-                      return (
-                        <tr key={seg.id}
-                          style={{ borderBottom: '1px solid #f1f5f9', transition: 'background 0.15s' }}
-                          onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'}
-                          onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                        >
-                          <td style={{ padding: '10px 16px 10px 0' }}>
-                            <div style={{ width: 24, height: 24, borderRadius: 8, background: '#eff6ff', border: '1px solid #bfdbfe', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 900, color: '#1d4ed8' }}>
-                              {filtered.length - i}
-                            </div>
-                          </td>
-                          <td style={{ padding: '10px 16px 10px 0', whiteSpace: 'nowrap', fontSize: 10, fontWeight: 700, color: D.muted }}>
-                            {fmtFecha(seg.dueDate || seg.createdAt)}
-                          </td>
-                          <td style={{ padding: '10px 16px 10px 0', whiteSpace: 'nowrap' }}>
-                            <span style={{ fontSize: 8, fontWeight: 800, color: tipo.color, background: tipo.bg, borderRadius: 8, padding: '3px 8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                              {tipo.label}
-                            </span>
-                          </td>
-                          <td style={{ padding: '10px 16px 10px 0' }}>
-                            <p style={{ fontSize: 11, fontWeight: 800, color: D.ink, lineHeight: 1.3 }}>{seg.deal?.title || '—'}</p>
-                            {seg.deal?.company && <p style={{ fontSize: 8, fontWeight: 600, color: D.faint, marginTop: 2 }}>{seg.deal.company}</p>}
-                          </td>
-                          <td style={{ padding: '10px 16px 10px 0', maxWidth: 300 }}>
-                            <p style={{ fontSize: 11, fontWeight: 500, color: '#475569', lineHeight: 1.5, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-                              {seg.content}
-                            </p>
-                          </td>
-                          <td style={{ padding: '10px 0 10px 0', whiteSpace: 'nowrap', fontSize: 10, fontWeight: 700, color: D.muted }}>
-                            {seg.authorName || '—'}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        </div>
       </div>
     </section>
   );

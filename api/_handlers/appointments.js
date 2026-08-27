@@ -3,13 +3,15 @@ import { authMiddleware } from '../_lib/auth.js'
 import { signUrlIfNeeded } from '../_lib/r2.js'
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   CITAS PÚBLICAS (Coppel)
+   CITAS PÚBLICAS (tiendas)
 
    · El cliente entra desde el login → "Genere su Cita", sin contraseña.
    · Sólo puede escoger fechas con 2 días de anticipación (MIN_LEAD_DAYS).
-   · Máximo 2 citas Coppel por día (DAILY_CAPACITY). El cupo cuenta las citas
-     vivas (PENDING/CONFIRMED) + las OTs de Coppel ya agendadas ese día; las
+   · Máximo 2 citas POR MARCA por día (DAILY_CAPACITY). El cupo cuenta las citas
+     vivas (PENDING/CONFIRMED) + las OTs de esa marca ya agendadas ese día; las
      citas CONVERTED no se cuentan porque su OT ya está en el conteo.
+     El cupo es por marca y no global: dos cadenas distintas no se quitan el
+     lugar entre ellas, porque no compiten por la misma cuadrilla del cliente.
    · La cita cae en el calendario de Operaciones y desde ahí se convierte en OT.
 ═══════════════════════════════════════════════════════════════════════════ */
 
@@ -23,8 +25,11 @@ export const APPOINTMENT_TYPES = {
   AGENDAR: 'Agendar cita',
 };
 
-// El cupo diario aplica sólo a este cliente.
-const CAPPED_CLIENT = 'coppel';
+// Marca por defecto cuando el formulario público no manda ninguna. Existe para
+// que las citas viejas —capturadas cuando Coppel era el único cliente— sigan
+// contando en el mismo cupo que las nuevas.
+const DEFAULT_BRAND = 'Coppel';
+const limpiaMarca = (v) => (v === undefined || v === null || String(v).trim() === '' ? null : String(v).trim());
 
 /* ── Helpers de fecha ──────────────────────────────────────────────────────
    Las fechas se guardan como 'YYYY-MM-DDT00:00:00.000Z', igual que
@@ -50,14 +55,20 @@ export function minSelectableDate() {
   return toDateStr(d);
 }
 
-/** Cuenta el cupo ocupado de un rango y lo devuelve agrupado por fecha. */
-async function usedByDate(client, from, to) {
-  const coppel = { contains: CAPPED_CLIENT, mode: 'insensitive' };
+/** Cuenta el cupo ocupado de un rango, para una marca, agrupado por fecha.
+ *  Se busca por `brand` y también por `clientName`: lo capturado antes de que
+ *  existiera el campo Marca sólo tiene el nombre del cliente. */
+async function usedByDate(client, from, to, brand) {
+  const marca = limpiaMarca(brand) || DEFAULT_BRAND;
+  const porMarca = [
+    { brand: { equals: marca, mode: 'insensitive' } },
+    { clientName: { contains: marca, mode: 'insensitive' } },
+  ];
 
   const [citas, ots] = await Promise.all([
     client.appointment.findMany({
       where: {
-        clientName: coppel,
+        OR: porMarca,
         status: { in: ['PENDING', 'CONFIRMED'] },
         scheduledDate: { gte: from, lte: to },
       },
@@ -65,7 +76,7 @@ async function usedByDate(client, from, to) {
     }),
     client.workOrder.findMany({
       where: {
-        clientName: coppel,
+        OR: porMarca,
         scheduledDate: { gte: from, lte: to },
       },
       select: { scheduledDate: true },
@@ -85,7 +96,8 @@ export default async function handler(req, res) {
 
   try {
     /* ── GET público: disponibilidad del mes ───────────────────────────────
-       /api/appointments?availability=1&month=YYYY-MM
+       /api/appointments?availability=1&month=YYYY-MM&brand=Coppel
+       El cupo es por marca, así que la disponibilidad depende de `brand`.
        No requiere token y no expone datos de otros clientes: sólo cuántos
        lugares quedan por día. */
     if (method === 'GET' && req.query?.availability) {
@@ -99,7 +111,7 @@ export default async function handler(req, res) {
       const to   = new Date(Date.UTC(y, m, 0, 23, 59, 59, 999)); // último día del mes
       const lastDay = to.getUTCDate();
 
-      const used = await usedByDate(prisma, from, to);
+      const used = await usedByDate(prisma, from, to, req.query.brand);
       const minDate = minSelectableDate();
 
       const days = {};
@@ -211,7 +223,7 @@ export default async function handler(req, res) {
        Se revalida todo en el servidor: el cliente nunca decide el cupo. */
     if (method === 'POST') {
       const {
-        type, storeNumber, storeName, contactName, contactPhone, contactEmail,
+        type, brand, storeNumber, storeName, contactName, contactPhone, contactEmail,
         address, description, scheduledDate, preferredTime,
       } = req.body || {};
 
@@ -233,9 +245,11 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'Los domingos no hay servicio' });
       }
 
+      const marca = limpiaMarca(brand) || DEFAULT_BRAND;
       const fields = {
         type,
-        clientName:   'Coppel',
+        brand:        marca,
+        clientName:   marca,
         storeNumber:  storeNumber?.trim() || null,
         storeName:    storeName?.trim()   || null,
         contactName:  contactName.trim(),
@@ -255,7 +269,7 @@ export default async function handler(req, res) {
       for (let attempt = 0; attempt < 10 && !created; attempt++) {
         try {
           created = await prisma.$transaction(async (tx) => {
-            const used = await usedByDate(tx, dayStart(scheduledDate), dayEnd(scheduledDate));
+            const used = await usedByDate(tx, dayStart(scheduledDate), dayEnd(scheduledDate), marca);
             if ((used[scheduledDate] || 0) >= DAILY_CAPACITY) {
               const err = new Error('SIN_CUPO');
               err.sinCupo = true;

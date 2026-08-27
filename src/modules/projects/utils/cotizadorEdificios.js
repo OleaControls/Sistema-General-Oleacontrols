@@ -5,8 +5,13 @@
 // partidas, que solo sirven para contar dispositivos:
 //
 //   partida            = descripción + número de dispositivos
-//   costo del sistema  = TOTAL de dispositivos × costo por proyecto del sistema
-//   subtotal           = Σ costo de los sistemas × factor
+//   equipos            = TOTAL de dispositivos × costo por proyecto del sistema
+//   subtotal (sistema) = equipos × factor
+//   total    (sistema) = subtotal + IVA
+//
+// Cada sistema cierra su propia cotización con esos tres renglones, de modo que
+// se puede vender suelto; la cotización del edificio es la unión de todas: sus
+// totales se suman renglón por renglón (equipos, subtotal, IVA y total).
 //
 // El costo por proyecto se aplica una sola vez sobre el total de dispositivos;
 // las partidas no llevan costo propio.
@@ -70,33 +75,47 @@ export function calcEdificio({
     // Las cantidades son dispositivos completos: 2.5 cámaras no existe.
     const rows = (linesBySystem[s.key] || []).map(p => ({ ...p, qty: Math.floor(num(p.qty)) }));
     const equipos = rows.reduce((a, r) => a + r.qty, 0);
+    // El costo por proyecto multiplica el total del sistema, no cada partida.
+    const equipmentCost = round2(equipos * s.projectCost);
+    // Cada sistema se cierra como una cotización completa para poder venderlo
+    // suelto; el edificio no es más que la suma de estas.
+    const subtotal = round2(equipmentCost * f);
+    const iva = round2(subtotal * ivaRate);
     return {
       ...s,
       rows,
       partidas: rows.length,
       equipos,
-      // El costo por proyecto multiplica el total del sistema, no cada partida.
-      equipmentCost: round2(equipos * s.projectCost),
+      equipmentCost,
+      factor: f,
+      subtotal,
+      ivaRate,
+      iva,
+      total: round2(subtotal + iva),
     };
   });
 
   // Solo los sistemas con dispositivos capturados entran al desglose y a la suma.
   const bySystem = systems.filter(s => s.equipos > 0);
-  const equipos = bySystem.reduce((a, s) => a + s.equipos, 0);
-  const equipmentCost = round2(bySystem.reduce((a, s) => a + s.equipmentCost, 0));
-  const subtotal = round2(equipmentCost * f);
-  const iva = round2(subtotal * ivaRate);
+  const sum = (pick) => round2(bySystem.reduce((a, s) => a + pick(s), 0));
+
+  // Se suman los totales ya redondeados de cada sistema —no se recalcula sobre
+  // el gran total— para que la cotización unida cuadre contra las sueltas.
+  const equipmentCost = sum(s => s.equipmentCost);
+  const subtotal = sum(s => s.subtotal);
+  const iva = sum(s => s.iva);
 
   return {
     systems,
     bySystem,
     factor: f,
-    equipos,
+    equipos: bySystem.reduce((a, s) => a + s.equipos, 0),
+    partidas: bySystem.reduce((a, s) => a + s.partidas, 0),
     equipmentCost,
     subtotal,
     ivaRate,
     iva,
-    total: round2(subtotal + iva),
+    total: sum(s => s.total),
   };
 }
 

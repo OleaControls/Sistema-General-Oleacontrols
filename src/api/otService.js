@@ -280,6 +280,103 @@ export const otService = {
     return this.getById(id);
   },
 
+  /* ── Catálogo de proyectos de tiendas ───────────────────────────────────
+     Para el selector del alta de OT. El supervisor no puede llamar a
+     /api/projects, así que el catálogo se sirve desde /api/ots. */
+  async getStoreProjects() {
+    const res = await apiFetch('/api/ots?catalog=storeProjects');
+    if (!res.ok) return [];
+    const json = await res.json().catch(() => []);
+    return Array.isArray(json) ? json : [];
+  },
+
+  /* Todos los proyectos abiertos: cualquier asignación puede colgar de uno,
+     no solo las de tienda. Trae zona para heredarla al crear la OT. */
+  async getProjectsCatalog() {
+    const res = await apiFetch('/api/ots?catalog=projects');
+    if (!res.ok) return [];
+    const json = await res.json().catch(() => []);
+    return Array.isArray(json) ? json : [];
+  },
+
+  /* ── Proyecto vinculado a una OT de tienda ──────────────────────────────
+     El módulo de proyectos está cerrado a técnicos, así que estos tres
+     métodos pasan por /api/ots, que solo expone los cuatro apartados que el
+     técnico necesita y valida que participe en la orden. */
+  async getOTProject(otId) {
+    const res = await apiFetch(`/api/ots?id=${encodeURIComponent(otId)}&sub=project`);
+    // 404/400 = la OT no es de tienda o aún no tiene proyecto vinculado.
+    if (res.status === 404 || res.status === 400) return null;
+    if (!res.ok) throw new Error('No se pudo cargar el proyecto de la OT');
+    return res.json();
+  },
+
+  async requestResource(otId, data) {
+    const res = await apiFetch(`/api/ots?id=${encodeURIComponent(otId)}&sub=resourceRequests`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'No se pudo registrar la solicitud');
+    }
+    return res.json();
+  },
+
+  /* ── Evidencias e incidentes durante la jornada ────────────────────────
+     No dependen del proyecto ni del tipo de OT: sirven para documentar en el
+     momento, sin esperar al cierre del acta. */
+  async getOTEvidences(otId) {
+    const res = await apiFetch(`/api/ots?id=${encodeURIComponent(otId)}&sub=evidences`);
+    if (!res.ok) throw new Error('No se pudieron cargar las evidencias');
+    return res.json();
+  },
+
+  async addOTEvidence(otId, { url, description, type = 'IMAGE' }) {
+    const res = await apiFetch(`/api/ots?id=${encodeURIComponent(otId)}&sub=evidences`, {
+      method: 'POST',
+      body: JSON.stringify({ url, description, type }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'No se pudo guardar la evidencia');
+    }
+    return res.json();
+  },
+
+  async deleteOTEvidence(otId, evidenceId) {
+    const res = await apiFetch(
+      `/api/ots?id=${encodeURIComponent(otId)}&sub=evidences&subId=${encodeURIComponent(evidenceId)}`,
+      { method: 'DELETE' }
+    );
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'No se pudo eliminar la evidencia');
+    }
+    return res.json();
+  },
+
+  async addOTDocument(otId, data) {
+    const res = await apiFetch(`/api/ots?id=${encodeURIComponent(otId)}&sub=documents`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'No se pudo guardar el documento');
+    }
+    return res.json();
+  },
+
+  async updateOTPending(otId, pendingId, status) {
+    const res = await apiFetch(
+      `/api/ots?id=${encodeURIComponent(otId)}&sub=pendings&subId=${encodeURIComponent(pendingId)}`,
+      { method: 'PUT', body: JSON.stringify({ status }) }
+    );
+    if (!res.ok) throw new Error('No se pudo actualizar el pendiente');
+    return res.json();
+  },
+
   async getOTFinancials(otId) {
     const ot = await this.getById(otId);
     if (!ot) return null;

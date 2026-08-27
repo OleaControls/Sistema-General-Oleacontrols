@@ -32,6 +32,8 @@ const HRLayout          = lazy(() => import('@/modules/human-resources/component
 const HRDashboard       = lazy(() => import('@/modules/human-resources/views/HRDashboard'));
 const TimeOff           = lazy(() => import('@/modules/human-resources/views/TimeOff'));
 const HRDocuments       = lazy(() => import('@/modules/human-resources/views/HRDocuments'));
+const FieldDocs         = lazy(() => import('@/modules/human-resources/views/FieldDocs'));
+const Trainings             = lazy(() => import('@/modules/human-resources/views/Trainings'));
 const EmployeeDirectory = lazy(() => import('@/modules/human-resources/views/EmployeeDirectory'));
 const EmployeeProfile   = lazy(() => import('@/modules/human-resources/views/EmployeeProfile'));
 const MyProfile         = lazy(() => import('@/modules/human-resources/views/MyProfile'));
@@ -70,9 +72,13 @@ const TechMetrics = lazy(() => import('@/modules/ots/views/TechMetrics'));
 
 // Proyectos
 const ProjectsList  = lazy(() => import('@/modules/projects/views/ProjectsList'));
+const StoreInventory    = lazy(() => import('@/modules/projects/views/StoreInventory'));
 const ProjectDetail = lazy(() => import('@/modules/projects/views/ProjectDetail'));
 const CotizadorView = lazy(() => import('@/modules/projects/views/CotizadorView'));
 const CotizadorEdificiosView = lazy(() => import('@/modules/projects/views/CotizadorEdificiosView'));
+const SupervisionPanel      = lazy(() => import('@/modules/projects/views/SupervisionPanel'));
+const ZonesMap              = lazy(() => import('@/modules/projects/views/ZonesMap'));
+const ContinuousImprovement = lazy(() => import('@/modules/projects/views/ContinuousImprovement'));
 
 // PROP (técnicos registran · operaciones ven respuestas)
 const PropView = lazy(() => import('@/modules/prop/views/PropView'));
@@ -197,6 +203,8 @@ export default function AppRouter() {
             <Route path="attendance"            element={<Attendance />} />
             <Route path="time-off"              element={<TimeOff />} />
             <Route path="documents"             element={<HRDocuments />} />
+            <Route path="documentacion-campo"   element={<FieldDocs />} />
+            <Route path="capacitacion"          element={<Trainings />} />
             <Route path="org-chart"             element={<OrgChart />} />
             <Route path="recruitment"           element={<Recruitment />} />
             <Route path="performance"           element={<Performance />} />
@@ -230,6 +238,10 @@ export default function AppRouter() {
           {/* Módulo Proyectos */}
           <Route path="/projects"                    element={<ProtectedRoute><ProjectsList /></ProtectedRoute>} />
           <Route path="/projects/servicio/:service"  element={<ProtectedRoute><ProjectsList /></ProtectedRoute>} />
+          <Route path="/projects/inventario-tiendas" element={<ProtectedRoute><StoreInventory /></ProtectedRoute>} />
+          <Route path="/projects/supervision"        element={<ProtectedRoute><SupervisionPanel /></ProtectedRoute>} />
+          <Route path="/projects/zonas"              element={<ProtectedRoute><ZonesMap /></ProtectedRoute>} />
+          <Route path="/projects/mejora-continua"    element={<ProtectedRoute><ContinuousImprovement /></ProtectedRoute>} />
           {/* Estática antes que /:id para que no la capture como id de proyecto */}
           <Route path="/projects/cotizador"          element={<ProtectedRoute><CotizadorView /></ProtectedRoute>} />
           <Route path="/projects/cotizador-edificios" element={<ProtectedRoute><CotizadorEdificiosView /></ProtectedRoute>} />

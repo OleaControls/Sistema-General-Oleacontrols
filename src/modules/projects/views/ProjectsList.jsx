@@ -3,10 +3,14 @@ import { useNavigate, useParams } from 'react-router-dom';
 import {
   FolderKanban, Plus, X, Calendar, DollarSign, User, ListChecks,
   AlertTriangle, Loader2, ArrowRight, Search, FileSpreadsheet,
-  Columns3, List, GripVertical
+  Columns3, List, GripVertical, MapPin, Phone
 } from 'lucide-react';
 import projectService from '@/api/projectService';
 import { cn } from '@/lib/utils';
+import {
+  PROJECT_TYPES, PROJECT_TYPE_KEYS, typeMeta, PRIORITIES, PRIORITY_KEYS,
+  priorityMeta, zonesFrom, targetDateOf, daysUntil, relDays, fmtDate, telHref,
+} from '../utils/reglas';
 
 // Las 5 fases del pipeline de proyectos (en orden) con sus estilos.
 export const PROJECT_STATUS = {
@@ -25,12 +29,19 @@ export const PROJECT_SERVICES = {
   DISENO:         { label: 'Servicios de Diseño',         short: 'Diseño',         cls: 'bg-fuchsia-50 text-fuchsia-600 border-fuchsia-200', dot: 'bg-fuchsia-500', accent: '#c026d3', bg: 'bg-fuchsia-50/60' },
   IMPLEMENTACION: { label: 'Servicios de Implementación', short: 'Implementación', cls: 'bg-violet-50 text-violet-600 border-violet-200',    dot: 'bg-violet-500',  accent: '#7c3aed', bg: 'bg-violet-50/60' },
   REINGENIERIA:   { label: 'Servicios de Re-Ingeniería',  short: 'Re-Ingeniería',  cls: 'bg-teal-50 text-teal-600 border-teal-200',          dot: 'bg-teal-500',    accent: '#0d9488', bg: 'bg-teal-50/60' },
+  // Cada OT de tienda se gestiona como proyecto; tienen su propio embudo.
+  // Agrupa a todas las cadenas: la marca concreta va en el campo Marca.
+  TIENDAS:        { label: 'Proyectos de Tiendas',        short: 'Tiendas',        cls: 'bg-amber-50 text-amber-700 border-amber-200',       dot: 'bg-amber-500',   accent: '#d97706', bg: 'bg-amber-50/60' },
 };
 export const SERVICE_KEYS = Object.keys(PROJECT_SERVICES);
 export const normalizeService = (s) => (PROJECT_SERVICES[s] ? s : 'IMPLEMENTACION');
 
 // Slug de la URL (/projects/servicio/:service) → clave de servicio.
-const SLUG_TO_SERVICE = { diseno: 'DISENO', implementacion: 'IMPLEMENTACION', reingenieria: 'REINGENIERIA' };
+// `coppel` se conserva para que los enlaces viejos no se rompan.
+const SLUG_TO_SERVICE = {
+  diseno: 'DISENO', implementacion: 'IMPLEMENTACION', reingenieria: 'REINGENIERIA',
+  tiendas: 'TIENDAS', coppel: 'TIENDAS',
+};
 
 // Conecta estados antiguos (INICIO/EJECUCION/CERRADO) con las 5 fases nuevas.
 const PHASE_ALIAS = { INICIO: 'INICIACION', EJECUCION: 'IMPLEMENTACION', CERRADO: 'CIERRE' };
@@ -43,6 +54,11 @@ const EMPTY_FORM = {
   sponsor: '', managerName: '', clientName: '',
   startDate: '', endDate: '', budget: '',
   serviceType: 'IMPLEMENTACION',
+  // Operación (Sistema General): lo que necesita el panel de supervisión para
+  // zonificar, priorizar y aplicar la regla de anticipación.
+  projectType: 'IMPLEMENTACION', priority: 'MEDIA', zone: '', location: '',
+  dueDate: '', leadDays: '',
+  clientContactName: '', clientContactPhone: '', clientContactEmail: '',
 };
 
 export default function ProjectsList() {
@@ -60,6 +76,7 @@ export default function ProjectsList() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [serviceTab, setServiceTab] = useState(''); // '' = todos | DISENO | IMPLEMENTACION | REINGENIERIA
+  const [zoneFilter, setZoneFilter] = useState('');
   const [employees, setEmployees] = useState([]);
   const [otClients, setOtClients] = useState([]);
   const [view, setView] = useState('pipeline'); // 'pipeline' | 'lista'
@@ -84,10 +101,14 @@ export default function ProjectsList() {
   // Servicio activo: el de la ruta dedicada (bloqueado) o el de la barra de tabs.
   const effectiveService = lockedService || serviceTab;
 
+  // Las zonas se aprenden de los proyectos ya capturados: catálogo vivo.
+  const zones = zonesFrom(projects);
+
   // Filtro por texto, fase y servicio.
   const filtered = projects.filter(p => {
     if (effectiveService && normalizeService(p.serviceType) !== effectiveService) return false;
     if (statusFilter && normalizePhase(p.status) !== statusFilter) return false;
+    if (zoneFilter && (p.zone || '') !== zoneFilter) return false;
     if (search) {
       const q = search.toLowerCase();
       return [p.name, p.code, p.managerName, p.clientName].some(v => (v || '').toLowerCase().includes(q));
@@ -119,6 +140,10 @@ export default function ProjectsList() {
     const XLSX = await import('xlsx');
     const rows = projects.map(p => ({
       Código: p.code, Nombre: p.name, Estado: PROJECT_STATUS[normalizePhase(p.status)]?.label || p.status,
+      Tipo: typeMeta(p.projectType).label, Prioridad: priorityMeta(p.priority).label,
+      Zona: p.zone || '', Ubicación: p.location || '',
+      Compromiso: p.dueDate ? new Date(p.dueDate).toLocaleDateString('es-MX') : '',
+      Encargado: p.clientContactName || '', Teléfono: p.clientContactPhone || '',
       Responsable: p.managerName || '', Cliente: p.clientName || '',
       Avance: `${p.progress || 0}%`, Presupuesto: p.budget || 0,
       Tareas: p._count?.tasks || 0, Riesgos: p._count?.risks || 0,
@@ -140,6 +165,8 @@ export default function ProjectsList() {
       const payload = {
         ...form,
         budget: parseFloat(form.budget) || 0,
+        // Vacío = manda la regla del tipo de proyecto.
+        leadDays: form.leadDays === '' ? null : (parseInt(form.leadDays, 10) || null),
         status: 'INICIACION',
       };
       const created = await projectService.create(payload);
@@ -241,6 +268,13 @@ export default function ProjectsList() {
             <option value="">Todas las fases</option>
             {Object.entries(PROJECT_STATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
           </select>
+          {zones.length > 0 && (
+            <select value={zoneFilter} onChange={(e) => setZoneFilter(e.target.value)}
+              className="px-4 py-2.5 bg-white border border-gray-200 rounded-2xl text-[11px] font-black uppercase tracking-wider text-gray-600 outline-none focus:border-primary cursor-pointer">
+              <option value="">Todas las zonas</option>
+              {zones.map(z => <option key={z} value={z}>{z}</option>)}
+            </select>
+          )}
           {/* Toggle Pipeline / Lista */}
           <div className="flex bg-white border border-gray-200 rounded-2xl p-1">
             <button onClick={() => setView('pipeline')}
@@ -293,9 +327,24 @@ export default function ProjectsList() {
                     {st.label}
                   </span>
                 </div>
-                <span className={cn('inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[8px] font-black uppercase tracking-wider border mb-3', svc.cls)}>
-                  <span className={cn('w-1.5 h-1.5 rounded-full', svc.dot)} /> {svc.short}
-                </span>
+                <div className="flex flex-wrap items-center gap-1.5 mb-3">
+                  <span className={cn('inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[8px] font-black uppercase tracking-wider border', svc.cls)}>
+                    <span className={cn('w-1.5 h-1.5 rounded-full', svc.dot)} /> {svc.short}
+                  </span>
+                  <span className={cn('inline-flex items-center px-2.5 py-1 rounded-full text-[8px] font-black uppercase tracking-wider border', typeMeta(p.projectType).cls)}>
+                    {typeMeta(p.projectType).label}
+                  </span>
+                  {p.priority && p.priority !== 'MEDIA' && (
+                    <span className={cn('inline-flex items-center px-2.5 py-1 rounded-full text-[8px] font-black uppercase tracking-wider border', priorityMeta(p.priority).cls)}>
+                      {priorityMeta(p.priority).label}
+                    </span>
+                  )}
+                  {p.zone && (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[8px] font-black uppercase tracking-wider border bg-gray-50 text-gray-500 border-gray-200">
+                      <MapPin className="h-2.5 w-2.5" /> {p.zone}
+                    </span>
+                  )}
+                </div>
                 <h3 className="text-sm font-black text-gray-900 leading-tight mb-4 line-clamp-2 min-h-[2.5rem]">{p.name}</h3>
 
                 {/* Barra de avance */}
@@ -314,6 +363,31 @@ export default function ProjectsList() {
                   <span className="flex items-center gap-1.5"><ListChecks className="h-3 w-3 text-gray-300" />{p._count?.tasks || 0} tareas</span>
                   <span className="flex items-center gap-1.5"><AlertTriangle className="h-3 w-3 text-gray-300" />{p._count?.risks || 0} riesgos</span>
                 </div>
+
+                {/* Compromiso con el cliente y a quién se le llama. */}
+                {(targetDateOf(p) || p.clientContactName) && (
+                  <div className="flex items-center justify-between gap-2 mt-3 pt-3 border-t border-gray-100 text-[10px] font-bold">
+                    {targetDateOf(p) ? (
+                      <span className="flex items-center gap-1.5 text-gray-500">
+                        <Calendar className="h-3 w-3 text-gray-300" />
+                        {fmtDate(targetDateOf(p))}
+                        <span className={cn(
+                          'text-[9px] font-black uppercase tracking-wider',
+                          daysUntil(targetDateOf(p)) < 0 ? 'text-red-500'
+                            : daysUntil(targetDateOf(p)) <= 7 ? 'text-amber-600' : 'text-gray-300'
+                        )}>
+                          {relDays(daysUntil(targetDateOf(p)))}
+                        </span>
+                      </span>
+                    ) : <span />}
+                    {p.clientContactName && (
+                      <span className="flex items-center gap-1.5 text-gray-400 truncate">
+                        <Phone className="h-3 w-3 text-gray-300 shrink-0" />
+                        <span className="truncate">{p.clientContactName}</span>
+                      </span>
+                    )}
+                  </div>
+                )}
 
                 <ArrowRight className="absolute bottom-5 right-5 h-4 w-4 text-gray-200 group-hover:text-primary group-hover:translate-x-1 transition-all" />
               </button>
@@ -384,6 +458,72 @@ export default function ProjectsList() {
                     {otClients.map(c => <option key={c.id} value={c.name} />)}
                   </datalist>
                 </Field>
+              </div>
+
+              {/* ── Operación ─────────────────────────────────────────── */}
+              <div className="pt-5 border-t border-gray-100">
+                <p className="text-[9px] font-black text-primary uppercase tracking-widest mb-4">
+                  Operación
+                </p>
+                <div className="grid sm:grid-cols-3 gap-4">
+                  <Field label="Tipo de proyecto">
+                    <select value={form.projectType} onChange={(e) => setForm({ ...form, projectType: e.target.value })} className="input">
+                      {PROJECT_TYPE_KEYS.map(k => (
+                        <option key={k} value={k}>{PROJECT_TYPES[k].label}</option>
+                      ))}
+                    </select>
+                    <span className="block text-[9px] font-bold text-gray-400 mt-1.5">
+                      {typeMeta(form.projectType).hint} Asignar con {typeMeta(form.projectType).leadDays} días de anticipación.
+                    </span>
+                  </Field>
+                  <Field label="Prioridad">
+                    <select value={form.priority} onChange={(e) => setForm({ ...form, priority: e.target.value })} className="input">
+                      {PRIORITY_KEYS.map(k => <option key={k} value={k}>{PRIORITIES[k].label}</option>)}
+                    </select>
+                  </Field>
+                  <Field label="Zona asignada">
+                    <input list="proj-zones" value={form.zone} onChange={(e) => setForm({ ...form, zone: e.target.value })}
+                      className="input" placeholder="Ej. Norte" />
+                    <datalist id="proj-zones">
+                      {zones.map(z => <option key={z} value={z} />)}
+                    </datalist>
+                  </Field>
+                </div>
+                <div className="grid sm:grid-cols-3 gap-4 mt-4">
+                  <Field label="Ubicación">
+                    <input value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })}
+                      className="input" placeholder="Dirección o sitio" />
+                  </Field>
+                  <Field label="Fecha compromiso">
+                    <input type="date" value={form.dueDate} onChange={(e) => setForm({ ...form, dueDate: e.target.value })} className="input" />
+                  </Field>
+                  <Field label="Anticipación (días)">
+                    <input type="number" min="0" step="1" value={form.leadDays}
+                      onChange={(e) => setForm({ ...form, leadDays: e.target.value })}
+                      className="input" placeholder={String(typeMeta(form.projectType).leadDays)} />
+                  </Field>
+                </div>
+              </div>
+
+              {/* ── Encargado del cliente ─────────────────────────────── */}
+              <div className="pt-5 border-t border-gray-100">
+                <p className="text-[9px] font-black text-primary uppercase tracking-widest mb-4">
+                  Encargado del cliente
+                </p>
+                <div className="grid sm:grid-cols-3 gap-4">
+                  <Field label="Nombre">
+                    <input value={form.clientContactName} onChange={(e) => setForm({ ...form, clientContactName: e.target.value })}
+                      className="input" placeholder="A quién se le llama" />
+                  </Field>
+                  <Field label="Teléfono">
+                    <input value={form.clientContactPhone} onChange={(e) => setForm({ ...form, clientContactPhone: e.target.value })}
+                      className="input" placeholder="55 0000 0000" />
+                  </Field>
+                  <Field label="Correo">
+                    <input type="email" value={form.clientContactEmail} onChange={(e) => setForm({ ...form, clientContactEmail: e.target.value })}
+                      className="input" />
+                  </Field>
+                </div>
               </div>
 
               <div className="grid sm:grid-cols-3 gap-4">
@@ -494,6 +634,26 @@ function PipelineCard({ p, onOpen, onDragStart, onDragEnd }) {
         <GripVertical className="h-3.5 w-3.5 text-gray-200 group-hover:text-gray-400 shrink-0 ml-auto" />
       </div>
       <h4 className="text-[12px] font-black text-gray-900 leading-tight mb-2 line-clamp-2">{p.name}</h4>
+      <div className="flex flex-wrap items-center gap-1 mb-2">
+        <span className={cn('px-1.5 py-0.5 rounded-md text-[7px] font-black uppercase tracking-wider border', typeMeta(p.projectType).cls)}>
+          {typeMeta(p.projectType).label}
+        </span>
+        {p.zone && (
+          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[7px] font-black uppercase tracking-wider border bg-gray-50 text-gray-500 border-gray-200">
+            <MapPin className="h-2 w-2" /> {p.zone}
+          </span>
+        )}
+        {targetDateOf(p) && (
+          <span className={cn(
+            'px-1.5 py-0.5 rounded-md text-[7px] font-black uppercase tracking-wider border',
+            daysUntil(targetDateOf(p)) < 0 ? 'bg-red-50 text-red-500 border-red-200'
+              : daysUntil(targetDateOf(p)) <= 7 ? 'bg-amber-50 text-amber-600 border-amber-200'
+                : 'bg-gray-50 text-gray-400 border-gray-200'
+          )}>
+            {relDays(daysUntil(targetDateOf(p)))}
+          </span>
+        )}
+      </div>
       <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden mb-2">
         <div className="h-full bg-primary rounded-full" style={{ width: `${p.progress || 0}%` }} />
       </div>

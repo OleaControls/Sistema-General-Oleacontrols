@@ -11,7 +11,9 @@ import {
 
    Reglas de negocio (revalidadas también en /api/appointments):
    · Sólo fechas con 2 días de anticipación como mínimo.
-   · Máximo 2 citas Coppel por día. Día lleno → "Sin cita disponible".
+   · Máximo 2 citas POR MARCA por día. Día lleno → "Sin cita disponible".
+     El cupo es por cadena: la disponibilidad del calendario depende de la
+     marca escogida arriba, así que cambiar de marca recarga el mes.
    · La cita cae en el calendario de Operaciones y desde ahí se autocompleta
      para generar la OT del técnico.
 ═══════════════════════════════════════════════════════════════════════════ */
@@ -30,6 +32,12 @@ const TYPES = [
 ];
 
 const DOW = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+
+// Cadenas que pueden agendar desde el portal público. La lista se escribe aquí
+// y no se aprende de la base a propósito: es una pantalla abierta a internet y
+// no tiene por qué revelar la cartera completa de clientes.
+// Al sumar una cadena nueva, agréguela a este arreglo.
+const MARCAS = ['Coppel', 'Elektra', 'Chedraui'];
 
 /* Estado de la OT traducido a lo que le importa al cliente: cuándo llegan. */
 const OT_STATUS = {
@@ -143,6 +151,9 @@ export default function AppointmentBooking() {
   const [loadingAvail, setLoadingAvail] = useState(true);
   const [selectedDate, setSelectedDate] = useState(null);
 
+  // La marca se escoge ANTES del calendario: el cupo diario es por cadena.
+  const [brand, setBrand] = useState('Coppel');
+
   const [form, setForm] = useState({
     storeNumber: '', storeName: '', contactName: '', contactPhone: '',
     contactEmail: '', address: '', description: '', preferredTime: '09:00',
@@ -252,7 +263,7 @@ export default function AppointmentBooking() {
   const loadAvailability = useCallback(async () => {
     setLoadingAvail(true);
     try {
-      const res = await fetch(`/api/appointments?availability=1&month=${monthKey}`);
+      const res = await fetch(`/api/appointments?availability=1&month=${monthKey}&brand=${encodeURIComponent(brand)}`);
       if (!res.ok) throw new Error('No se pudo consultar la disponibilidad');
       setAvail(await res.json());
       setError(null);
@@ -262,7 +273,7 @@ export default function AppointmentBooking() {
     } finally {
       setLoadingAvail(false);
     }
-  }, [monthKey]);
+  }, [monthKey, brand]);
 
   useEffect(() => { loadAvailability(); }, [loadAvailability]);
 
@@ -299,7 +310,7 @@ export default function AppointmentBooking() {
       const res = await fetch('/api/appointments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type, scheduledDate: selectedDate, ...form }),
+        body: JSON.stringify({ type, brand, scheduledDate: selectedDate, ...form }),
       });
       const payload = await res.json().catch(() => null);
       if (!res.ok) throw new Error(payload?.error || 'No se pudo registrar la cita');
@@ -349,7 +360,7 @@ export default function AppointmentBooking() {
             <img src="/img/Insignia.png" alt="Olea" style={{ width: '44px', height: '44px', objectFit: 'contain', filter: 'drop-shadow(0 0 14px rgba(96,165,250,.6))' }} />
             <div>
               <p className="ap-display" style={{ margin: 0, fontSize: '8px', color: '#60a5fa', letterSpacing: '.4em', textTransform: 'uppercase' }}>
-                Olea Controls · Coppel
+                Olea Controls · Tiendas
               </p>
               <h1 className="ap-display" style={{ margin: '4px 0 0', fontSize: 'clamp(24px,4vw,34px)', fontWeight: 700, color: '#f8fafc', letterSpacing: '-.01em' }}>
                 {mode === 'claim' ? 'REPORTE DE GARANTÍA'
@@ -905,6 +916,33 @@ export default function AppointmentBooking() {
               {/* ═══ PASO 2 — Calendario ═══ */}
               {step === 2 && (
                 <div className="ap-in">
+                  {/* La marca va antes del calendario porque el cupo diario es
+                      por cadena: cambiarla cambia los días disponibles. */}
+                  <div style={{ marginBottom: '18px' }}>
+                    <p className="ap-display" style={{ ...LBL, marginBottom: '8px' }}>Su cadena</p>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                      {MARCAS.map(m => (
+                        <button
+                          key={m}
+                          type="button"
+                          onClick={() => { setBrand(m); setSelectedDate(null); }}
+                          style={{
+                            padding: '9px 16px', borderRadius: '999px', cursor: 'pointer',
+                            fontSize: '12px', fontWeight: 600,
+                            background: brand === m ? 'rgba(37,99,235,.28)' : 'rgba(255,255,255,.05)',
+                            border: `1px solid ${brand === m ? 'rgba(96,165,250,.55)' : 'rgba(255,255,255,.12)'}`,
+                            color: brand === m ? '#dbeafe' : '#cbd5e1',
+                          }}
+                        >
+                          {m}
+                        </button>
+                      ))}
+                    </div>
+                    <p style={{ margin: '10px 0 0', fontSize: '11.5px', color: 'rgba(203,213,225,.65)' }}>
+                      Cada cadena tiene su propio cupo diario: los lugares de una no le quitan lugar a otra.
+                    </p>
+                  </div>
+
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '18px', gap: '12px' }}>
                     <div>
                       <p className="ap-display" style={{ ...LBL, marginBottom: '4px' }}>Escoja su fecha</p>
@@ -1032,7 +1070,7 @@ export default function AppointmentBooking() {
                         onChange={e => setForm(f => ({ ...f, storeNumber: e.target.value }))} />
                     </Field>
                     <Field label="Nombre de sucursal" icon={Store}>
-                      <input className="ap-input" placeholder="Ej. Coppel Centro" value={form.storeName}
+                      <input className="ap-input" placeholder="Ej. Sucursal Centro" value={form.storeName}
                         onChange={e => setForm(f => ({ ...f, storeName: e.target.value }))} />
                     </Field>
                     <Field label="Nombre de contacto *" icon={User}>
@@ -1044,7 +1082,7 @@ export default function AppointmentBooking() {
                         onChange={e => setForm(f => ({ ...f, contactPhone: e.target.value }))} />
                     </Field>
                     <Field label="Correo" icon={Mail}>
-                      <input className="ap-input" type="email" placeholder="contacto@coppel.com" value={form.contactEmail}
+                      <input className="ap-input" type="email" placeholder="contacto@empresa.com" value={form.contactEmail}
                         onChange={e => setForm(f => ({ ...f, contactEmail: e.target.value }))} />
                     </Field>
                     <Field label="Horario preferente" icon={Clock}>

@@ -5,7 +5,7 @@ import {
   X, Send, Trophy, Building2, User, Trash2, AlertCircle, FileText,
   MapPin, Loader2, Layers, ChevronDown, ChevronUp, Receipt, TrendingDown,
   DollarSign, ChevronLeft, ChevronRight, Check, Briefcase, Zap, Star, MessageSquare,
-  Lock, TimerReset
+  Lock, TimerReset, Store
 } from 'lucide-react';
 import { MapContainer, TileLayer, Marker, useMap, useMapEvents, Popup } from 'react-leaflet';
 import L from 'leaflet';
@@ -20,6 +20,9 @@ import { cn } from '@/lib/utils';
 import {
   OT_WINDOW_KEY, DEFAULT_OT_WINDOW, normalizeWindow, isWindowOpen, windowLabel, hourLabel,
 } from '@/lib/otWindow';
+import {
+  ACTIVITIES as OT_ACTIVITIES, ACTIVITY_KEYS as OT_ACTIVITY_KEYS,
+} from '@/modules/projects/utils/reglas';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -322,6 +325,11 @@ export default function SupervisorOTs() {
   const [extraFunds, setExtraFunds] = useState(0);
   const [searchTerm, setSearchTerm] = useState('');
   const [filters, setFilters] = useState({ status: 'ALL', priority: 'ALL', techId: 'ALL' });
+  // OTs (de tienda, se gestionan como proyecto) vs. Asignaciones (todo lo demás).
+  // El filtro viaja al servidor porque la lista está paginada allá.
+  const [otKind, setOtKind] = useState('TIENDA');
+  // Catálogo de proyectos de tiendas para el selector del alta.
+  const [storeProjects, setStoreProjects] = useState([]);
 
   // ── Ventana horaria de creación de OTs ────────────────────────────────────
   const [otWindow, setOtWindow] = useState(DEFAULT_OT_WINDOW);
@@ -360,7 +368,13 @@ export default function SupervisorOTs() {
     assistantTechs: [], workDescription: '', arrivalTime: '09:00',
     scheduledDate: new Date().toISOString().split('T')[0],
     priority: 'MEDIUM', assignedFunds: 0, techMetas: '', techHasVehicle: false,
-    timeLimitHours: '', qualityHigh: '', qualityMin: '', clientGoal: ''
+    timeLimitHours: '', qualityHigh: '', qualityMin: '', clientGoal: '',
+    kind: 'TIENDA', projectId: '',
+    // Marca de la cadena; la tienda concreta va en storeNumber/storeName.
+    brand: '',
+    // Zona y actividad del Sistema General. La zona se hereda del proyecto si
+    // se deja vacía; la actividad tipifica el trabajo para el panel y el mapa.
+    zone: '', activity: ''
   };
 
   const [newOT, setNewOT] = useState(initialNewOT);
@@ -374,12 +388,13 @@ export default function SupervisorOTs() {
   };
 
   // Carga de OTs — recibe el número de página explícitamente para evitar closures obsoletos
-  const loadOTs = async (page, search, status, techId) => {
+  const loadOTs = async (page, search, status, techId, kind) => {
     try {
       const params = { page, limit: OT_PAGE_SIZE };
       if (search)                     params.search = search;
       if (status && status !== 'ALL') params.status = status;
       if (techId && techId !== 'ALL') params.techId = techId;
+      if (kind)                       params.kind   = kind;
       const raw = await otService.getOTsPaginated(params);
       const { data, total } = parseOTsResponse(raw);
       setOts(data);
@@ -392,7 +407,7 @@ export default function SupervisorOTs() {
       setLoading(true);
       try {
         const [rawOTs, c, oc, t, allEmployees] = await Promise.all([
-          otService.getOTsPaginated({ page: 1, limit: OT_PAGE_SIZE }),
+          otService.getOTsPaginated({ page: 1, limit: OT_PAGE_SIZE, kind: otKind }),
           crmService.getClients(),
           otService.getOTClients(),
           otService.getTemplates(),
@@ -439,7 +454,7 @@ export default function SupervisorOTs() {
   }, []);
 
   // Alias para que llamadas internas (ej: después de guardar una OT) recarguen la página actual
-  const loadData = () => loadOTs(otPage, searchTerm, filters.status, filters.techId);
+  const loadData = () => loadOTs(otPage, searchTerm, filters.status, filters.techId, otKind);
 
   /**
    * ✅ EXPORT AER (ARREGLADO):
@@ -778,7 +793,8 @@ export default function SupervisorOTs() {
       alert(`La creación de OTs está cerrada. Horario permitido: ${windowLabel(otWindow)} (hora de México).`);
       return;
     }
-    setNewOT(initialNewOT);
+    setNewOT({ ...initialNewOT, kind: otKind });
+    otService.getProjectsCatalog().then(setStoreProjects).catch(() => setStoreProjects([]));
     setIsEditMode(false);
     goToStep(1);
     setOtClientSearch('');
@@ -796,7 +812,10 @@ export default function SupervisorOTs() {
       techMetas:        '',
       techHasVehicle:   false,
       assistantTechs:   Array.isArray(ot.assistantTechs) ? ot.assistantTechs : [],
+      zone:             ot.zone     || '',
+      activity:         ot.activity || '',
     });
+    otService.getProjectsCatalog().then(setStoreProjects).catch(() => setStoreProjects([]));
     setEditingId(ot.id);
     setIsEditMode(true);
     goToStep(1);
@@ -927,7 +946,7 @@ export default function SupervisorOTs() {
     clearTimeout(searchDebounceRef.current);
     searchDebounceRef.current = setTimeout(() => {
       setOtPage(1);
-      loadOTs(1, value, filters.status, filters.techId); // pasa el value nuevo directamente, no el state
+      loadOTs(1, value, filters.status, filters.techId, otKind); // pasa el value nuevo directamente, no el state
     }, 350);
   };
 
@@ -935,20 +954,38 @@ export default function SupervisorOTs() {
   const handleStatusFilter = (newStatus) => {
     setFilters(prev => ({ ...prev, status: newStatus }));
     setOtPage(1);
-    loadOTs(1, searchTerm, newStatus, filters.techId); // pasa el newStatus directamente, no el state
+    loadOTs(1, searchTerm, newStatus, filters.techId, otKind); // pasa el newStatus directamente, no el state
   };
 
   // Cambio de filtro por técnico → recarga inmediata desde servidor (líder + apoyo)
   const handleTechFilter = (newTechId) => {
     setFilters(prev => ({ ...prev, techId: newTechId }));
     setOtPage(1);
-    loadOTs(1, searchTerm, filters.status, newTechId); // pasa el techId nuevo directamente, no el state
+    loadOTs(1, searchTerm, filters.status, newTechId, otKind); // pasa el techId nuevo directamente, no el state
   };
 
   // Navegar de página — llama a loadOTs directamente con el número nuevo
   const goToPage = (newPage) => {
     setOtPage(newPage);
-    loadOTs(newPage, searchTerm, filters.status, filters.techId);
+    loadOTs(newPage, searchTerm, filters.status, filters.techId, otKind);
+  };
+
+  // Marcas ya usadas: sale de las OT cargadas y de los proyectos de tiendas.
+  // Catálogo abierto, igual que el de zonas.
+  const marcasConocidas = useMemo(() => {
+    const set = new Set();
+    for (const o of ots) if (o?.brand?.trim()) set.add(o.brand.trim());
+    for (const p of storeProjects) if (p?.brand?.trim()) set.add(p.brand.trim());
+    return [...set].sort((a, b) => a.localeCompare(b, 'es'));
+  }, [ots, storeProjects]);
+
+  // Cambio entre OTs de tienda y Asignaciones. Como la lista se pagina en el
+  // servidor, el tipo se manda como filtro y se vuelve a la primera página.
+  const handleKindChange = (kind) => {
+    if (kind === otKind) return;
+    setOtKind(kind);
+    setOtPage(1);
+    loadOTs(1, searchTerm, filters.status, filters.techId, kind);
   };
 
   // Filtrado local solo por priority (no enviado al servidor)
@@ -1176,6 +1213,37 @@ export default function SupervisorOTs() {
           </div>
         </div>
       )}
+
+      {/* ══════════════════════════════════════════════════════════════════════
+          OTs (de tienda) vs. ASIGNACIONES (trabajo externo)
+          Las OT de tienda se gestionan como proyecto; las asignaciones no.
+      ══════════════════════════════════════════════════════════════════════ */}
+      <div className="flex items-center gap-2 ops-rise-2" role="tablist" aria-label="Tipo de orden">
+        {[
+          { key: 'TIENDA',     label: 'OTs de Tienda', sub: 'Se gestionan como proyecto' },
+          { key: 'ASSIGNMENT', label: 'Asignaciones',  sub: 'Trabajos que no son de tienda' },
+        ].map(k => {
+          const isOn = otKind === k.key;
+          return (
+            <button
+              key={k.key}
+              type="button"
+              role="tab"
+              aria-selected={isOn}
+              onClick={() => handleKindChange(k.key)}
+              className={cn(
+                'cursor-pointer flex-1 md:flex-none md:min-w-[220px] text-left px-5 py-3 rounded-2xl border-2 transition-all duration-150',
+                isOn
+                  ? 'bg-gray-950 border-gray-950 text-white shadow-lg shadow-gray-900/15'
+                  : 'bg-white border-gray-200 text-gray-500 hover:border-gray-400'
+              )}
+            >
+              <p className="ops-display text-sm font-semibold leading-none">{k.label}</p>
+              <p className={cn('text-[10px] mt-1.5 leading-none', isOn ? 'text-white/60' : 'text-gray-400')}>{k.sub}</p>
+            </button>
+          );
+        })}
+      </div>
 
       {/* ══════════════════════════════════════════════════════════════════════
           RIEL DE ESTADO — sustituye a las tarjetas KPI y a las pestañas de la
@@ -2086,6 +2154,117 @@ export default function SupervisorOTs() {
                         <div className="flex-1 h-px bg-gray-100" />
                       </div>
 
+                      {/* Tipo de orden — define si se gestiona como proyecto */}
+                      <div>
+                        <label className="text-[9px] font-mono font-bold uppercase tracking-[0.15em] text-gray-500 block mb-2">Tipo de orden *</label>
+                        <div className="grid grid-cols-2 gap-2">
+                          {[
+                            { value: 'TIENDA',     label: 'OT de Tienda', hint: 'Se gestiona como proyecto' },
+                            { value: 'ASSIGNMENT', label: 'Asignación',   hint: 'Trabajo que no es de tienda' },
+                          ].map(k => {
+                            const isActive = newOT.kind === k.value;
+                            return (
+                              <button
+                                key={k.value}
+                                type="button"
+                                onClick={() => setNewOT({ ...newOT, kind: k.value, projectId: k.value === 'TIENDA' ? newOT.projectId : '' })}
+                                className={cn(
+                                  'cursor-pointer relative flex flex-col items-start justify-center px-4 py-3 rounded-xl border-2 transition-all duration-150',
+                                  isActive
+                                    ? 'bg-gray-950 border-gray-950 text-white'
+                                    : 'bg-white border-gray-200 text-gray-600 hover:border-gray-400'
+                                )}
+                              >
+                                <span className="text-xs font-bold">{k.label}</span>
+                                <span className={cn('text-[9px] mt-1', isActive ? 'text-white/60' : 'text-gray-400')}>{k.hint}</span>
+                                {isActive && (
+                                  <div className="absolute top-1.5 right-1.5">
+                                    <Check className="h-3 w-3 text-white/70" />
+                                  </div>
+                                )}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        {/* Proyecto de la OT. Toda orden de tienda se gestiona bajo uno
+                            —si no se elige, el sistema lo abre al guardar—, y cualquier
+                            otra asignación puede colgarse del proyecto al que pertenece. */}
+                        <div className="mt-3">
+                          <label className="text-[9px] font-mono font-bold uppercase tracking-[0.15em] text-gray-500 block mb-2">
+                            Proyecto de la orden
+                          </label>
+                          <select
+                            className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-900 outline-none focus:border-gray-900 focus:ring-2 focus:ring-gray-900/5 transition-all"
+                            value={newOT.projectId || ''}
+                            onChange={e => {
+                              const proj = storeProjects.find(p => p.id === e.target.value);
+                              // La zona baja del proyecto salvo que ya se haya capturado una.
+                              setNewOT({
+                                ...newOT,
+                                projectId: e.target.value,
+                                zone: newOT.zone || proj?.zone || '',
+                              });
+                            }}
+                          >
+                            <option value="">
+                              {newOT.kind === 'TIENDA'
+                                ? (isEditMode ? 'Sin proyecto vinculado' : 'Abrir un proyecto nuevo para esta OT')
+                                : 'Sin proyecto'}
+                            </option>
+                            {storeProjects
+                              .filter(p => newOT.kind !== 'TIENDA' || p.serviceType === 'TIENDAS')
+                              .map(p => (
+                                <option key={p.id} value={p.id}>{p.code} · {p.name}</option>
+                              ))}
+                          </select>
+                          <p className="text-[9px] text-gray-400 mt-2 leading-relaxed">
+                            {newOT.projectId
+                              ? 'La OT se agrega a este proyecto: cuenta como asignación suya en el panel de supervisión y el técnico ve su inventario, documentación y pendientes.'
+                              : newOT.kind === 'TIENDA'
+                                ? (isEditMode
+                                    ? 'Sin proyecto, la orden no muestra las pestañas de inventario, documentación ni pendientes.'
+                                    : 'Al guardar se creará un proyecto en el embudo de Tiendas con esta OT dentro.')
+                                : 'Opcional. Vincularla deja el trabajo contado dentro del proyecto y cierra el flujo proyecto → asignación → técnico.'}
+                          </p>
+                        </div>
+
+                        {/* Zona y actividad: zonificación de la operación */}
+                        <div className="grid grid-cols-2 gap-4 mt-3">
+                          <div>
+                            <label className="text-[9px] font-mono font-bold uppercase tracking-[0.15em] text-gray-500 block mb-2">
+                              Zona
+                            </label>
+                            <input
+                              list="ot-zones"
+                              className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-900 outline-none focus:border-gray-900 focus:ring-2 focus:ring-gray-900/5 transition-all placeholder:text-gray-300"
+                              value={newOT.zone || ''}
+                              onChange={e => setNewOT({ ...newOT, zone: e.target.value })}
+                              placeholder="Se hereda del proyecto"
+                            />
+                            <datalist id="ot-zones">
+                              {[...new Set(storeProjects.map(p => p.zone).filter(Boolean))].map(z => (
+                                <option key={z} value={z} />
+                              ))}
+                            </datalist>
+                          </div>
+                          <div>
+                            <label className="text-[9px] font-mono font-bold uppercase tracking-[0.15em] text-gray-500 block mb-2">
+                              Actividad
+                            </label>
+                            <select
+                              className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-900 outline-none focus:border-gray-900 focus:ring-2 focus:ring-gray-900/5 transition-all"
+                              value={newOT.activity || ''}
+                              onChange={e => setNewOT({ ...newOT, activity: e.target.value })}
+                            >
+                              <option value="">— Sin tipificar —</option>
+                              {OT_ACTIVITY_KEYS.map(k => (
+                                <option key={k} value={k}>{OT_ACTIVITIES[k].label}</option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+                      </div>
+
                       {/* Título */}
                       <div>
                         <label className="text-[9px] font-mono font-bold uppercase tracking-[0.15em] text-gray-500 block mb-2">Qué se va a hacer *</label>
@@ -2096,6 +2275,29 @@ export default function SupervisorOTs() {
                           onChange={e => setNewOT({ ...newOT, title: e.target.value })}
                           placeholder="Ej. Mantenimiento preventivo sistema eléctrico..."
                         />
+                      </div>
+
+                      {/* Marca de la cadena. Catálogo abierto: se aprende de lo ya
+                          capturado, igual que las zonas, para no tener que dar de alta
+                          una cadena antes de poder operarla. */}
+                      <div>
+                        <label className="text-[9px] font-mono font-bold uppercase tracking-[0.15em] text-gray-500 block mb-2">Marca</label>
+                        <div className="relative">
+                          <Store className="absolute left-3.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-300 pointer-events-none" />
+                          <input
+                            list="ot-brands"
+                            className="w-full pl-9 pr-4 py-3 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-900 outline-none focus:border-gray-900 focus:ring-2 focus:ring-gray-900/5 transition-all placeholder:text-gray-300"
+                            value={newOT.brand || ''}
+                            onChange={e => setNewOT({ ...newOT, brand: e.target.value })}
+                            placeholder="Coppel, Elektra, Chedraui..."
+                          />
+                        </div>
+                        <datalist id="ot-brands">
+                          {marcasConocidas.map(m => <option key={m} value={m} />)}
+                        </datalist>
+                        <p className="text-[9px] text-gray-400 mt-2 leading-relaxed">
+                          La cadena a la que pertenece la tienda. La sucursal concreta va abajo.
+                        </p>
                       </div>
 
                       {/* Sucursal + Cliente */}
@@ -2115,7 +2317,7 @@ export default function SupervisorOTs() {
                             className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-900 outline-none focus:border-gray-900 focus:ring-2 focus:ring-gray-900/5 transition-all placeholder:text-gray-300"
                             value={newOT.storeName}
                             onChange={e => setNewOT({ ...newOT, storeName: e.target.value })}
-                            placeholder="Coppel Insurgentes Norte"
+                            placeholder="Insurgentes Norte"
                           />
                         </div>
                       </div>
@@ -2128,7 +2330,7 @@ export default function SupervisorOTs() {
                             className="w-full pl-9 pr-4 py-3 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-900 outline-none focus:border-gray-900 focus:ring-2 focus:ring-gray-900/5 transition-all placeholder:text-gray-300"
                             value={newOT.client}
                             onChange={e => setNewOT({ ...newOT, client: e.target.value })}
-                            placeholder="Coppel S.A. de C.V."
+                            placeholder="Razón social del cliente"
                           />
                         </div>
                       </div>

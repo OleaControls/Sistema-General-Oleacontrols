@@ -560,19 +560,25 @@ export default function ClientPortal() {
                       <p className="p-code" style={{ fontSize:10, letterSpacing:'.12em', color:'#9ca3af', textTransform:'uppercase', marginBottom:12 }}>
                         Evidencias · Reportes
                       </p>
-                      {sel.evidences?.length > 0 ? (
+                      {/* El reporte de incidencias es interno: no se muestra al cliente. */}
+                      {sel.evidences?.filter(ev => ev.type !== 'INCIDENT').length > 0 ? (
                         <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:10 }}>
-                          {sel.evidences.map((ev, i) => (
-                            <a key={i} href={ev.url} target="_blank" rel="noreferrer" className="p-thumb">
-                              {ev.type === 'IMAGE'
-                                ? <img src={ev.url} style={{ width:'100%', height:'100%', objectFit:'cover' }} alt="" />
-                                : <div style={{ minHeight:90, background:'#fef2f2', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:6 }}>
-                                    <FileText size={24} style={{ color:'#f87171' }} />
-                                    <span className="p-code" style={{ fontSize:9, color:'#fca5a5', textTransform:'uppercase' }}>PDF</span>
-                                  </div>
-                              }
-                              <div className="p-ov"><ExternalLink size={16} style={{ color:'#fff' }} /></div>
-                            </a>
+                          {sel.evidences.filter(ev => ev.type !== 'INCIDENT').map((ev, i) => (
+                            <div key={i}>
+                              <a href={ev.url} target="_blank" rel="noreferrer" className="p-thumb">
+                                {ev.type === 'IMAGE'
+                                  ? <img src={ev.url} style={{ width:'100%', height:'100%', objectFit:'cover' }} alt={ev.description || ''} />
+                                  : <div style={{ minHeight:90, background:'#fef2f2', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:6 }}>
+                                      <FileText size={24} style={{ color:'#f87171' }} />
+                                      <span className="p-code" style={{ fontSize:9, color:'#fca5a5', textTransform:'uppercase' }}>PDF</span>
+                                    </div>
+                                }
+                                <div className="p-ov"><ExternalLink size={16} style={{ color:'#fff' }} /></div>
+                              </a>
+                              {ev.description && (
+                                <p style={{ fontSize:10, color:'#6b7280', marginTop:6, lineHeight:1.4 }}>{ev.description}</p>
+                              )}
+                            </div>
                           ))}
                         </div>
                       ) : (

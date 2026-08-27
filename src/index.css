@@ -117,8 +117,16 @@
 }
 
 /* ── Mapas (Leaflet) ────────────────────────────────────────────────────────
-   La atribución es obligatoria por la licencia de OpenStreetMap y CARTO, pero
-   no tiene por qué gritar: se deja legible y discreta en todos los mapas. */
+   El basemap es OpenStreetMap estándar (sin API key). Se desatura aquí para
+   que el mapa quede como fondo gris y los pines sean lo único con color; el
+   filtro va sobre el panel de teselas, así los círculos, marcadores y popups
+   —que viven en otros paneles— conservan su color. */
+.leaflet-tile-pane {
+  filter: grayscale(0.9) brightness(1.06) contrast(0.92);
+}
+
+/* La atribución es obligatoria por la licencia de OpenStreetMap, pero no tiene
+   por qué gritar: se deja legible y discreta en todos los mapas. */
 .leaflet-control-attribution {
   font-size: 9px !important;
   line-height: 1.5 !important;

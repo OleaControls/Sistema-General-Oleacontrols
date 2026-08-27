@@ -40,6 +40,14 @@ export const projectService = {
     return res.json();
   },
 
+  // Panel de Supervisión: proyectos, asignaciones, carga de técnicos y
+  // documentos por vencer, ya agregados en el servidor.
+  async supervision() {
+    const res = await apiFetch('/api/projects?scope=supervision');
+    if (!res.ok) throw new Error('Error al cargar el panel de supervisión');
+    return res.json();
+  },
+
   // ── Sub-recursos genéricos ─────────────────────────────────────────────
   // sub ∈ tasks | risks | costs | resources | quality | communications |
   //        incidents | documents | changes | quotes
@@ -86,7 +94,10 @@ export const projectService = {
   otClients() { return this._fetchArray('/api/ot-clients'); },
 
   // Órdenes de trabajo: [{id, otNumber, title, ...}]
-  ots() { return this._fetchArray('/api/ots?limit=500'); },
+  // El listado pagina y topa en 100 por página, así que ?limit=500 dejaba fuera
+  // las OT más viejas y sus vínculos se mostraban como ID crudo. 'metrics'
+  // devuelve todas con un select ligero.
+  ots() { return this._fetchArray('/api/ots?scope=metrics'); },
 
   // Cotizaciones: [{id, quoteNumber, projectName, ...}]
   quotes() { return this._fetchArray('/api/quotes'); },

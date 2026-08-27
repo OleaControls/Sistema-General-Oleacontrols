@@ -4,7 +4,8 @@ import {
   ArrowLeft, Loader2, Save, Plus, X, Pencil, Trash2, LayoutDashboard,
   FileText, ListChecks, DollarSign, Users, ShieldCheck, MessageSquare,
   AlertTriangle, FolderOpen, GitPullRequestArrow, Flag, CheckCircle2,
-  FileDown, Upload, Link2, History, Archive, Check, Ban, Bell, Calculator
+  FileDown, Upload, Link2, History, Archive, Check, Ban, Bell, Calculator,
+  PackagePlus, ListTodo, MapPin, Phone, Boxes
 } from 'lucide-react';
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Cell,
@@ -16,6 +17,11 @@ import { useAuth } from '@/store/AuthContext';
 import { generateProjectActaPDF } from '../utils/projectPDF';
 import CotizadorTab from '../components/CotizadorTab';
 import { PROJECT_STATUS, normalizePhase, PROJECT_SERVICES, normalizeService } from './ProjectsList';
+import {
+  PROJECT_TYPES, PROJECT_TYPE_KEYS, typeMeta, PRIORITIES, PRIORITY_KEYS,
+  priorityMeta, assignmentWindow, WINDOW_STATUS, targetDateOf, daysUntil,
+  relDays, telHref,
+} from '../utils/reglas';
 import { cn } from '@/lib/utils';
 
 const money = (n) => `$${Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 0 })}`;
@@ -180,9 +186,85 @@ const SECTIONS = [
       { name: 'createdAt', label: 'Fecha', render: fmtDate },
     ],
   },
+  /* ── Inventario de equipo del proyecto ────────────────────────────────────
+     Equipo con número de serie que vive en este proyecto. Es distinto del EPP
+     y herramienta de RH (asignado a una persona) y del inventario de tiendas
+     (material del cliente, común a toda la operación). */
+  {
+    key: 'equipment', sub: 'equipment', label: 'Inventario', icon: Boxes,
+    fields: [
+      { name: 'name', label: 'Equipo', type: 'text', required: true },
+      { name: 'inventoryNumber', label: 'Número de inventario', type: 'text' },
+      { name: 'type', label: 'Tipo', type: 'text' },
+      { name: 'brand', label: 'Marca', type: 'text' },
+      { name: 'model', label: 'Modelo', type: 'text' },
+      { name: 'serialNumber', label: 'Número de serie', type: 'text' },
+      { name: 'quantity', label: 'Cantidad', type: 'number' },
+      { name: 'status', label: 'Estado', type: 'select', options: [['EN_ALMACEN', 'En almacén'], ['EN_SITIO', 'En sitio'], ['INSTALADO', 'Instalado'], ['EN_REPARACION', 'En reparación'], ['BAJA', 'Baja']] },
+      { name: 'location', label: 'Ubicación', type: 'text' },
+      { name: 'zone', label: 'Zona', type: 'text' },
+      { name: 'responsibleName', label: 'Responsable', type: 'employee' },
+      { name: 'assignedAt', label: 'Fecha de asignación', type: 'date' },
+      { name: 'notes', label: 'Notas', type: 'textarea' },
+    ],
+    columns: [
+      { name: 'inventoryNumber', label: 'No. inv.' },
+      { name: 'name', label: 'Equipo' },
+      { name: 'brand', label: 'Marca' },
+      { name: 'model', label: 'Modelo' },
+      { name: 'serialNumber', label: 'No. serie' },
+      { name: 'quantity', label: 'Cant.' },
+      { name: 'location', label: 'Ubicación' },
+      { name: 'responsibleName', label: 'Responsable' },
+      { name: 'status', label: 'Estado', badge: true },
+    ],
+  },
+  /* ── Tiendas ──────────────────────────────────────────────────────────────
+     Estas dos secciones son las que el técnico consulta desde su OT. Aquí las
+     administra el Gerente de Proyectos: resuelve las solicitudes de recurso y
+     da de alta los pendientes. El inventario NO está aquí: es uno solo para
+     toda la operación de tiendas y se administra en Inventario de Tiendas. */
+  {
+    key: 'resourceRequests', sub: 'resourceRequests', label: 'Solicitudes de recurso', icon: PackagePlus,
+    fields: [
+      { name: 'name', label: 'Recurso solicitado', type: 'text', required: true },
+      { name: 'quantity', label: 'Cantidad', type: 'number' },
+      { name: 'unit', label: 'Unidad', type: 'text' },
+      { name: 'justification', label: 'Para qué se necesita', type: 'textarea' },
+      { name: 'status', label: 'Estado', type: 'select', options: [['SOLICITADO', 'Solicitado'], ['APROBADO', 'Aprobado'], ['RECHAZADO', 'Rechazado'], ['SURTIDO', 'Surtido']] },
+      { name: 'decidedByName', label: 'Resuelto por', type: 'employee' },
+      { name: 'decisionNotes', label: 'Notas de la decisión', type: 'textarea' },
+    ],
+    columns: [
+      { name: 'name', label: 'Recurso' },
+      { name: 'quantity', label: 'Cant.' },
+      { name: 'requestedByName', label: 'Solicitó' },
+      { name: 'requestedAt', label: 'Fecha', render: fmtDate },
+      { name: 'status', label: 'Estado', badge: true },
+    ],
+  },
+  {
+    key: 'pendings', sub: 'pendings', label: 'Pendientes', icon: ListTodo,
+    fields: [
+      { name: 'title', label: 'Pendiente', type: 'text', required: true },
+      { name: 'notes', label: 'Detalle', type: 'textarea' },
+      { name: 'ownerName', label: 'Responsable', type: 'employee' },
+      { name: 'dueDate', label: 'Fecha límite', type: 'date' },
+      { name: 'status', label: 'Estado', type: 'select', options: [['ABIERTO', 'Abierto'], ['EN_PROCESO', 'En proceso'], ['CERRADO', 'Cerrado']] },
+    ],
+    columns: [
+      { name: 'title', label: 'Pendiente' },
+      { name: 'ownerName', label: 'Responsable' },
+      { name: 'dueDate', label: 'Vence', render: fmtDate },
+      { name: 'status', label: 'Estado', badge: true },
+    ],
+  },
 ];
 
 const BADGE_CLS = {
+  INSTALADO: 'bg-emerald-50 text-emerald-600', EN_SITIO: 'bg-blue-50 text-blue-600',
+  EN_ALMACEN: 'bg-gray-100 text-gray-500', EN_REPARACION: 'bg-amber-50 text-amber-600',
+  BAJA: 'bg-red-50 text-red-500',
   DONE: 'bg-emerald-50 text-emerald-600', APROBADO: 'bg-emerald-50 text-emerald-600',
   RESUELTA: 'bg-emerald-50 text-emerald-600', MITIGADO: 'bg-emerald-50 text-emerald-600', CERRADO: 'bg-emerald-50 text-emerald-600',
   IN_PROGRESS: 'bg-blue-50 text-blue-600', EN_PROCESO: 'bg-blue-50 text-blue-600',
@@ -192,6 +274,7 @@ const BADGE_CLS = {
   ALTA: 'bg-red-50 text-red-600', CRITICA: 'bg-red-50 text-red-600', ALTO: 'bg-red-50 text-red-600',
   MEDIA: 'bg-amber-50 text-amber-600', MEDIO: 'bg-amber-50 text-amber-600',
   BAJA: 'bg-gray-100 text-gray-500', BAJO: 'bg-gray-100 text-gray-500',
+  SURTIDO: 'bg-emerald-50 text-emerald-600',
 };
 
 export default function ProjectDetail() {
@@ -251,8 +334,34 @@ export default function ProjectDetail() {
           <div>
             <span className="text-[9px] font-black text-primary uppercase tracking-widest">{project.code}</span>
             <h1 className="text-2xl font-black text-gray-900 tracking-tight leading-tight">{project.name}</h1>
+            <div className="flex flex-wrap items-center gap-1.5 mt-2">
+              <HeaderChip cls={typeMeta(project.projectType).cls}>{typeMeta(project.projectType).label}</HeaderChip>
+              <HeaderChip cls={priorityMeta(project.priority).cls}>{priorityMeta(project.priority).label}</HeaderChip>
+              {project.zone && (
+                <HeaderChip cls="bg-gray-50 text-gray-500 border-gray-200">
+                  <MapPin className="h-2.5 w-2.5" /> {project.zone}
+                </HeaderChip>
+              )}
+              {targetDateOf(project) && (
+                <HeaderChip cls={WINDOW_STATUS[assignmentWindow(project).status].cls}>
+                  Compromiso {relDays(daysUntil(targetDateOf(project)))}
+                </HeaderChip>
+              )}
+              {project.clientContactName && (
+                <span className="text-[10px] font-bold text-gray-400">
+                  Encargado: {project.clientContactName}
+                </span>
+              )}
+            </div>
           </div>
           <div className="flex items-center gap-2">
+            {telHref(project.clientContactPhone) && (
+              <a href={telHref(project.clientContactPhone)}
+                title={`Llamar a ${project.clientContactName || 'el encargado del cliente'}`}
+                className="flex items-center gap-1.5 px-3 py-2 border border-gray-200 rounded-xl text-[10px] font-black uppercase tracking-wider text-gray-600 hover:bg-gray-50 transition-all">
+                <Phone className="h-3.5 w-3.5" /> Llamar
+              </a>
+            )}
             <select
               value={normalizePhase(project.status)}
               onChange={async (e) => { await projectService.update(id, { status: e.target.value }); reload(); }}
@@ -533,6 +642,16 @@ const ACTA_FIELDS = [
   { name: 'endDate', label: 'Fecha de fin', type: 'date' },
   { name: 'budget', label: 'Presupuesto ($)', type: 'number' },
   { name: 'progress', label: '% de avance', type: 'number' },
+  // Operación (Sistema General)
+  { name: 'projectType', label: 'Tipo de proyecto', type: 'select', options: PROJECT_TYPE_KEYS.map(k => [k, PROJECT_TYPES[k].label]) },
+  { name: 'priority', label: 'Prioridad', type: 'select', options: PRIORITY_KEYS.map(k => [k, PRIORITIES[k].label]) },
+  { name: 'zone', label: 'Zona asignada', type: 'text' },
+  { name: 'location', label: 'Ubicación del sitio', type: 'text' },
+  { name: 'dueDate', label: 'Fecha compromiso', type: 'date' },
+  { name: 'leadDays', label: 'Anticipación (días, 0 = la del tipo)', type: 'number' },
+  { name: 'clientContactName', label: 'Encargado del cliente', type: 'text' },
+  { name: 'clientContactPhone', label: 'Teléfono del encargado', type: 'text' },
+  { name: 'clientContactEmail', label: 'Correo del encargado', type: 'text' },
 ];
 const ACTA_FIELD_MAP = Object.fromEntries(ACTA_FIELDS.map(f => [f.name, f]));
 
@@ -542,7 +661,22 @@ const ACTA_GROUPS = [
   { title: 'Definición del proyecto', icon: ListChecks, accent: '#7c3aed', bg: '#f5f3ff', fields: ['objective', 'scope', 'justification', 'requirements', 'deliverables'] },
   { title: 'Responsables',          icon: Users,      accent: '#0891b2', bg: '#ecfeff', fields: ['sponsor', 'managerName', 'clientName'] },
   { title: 'Tiempo y presupuesto',  icon: DollarSign, accent: '#059669', bg: '#ecfdf5', fields: ['startDate', 'endDate', 'budget', 'progress'] },
+  // De aquí salen la zonificación, la prioridad, la regla de anticipación y el
+  // teléfono al que llama el gerente desde el panel de supervisión.
+  { title: 'Operación y cliente',   icon: MapPin,     accent: '#d97706', bg: '#fffbeb', fields: ['projectType', 'priority', 'zone', 'location', 'dueDate', 'leadDays'] },
+  { title: 'Encargado del cliente', icon: Phone,      accent: '#0d9488', bg: '#f0fdfa', fields: ['clientContactName', 'clientContactPhone', 'clientContactEmail'] },
 ];
+
+function HeaderChip({ cls, children }) {
+  return (
+    <span className={cn(
+      'inline-flex items-center gap-1 px-2 py-0.5 rounded-lg border text-[9px] font-black uppercase tracking-wider',
+      cls
+    )}>
+      {children}
+    </span>
+  );
+}
 
 function ActaSection({ icon: Icon, title, accent, bg, children }) {
   return (
@@ -577,6 +711,7 @@ function ActaTab({ project, onSaved, employees }) {
         autoProgress,
         budget: parseFloat(form.budget) || 0,
         progress: Math.max(0, Math.min(100, parseInt(form.progress, 10) || 0)),
+        leadDays: parseInt(form.leadDays, 10) || null,
       });
       setOk(true);
       onSaved();
@@ -747,6 +882,34 @@ function VinculosTab({ project, onSaved }) {
 
   const saveLinks = (field, ids) => projectService.update(project.id, { [field]: ids }).then(onSaved);
 
+  /* El vínculo vive en dos lados: linkedOtIds en el proyecto (histórico) y
+     WorkOrder.projectId en la OT, que es lo que el técnico consulta para ver
+     recursos, inventario, documentación y pendientes desde su orden. */
+  const vincularOT = async (oid) => {
+    await saveLinks('linkedOtIds', [...linkedOtIds, oid]);
+    // Si el proyecto todavía no está clasificado como de tiendas, se marca
+    // aquí: toda OT de tienda se gestiona bajo ese embudo.
+    if (project.serviceType !== 'TIENDAS') {
+      try { await projectService.update(project.id, { serviceType: 'TIENDAS' }); }
+      catch (e) { console.error('No se pudo marcar el proyecto como de tiendas', e); }
+    }
+    try {
+      await otService.updateOT(oid, { kind: 'TIENDA', projectId: project.id });
+    } catch (e) {
+      console.error('No se pudo escribir el proyecto en la OT', e);
+      alert('La OT quedó vinculada en el proyecto, pero no se pudo marcar en la orden. Reintenta desde la OT.');
+    }
+  };
+
+  const desvincularOT = async (oid) => {
+    await saveLinks('linkedOtIds', linkedOtIds.filter(x => x !== oid));
+    try {
+      await otService.updateOT(oid, { projectId: null });
+    } catch (e) {
+      console.error('No se pudo limpiar el proyecto en la OT', e);
+    }
+  };
+
   const otById = (oid) => ots.find(o => o.id === oid);
   const quoteById = (qid) => quotes.find(q => q.id === qid);
 
@@ -758,12 +921,12 @@ function VinculosTab({ project, onSaved }) {
         icon={ListChecks}
         loading={loading}
         options={ots.filter(o => !linkedOtIds.includes(o.id)).map(o => ({ id: o.id, label: `${o.otNumber || ''} · ${o.title || ''}` }))}
-        onAdd={(oid) => saveLinks('linkedOtIds', [...linkedOtIds, oid])}
+        onAdd={vincularOT}
         linked={linkedOtIds.map(oid => {
           const o = otById(oid);
           return { id: oid, label: o ? `${o.otNumber || ''} · ${o.title || ''}` : oid, onOpen: () => navigate(`/ots/${oid}`) };
         })}
-        onRemove={(oid) => saveLinks('linkedOtIds', linkedOtIds.filter(x => x !== oid))}
+        onRemove={desvincularOT}
       />
       {/* Cotizaciones vinculadas */}
       <LinkCard

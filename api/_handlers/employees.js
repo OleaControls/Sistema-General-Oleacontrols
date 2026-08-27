@@ -431,6 +431,7 @@ export default async function handler(req, res) {
         techGoals:           'metas diarias',
         goalsSet:            'metas asignadas a otros',
         vacationRequests:    'solicitudes de vacaciones',
+        fieldDocs:           'documentos de campo',
       };
 
       const employee = await prisma.employee.findUnique({

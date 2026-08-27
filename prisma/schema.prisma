@@ -121,6 +121,10 @@ model Employee {
   // --- ACTIVOS Y EPP ---
   assets          Asset[]      @relation("EmployeeAssets")
 
+  // Documentación vigente que exige el cliente para entrar a sitio
+  fieldDocs       TechFieldDoc[]
+  trainings      Training[]
+
   calendarEvents    CalendarEvent[]
   attendanceRecords AttendanceRecord[]
   techGoals         TechDailyGoal[]    @relation("TechGoals")
@@ -154,8 +158,29 @@ model WorkOrder {
   description       String?  // Equivalent to workDescription
   status            String   @default("PENDING") // UNASSIGNED, ASSIGNED, ACCEPTED, IN_PROGRESS, COMPLETED, VALIDATED
   priority          String   @default("MEDIUM")  // LOW, MEDIUM, HIGH, URGENT
+
+  // Clase de orden: TIENDA (se gestiona como proyecto) o ASSIGNMENT (trabajo externo)
+  kind              String   @default("ASSIGNMENT") // TIENDA, ASSIGNMENT
+
+  // Proyecto vinculado. Nació para las OT de tienda, pero cualquier asignación
+  // puede colgar de un proyecto: es el eslabón proyecto → asignación → técnico
+  // del Sistema General. Es la fuente de verdad del vínculo;
+  // Project.linkedOtIds se conserva por compatibilidad.
+  projectId         String?
+  project           Project? @relation("ProjectWorkOrders", fields: [projectId], references: [id])
+
+  // ── Operación (Sistema General) ──────────────────────────────────────────
+  // Zona: hereda la del proyecto al crear la asignación, pero puede cambiarse
+  // (una misma tienda puede atenderse desde otra zona por carga de trabajo).
+  zone              String?
+  // Actividad tipificada: INSTALACION, MANTENIMIENTO, VISITA, CAPACITACION,
+  // ITERACION, SUPERVISION, DIAGNOSTICO, ENTREGA
+  activity          String?
   
   // Ubicación y Establecimiento
+  // Marca de la cadena (Coppel, Elektra, Chedraui...). La tienda concreta va en
+  // storeName/storeNumber: una marca tiene muchas tiendas.
+  brand             String?
   storeNumber       String?
   storeName         String?
   clientName        String   // mapped to 'client' in frontend
@@ -230,12 +255,17 @@ model WorkOrder {
   @@index([technicianId, status])
   @@index([supervisorId, status])
   @@index([supervisorId, createdAt])
+  @@index([kind, status])
+  @@index([brand])
+  @@index([projectId])
+  @@index([zone])
 }
 
 model Evidence {
   id          String    @id @default(cuid())
   url         String    // Base64 o URL del archivo
-  type        String    @default("IMAGE") // IMAGE, PDF
+  type        String    @default("IMAGE") // IMAGE, PDF, INCIDENT
+  description String?   // Qué muestra la foto / qué pasó en la incidencia
   workOrderId String
   workOrder   WorkOrder @relation(fields: [workOrderId], references: [id])
   createdAt   DateTime  @default(now())
@@ -773,14 +803,15 @@ model CalendarEvent {
   @@index([otClientId])
 }
 
-// ── Citas solicitadas desde el login público (Coppel) ────────────────────────
+// ── Citas solicitadas desde el login público (tiendas) ───────────────────────
 // El cliente escoge tipo de cita + fecha; cae en el calendario de Operaciones
 // y desde ahí se autocompleta para generar la OT del técnico.
 model Appointment {
   id            String   @id @default(cuid())
   folio         String   @unique              // CITA-2026-0001
   type          String                        // AGENDAR, GARANTIAS, PENDIENTES, OTRO
-  clientName    String   @default("Coppel")   // Sólo Coppel usa el cupo de 2/día
+  brand         String?                      // Marca de la cadena
+  clientName    String   @default("Tienda")   // El cupo diario se cuenta por marca
   storeNumber   String?
   storeName     String?
   contactName   String
@@ -808,7 +839,7 @@ model Appointment {
 // El cliente captura el folio de su cita y describe el problema con el trabajo
 // técnico. Cae en el calendario de Operaciones el día que se levantó; ahí se
 // convierte en OT correctiva (Operaciones escoge la fecha de la revisita).
-// No consume cupo de citas Coppel: es un reporte, no una cita agendada.
+// No consume cupo de citas: es un reporte, no una cita agendada.
 model WarrantyClaim {
   id            String   @id @default(cuid())
   folio         String   @unique              // GAR-2026-0001
@@ -819,7 +850,8 @@ model WarrantyClaim {
   workOrderId   String?
   otNumber      String?
 
-  clientName    String   @default("Coppel")
+  brand         String?
+  clientName    String   @default("Tienda")
   storeNumber   String?
   storeName     String?
   address       String?
@@ -972,9 +1004,31 @@ model Project {
   managerId     String?                    // Responsable del proyecto (Employee.id)
   managerName   String?
   clientName    String?
+  // Marca de la cadena cuando el proyecto es de tiendas.
+  brand         String?
 
-  // Tipo de servicio (embudo): DISENO, IMPLEMENTACION, REINGENIERIA
+  // Tipo de servicio (embudo comercial): DISENO, IMPLEMENTACION, REINGENIERIA,
+  // TIENDAS. Define en qué pipeline se ve el proyecto.
   serviceType   String   @default("IMPLEMENTACION")
+
+  // ── Operación (Sistema General) ────────────────────────────────────────
+  // Tipo operativo, distinto del embudo: manda la regla de anticipación de
+  // asignaciones (src/modules/projects/utils/reglas.js) y cómo se atiende al
+  // cliente. TIENDA, MANTENIMIENTO, IMPLEMENTACION, DISENO
+  projectType   String   @default("IMPLEMENTACION")
+  priority      String   @default("MEDIA")          // BAJA, MEDIA, ALTA, CRITICA
+  zone          String?                             // Zona asignada (mapa de operaciones)
+  location      String?                             // Ubicación / dirección del sitio
+  // Fecha compromiso con el cliente. `endDate` es el fin planeado interno: la
+  // fecha compromiso es la que se vence hacia afuera y la que vigila el panel.
+  dueDate       DateTime?
+  // Días de anticipación para asignar. Vacío = el que dicta el tipo.
+  leadDays      Int?
+
+  // Encargado del cliente — a quién se le llama desde el proyecto
+  clientContactName  String?
+  clientContactPhone String?
+  clientContactEmail String?
 
   // Estado y avance
   status        String   @default("INICIO") // INICIO, PLANEACION, EJECUCION, CIERRE, CERRADO
@@ -1019,8 +1073,20 @@ model Project {
   quotes         ProjectQuote[]
   activities     ProjectActivity[]
 
+  // Tiendas: pendientes y solicitudes de recurso del técnico. El inventario NO
+  // vive aquí: es común a toda la operación de tiendas (StoreInventory).
+  pendings         ProjectPending[]
+  resourceRequests ProjectResourceRequest[]
+  equipment        ProjectEquipment[]
+
+  // OT de tienda gestionadas bajo este proyecto
+  workOrders     WorkOrder[] @relation("ProjectWorkOrders")
+
   @@index([status])
   @@index([serviceType])
+  @@index([projectType])
+  @@index([zone])
+  @@index([dueDate])
   @@index([managerId])
   @@index([archived])
 }
@@ -1227,4 +1293,205 @@ model ProjectQuote {
   updatedAt    DateTime @updatedAt
 
   @@index([projectId])
+}
+
+// ── TIENDAS: inventario que surte el cliente, actualizado a diario ───────────
+// Es UNO SOLO para toda la operación de tiendas, no uno por proyecto: el
+// material se resguarda en común y cualquier OT de tienda consulta el mismo
+// listado. Por eso no tiene projectId y se administra en su propia pantalla.
+// `brand` separa el material de cada cadena dentro del mismo resguardo.
+model StoreInventory {
+  id          String   @id @default(cuid())
+  brand       String?                         // Marca dueña del material
+  name        String                          // Material / equipo
+  sku         String?                         // Clave o código del cliente
+  quantity    Float    @default(0)
+  unit        String?                         // pza, m, rollo...
+  location    String?                         // Dónde está resguardado
+  cutoffDate  DateTime?                       // Fecha de corte de la actualización
+  notes       String?
+  updatedByName String?                       // Quién hizo la última actualización
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([name])
+  @@index([brand])
+}
+
+// ── Pendientes del proyecto ─────────────────────────────────────────────────
+model ProjectPending {
+  id          String   @id @default(cuid())
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  title       String
+  notes       String?
+  dueDate     DateTime?
+  ownerId     String?
+  ownerName   String?
+  status      String   @default("ABIERTO")    // ABIERTO, EN_PROCESO, CERRADO
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([projectId])
+}
+
+// ── Solicitudes de recurso levantadas por el técnico desde su OT ────────────
+model ProjectResourceRequest {
+  id              String   @id @default(cuid())
+  projectId       String
+  project         Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name            String                       // Qué se solicita
+  quantity        Float    @default(1)
+  unit            String?
+  justification   String?                      // Para qué se necesita
+  status          String   @default("SOLICITADO") // SOLICITADO, APROBADO, RECHAZADO, SURTIDO
+  workOrderId     String?                      // OT desde la que se levantó
+  requestedById   String?
+  requestedByName String?
+  requestedAt     DateTime @default(now())
+  decidedByName   String?
+  decidedAt       DateTime?
+  decisionNotes   String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([projectId])
+  @@index([workOrderId])
+}
+
+// ── Documentación que el técnico necesita para entrar a campo ────────────────
+// Va aparte del expediente de RH (los campos sueltos de Employee) porque aquí
+// lo que importa es la VIGENCIA: la tienda revisa que el documento no esté vencido.
+model TechFieldDoc {
+  id           String    @id @default(cuid())
+  employeeId   String
+  employee     Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  type         String                          // DC3, IMSS, INE, EXAMEN_MEDICO...
+  url          String                          // Archivo en R2
+  issuedAt     DateTime?                       // Fecha de expedición
+  expiresAt    DateTime?                       // Sin fecha = no caduca
+  notes        String?
+  uploadedByName String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([employeeId])
+  @@index([expiresAt])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SISTEMA GENERAL — Zonas, inventario de equipo, capacitación y mejora continua
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Zona de operación. El vínculo con proyectos y asignaciones es por NOMBRE
+/// (Project.zone / WorkOrder.zone) para no romper lo ya capturado: este modelo
+/// es el catálogo con los datos que el mapa necesita —centro, color, cobertura
+/// y responsable— y la fuente de la lista de zonas.
+model Zone {
+  id             String   @id @default(cuid())
+  name           String   @unique          // "Norte", "Valle de México"…
+  code           String?                    // Clave corta para folios/reportes
+  description    String?
+  color          String?                    // Color en el mapa (#hex)
+  latitude       Float?                     // Centro de la zona
+  longitude      Float?
+  radiusKm       Float?                     // Radio de cobertura
+  address        String?                    // Referencia de ubicación
+  supervisorId   String?                    // Responsable de la zona
+  supervisorName String?
+  priority       String   @default("MEDIA") // BAJA, MEDIA, ALTA, CRITICA
+  status         String   @default("ACTIVA")// ACTIVA, INACTIVA
+  notes          String?
+  archived       Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([status])
+  @@index([archived])
+}
+
+/// Equipo instalado o resguardado en un proyecto. A diferencia de Asset (EPP y
+/// herramienta de la empresa, asignada a una persona) y de StoreInventory
+/// (material del cliente, común a toda la operación), aquí cada renglón es un
+/// equipo con número de serie que vive en un proyecto.
+model ProjectEquipment {
+  id              String   @id @default(cuid())
+  projectId       String
+  project         Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  inventoryNumber String?                     // Número de inventario
+  name            String                      // Descripción del equipo
+  type            String?                     // Cámara, panel, switch…
+  brand           String?
+  model           String?
+  serialNumber    String?                     // Número de serie
+  quantity        Float    @default(1)
+  status          String   @default("EN_SITIO") // EN_ALMACEN, EN_SITIO, INSTALADO, EN_REPARACION, BAJA
+  location        String?                     // Dónde está dentro del sitio
+  zone            String?
+  responsibleId   String?
+  responsibleName String?
+  assignedAt      DateTime?                   // Fecha de asignación
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([projectId])
+  @@index([serialNumber])
+  @@index([status])
+}
+
+/// Capacitación técnica. Cada renglón es un tema impartido a un técnico, con su
+/// evidencia y la fecha de la siguiente — que es lo que vigila el supervisor.
+model Training {
+  id           String    @id @default(cuid())
+  employeeId   String
+  employee     Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  topic        String                        // Tema
+  syllabus     String?                       // Temario
+  date         DateTime?                     // Fecha impartida
+  instructor   String?
+  hours        Float?                        // Duración
+  result       String    @default("PENDIENTE") // APROBADO, NO_APROBADO, PENDIENTE
+  score        Float?                        // Calificación (0-100)
+  evidenceUrl  String?                       // Constancia / foto (R2)
+  nextDate     DateTime?                     // Próxima capacitación
+  notes        String?
+  createdByName String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([employeeId])
+  @@index([nextDate])
+  @@index([date])
+}
+
+/// Mejora continua. Sustituye a la hoja suelta de "Áreas de mejora": cada
+/// renglón es un problema detectado con su acción, responsable y objetivo, y se
+/// clasifica en el módulo del sistema al que corresponde.
+model Improvement {
+  id          String   @id @default(cuid())
+  area        String                          // Área actual (trabajo en parejas, inventario…)
+  module      String?                         // Módulo del sistema al que corresponde
+  problem     String                          // Qué está fallando
+  action      String?                         // Acción acordada
+  objective   String?                         // A qué se quiere llegar
+  ownerId     String?                         // Responsable
+  ownerName   String?
+  priority    String   @default("MEDIA")      // BAJA, MEDIA, ALTA, CRITICA
+  status      String   @default("ABIERTA")    // ABIERTA, EN_PROCESO, IMPLEMENTADA, DESCARTADA
+  dueDate     DateTime?                       // Fecha compromiso
+  projectId   String?                         // Si nace de un proyecto concreto
+  zone        String?                         // Si es de una zona
+  evidenceUrl String?
+  notes       String?
+  createdByName String?
+  closedAt    DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([status])
+  @@index([priority])
+  @@index([module])
 }

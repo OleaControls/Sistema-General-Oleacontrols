@@ -1,9 +1,10 @@
 import prisma from '../_lib/prisma.js'
 import { uploadToR2, signUrlIfNeeded } from '../_lib/r2.js'
 import { authMiddleware } from '../_lib/auth.js'
-import { notifyOTAssigned, notifyOTCompleted } from '../_lib/telegram.js'
+import { notifyOTAssigned, notifyOTCompleted, sendTelegramPhotoUrl } from '../_lib/telegram.js'
 import { businessDay } from '../_lib/businessDay.js'
 import { OT_WINDOW_KEY, isWindowOpen, windowLabel } from '../_lib/otWindow.js'
+import { createProjectWithCode } from '../_lib/projectCode.js'
 
 // ── Helper: sufijo de folio estilo "columna de Excel" (siempre letras, nunca se acaba) ──
 // index 0 → '' (sin sufijo) · 1→A · 26→Z · 27→AA · 28→AB · ... nunca produce símbolos.
@@ -81,6 +82,85 @@ function toHours(value) {
 //   ASSIGNED → ACCEPTED     requiere asistencia del día + checklist enviado
 //   ACCEPTED → IN_PROGRESS  requiere panoramización de la OT
 // ADMIN y SUPERVISOR (Operaciones) pueden forzar el avance.
+// Clase de orden. TIENDA se gestiona como proyecto; ASSIGNMENT es el resto.
+// Antes esta clase se llamaba COPPEL, cuando la operacion era de una sola
+// cadena. Ahora la cadena concreta va en `brand` y la clase es generica.
+const OT_KINDS = ['TIENDA', 'ASSIGNMENT'];
+const normalizeKind = (v) => OT_KINDS.includes(v) ? v : 'ASSIGNMENT';
+
+// Quién puede crear OT y, por lo tanto, consultar el catálogo de proyectos y
+// abrir uno nuevo. El módulo de proyectos sigue cerrado a PROJECT_MANAGER/ADMIN.
+const OT_MANAGER_ROLES = ['ADMIN', 'SUPERVISOR', 'PROJECT_MANAGER'];
+
+/** Nombre legible del proyecto que se abre para una OT de tienda. */
+function nombreProyectoTienda(ot) {
+  const marca = ot.brand || 'Tienda';
+  const sitio = [ot.storeNumber, ot.storeName].filter(Boolean).join(' · ');
+  return sitio ? `${marca} ${sitio}` : (ot.title || `${marca} ${ot.otNumber}`);
+}
+
+/**
+ * Deja lista la vinculación de una OT de tienda con su proyecto.
+ * Si el supervisor eligió uno, se valida que exista; si no, se abre uno nuevo
+ * en el embudo de tiendas. Así ninguna OT de tienda queda sin proyecto.
+ * @returns {Promise<string|null>} id del proyecto vinculado
+ */
+async function vincularProyectoTienda(ot, projectIdElegido, actorName) {
+  if (projectIdElegido) {
+    const existe = await prisma.project.findUnique({
+      where: { id: projectIdElegido },
+      select: { id: true },
+    });
+    if (!existe) throw Object.assign(new Error('El proyecto seleccionado ya no existe'), { statusCode: 400 });
+    await prisma.project.update({
+      where: { id: existe.id },
+      data: { linkedOtIds: await linkedOtIdsCon(existe.id, ot.id) },
+    });
+    await bitacoraProyecto(existe.id, 'Vinculó una OT de tienda', ot.otNumber, actorName);
+    return existe.id;
+  }
+
+  const creado = await createProjectWithCode(prisma, {
+    name:        nombreProyectoTienda(ot),
+    serviceType: 'TIENDAS',
+    brand:       ot.brand || null,
+    status:      'INICIACION',
+    clientName:  ot.clientName || ot.brand || 'Tienda',
+    objective:   ot.title || null,
+    scope:       ot.description || null,
+    startDate:   ot.scheduledDate || null,
+    linkedOtIds: [ot.id],
+  });
+  await bitacoraProyecto(creado.id, 'Proyecto abierto desde la OT', ot.otNumber, actorName);
+  return creado.id;
+}
+
+/** Agrega un id de OT a Project.linkedOtIds sin duplicarlo. */
+async function linkedOtIdsCon(projectId, otId) {
+  const p = await prisma.project.findUnique({ where: { id: projectId }, select: { linkedOtIds: true } });
+  const actuales = Array.isArray(p?.linkedOtIds) ? p.linkedOtIds : [];
+  return actuales.includes(otId) ? actuales : [...actuales, otId];
+}
+
+/** Bitácora del proyecto. Nunca debe tumbar el alta de la OT. */
+async function bitacoraProyecto(projectId, action, detail, authorName) {
+  try {
+    await prisma.projectActivity.create({
+      data: { projectId, action, detail: detail || null, authorName: authorName || null },
+    });
+  } catch (e) { console.warn('[ots] bitacoraProyecto:', e.message); }
+}
+
+// Las evidencias se guardaban como arreglo de URLs sueltas. Ahora cada foto
+// puede traer descripción: { url, description }. Se admiten ambos formatos para
+// no romper las OT cerradas antes del cambio.
+const evidenceUrl  = (item) => (typeof item === 'string' ? item : item?.url) || null;
+const evidenceText = (item) => (typeof item === 'string' ? null : (item?.description || null));
+const toEvidenceRows = (list, type, workOrderId) =>
+  (Array.isArray(list) ? list : [])
+    .map((item) => ({ url: evidenceUrl(item), description: evidenceText(item), type, workOrderId }))
+    .filter((row) => !!row.url);
+
 const GATE_BYPASS_ROLES = ['ADMIN', 'SUPERVISOR'];
 
 /**
@@ -141,16 +221,227 @@ export const config = {
 
 export default async function handler(req, res) {
   const { method } = req;
-  const { techId, supervisorId, status, id: specificId, search } = req.query;
+  const { techId, supervisorId, status, id: specificId, search, kind, sub: otSub } = req.query;
 
-  // RUTAS PÚBLICAS: GET por ID (para encuestas de clientes sin login)
+  // RUTAS PÚBLICAS: GET por ID (para encuestas de clientes sin login).
+  // OJO: ?sub= sirve datos internos del proyecto, así que nunca es pública.
   let auth = null;
-  if (method === 'GET' && (specificId || (req.url.includes('/api/ots/') && req.query.id))) {
+  if (!otSub && method === 'GET' && (specificId || (req.url.includes('/api/ots/') && req.query.id))) {
       // Continuar sin verificar token para este caso específico
   } else {
       // Proteger el resto de las rutas
       auth = authMiddleware(req, res);
       if (!auth) return; // authMiddleware ya envió la respuesta 401
+  }
+
+  /* ── Catálogo de proyectos para el alta de una OT ─────────────────────────
+     El supervisor no tiene acceso a /api/projects, pero necesita elegir a qué
+     proyecto se engancha la OT que está creando. Aquí solo se devuelve lo
+     imprescindible para pintar el selector.
+     `catalog=storeProjects` acota al embudo de tiendas; `catalog=projects`
+     devuelve todos, porque cualquier asignación puede colgar de un proyecto. */
+  if (method === 'GET' && ['storeProjects', 'projects'].includes(req.query.catalog)) {
+    const rolesLlamante = Array.isArray(auth?.roles) ? auth.roles : [auth?.roles].filter(Boolean);
+    if (!rolesLlamante.some(r => OT_MANAGER_ROLES.includes(r))) {
+      return res.status(403).json({ error: 'No autorizado' });
+    }
+    const soloTiendas = req.query.catalog === 'storeProjects';
+    const proyectos = await prisma.project.findMany({
+      where: { archived: false, ...(soloTiendas ? { serviceType: 'TIENDAS' } : {}) },
+      select: {
+        id: true, code: true, name: true, status: true, clientName: true,
+        serviceType: true, projectType: true, zone: true, brand: true,
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 300,
+    });
+    return res.status(200).json(proyectos);
+  }
+
+  /* ── Puerta estrecha al proyecto de una OT de tienda ──────────────────────
+     El módulo de proyectos está cerrado a PROJECT_MANAGER/ADMIN, pero el
+     técnico necesita ver recursos, inventario, documentación y pendientes del
+     proyecto de SU orden. Aquí solo se exponen esos cuatro apartados, y solo a
+     quien está involucrado en la OT. */
+  if (otSub) {
+    const otId = specificId || req.query.id;
+    if (!otId) return res.status(400).json({ error: 'Falta el id de la OT' });
+
+    const targetOT = await prisma.workOrder.findFirst({
+      where: { OR: [{ id: otId }, { otNumber: otId }] },
+      select: { id: true, otNumber: true, title: true, status: true, kind: true, projectId: true, technicianId: true, supervisorId: true, assistantTechs: true, supportTechs: true },
+    });
+    if (!targetOT) return res.status(404).json({ error: 'OT no encontrada' });
+
+    // ¿El llamante participa en esta OT?
+    const callerId    = auth?.id;
+    const callerRoles = auth?.roles || [];
+    const idsDe = (v) => (Array.isArray(v) ? v : []).map(x => (typeof x === 'string' ? x : x?.id)).filter(Boolean);
+    const involucrado =
+      callerRoles.some(r => GATE_BYPASS_ROLES.includes(r)) ||
+      targetOT.technicianId === callerId ||
+      targetOT.supervisorId === callerId ||
+      idsDe(targetOT.assistantTechs).includes(callerId) ||
+      idsDe(targetOT.supportTechs).includes(callerId);
+
+    if (!involucrado) return res.status(403).json({ error: 'No participas en esta orden de trabajo' });
+
+    /* ── Evidencias e incidentes en tiempo real ────────────────────────────
+       Aplica a cualquier OT (tienda o asignación) y no depende del proyecto:
+       el técnico documenta lo que pasa mientras trabaja, no solo al cerrar. */
+    if (otSub === 'evidences') {
+      const otCerrada = ['COMPLETED', 'VALIDATED'].includes(targetOT.status);
+
+      if (method === 'GET') {
+        const lista = await prisma.evidence.findMany({
+          where: { workOrderId: targetOT.id },
+          orderBy: { createdAt: 'desc' },
+        });
+        await Promise.all(lista.map(async (e) => { e.url = await signUrlIfNeeded(e.url); }));
+        return res.status(200).json(lista);
+      }
+
+      if (method === 'POST') {
+        if (otCerrada) return res.status(403).json({ error: 'La OT ya está cerrada: no admite evidencias nuevas' });
+
+        const { url, description, type } = req.body || {};
+        const tipo = type === 'INCIDENT' ? 'INCIDENT' : 'IMAGE';
+        if (!url) return res.status(400).json({ error: 'Falta la foto' });
+
+        const finalUrl = String(url).startsWith('data:')
+          ? await uploadToR2(url, 'evidences')
+          : url;
+
+        const creada = await prisma.evidence.create({
+          data: {
+            workOrderId: targetOT.id,
+            url: finalUrl,
+            type: tipo,
+            description: description ? String(description).trim() : null,
+          },
+        });
+
+        // Un incidente se avisa al supervisor en el momento. Que falle el aviso
+        // no debe tumbar el registro, así que va suelto (fire-and-forget).
+        if (tipo === 'INCIDENT' && targetOT.supervisorId) {
+          prisma.employee
+            .findUnique({ where: { id: targetOT.supervisorId }, select: { telegramChatId: true } })
+            .then(async (sup) => {
+              if (!sup?.telegramChatId) return;
+              const foto = await signUrlIfNeeded(finalUrl);
+              const pie = [
+                '⚠️ <b>Incidente reportado en campo</b>',
+                'OT: <b>' + targetOT.otNumber + '</b>',
+                targetOT.title ? 'Trabajo: ' + targetOT.title : null,
+                creada.description ? 'Qué pasó: ' + creada.description : null,
+              ].filter(Boolean).join('\n');
+              return sendTelegramPhotoUrl(sup.telegramChatId, foto, pie);
+            })
+            .catch(err => console.error('[ots] aviso de incidente:', err.message));
+        }
+
+        return res.status(201).json({ ...creada, url: await signUrlIfNeeded(finalUrl) });
+      }
+
+      if (method === 'DELETE') {
+        if (otCerrada) return res.status(403).json({ error: 'La OT ya está cerrada: no se pueden borrar evidencias' });
+        const { subId } = req.query;
+        if (!subId) return res.status(400).json({ error: 'Falta el id de la evidencia' });
+        const ev = await prisma.evidence.findUnique({ where: { id: subId }, select: { workOrderId: true } });
+        if (!ev || ev.workOrderId !== targetOT.id) return res.status(404).json({ error: 'Evidencia no encontrada en esta OT' });
+        await prisma.evidence.delete({ where: { id: subId } });
+        return res.status(200).json({ success: true });
+      }
+
+      return res.status(405).json({ error: 'Método no soportado' });
+    }
+
+    // ── El resto de sub-recursos viven en el proyecto de una OT de tienda ──
+    if (targetOT.kind !== 'TIENDA') return res.status(400).json({ error: 'Solo las OT de tienda se gestionan como proyecto' });
+    if (!targetOT.projectId) return res.status(404).json({ error: 'Esta OT todavía no está vinculada a un proyecto' });
+
+    // GET: los cuatro apartados del proyecto. El inventario es la excepción:
+    // es uno solo para toda la operación de tiendas, así que se anexa aparte y
+    // el técnico ve el mismo listado desde cualquier orden.
+    if (otSub === 'project' && method === 'GET') {
+      const [project, inventory] = await Promise.all([
+        prisma.project.findUnique({
+          where: { id: targetOT.projectId },
+          select: {
+            id: true, code: true, name: true, status: true, progress: true, managerName: true,
+            pendings:         { orderBy: { createdAt: 'desc' } },
+            documents:        { orderBy: { createdAt: 'desc' } },
+            resourceRequests: { orderBy: { requestedAt: 'desc' } },
+          },
+        }),
+        prisma.storeInventory.findMany({ orderBy: [{ brand: 'asc' }, { name: 'asc' }] }),
+      ]);
+      if (!project) return res.status(404).json({ error: 'Proyecto no encontrado' });
+      return res.status(200).json({ ...project, inventory });
+    }
+
+    // POST: el técnico levanta una solicitud de recurso
+    if (otSub === 'resourceRequests' && method === 'POST') {
+      const { name, quantity, unit, justification } = req.body || {};
+      if (!name || !String(name).trim()) return res.status(400).json({ error: 'Describe qué recurso necesitas' });
+
+      // El token solo trae id/email/roles; el nombre se resuelve aquí.
+      const empleado = callerId
+        ? await prisma.employee.findUnique({ where: { id: callerId }, select: { name: true } })
+        : null;
+      const solicitante = empleado?.name || auth?.email || 'Técnico';
+
+      const created = await prisma.projectResourceRequest.create({
+        data: {
+          projectId:     targetOT.projectId,
+          name:          String(name).trim(),
+          quantity:      Number(quantity) > 0 ? Number(quantity) : 1,
+          unit:          unit ? String(unit).trim() : null,
+          justification: justification ? String(justification).trim() : null,
+          // El estado y el solicitante los fija el servidor, nunca el cliente.
+          status:          'SOLICITADO',
+          workOrderId:     targetOT.id,
+          requestedById:   callerId || null,
+          requestedByName: solicitante,
+        },
+      });
+      return res.status(201).json(created);
+    }
+
+    // POST: el técnico sube la documentación que exige la tienda
+    if (otSub === 'documents' && method === 'POST') {
+      const { name, category, url, version } = req.body || {};
+      if (!name || !String(name).trim()) return res.status(400).json({ error: 'Falta el nombre del documento' });
+      if (!url  || !String(url).trim())  return res.status(400).json({ error: 'Falta el archivo' });
+
+      const created = await prisma.projectDocument.create({
+        data: {
+          projectId: targetOT.projectId,
+          name:      String(name).trim(),
+          category:  category ? String(category).trim() : 'EVIDENCIA',
+          url:       String(url).trim(),
+          version:   version ? String(version).trim() : '1.0',
+        },
+      });
+      return res.status(201).json(created);
+    }
+
+    // PUT: el técnico avanza un pendiente del proyecto
+    if (otSub === 'pendings' && method === 'PUT') {
+      const { subId, status: nextStatus } = { ...req.query, ...req.body };
+      const ESTADOS = ['ABIERTO', 'EN_PROCESO', 'CERRADO'];
+      if (!subId) return res.status(400).json({ error: 'Falta el id del pendiente' });
+      if (!ESTADOS.includes(nextStatus)) return res.status(400).json({ error: 'Estado inválido' });
+
+      const pendiente = await prisma.projectPending.findUnique({ where: { id: subId }, select: { projectId: true } });
+      if (!pendiente || pendiente.projectId !== targetOT.projectId) {
+        return res.status(404).json({ error: 'Pendiente no encontrado en este proyecto' });
+      }
+      const updated = await prisma.projectPending.update({ where: { id: subId }, data: { status: nextStatus } });
+      return res.status(200).json(updated);
+    }
+
+    return res.status(405).json({ error: 'Sub-recurso o método no soportado' });
   }
 
   // Helper para procesar imágenes de OT a R2
@@ -175,15 +466,22 @@ export default async function handler(req, res) {
 
     // 2. Procesar fotos de evidencia (evidences / completionPhotos / photos)
     // Ambos campos y todas sus fotos se suben en paralelo (uploads independientes)
-    const photoFields = ['completionPhotos', 'photos'];
+    // 'incidents' son las fotos del reporte de incidencias del acta.
+    const photoFields = ['completionPhotos', 'photos', 'incidents'];
     await Promise.all(photoFields.map(async (field) => {
         if (Array.isArray(updated[field])) {
             // Promise.all preserva el orden original de cada arreglo de fotos
-            updated[field] = await Promise.all(updated[field].map(async (item) =>
-                (typeof item === 'string' && item.startsWith('data:'))
-                    ? await uploadToR2(item, 'evidences')
-                    : item
-            ));
+            updated[field] = await Promise.all(updated[field].map(async (item) => {
+                // Formato viejo: la foto es la cadena misma.
+                if (typeof item === 'string') {
+                    return item.startsWith('data:') ? await uploadToR2(item, 'evidences') : item;
+                }
+                // Formato nuevo: { url, description }.
+                if (item && typeof item.url === 'string' && item.url.startsWith('data:')) {
+                    return { ...item, url: await uploadToR2(item.url, 'evidences') };
+                }
+                return item;
+            }));
         }
     }));
 
@@ -192,7 +490,7 @@ export default async function handler(req, res) {
 
   if (method === 'GET') {
     try {
-      const { techId, supervisorId, status, id: specificId, search } = req.query;
+      const { techId, supervisorId, status, id: specificId, search, kind } = req.query;
       
       // Si piden una OT específica (detalle)
       if (specificId || (req.url.includes('/api/ots/') && req.query.id)) {
@@ -240,7 +538,14 @@ export default async function handler(req, res) {
       }
 
       const where = {};
-      
+
+      // Separación OTs de tienda vs. Asignaciones (trabajo externo).
+      if (kind && OT_KINDS.includes(kind)) where.kind = kind;
+
+      // ?brand=Coppel acota a una cadena. Sin él salen todas las marcas.
+      const brand = (req.query.brand || '').trim();
+      if (brand) where.brand = brand;
+
       if (search) {
         // `contains` en Postgres distingue mayúsculas. Sin `mode: 'insensitive'`
         // teclear "coppel" nunca encontraba "Coppel" ni el folio "OT-COPP-…",
@@ -248,6 +553,7 @@ export default async function handler(req, res) {
         const q = { contains: search.trim(), mode: 'insensitive' };
         where.OR = [
           { otNumber:    q },
+          { brand:       q },
           { clientName:  q },
           { storeName:   q },
           { storeNumber: q },
@@ -291,7 +597,8 @@ export default async function handler(req, res) {
           where,
           select: {
             id: true, otNumber: true, title: true, status: true, priority: true,
-            systemType: true, clientName: true, storeName: true,
+            systemType: true, clientName: true, brand: true, storeName: true,
+            zone: true, activity: true, projectId: true,
             scheduledDate: true, createdAt: true, startedAt: true, finishedAt: true,
             assignedFunds: true, technicianId: true,
             technician: { select: { id: true, name: true, avatar: true } },
@@ -320,6 +627,12 @@ export default async function handler(req, res) {
             title: true,
             status: true,
             priority: true,
+            // Sin estos dos, editar una OT desde el listado la reclasificaba:
+            // el formulario partía del valor por omisión en vez del real.
+            kind: true,
+            projectId: true,
+            zone: true,
+            activity: true,
             clientName: true,
             storeName: true,
             storeNumber: true,
@@ -344,7 +657,7 @@ export default async function handler(req, res) {
             createdAt: true,
             technician: { select: { name: true, avatar: true, position: true } },
             supervisor: { select: { name: true } },
-            evidences: { select: { url: true } },
+            evidences: { select: { url: true, description: true, type: true } },
             expenses: {
               where: { NOT: { status: 'REJECTED' } },
               select: { amount: true, category: true, description: true, createdAt: true, id: true }
@@ -393,7 +706,10 @@ export default async function handler(req, res) {
           location: ot.address,
           financials,
           evaluations: ot.evaluations || [],
-          completionPhotos: ot.evidences.map(e => e.url),
+          // Solo las evidencias normales; las incidencias van aparte.
+          completionPhotos: ot.evidences.filter(e => e.type !== 'INCIDENT').map(e => e.url),
+          evidenceDetails:  ot.evidences.filter(e => e.type !== 'INCIDENT'),
+          incidentReports:  ot.evidences.filter(e => e.type === 'INCIDENT'),
           deliveryActUrl: signedActUrl,
           assistantTechs: Array.isArray(ot.assistantTechs) ? ot.assistantTechs : (ot.assistantTechs ? JSON.parse(ot.assistantTechs) : []),
           supportTechs: Array.isArray(ot.supportTechs) ? ot.supportTechs : (ot.supportTechs ? JSON.parse(ot.supportTechs) : []),
@@ -435,6 +751,17 @@ export default async function handler(req, res) {
         description: data.workDescription,
         status: data.leadTechId ? 'ASSIGNED' : 'UNASSIGNED',
         priority: data.priority || 'MEDIUM',
+        kind: normalizeKind(data.kind),
+        // Cualquier asignación puede colgar de un proyecto. En tiendas el
+        // vínculo se resuelve abajo, ya con el folio a la mano (el nombre del
+        // proyecto y su bitácora lo necesitan); en el resto se toma tal cual.
+        projectId: normalizeKind(data.kind) === 'TIENDA' ? null : (data.projectId || null),
+        // Zona y actividad del Sistema General. Si no vienen, la zona se hereda
+        // del proyecto en cuanto queda vinculado.
+        zone: data.zone || null,
+        activity: data.activity || null,
+        // Marca de la cadena; la tienda concreta va en storeNumber/storeName.
+        brand: data.brand || null,
         storeNumber: data.storeNumber,
         storeName: data.storeName,
         clientName: data.client,
@@ -488,6 +815,33 @@ export default async function handler(req, res) {
         ot = await prisma.workOrder.create({ data: { otNumber, ...otFields } });
       }
 
+      /* ── La asignación hereda la zona de su proyecto ────────────────────
+         Se zonifica desde el proyecto para no capturar lo mismo dos veces; si
+         el supervisor puso una zona distinta, esa manda. */
+      const heredarZona = async () => {
+        if (ot.zone || !ot.projectId) return;
+        const proj = await prisma.project.findUnique({ where: { id: ot.projectId }, select: { zone: true } });
+        if (proj?.zone) ot = await prisma.workOrder.update({ where: { id: ot.id }, data: { zone: proj.zone } });
+      };
+
+      /* ── Toda OT de tienda se gestiona como proyecto ───────────────────
+         O se engancha al que eligió el supervisor, o se le abre uno propio.
+         Si esto falla, la OT ya existe: se responde igual y se avisa, para no
+         perder el alta por un problema del módulo de proyectos. */
+      if (ot.kind === 'TIENDA') {
+        try {
+          const projectId = await vincularProyectoTienda(ot, data.projectId || null, auth?.name || auth?.email);
+          ot = await prisma.workOrder.update({ where: { id: ot.id }, data: { projectId } });
+        } catch (err) {
+          console.error('[ots] no se pudo vincular el proyecto de la OT:', err.message);
+          ot = { ...ot, projectWarning: err.message };
+        }
+      }
+
+      // Ya con el proyecto resuelto (el elegido o el que se abrió para la OT
+      // de tienda), la zona puede bajar de él.
+      await heredarZona();
+
       // Notificar por Telegram si la OT ya viene asignada
       if (data.leadTechId) {
         const assistants = Array.isArray(data.assistantTechs) ? data.assistantTechs.flatMap(t => t.id ? [t.id] : []) : [];
@@ -518,7 +872,7 @@ export default async function handler(req, res) {
       const data = await processOTImages(req.body);
       const { 
           id, status, report, signature, clientSignature, clientSignature2, 
-          systemType, deliveryDetails, pendingTasks, clientContact2, photos,
+          systemType, deliveryDetails, pendingTasks, clientContact2, photos, incidents,
           startedAt, finishedAt, leadTechId, assignedFunds, isLocked,
           deliveryActUrl
       } = data;
@@ -532,11 +886,15 @@ export default async function handler(req, res) {
 
       // BLOQUEO DE SEGURIDAD: Solo permitir cambios de fondos (o desbloqueo explícito) si ya está completada
       const isExplicitUnlock = req.body.isLocked === false && req.body.status === 'IN_PROGRESS';
-      if (targetOT.status === 'COMPLETED' && !req.body.assignedFunds && !isExplicitUnlock) {
+      // Vincular/desvincular el proyecto no toca el contenido del acta, así que
+      // se permite también en OT cerradas o validadas (muchas ya lo están).
+      const soloVinculoProyecto = Object.keys(req.body)
+          .every(k => ['id', 'projectId', 'kind'].includes(k)) && req.body.projectId !== undefined;
+      if (targetOT.status === 'COMPLETED' && !req.body.assignedFunds && !isExplicitUnlock && !soloVinculoProyecto) {
           return res.status(403).json({ error: 'Esta OT está CERRADA. Solo se permite ampliar fondos.' });
       }
       // Las OTs VALIDATED solo pueden desbloquearse explícitamente
-      if (targetOT.status === 'VALIDATED' && !isExplicitUnlock) {
+      if (targetOT.status === 'VALIDATED' && !isExplicitUnlock && !soloVinculoProyecto) {
           return res.status(403).json({ error: 'Esta OT está VALIDADA y bloqueada. Solo un administrador puede desbloquearla.' });
       }
 
@@ -546,6 +904,7 @@ export default async function handler(req, res) {
       if (data.title            !== undefined) updateData.title            = data.title;
       if (data.client           !== undefined) updateData.clientName       = data.client;
       if (data.clientName       !== undefined) updateData.clientName       = data.clientName;
+      if (data.brand            !== undefined) updateData.brand            = data.brand || null;
       if (data.storeNumber      !== undefined) updateData.storeNumber      = data.storeNumber;
       if (data.storeName        !== undefined) updateData.storeName        = data.storeName;
       if (data.address          !== undefined) updateData.address          = data.address;
@@ -567,6 +926,8 @@ export default async function handler(req, res) {
       if (data.timeLimitHours   !== undefined) updateData.timeLimitHours   = toHours(data.timeLimitHours);
       if (data.qualityHigh      !== undefined) updateData.qualityHigh      = data.qualityHigh || null;
       if (data.qualityMin       !== undefined) updateData.qualityMin       = data.qualityMin  || null;
+      if (data.zone             !== undefined) updateData.zone             = data.zone     || null;
+      if (data.activity         !== undefined) updateData.activity         = data.activity || null;
 
       // ── Campos de estado / operación ───────────────────────────────────────
       if (status) updateData.status = status;
@@ -582,6 +943,12 @@ export default async function handler(req, res) {
       if (assignedFunds !== undefined) updateData.assignedFunds = assignedFunds;
       if (isLocked !== undefined) updateData.isLocked = isLocked;
       if (deliveryActUrl !== undefined) updateData.deliveryActUrl = deliveryActUrl;
+      if (data.kind !== undefined) updateData.kind = normalizeKind(data.kind);
+      /* El vínculo con proyecto ya no es exclusivo de tiendas: es el eslabón
+         proyecto → asignación → técnico del Sistema General, así que cualquier
+         OT puede colgar de un proyecto. Lo exclusivo de tiendas es que se le
+         ABRE uno automáticamente si no trae. */
+      if (data.projectId !== undefined) updateData.projectId = data.projectId || null;
       if (data.assistantTechs !== undefined) updateData.assistantTechs = data.assistantTechs;
       if (data.supportTechs !== undefined) updateData.supportTechs = data.supportTechs;
       if (data.jornadas !== undefined) updateData.jornadas = data.jornadas;
@@ -595,21 +962,39 @@ export default async function handler(req, res) {
       if (gate) return res.status(409).json(gate);
 
       // 1. Actualizar los datos maestros de la OT
-      const updated = await prisma.workOrder.update({
+      let updated = await prisma.workOrder.update({
         where: { id: targetOT.id },
         data: updateData,
         include: { technician: { select: { name: true } } }
       });
 
-      // 2. Si vienen fotos nuevas, las guardamos como evidencias
-      if (photos && Array.isArray(photos) && photos.length > 0) {
-          await prisma.evidence.createMany({
-              data: photos.map(p => ({
-                  url: p,
-                  type: 'IMAGE',
-                  workOrderId: targetOT.id
-              }))
+      /* 1b. Una OT que pasa a ser de tienda necesita proyecto. Solo aplica al
+         cambio de clase: un PUT que manda projectId (incluido null, al
+         desvincular desde el proyecto) manda tal cual y no se le abre uno. */
+      const pasaATienda = data.kind !== undefined
+        && normalizeKind(data.kind) === 'TIENDA'
+        && targetOT.kind !== 'TIENDA';
+      if (pasaATienda && data.projectId === undefined && !updated.projectId) {
+        try {
+          const projectId = await vincularProyectoTienda(updated, null, auth?.name || auth?.email);
+          updated = await prisma.workOrder.update({
+            where: { id: updated.id },
+            data: { projectId },
+            include: { technician: { select: { name: true } } },
           });
+        } catch (err) {
+          console.error('[ots] no se pudo abrir el proyecto de la OT:', err.message);
+        }
+      }
+
+      // 2. Si vienen fotos nuevas, las guardamos como evidencias.
+      //    Las incidencias del acta son evidencias con type 'INCIDENT'.
+      const evidenceRows = [
+          ...toEvidenceRows(photos,    'IMAGE',    targetOT.id),
+          ...toEvidenceRows(incidents, 'INCIDENT', targetOT.id),
+      ];
+      if (evidenceRows.length > 0) {
+          await prisma.evidence.createMany({ data: evidenceRows });
       }
 
       // 3. Notificaciones Telegram

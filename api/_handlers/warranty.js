@@ -2,7 +2,7 @@ import prisma from '../_lib/prisma.js'
 import { authMiddleware } from '../_lib/auth.js'
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   REPORTES DE GARANTÍA (Coppel)
+   REPORTES DE GARANTÍA (tiendas)
 
    · El cliente entra desde el login → "Garantías", sin contraseña.
    · Debe capturar el folio de su cita (CITA-…). Se valida contra la base:
@@ -10,7 +10,7 @@ import { authMiddleware } from '../_lib/auth.js'
    · Del folio se heredan sucursal, contacto y la OT a la que se refiere.
    · El reporte cae en el calendario de Operaciones el día que se levantó.
      Operaciones escoge la fecha de la revisita al generar la OT correctiva,
-     por eso NO consume cupo de citas Coppel.
+     por eso NO consume cupo de citas.
 ═══════════════════════════════════════════════════════════════════════════ */
 
 const STATUSES = ['OPEN', 'IN_REVIEW', 'SCHEDULED', 'RESOLVED', 'CANCELLED'];
@@ -69,7 +69,8 @@ export default async function handler(req, res) {
         citaFolio:     cita.folio,
         workOrderId:   cita.workOrderId || null,
         otNumber:      cita.otNumber || null,
-        clientName:    cita.clientName || 'Coppel',
+        brand:         cita.brand || null,
+        clientName:    cita.clientName || cita.brand || 'Tienda',
         storeNumber:   cita.storeNumber,
         storeName:     cita.storeName,
         address:       cita.address,

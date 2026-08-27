@@ -118,7 +118,7 @@ const STYLES = `
     animation: lp-glow 2.2s ease-in-out infinite;
   }
 
-  /* ── Acceso público: generar cita (clientes Coppel, sin contraseña) ── */
+  /* ── Acceso público: generar cita (clientes de tienda, sin contraseña) ── */
   .lp-cita {
     display: flex; align-items: center; gap: 14px;
     padding: 14px 18px; border-radius: 14px; width: 100%;
@@ -442,7 +442,7 @@ export default function Login() {
                   Genere su Cita
                 </p>
                 <p style={{ fontSize: '9.5px', color: 'rgba(255,255,255,.85)', margin: '3px 0 0', letterSpacing: '.06em', textTransform: 'uppercase', fontFamily: 'Inter, sans-serif' }}>
-                  Coppel · Sin contraseña
+                  Tiendas · Sin contraseña
                 </p>
               </div>
               <ArrowRight size={15} color="rgba(255,255,255,.5)" style={{ flexShrink: 0 }} />
@@ -622,7 +622,7 @@ export default function Login() {
                   Genere su Cita
                 </p>
                 <p style={{ fontSize: '9px', color: 'rgba(255,255,255,.8)', margin: '2px 0 0', letterSpacing: '.06em', textTransform: 'uppercase' }}>
-                  Clientes Coppel · Sin credenciales
+                  Clientes de tienda · Sin credenciales
                 </p>
               </div>
               <ArrowRight size={14} color="rgba(255,255,255,.5)" style={{ flexShrink: 0 }} />

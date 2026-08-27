@@ -5,7 +5,8 @@ import {
   Briefcase, Menu, X, LogOut, Bell, ChevronDown, Trophy, User as UserIcon,
   BarChart3, Wallet, Target, Users2, FileText, Sliders, TrendingUp,
   Activity, Settings, BarChart4, BookOpen, Calendar, Package, Star, CalendarCheck, ClipboardCheck,
-  FolderKanban, PenTool, Wrench, RefreshCw, Compass, Calculator, Building2
+  FolderKanban, PenTool, Wrench, RefreshCw, Compass, Calculator, Building2, Store, ShieldCheck, Boxes,
+  Map as MapIcon, Sparkles
 } from 'lucide-react';
 import { useAuth, ROLES } from '@/store/AuthContext';
 import { useTenant } from '@/store/TenantContext';
@@ -85,6 +86,9 @@ const NAV_STRUCTURE = [
       { name: 'PROP Técnicos',      path: '/prop',                   icon: Compass,       roles: [ROLES.OPS] },
       { name: 'Calificaciones',     path: '/performance',            icon: Star,          roles: [ROLES.OPS] },
       { name: 'Asistencia Técnicos', path: '/ops/tech-attendance',    icon: ClipboardCheck, roles: [ROLES.OPS] },
+      // El supervisor es quien carga y renueva los documentos para entrar a
+      // tienda, así que el acceso también vive aquí, no solo en RH.
+      { name: 'Docs. de Campo',     path: '/hr/documentacion-campo', icon: ShieldCheck,   roles: [ROLES.OPS] },
     ]
   },
 
@@ -148,6 +152,14 @@ const NAV_STRUCTURE = [
     defaultOpen: true,
     items: [
       { name: 'Todos',          path: '/projects',                        icon: FolderKanban, roles: [ROLES.PM, ROLES.ADMIN], exact: true },
+      // Panel del gerente: indicadores, regla de anticipación y carga de técnicos.
+      { name: 'Supervisión',    path: '/projects/supervision',            icon: ShieldCheck,  roles: [ROLES.PM, ROLES.ADMIN] },
+      // El calendario de operaciones es el mismo para OTs y proyectos.
+      { name: 'Calendario general', path: '/ops/calendar',                icon: CalendarCheck, roles: [ROLES.PM, ROLES.ADMIN] },
+      // Zonificación de la operación: qué vive en cada zona.
+      { name: 'Mapa de Zonas',  path: '/projects/zonas',                  icon: MapIcon,      roles: [ROLES.PM, ROLES.ADMIN] },
+      // Las áreas de mejora dejan de ser una hoja suelta.
+      { name: 'Mejora Continua', path: '/projects/mejora-continua',       icon: Sparkles,     roles: [ROLES.PM, ROLES.ADMIN] },
       {
         name: 'Diseño', path: '/projects/servicio/diseno', icon: PenTool, roles: [ROLES.PM, ROLES.ADMIN],
         // Tercer nivel: se despliega al entrar a Diseño o con el chevron.
@@ -162,6 +174,12 @@ const NAV_STRUCTURE = [
         ],
       },
       { name: 'Re-Ingeniería',  path: '/projects/servicio/reingenieria',  icon: RefreshCw,    roles: [ROLES.PM, ROLES.ADMIN] },
+      // Las OT de tienda se gestionan como proyecto y llevan su propio embudo.
+      // Antes este apartado era exclusivo de Coppel; ahora agrupa a todas las
+      // cadenas y la marca de cada una va en el campo Marca.
+      { name: 'Tiendas',        path: '/projects/servicio/tiendas',       icon: Store,        roles: [ROLES.PM, ROLES.ADMIN] },
+      // Un solo inventario para toda la operación de tiendas, no uno por proyecto.
+      { name: 'Inventario de Tiendas', path: '/projects/inventario-tiendas', icon: Boxes,     roles: [ROLES.PM, ROLES.ADMIN, ROLES.OPS] },
     ]
   },
 
@@ -183,6 +201,9 @@ const NAV_STRUCTURE = [
       { name: 'Incentivos y Premios', path: '/hr/rewards',      icon: Star,            roles: [ROLES.HR, ROLES.ADMIN] },
       { name: 'EPP e Inventario',     path: '/hr/assets',       icon: Package,         roles: [ROLES.HR, ROLES.ADMIN] },
       { name: 'Contratos y Docs',     path: '/hr/documents',    icon: FileText,        roles: [ROLES.HR, ROLES.ADMIN] },
+      // Documentos con vigencia que el técnico debe traer para entrar a sitio.
+      { name: 'Docs. de Campo',       path: '/hr/documentacion-campo', icon: ShieldCheck, roles: [ROLES.HR, ROLES.ADMIN] },
+      { name: 'Capacitación',         path: '/hr/capacitacion',  icon: GraduationCap,  roles: [ROLES.HR, ROLES.ADMIN] },
       { name: 'Encuestas de Clima',   path: '/hr/surveys',      icon: ClipboardCheck,  roles: [ROLES.HR, ROLES.ADMIN] },
       { name: 'Comunicados',          path: '/hr/announcements', icon: Bell,           roles: [ROLES.HR, ROLES.ADMIN] },
       { name: 'Sistema de Nómina',    path: '/hr/payroll',      icon: Receipt,         roles: [ROLES.HR, ROLES.ADMIN] },

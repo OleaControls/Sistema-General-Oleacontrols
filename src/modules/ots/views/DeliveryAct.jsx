@@ -1,10 +1,11 @@
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   ChevronLeft, FileText, User, Mail, MapPin, CheckCircle2,
   Camera, Trash2, Plus, Send, X, Signature as SignatureIcon,
   ShieldCheck, Smartphone, Info, Download, Loader2, Store, Phone, Hash,
-  RotateCcw
+  RotateCcw, AlertTriangle
 } from 'lucide-react';
 import SignaturePad from '@/components/shared/SignaturePad';
 import { otService } from '@/api/otService';
@@ -13,6 +14,15 @@ import { cn } from '@/lib/utils';
 import { saveDraft, loadDraft, clearDraft } from '@/lib/draftStore';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+
+/* Las fotos pasaron de ser un arreglo de data-URLs sueltas a llevar descripción.
+   Los borradores guardados antes del cambio siguen trayendo el formato viejo. */
+const normalizarFotos = (lista) =>
+    (Array.isArray(lista) ? lista : []).map((item, i) =>
+        typeof item === 'string'
+            ? { id: `old-${i}-${item.length}`, url: item, description: '' }
+            : { id: item.id ?? `f-${i}`, url: item.url, description: item.description || '' }
+    );
 
 /* Un borrador solo cuenta si el técnico llegó a capturar algo suyo. Los datos
    de contacto se prellenan desde la OT, así que no bastan para considerarlo
@@ -23,6 +33,7 @@ function tieneContenido(draft) {
         f.systemType ||
         f.deliveryDetails?.trim() ||
         f.photos?.length ||
+        f.incidents?.length ||
         f.pendingTasks?.some(t => t.description?.trim()) ||
         draft.tscSignature?.length ||
         draft.clientSignature?.length
@@ -60,6 +71,8 @@ export default function DeliveryAct() {
     clientLastName: '',
     clientEmail: '',
     photos: [],
+    // Reporte de incidencias del cierre: qué pasó, con su foto. Opcional.
+    incidents: [],
     // Eliminamos tscSignature y clientSignature del state para evitar re-renders innecesarios
   });
 
@@ -79,6 +92,9 @@ export default function DeliveryAct() {
   const saveTimer = useRef(null);
   const draftReady = useRef(false); // no guardar hasta haber intentado restaurar
   const [draftRecovered, setDraftRecovered] = useState(false);
+  // Evidencias e incidentes que el técnico ya subió durante la jornada. No se
+  // vuelven a subir: se anexan al PDF y se muestran en solo lectura.
+  const [previas, setPrevias] = useState({ fotos: [], incidentes: [] });
   const [draftSavedAt, setDraftSavedAt] = useState(null);
 
   useEffect(() => { formDataRef.current = formData; }, [formData]);
@@ -151,10 +167,23 @@ export default function DeliveryAct() {
         ]);
         setOt(data);
 
+        // Lo capturado en campo antes de cerrar el acta.
+        try {
+          const yaSubidas = await otService.getOTEvidences(id);
+          setPrevias({
+            fotos:      yaSubidas.filter(e => e.type !== 'INCIDENT'),
+            incidentes: yaSubidas.filter(e => e.type === 'INCIDENT'),
+          });
+        } catch { /* si falla, el acta sigue funcionando con lo que se capture aquí */ }
+
         if (draft?.formData && tieneContenido(draft)) {
             // El borrador ya trae los datos del cliente que el técnico pudo
             // haber corregido, así que tiene prioridad sobre los de la OT.
-            setFormData(draft.formData);
+            setFormData({
+                ...draft.formData,
+                photos:    normalizarFotos(draft.formData.photos),
+                incidents: normalizarFotos(draft.formData.incidents),
+            });
             tscSigData.current = draft.tscSignature || null;
             clientSigData.current = draft.clientSignature || null;
             setDraftSavedAt(draft.savedAt || null);
@@ -203,17 +232,30 @@ export default function DeliveryAct() {
         clientLastName: ot?.contactName?.split(' ').slice(1).join(' ') || '',
         clientEmail: ot?.contactEmail || '',
         photos: [],
+        incidents: [],
     });
     setDraftRecovered(false);
     setDraftSavedAt(null);
     draftReady.current = true;
   };
 
+  const setPhotoDescription = (field, photoId, description) => {
+    setFormData(prev => ({
+      ...prev,
+      [field]: (prev[field] || []).map(ph => ph.id === photoId ? { ...ph, description } : ph),
+    }));
+  };
+
+  const removePhoto = (field, photoId) => {
+    setFormData(prev => ({ ...prev, [field]: (prev[field] || []).filter(ph => ph.id !== photoId) }));
+  };
+
   const handleAddPending = () => {
     setFormData({ ...formData, pendingTasks: [...formData.pendingTasks, { id: Date.now(), description: '' }] });
   };
 
-  const handlePhotoUpload = (e) => {
+  // `field` es 'photos' (evidencia) o 'incidents' (reporte de incidencias).
+  const handlePhotoUpload = (e, field = 'photos') => {
     const files = Array.from(e.target.files);
     files.forEach(file => {
         const reader = new FileReader();
@@ -249,7 +291,13 @@ export default function DeliveryAct() {
 
                 // Comprimir al 70% de calidad (JPEG)
                 const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.7);
-                setFormData(prev => ({ ...prev, photos: [...prev.photos, compressedDataUrl] }));
+                setFormData(prev => ({
+                    ...prev,
+                    [field]: [
+                        ...(prev[field] || []),
+                        { id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, url: compressedDataUrl, description: '' },
+                    ],
+                }));
             };
         };
     });
@@ -458,6 +506,35 @@ export default function DeliveryAct() {
       currentY += 10;
   }
 
+  // --- 6b. REPORTE DE INCIDENCIAS ---
+  // Solo se imprime si el técnico registró algo; el apartado es opcional.
+  const incidentsToPrint = (data.incidents || formData.incidents || [])
+      .filter(i => (i?.description || '').trim() !== '' || i?.url);
+
+  if (incidentsToPrint.length > 0) {
+      if (currentY > pageHeight - 70) { doc.addPage(); currentY = 30; }
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(153, 27, 27);
+      doc.text("REPORTE DE INCIDENCIAS", margin, currentY);
+      doc.setTextColor(30, 41, 59);
+
+      autoTable(doc, {
+          startY: currentY + 5,
+          margin: { left: margin, right: margin },
+          head: [['#', 'QUÉ OCURRIÓ']],
+          body: incidentsToPrint.map((inc, i) => [
+              i + 1,
+              (inc.description || 'Sin descripción').toUpperCase(),
+          ]),
+          theme: 'striped',
+          headStyles: { fillColor: [153, 27, 27], fontSize: 7 },
+          styles: { fontSize: 7, cellPadding: 2 },
+          columnStyles: { 0: { cellWidth: 10 } },
+      });
+      currentY = doc.lastAutoTable.finalY + 20;
+  }
+
   // --- 7. FIRMAS (Control de salto de página) ---
   if (currentY > pageHeight - 60) {
       doc.addPage();
@@ -531,17 +608,58 @@ export default function DeliveryAct() {
           }
 
           try {
-              // Determinar el formato de la imagen desde el dataURI
-              const format = photo.includes('png') ? 'PNG' : 'JPEG';
-              doc.addImage(photo, format, xPos, photoY, photoWidth, photoHeight);
+              // La foto puede venir como cadena (formato viejo) o como { url, description }.
+              const src = typeof photo === 'string' ? photo : photo?.url;
+              const caption = (typeof photo === 'string' ? '' : (photo?.description || '')).trim();
+              if (!src) return;
+              const format = src.includes('png') ? 'PNG' : 'JPEG';
+              doc.addImage(src, format, xPos, photoY, photoWidth, photoHeight);
               doc.setTextColor(100, 116, 139);
               doc.setFontSize(6);
-              doc.text(`EVIDENCIA #${index + 1} - OT: ${ot.otNumber}`, xPos + (photoWidth/2), photoY + photoHeight + 5, { align: 'center' });
+              doc.text(`EVIDENCIA #${index + 1} - OT: ${ot.otNumber}`, xPos + (photoWidth/2), photoY + photoHeight + 4, { align: 'center' });
+              if (caption) {
+                  doc.setTextColor(30, 41, 59);
+                  const lineas = doc.splitTextToSize(caption, photoWidth).slice(0, 2);
+                  doc.text(lineas, xPos + (photoWidth/2), photoY + photoHeight + 8, { align: 'center' });
+              }
           } catch (e) {
               console.error("Error al añadir foto al PDF", e);
           }
 
           if (!isLeft) photoY += photoHeight + 15;
+      });
+  }
+
+  // --- 9. ANEXO DE INCIDENCIAS (solo las que traen foto) ---
+  const incidentPhotos = (data.incidents || formData.incidents || []).filter(i => i?.url);
+  if (incidentPhotos.length > 0) {
+      doc.addPage();
+      doc.setFillColor(153, 27, 27);
+      doc.rect(0, 0, pageWidth, 25, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(12);
+      doc.text("ANEXO: INCIDENCIAS", pageWidth / 2, 16, { align: 'center' });
+
+      let incY = 35;
+      const incW = 80;
+      const incH = 60;
+      incidentPhotos.forEach((inc, index) => {
+          const isLeft = index % 2 === 0;
+          const xPos = isLeft ? margin : pageWidth - margin - incW;
+          if (index > 0 && isLeft) incY += incH + 18;
+          if (incY > pageHeight - incH - 20) { doc.addPage(); incY = 20; }
+          try {
+              const format = inc.url.includes('png') ? 'PNG' : 'JPEG';
+              doc.addImage(inc.url, format, xPos, incY, incW, incH);
+              doc.setTextColor(153, 27, 27);
+              doc.setFontSize(6);
+              doc.text(`INCIDENCIA #${index + 1}`, xPos + (incW/2), incY + incH + 4, { align: 'center' });
+              const txt = (inc.description || '').trim();
+              if (txt) {
+                  doc.setTextColor(30, 41, 59);
+                  doc.text(doc.splitTextToSize(txt, incW).slice(0, 3), xPos + (incW/2), incY + incH + 8, { align: 'center' });
+              }
+          } catch (e) { console.error("Error al añadir incidencia al PDF", e); }
       });
   }
 
@@ -577,8 +695,13 @@ export default function DeliveryAct() {
   // necesita alta resolución). La copia en R2 se sube aparte en buena calidad.
   // Mantiene el PDF muy por debajo del límite de 4.5 MB de Vercel.
   const compressPhotoForPdf = (dataUri) => new Promise((resolve) => {
-      if (!dataUri?.startsWith('data:')) { resolve(dataUri); return; }
+      if (!dataUri) { resolve(dataUri); return; }
       const img = new Image();
+      // Las evidencias subidas en campo llegan como URL de R2. jsPDF no puede
+      // incrustar una URL remota, así que se pasan por canvas para volverlas
+      // data-URI. Requiere CORS; si el canvas queda contaminado, el catch de
+      // abajo devuelve la URL original y la foto simplemente se omite del PDF.
+      if (!dataUri.startsWith('data:')) img.crossOrigin = 'anonymous';
       img.onload = () => {
           try {
               const MAX = 900;
@@ -634,21 +757,38 @@ export default function DeliveryAct() {
       const clientSigUrl = await otService.uploadFile(clientSigBase64, 'signatures');
       log(`Cliente URL: ${String(clientSigUrl).slice(0, 60)}`);
 
-      // 3. Subir fotos
-      log(`Paso 3: subiendo ${formData.photos.length} foto(s)...`);
-      const photoUrls = await Promise.all(
-          formData.photos.map(p => p.startsWith('data:') ? otService.uploadFile(p, 'evidences') : Promise.resolve(p))
+      // 3. Subir fotos e incidencias (la descripción viaja junto a cada URL)
+      const subirLista = async (lista) => Promise.all(
+          (lista || []).map(async (item) => ({
+              url: item.url?.startsWith('data:')
+                  ? await otService.uploadFile(item.url, 'evidences')
+                  : item.url,
+              description: (item.description || '').trim() || null,
+          }))
       );
+
+      log(`Paso 3: subiendo ${formData.photos.length} foto(s)...`);
+      const photoUrls = await subirLista(formData.photos);
       log(`Fotos OK: ${photoUrls.length}`);
+
+      const incidentesConFoto = (formData.incidents || []).filter(i => i.url || (i.description || '').trim());
+      log(`Paso 3b: subiendo ${incidentesConFoto.length} incidencia(s)...`);
+      const incidentUrls = await subirLista(incidentesConFoto);
 
       // 4. Generar PDF (con fotos re-comprimidas para no inflar el PDF)
       log('Paso 4: generando PDF...');
-      const pdfPhotos = await Promise.all(formData.photos.map(compressPhotoForPdf));
+      const comprimirParaPdf = async (lista) => Promise.all(
+          (lista || []).map(async (item) => ({ ...item, url: await compressPhotoForPdf(item.url) }))
+      );
+      // El acta debe reflejar TODO el trabajo: lo subido en campo y lo del cierre.
+      const pdfPhotos    = await comprimirParaPdf([...previas.fotos, ...formData.photos]);
+      const pdfIncidents = await comprimirParaPdf([...previas.incidentes, ...incidentesConFoto]);
       const pdfBase64 = await generatePDF({
           ...formData,
           tscSignature: tscSigBase64,
           clientSignature: clientSigBase64,
-          photos: pdfPhotos
+          photos: pdfPhotos,
+          incidents: pdfIncidents
       });
       log(`PDF generado: ${Math.round(pdfBase64.length / 1024)} KB`);
 
@@ -668,6 +808,7 @@ export default function DeliveryAct() {
           clientSignature: clientSigUrl,
           deliveryActUrl: pdfUrl,
           photos: photoUrls,
+          incidents: incidentUrls,
           finishedAt: new Date().toISOString()
       });
 
@@ -846,19 +987,121 @@ export default function DeliveryAct() {
         <div className="space-y-8">
             <div className="bg-white rounded-[3rem] border p-8 shadow-xl space-y-6">
                 <SectionTitle title="Evidencia" icon={Camera} />
-                <div className="grid grid-cols-2 gap-3">
+                <p className="text-[10px] text-gray-400 font-medium -mt-3">
+                    Describe qué muestra cada foto. El texto se imprime en el acta.
+                </p>
+
+                {/* Lo que ya se subió durante la jornada: se anexa solo al acta */}
+                {previas.fotos.length > 0 && (
+                    <div className="rounded-2xl border border-gray-100 bg-gray-50/60 p-4 space-y-2">
+                        <p className="text-[9px] font-black text-gray-500 uppercase tracking-widest">
+                            Subidas en campo · {previas.fotos.length}
+                        </p>
+                        <div className="grid grid-cols-3 gap-2">
+                            {previas.fotos.map(ev => (
+                                <a key={ev.id} href={ev.url} target="_blank" rel="noopener noreferrer"
+                                   title={ev.description || 'Sin descripción'}
+                                   className="aspect-square rounded-xl overflow-hidden border border-gray-200 block">
+                                    <img src={ev.url} alt={ev.description || ''} className="w-full h-full object-cover" />
+                                </a>
+                            ))}
+                        </div>
+                        <p className="text-[10px] text-gray-400 font-medium">
+                            Ya están guardadas y se anexan al acta. No hace falta volver a subirlas.
+                        </p>
+                    </div>
+                )}
+                <div className="space-y-3">
                     {formData.photos.map((photo, i) => (
-                        <div key={i} className="relative aspect-square rounded-2xl overflow-hidden border group shadow-sm">
-                            <img src={photo} alt={`Evidencia ${i + 1}`} className="w-full h-full object-cover" />
-                            <button onClick={() => setFormData({...formData, photos: formData.photos.filter((_, idx) => idx !== i)})} className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-all shadow-lg">
-                                <X className="h-3 w-3" />
-                            </button>
+                        <div key={photo.id} className="flex gap-3 items-start">
+                            <div className="relative h-20 w-20 shrink-0 rounded-2xl overflow-hidden border group shadow-sm">
+                                <img src={photo.url} alt={`Evidencia ${i + 1}`} className="w-full h-full object-cover" />
+                                <button
+                                    type="button"
+                                    onClick={() => removePhoto('photos', photo.id)}
+                                    aria-label={`Quitar evidencia ${i + 1}`}
+                                    className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 focus:opacity-100 transition-all shadow-lg"
+                                >
+                                    <X className="h-3 w-3" />
+                                </button>
+                            </div>
+                            <div className="flex-1 min-w-0">
+                                <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Evidencia {i + 1}</span>
+                                <textarea
+                                    rows={2}
+                                    className="mt-1 w-full px-3 py-2 bg-gray-50 border rounded-xl text-xs font-medium outline-none focus:border-primary transition-all resize-none"
+                                    placeholder="Qué se ve en la foto..."
+                                    value={photo.description}
+                                    onChange={e => setPhotoDescription('photos', photo.id, e.target.value)}
+                                />
+                            </div>
                         </div>
                     ))}
-                    <label className="aspect-square rounded-2xl border-2 border-dashed border-gray-200 flex flex-col items-center justify-center cursor-pointer hover:bg-primary/5 hover:border-primary transition-all text-gray-400 hover:text-primary">
-                        <Plus className="h-8 w-8 mb-1" />
+                    <label className="h-20 rounded-2xl border-2 border-dashed border-gray-200 flex flex-col items-center justify-center cursor-pointer hover:bg-primary/5 hover:border-primary transition-all text-gray-400 hover:text-primary">
+                        <Plus className="h-6 w-6 mb-1" />
                         <span className="text-[9px] font-black uppercase">Subir Foto</span>
-                        <input type="file" accept="image/*" multiple className="hidden" onChange={handlePhotoUpload} />
+                        <input type="file" accept="image/*" multiple className="hidden" onChange={e => handlePhotoUpload(e, 'photos')} />
+                    </label>
+                </div>
+            </div>
+
+            {/* ── Reporte de incidencias — apartado opcional del cierre ── */}
+            <div className="bg-white rounded-[3rem] border p-8 shadow-xl space-y-6">
+                <SectionTitle title="Reporte de Incidencias" icon={AlertTriangle} />
+                <p className="text-[10px] text-gray-400 font-medium -mt-3">
+                    Solo si hubo algo que reportar. Describe qué pasó y adjunta la foto.
+                    Si no hubo incidencias, puedes cerrar el acta sin llenar nada.
+                </p>
+
+                {/* Incidentes ya reportados en tiempo real durante la jornada */}
+                {previas.incidentes.length > 0 && (
+                    <div className="rounded-2xl border border-red-100 bg-red-50/50 p-4 space-y-2">
+                        <p className="text-[9px] font-black text-red-600 uppercase tracking-widest">
+                            Reportados en campo · {previas.incidentes.length}
+                        </p>
+                        {previas.incidentes.map(inc => (
+                            <div key={inc.id} className="flex gap-3 items-start">
+                                <a href={inc.url} target="_blank" rel="noopener noreferrer"
+                                   className="h-14 w-14 shrink-0 rounded-xl overflow-hidden border border-red-200 block">
+                                    <img src={inc.url} alt={inc.description || ''} className="w-full h-full object-cover" />
+                                </a>
+                                <p className="text-[11px] font-medium text-gray-600 leading-snug">
+                                    {inc.description || <span className="text-gray-300 italic">Sin descripción</span>}
+                                </p>
+                            </div>
+                        ))}
+                    </div>
+                )}
+                <div className="space-y-3">
+                    {(formData.incidents || []).map((inc, i) => (
+                        <div key={inc.id} className="flex gap-3 items-start rounded-2xl border border-red-100 bg-red-50/40 p-3">
+                            <div className="relative h-20 w-20 shrink-0 rounded-2xl overflow-hidden border border-red-200 group shadow-sm">
+                                <img src={inc.url} alt={`Incidencia ${i + 1}`} className="w-full h-full object-cover" />
+                                <button
+                                    type="button"
+                                    onClick={() => removePhoto('incidents', inc.id)}
+                                    aria-label={`Quitar incidencia ${i + 1}`}
+                                    className="absolute top-1 right-1 p-1 bg-red-600 text-white rounded-full opacity-0 group-hover:opacity-100 focus:opacity-100 transition-all shadow-lg"
+                                >
+                                    <X className="h-3 w-3" />
+                                </button>
+                            </div>
+                            <div className="flex-1 min-w-0">
+                                <span className="text-[9px] font-black text-red-500 uppercase tracking-widest">Incidencia {i + 1}</span>
+                                <textarea
+                                    rows={3}
+                                    className="mt-1 w-full px-3 py-2 bg-white border border-red-100 rounded-xl text-xs font-medium outline-none focus:border-red-400 transition-all resize-none"
+                                    placeholder="Qué pasó..."
+                                    value={inc.description}
+                                    onChange={e => setPhotoDescription('incidents', inc.id, e.target.value)}
+                                />
+                            </div>
+                        </div>
+                    ))}
+                    <label className="h-16 rounded-2xl border-2 border-dashed border-red-200 flex items-center justify-center gap-2 cursor-pointer hover:bg-red-50 hover:border-red-400 transition-all text-red-400 hover:text-red-600">
+                        <Plus className="h-5 w-5" />
+                        <span className="text-[9px] font-black uppercase">Agregar Incidencia</span>
+                        <input type="file" accept="image/*" multiple className="hidden" onChange={e => handlePhotoUpload(e, 'incidents')} />
                     </label>
                 </div>
             </div>
