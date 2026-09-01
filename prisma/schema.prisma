@@ -1031,7 +1031,8 @@ model Project {
   clientContactEmail String?
 
   // Estado y avance
-  status        String   @default("INICIO") // INICIO, PLANEACION, EJECUCION, CIERRE, CERRADO
+  status        String   @default("INICIACION") // INICIACION, PLANEACION, EJECUCION, TERMINACION, APROBACION
+                                        // (legacy: INICIO, IMPLEMENTACION, CALIDAD, CIERRE, CERRADO)
   progress      Int      @default(0)         // % avance (0-100)
 
   // Tiempo

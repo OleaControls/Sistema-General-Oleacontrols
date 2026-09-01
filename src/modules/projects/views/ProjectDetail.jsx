@@ -802,7 +802,7 @@ function CierreTab({ project, onSaved }) {
     try {
       await projectService.update(project.id, {
         ...form,
-        ...(close ? { status: 'CIERRE', closedAt: new Date().toISOString(), progress: 100 } : {}),
+        ...(close ? { status: 'APROBACION', closedAt: new Date().toISOString(), progress: 100 } : {}),
       });
       onSaved();
     } finally { setSaving(false); }

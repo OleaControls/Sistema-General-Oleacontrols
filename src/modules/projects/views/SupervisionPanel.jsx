@@ -83,7 +83,7 @@ export default function SupervisionPanel() {
   const tecnicos = techIdsEnZona ? technicians.filter(t => techIdsEnZona.has(t.id)) : technicians;
 
   const kpis = useMemo(() => {
-    const activos = proyectos.filter(p => p.status !== 'CIERRE' && p.status !== 'CERRADO');
+    const activos = proyectos.filter(p => !['APROBACION', 'CIERRE', 'CERRADO'].includes(p.status));
     return {
       activos: activos.length,
       hoy: asignaciones.today?.length || 0,

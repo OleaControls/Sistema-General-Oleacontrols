@@ -14,11 +14,11 @@ import {
 
 // Las 5 fases del pipeline de proyectos (en orden) con sus estilos.
 export const PROJECT_STATUS = {
-  INICIACION:     { label: 'Iniciación',     cls: 'bg-blue-50 text-blue-600 border-blue-200',       dot: 'bg-blue-500',    col: 'bg-blue-50/60',    ring: 'ring-blue-300' },
-  PLANEACION:     { label: 'Planeación',     cls: 'bg-amber-50 text-amber-600 border-amber-200',    dot: 'bg-amber-500',   col: 'bg-amber-50/60',   ring: 'ring-amber-300' },
-  IMPLEMENTACION: { label: 'Implementación', cls: 'bg-violet-50 text-violet-600 border-violet-200', dot: 'bg-violet-500',  col: 'bg-violet-50/60',  ring: 'ring-violet-300' },
-  CALIDAD:        { label: 'Calidad',        cls: 'bg-cyan-50 text-cyan-600 border-cyan-200',       dot: 'bg-cyan-500',    col: 'bg-cyan-50/60',    ring: 'ring-cyan-300' },
-  CIERRE:         { label: 'Cierre',         cls: 'bg-emerald-50 text-emerald-600 border-emerald-200', dot: 'bg-emerald-500', col: 'bg-emerald-50/60', ring: 'ring-emerald-300' },
+  INICIACION:  { label: 'Iniciación',  cls: 'bg-blue-50 text-blue-600 border-blue-200',          dot: 'bg-blue-500',    col: 'bg-blue-50/60',    ring: 'ring-blue-300' },
+  PLANEACION:  { label: 'Planeación',  cls: 'bg-amber-50 text-amber-600 border-amber-200',       dot: 'bg-amber-500',   col: 'bg-amber-50/60',   ring: 'ring-amber-300' },
+  EJECUCION:   { label: 'Ejecución',   cls: 'bg-violet-50 text-violet-600 border-violet-200',    dot: 'bg-violet-500',  col: 'bg-violet-50/60',  ring: 'ring-violet-300' },
+  TERMINACION: { label: 'Terminación', cls: 'bg-cyan-50 text-cyan-600 border-cyan-200',          dot: 'bg-cyan-500',    col: 'bg-cyan-50/60',    ring: 'ring-cyan-300' },
+  APROBACION:  { label: 'Aprobación',  cls: 'bg-emerald-50 text-emerald-600 border-emerald-200', dot: 'bg-emerald-500', col: 'bg-emerald-50/60', ring: 'ring-emerald-300' },
 };
 
 // Orden de las fases (para el pipeline y filtros).
@@ -43,8 +43,12 @@ const SLUG_TO_SERVICE = {
   tiendas: 'TIENDAS', coppel: 'TIENDAS',
 };
 
-// Conecta estados antiguos (INICIO/EJECUCION/CERRADO) con las 5 fases nuevas.
-const PHASE_ALIAS = { INICIO: 'INICIACION', EJECUCION: 'IMPLEMENTACION', CERRADO: 'CIERRE' };
+// Conecta estados antiguos (INICIO/IMPLEMENTACION/CALIDAD/CIERRE/CERRADO) con
+// las 5 fases nuevas, para que los proyectos ya guardados sigan cayendo bien.
+const PHASE_ALIAS = {
+  INICIO: 'INICIACION', IMPLEMENTACION: 'EJECUCION', CALIDAD: 'TERMINACION',
+  CIERRE: 'APROBACION', CERRADO: 'APROBACION',
+};
 export const normalizePhase = (s) => PHASE_ALIAS[s] || (PROJECT_STATUS[s] ? s : 'INICIACION');
 
 const money = (n) => `$${Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 0 })}`;
@@ -122,7 +126,7 @@ export default function ProjectsList() {
     : projects;
   const summary = {
     total: scopeProjects.length,
-    activos: scopeProjects.filter(p => normalizePhase(p.status) !== 'CIERRE').length,
+    activos: scopeProjects.filter(p => normalizePhase(p.status) !== 'APROBACION').length,
     presupuesto: scopeProjects.reduce((a, p) => a + (p.budget || 0), 0),
     porFase: (fase) => scopeProjects.filter(p => normalizePhase(p.status) === fase).length,
   };
@@ -222,8 +226,8 @@ export default function ProjectsList() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <SummaryTile label="Proyectos" value={summary.total} sub={`${summary.activos} activos`} />
           <SummaryTile label="Presupuesto total" value={money(summary.presupuesto)} sub="Autorizado" />
-          <SummaryTile label="Implementación" value={summary.porFase('IMPLEMENTACION')} sub="En curso" />
-          <SummaryTile label="En cierre" value={summary.porFase('CIERRE')} sub="Fase final" />
+          <SummaryTile label="Ejecución" value={summary.porFase('EJECUCION')} sub="En curso" />
+          <SummaryTile label="En aprobación" value={summary.porFase('APROBACION')} sub="Fase final" />
         </div>
       )}
 
