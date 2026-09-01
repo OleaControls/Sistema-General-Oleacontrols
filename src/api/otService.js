@@ -64,15 +64,23 @@ export const otService = {
     return { blob: new Blob([bytes], { type: contentType }), contentType, extension };
   },
 
-  // Sube archivos grandes (PDFs) DIRECTO a R2 mediante URL prefirmada,
+  // Máximo que aguanta /api/upload: Vercel corta el request en 4.5 MB antes de
+  // que la función corra, y el cuerpo JSON pesa ≈ lo que mide el data-URI.
+  // Dejamos margen para el resto del JSON y las cabeceras.
+  _LIMITE_RESPALDO: 4 * 1024 * 1024,
+
+  // Sube archivos grandes (PDFs, planos) DIRECTO a R2 mediante URL prefirmada,
   // evitando el límite de 4.5 MB de las funciones serverless de Vercel.
   // Si la subida directa falla (p. ej. CORS no configurado en R2), cae de
-  // vuelta al método clásico vía /api/upload.
+  // vuelta al método clásico vía /api/upload, PERO solo si el archivo cabe:
+  // reintentar con uno pesado garantiza un 413 y esconde el error de verdad.
   async uploadLargeFile(base64Data, folder = 'uploads') {
     if (!base64Data?.startsWith('data:')) return base64Data;
+    let etapa = 'preparar';
     try {
       const { blob, contentType, extension } = this._dataUriToBlob(base64Data);
 
+      etapa = 'firmar';
       const presignRes = await apiFetch('/api/upload', {
         method: 'POST',
         body: JSON.stringify({ presign: true, folder, contentType, extension }),
@@ -80,6 +88,7 @@ export const otService = {
       if (!presignRes.ok) throw new Error(`No se pudo obtener URL de subida (${presignRes.status})`);
       const { uploadUrl, publicUrl } = await presignRes.json();
 
+      etapa = 'subir';
       const putRes = await fetch(uploadUrl, {
         method: 'PUT',
         headers: { 'Content-Type': contentType },
@@ -90,7 +99,21 @@ export const otService = {
       console.log(`[otService] Archivo grande subido directo a R2:`, publicUrl);
       return publicUrl;
     } catch (err) {
-      console.warn(`[otService] Subida directa falló, usando /api/upload como respaldo:`, err.message);
+      console.warn(`[otService] Subida directa a R2 falló en la etapa "${etapa}":`, err.message);
+
+      // El archivo no cabe por /api/upload: mejor un error que explique la causa
+      // real que un 413 de Vercel que no le dice nada al técnico.
+      if (base64Data.length > this._LIMITE_RESPALDO) {
+        const mb = (base64Data.length / 1024 / 1024).toFixed(1);
+        const causa = etapa === 'subir'
+          ? 'el navegador no pudo escribir en R2 (revisa la regla CORS del bucket)'
+          : 'no se pudo firmar la URL de subida en el servidor';
+        throw new Error(
+          `No se pudo subir el archivo (${mb} MB): ${causa}. ` +
+          `Archivos de más de 4 MB solo pueden subirse directo a R2.`
+        );
+      }
+
       return this.uploadFile(base64Data, folder);
     }
   },
