@@ -2,7 +2,8 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import {
   ClipboardList, MapPin, Clock, ArrowRight, CheckCircle2,
   Store, Calendar, AlertTriangle, Trophy, User, Zap,
-  Circle, Filter, RefreshCw, ChevronRight, Star, Navigation, Navigation2, WifiOff, ShieldAlert
+  Circle, Filter, RefreshCw, ChevronRight, Star, Navigation, Navigation2, WifiOff, ShieldAlert,
+  ShieldCheck, FolderOpen
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
@@ -14,6 +15,7 @@ import { useAuth } from '@/store/AuthContext';
 import { cn } from '@/lib/utils';
 import techDocsService from '@/api/techDocsService';
 import { resumenExpediente, DOC_STATUS } from '@/lib/fieldDocs';
+import MisDocsDrawer from '../components/MisDocsDrawer';
 
 // ── Leaflet icons ──────────────────────────────────────────────────────────────
 const otIcon = new L.Icon({
@@ -246,6 +248,8 @@ export default function TechnicianOTs() {
     return () => { vivo = false; };
   }, []);
   const misDocs = useMemo(() => resumenExpediente(misDocsRaw), [misDocsRaw]);
+  const [docsAbiertos, setDocsAbiertos] = useState(false);
+  const misDocsVigentes = misDocs.items.filter(i => i.status === 'VIGENTE').length;
   // 'idle' | 'requesting' | 'active' | 'denied'
   const [locationStatus, setLocationStatus] = useState('idle');
   const watchIdRef = useRef(null);
@@ -525,7 +529,11 @@ export default function TechnicianOTs() {
 
       {/* ── DOCUMENTACIÓN DE CAMPO — informativo, no bloquea ───────────────── */}
       {misDocs.alerta && (
-        <div className="rounded-3xl border border-red-200 bg-red-50 px-5 py-4 flex items-start gap-3">
+        <button
+          type="button"
+          onClick={() => setDocsAbiertos(true)}
+          className="w-full text-left rounded-3xl border border-red-200 bg-red-50 px-5 py-4 flex items-start gap-3 hover:bg-red-100/70 transition-colors"
+        >
           <ShieldAlert className="h-5 w-5 text-red-500 shrink-0 mt-0.5" />
           <div className="min-w-0">
             <p className="text-[11px] font-black text-red-700 uppercase tracking-widest">Documentación pendiente</p>
@@ -540,7 +548,7 @@ export default function TechnicianOTs() {
               ))}
             </div>
           </div>
-        </div>
+        </button>
       )}
 
       {/* ── FILTROS ───────────────────────────────────────────────────────── */}
@@ -586,6 +594,34 @@ export default function TechnicianOTs() {
           ))
         )}
       </div>
+
+      {/* ── MIS DOCUMENTOS — abre la pestaña lateral con el visor ─────────── */}
+      <button
+        type="button"
+        onClick={() => setDocsAbiertos(true)}
+        className={cn(
+          'w-full flex items-center gap-3 px-5 py-4 rounded-3xl border bg-white text-left shadow-sm transition-colors',
+          misDocs.alerta ? 'border-red-200 hover:border-red-300' : 'border-gray-100 hover:border-gray-300'
+        )}
+      >
+        <FolderOpen className="h-5 w-5 text-gray-400 shrink-0" />
+        <div className="flex-1 min-w-0">
+          <p className="text-[11px] font-black text-gray-900 uppercase tracking-widest">Mis documentos</p>
+          <p className="text-[10px] font-bold text-gray-400 mt-0.5">
+            {misDocsVigentes} de {misDocs.items.length} vigentes · tócalos para verlos
+          </p>
+        </div>
+        {misDocs.alerta
+          ? <ShieldAlert className="h-4 w-4 text-red-500 shrink-0" />
+          : <ShieldCheck className="h-4 w-4 text-emerald-500 shrink-0" />}
+        <ChevronRight className="h-4 w-4 text-gray-300 shrink-0" />
+      </button>
+
+      <MisDocsDrawer
+        abierto={docsAbiertos}
+        onClose={() => setDocsAbiertos(false)}
+        resumen={misDocs}
+      />
     </div>
   );
 }

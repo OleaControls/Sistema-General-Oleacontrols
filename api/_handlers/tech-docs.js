@@ -5,8 +5,7 @@ import { uploadToR2, signUrlIfNeeded } from '../_lib/r2.js'
 /* Documentación que el técnico necesita vigente para entrar a sitio.
    Espejo de `src/lib/fieldDocs.js`: si allá se agrega un tipo, sumarlo aquí. */
 const DOC_TYPES = [
-  'DC3', 'IMSS', 'INE', 'EXAMEN_MEDICO',
-  'POLIZA_SEGURO', 'CURSO_ALTURAS', 'CARTA_RESPONSIVA',
+  'IMSS', 'DC3', 'PAGO_SEGURO', 'LISTA_TRABAJADORES', 'INE', 'ESPIROMETRIA',
 ];
 
 // Quién puede administrar el expediente de cualquier técnico.

@@ -4,13 +4,12 @@
    y espejar la clave en el handler. */
 
 export const FIELD_DOC_TYPES = [
-  { key: 'DC3',              label: 'DC-3 (constancia de competencias)', required: true  },
-  { key: 'IMSS',             label: 'Alta IMSS vigente',                 required: true  },
-  { key: 'INE',              label: 'Identificación oficial',            required: true  },
-  { key: 'EXAMEN_MEDICO',    label: 'Examen médico',                     required: true  },
-  { key: 'POLIZA_SEGURO',    label: 'Póliza de seguro',                  required: false },
-  { key: 'CURSO_ALTURAS',    label: 'Curso de trabajo en alturas',       required: false },
-  { key: 'CARTA_RESPONSIVA', label: 'Carta responsiva',                  required: false },
+  { key: 'IMSS',                short: 'IMSS',        label: 'Alta del IMSS',        required: true },
+  { key: 'DC3',                 short: 'DC-3',        label: 'DC-3',                 required: true },
+  { key: 'PAGO_SEGURO',         short: 'Seguro',      label: 'Pago del seguro',      required: true },
+  { key: 'LISTA_TRABAJADORES',  short: 'Lista',       label: 'Lista de trabajadores', required: true },
+  { key: 'INE',                 short: 'INE',         label: 'INE',                  required: true },
+  { key: 'ESPIROMETRIA',        short: 'Espirometría', label: 'Espirometría',        required: true },
 ];
 
 export const FIELD_DOC_KEYS = FIELD_DOC_TYPES.map(t => t.key);

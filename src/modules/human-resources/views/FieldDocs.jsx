@@ -199,7 +199,7 @@ export default function FieldDocs() {
                     return (
                       <span key={item.key} title={item.label}
                         className={cn('text-[8px] font-black uppercase tracking-wider px-2 py-1 rounded-md border', meta.cls)}>
-                        {item.key.replace('_', ' ')}
+                        {item.short || item.key}
                       </span>
                     );
                   })}
