@@ -4,7 +4,7 @@ import {
   ArrowLeft, Loader2, Save, Plus, X, Pencil, Trash2, LayoutDashboard,
   FileText, ListChecks, DollarSign, Users, ShieldCheck, MessageSquare,
   AlertTriangle, FolderOpen, GitPullRequestArrow, Flag, CheckCircle2,
-  FileDown, Upload, Link2, History, Archive, Check, Ban, Bell, Calculator,
+  FileDown, Upload, Link2, History, Archive, Check, Ban, Bell,
   PackagePlus, ListTodo, MapPin, Phone, Boxes
 } from 'lucide-react';
 import {
@@ -15,7 +15,6 @@ import projectService from '@/api/projectService';
 import { otService } from '@/api/otService';
 import { useAuth } from '@/store/AuthContext';
 import { generateProjectActaPDF } from '../utils/projectPDF';
-import CotizadorTab from '../components/CotizadorTab';
 import { PROJECT_STATUS, normalizePhase, PROJECT_SERVICES, normalizeService } from './ProjectsList';
 import {
   PROJECT_TYPES, PROJECT_TYPE_KEYS, typeMeta, PRIORITIES, PRIORITY_KEYS,
@@ -315,7 +314,6 @@ export default function ProjectDetail() {
   const TABS = [
     { key: 'resumen', label: 'Acta', icon: FileText },
     { key: 'kpis', label: 'KPIs', icon: LayoutDashboard },
-    { key: 'cotizador', label: 'Cotizador de Retail', icon: Calculator },
     ...SECTIONS.map(s => ({ key: s.key, label: s.label, icon: s.icon })),
     { key: 'vinculos', label: 'Vínculos', icon: Link2 },
     { key: 'actividad', label: 'Actividad', icon: History },
@@ -413,7 +411,6 @@ export default function ProjectDetail() {
       {/* Contenido */}
       {tab === 'resumen' && <ActaTab project={project} onSaved={reload} employees={employees} />}
       {tab === 'kpis' && <KpisTab kpis={kpis} project={project} />}
-      {tab === 'cotizador' && <CotizadorTab project={project} onChanged={reload} />}
       {tab === 'vinculos' && <VinculosTab project={project} onSaved={reload} />}
       {tab === 'actividad' && <ActividadTab activities={project.activities || []} />}
       {tab === 'cierre' && <CierreTab project={project} onSaved={reload} />}
