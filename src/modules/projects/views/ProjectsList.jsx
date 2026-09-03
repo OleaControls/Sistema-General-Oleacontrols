@@ -54,7 +54,7 @@ export const normalizePhase = (s) => PHASE_ALIAS[s] || (PROJECT_STATUS[s] ? s : 
 const money = (n) => `$${Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 0 })}`;
 
 const EMPTY_FORM = {
-  name: '', objective: '', scope: '', justification: '',
+  name: '', objective: '', scope: '',
   sponsor: '', managerName: '', clientName: '',
   startDate: '', endDate: '', budget: '',
   serviceType: 'IMPLEMENTACION',
@@ -437,14 +437,9 @@ export default function ProjectsList() {
                   className="input" placeholder="¿Qué se busca lograr?" />
               </Field>
 
-              <div className="grid sm:grid-cols-2 gap-4">
-                <Field label="Meta">
-                  <textarea rows={2} value={form.scope} onChange={(e) => setForm({ ...form, scope: e.target.value })} className="input" />
-                </Field>
-                <Field label="Justificación">
-                  <textarea rows={2} value={form.justification} onChange={(e) => setForm({ ...form, justification: e.target.value })} className="input" />
-                </Field>
-              </div>
+              <Field label="Meta">
+                <textarea rows={2} value={form.scope} onChange={(e) => setForm({ ...form, scope: e.target.value })} className="input" />
+              </Field>
 
               <div className="grid sm:grid-cols-3 gap-4">
                 <Field label="Nombre">

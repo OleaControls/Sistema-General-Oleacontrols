@@ -1,11 +1,11 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Loader2, Save, Plus, X, Pencil, Trash2, LayoutDashboard,
   FileText, ListChecks, DollarSign, Users, ShieldCheck, MessageSquare,
   AlertTriangle, FolderOpen, GitPullRequestArrow, Flag, CheckCircle2,
   FileDown, Upload, Link2, History, Archive, Check, Ban, Bell,
-  PackagePlus, ListTodo, MapPin, Phone, Boxes
+  PackagePlus, ListTodo, MapPin, Phone, Boxes, ChevronDown
 } from 'lucide-react';
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Cell,
@@ -276,6 +276,260 @@ const BADGE_CLS = {
   SURTIDO: 'bg-emerald-50 text-emerald-600',
 };
 
+// ── Navegación por grupos ───────────────────────────────────────────────────
+// El proyecto tiene 17 apartados. Antes vivían en una sola fila de pestañas con
+// scroll horizontal: no había jerarquía y las últimas quedaban fuera de pantalla.
+// Ahora se agrupan por área de gestión en una barra lateral contextual con
+// grupos desplegables, contador de registros y punto de alerta por apartado.
+const TAB_META = {
+  resumen:          { label: 'Acta de constitución', icon: FileText,            desc: 'Alcance, objetivos, patrocinador y firmas que formalizan el proyecto.' },
+  kpis:             { label: 'Indicadores',          icon: LayoutDashboard,     desc: 'Avance, presupuesto ejercido y salud general del proyecto.' },
+  actividad:        { label: 'Bitácora',             icon: History,             desc: 'Registro cronológico de todo lo que se ha modificado en el proyecto.' },
+  tasks:            { label: 'Cronograma',           icon: ListChecks,          desc: 'Actividades, hitos, dependencias y avance por tarea.' },
+  resources:        { label: 'Recursos',             icon: Users,               desc: 'Personal, equipo y material asignado, con su responsable.' },
+  costs:            { label: 'Costos',               icon: DollarSign,          desc: 'Presupuesto contra gasto real, desglosado por concepto.' },
+  risks:            { label: 'Riesgos',              icon: AlertTriangle,       desc: 'Riesgos identificados, probabilidad, impacto y plan de mitigación.' },
+  incidents:        { label: 'Incidencias',          icon: Flag,                desc: 'Eventos ocurridos durante la ejecución y su resolución.' },
+  changes:          { label: 'Control de cambios',   icon: GitPullRequestArrow, desc: 'Solicitudes de cambio al alcance y su autorización.' },
+  quality:          { label: 'Calidad',              icon: ShieldCheck,         desc: 'Criterios de aceptación, inspecciones y pruebas.' },
+  equipment:        { label: 'Inventario',           icon: Boxes,               desc: 'Equipo y material en sitio bajo resguardo del proyecto.' },
+  resourceRequests: { label: 'Solicitudes',          icon: PackagePlus,         desc: 'Peticiones de recurso pendientes de autorizar.' },
+  pendings:         { label: 'Pendientes',           icon: ListTodo,            desc: 'Puntos abiertos con responsable y fecha compromiso.' },
+  documents:        { label: 'Documental',           icon: FolderOpen,          desc: 'Planos, entregables y documentación soporte.' },
+  communications:   { label: 'Comunicaciones',       icon: MessageSquare,       desc: 'Minutas y comunicación formal con cliente y equipo.' },
+  vinculos:         { label: 'Vínculos',             icon: Link2,               desc: 'Órdenes de trabajo y cotizaciones ligadas a este proyecto.' },
+  cierre:           { label: 'Cierre',               icon: CheckCircle2,        desc: 'Entregables finales, conformidad del cliente y cierre formal.' },
+};
+
+const TAB_GROUPS = [
+  { name: 'General',       icon: LayoutDashboard, keys: ['resumen', 'kpis', 'actividad'] },
+  { name: 'Planeación',    icon: ListChecks,      keys: ['tasks', 'resources', 'costs'] },
+  { name: 'Control',       icon: ShieldCheck,     keys: ['risks', 'incidents', 'changes', 'quality'] },
+  { name: 'Operación',     icon: Boxes,           keys: ['equipment', 'resourceRequests', 'pendings'] },
+  { name: 'Documentación', icon: FolderOpen,      keys: ['documents', 'communications', 'vinculos', 'cierre'] },
+];
+
+const SECTION_KEYS = new Set(SECTIONS.map(s => s.key));
+const GROUP_OF = Object.fromEntries(TAB_GROUPS.flatMap(g => g.keys.map(k => [k, g.name])));
+
+// Nº de registros del apartado, para el contador del menú. Los apartados que no
+// son listas (acta, indicadores, vínculos, cierre) no llevan contador.
+function tabCount(key, project) {
+  if (!project) return null;
+  if (key === 'actividad') return (project.activities || []).length;
+  if (!SECTION_KEYS.has(key)) return null;
+  return (project[relationKey(key)] || []).length;
+}
+
+// Punto rojo: solo los tres apartados que ya generan alerta en la cabecera.
+function tabAlert(key, alerts) {
+  if (key === 'tasks') return alerts.overdue || 0;
+  if (key === 'risks') return alerts.highRisks || 0;
+  if (key === 'incidents') return alerts.openInc || 0;
+  return 0;
+}
+
+function NavRow({ tabKey, active, onSelect, project, alerts }) {
+  const meta = TAB_META[tabKey];
+  const count = tabCount(tabKey, project);
+  const alert = tabAlert(tabKey, alerts);
+  return (
+    <button
+      onClick={() => onSelect(tabKey)}
+      title={meta.desc}
+      className={cn(
+        'group w-full flex items-center gap-2.5 pl-3 pr-2 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider text-left transition-all',
+        active
+          ? 'bg-primary text-white shadow-lg shadow-primary/20'
+          : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
+      )}
+    >
+      <meta.icon className={cn('h-3.5 w-3.5 shrink-0', !active && 'text-gray-400 group-hover:text-primary')} />
+      <span className="flex-1 min-w-0 truncate">{meta.label}</span>
+      {alert > 0 && <span className={cn('h-1.5 w-1.5 rounded-full shrink-0', active ? 'bg-white' : 'bg-red-500')} />}
+      {count !== null && (
+        <span className={cn(
+          'shrink-0 min-w-[1.25rem] text-center px-1.5 py-0.5 rounded-md text-[9px] font-black tabular-nums',
+          active ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-400 group-hover:bg-gray-200'
+        )}>
+          {count}
+        </span>
+      )}
+    </button>
+  );
+}
+
+function NavList({ tab, onSelect, project, alerts }) {
+  const [openGroups, setOpenGroups] = useState(() =>
+    Object.fromEntries(TAB_GROUPS.map(g => [g.name, true]))
+  );
+  const toggle = (name) => setOpenGroups(o => ({ ...o, [name]: !o[name] }));
+
+  return (
+    <div className="space-y-1">
+      {TAB_GROUPS.map(g => {
+        const isOpen = openGroups[g.name];
+        const isActive = g.keys.includes(tab);
+        const groupAlerts = g.keys.reduce((a, k) => a + tabAlert(k, alerts), 0);
+        return (
+          <div key={g.name}>
+            <button
+              onClick={() => toggle(g.name)}
+              className={cn(
+                'w-full flex items-center justify-between px-3 py-2 rounded-xl text-[9px] font-black uppercase tracking-[0.12em] transition-all',
+                isActive ? 'text-primary' : 'text-gray-400 hover:text-gray-600'
+              )}
+            >
+              <div className="flex items-center gap-2 min-w-0">
+                <g.icon className="h-3.5 w-3.5 shrink-0" />
+                <span className="truncate">{g.name}</span>
+                {groupAlerts > 0 && !isOpen && <span className="h-1.5 w-1.5 rounded-full bg-red-500 shrink-0" />}
+              </div>
+              <ChevronDown className={cn('h-3 w-3 shrink-0 transition-transform duration-200', isOpen && 'rotate-180')} />
+            </button>
+
+            {isOpen && (
+              <div className="mt-1 ml-3 pl-2 border-l-2 border-gray-100 space-y-0.5">
+                {g.keys.map(k => (
+                  <NavRow key={k} tabKey={k} active={tab === k} onSelect={onSelect} project={project} alerts={alerts} />
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function ProjectNavBar({ tab, setTab, project, alerts }) {
+  const [openGroup, setOpenGroup] = useState(null);   // menú desplegado (escritorio)
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const barRef = useRef(null);
+  const meta = TAB_META[tab];
+
+  const closeAll = () => { setOpenGroup(null); setMobileOpen(false); };
+  const select = (k) => { setTab(k); closeAll(); };
+
+  // Cerrar al hacer clic fuera o con Escape: si no, el menú se queda abierto
+  // encima del contenido y estorba.
+  useEffect(() => {
+    if (!openGroup && !mobileOpen) return;
+    const onPointerDown = (e) => {
+      if (barRef.current && !barRef.current.contains(e.target)) closeAll();
+    };
+    const onKeyDown = (e) => { if (e.key === 'Escape') closeAll(); };
+    document.addEventListener('mousedown', onPointerDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [openGroup, mobileOpen]);
+
+  return (
+    <div ref={barRef} className="relative z-30">
+      {/* Hasta lg no cabe la barra de 5 grupos junto al menú de la app:
+          se colapsa a un único desplegable con el apartado actual. */}
+      <div className="lg:hidden">
+        <button
+          onClick={() => setMobileOpen(o => !o)}
+          className="w-full flex items-center gap-3 px-4 py-3 bg-white border rounded-2xl shadow-sm"
+        >
+          <meta.icon className="h-4 w-4 text-primary shrink-0" />
+          <div className="flex-1 min-w-0 text-left">
+            <p className="text-[8px] font-black text-gray-400 uppercase tracking-[0.15em]">{GROUP_OF[tab]}</p>
+            <p className="text-[11px] font-black text-gray-900 uppercase tracking-wider truncate">{meta.label}</p>
+          </div>
+          <ChevronDown className={cn('h-4 w-4 text-gray-400 shrink-0 transition-transform duration-200', mobileOpen && 'rotate-180')} />
+        </button>
+        {mobileOpen && (
+          <div className="absolute left-0 right-0 mt-2 p-2 bg-white border rounded-2xl shadow-xl max-h-[65vh] overflow-y-auto">
+            <NavList tab={tab} onSelect={select} project={project} alerts={alerts} />
+          </div>
+        )}
+      </div>
+
+      {/* Escritorio: barra horizontal de grupos, cada uno con su menú. */}
+      <div className="hidden lg:flex flex-wrap items-center gap-1 bg-white border rounded-2xl shadow-sm p-1.5">
+        {TAB_GROUPS.map((g, idx) => {
+          const isActiveGroup = g.keys.includes(tab);
+          const isOpen = openGroup === g.name;
+          const groupAlerts = g.keys.reduce((a, k) => a + tabAlert(k, alerts), 0);
+          // Los dos últimos menús se anclan a la derecha para no desbordar.
+          const alignRight = idx >= TAB_GROUPS.length - 2;
+          return (
+            <div key={g.name} className="relative">
+              <button
+                onClick={() => setOpenGroup(o => (o === g.name ? null : g.name))}
+                className={cn(
+                  'flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-wider whitespace-nowrap transition-all',
+                  isActiveGroup
+                    ? 'bg-primary text-white shadow-lg shadow-primary/20'
+                    : isOpen
+                      ? 'bg-gray-100 text-gray-700'
+                      : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
+                )}
+              >
+                <g.icon className="h-3.5 w-3.5 shrink-0" />
+                <span>{g.name}</span>
+                {groupAlerts > 0 && (
+                  <span className={cn('h-1.5 w-1.5 rounded-full shrink-0', isActiveGroup ? 'bg-white' : 'bg-red-500')} />
+                )}
+                <ChevronDown className={cn('h-3 w-3 shrink-0 opacity-60 transition-transform duration-200', isOpen && 'rotate-180')} />
+              </button>
+
+              {isOpen && (
+                <div className={cn(
+                  'absolute top-full mt-2 w-64 p-2 space-y-0.5 bg-white border rounded-2xl shadow-xl',
+                  alignRight ? 'right-0' : 'left-0'
+                )}>
+                  {g.keys.map(k => (
+                    <NavRow key={k} tabKey={k} active={tab === k} onSelect={select} project={project} alerts={alerts} />
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+
+        {/* Apartado abierto, a la derecha: referencia permanente de dónde estás. */}
+        <div className="ml-auto hidden xl:flex items-center gap-2 pr-3 pl-4 border-l border-gray-100">
+          <meta.icon className="h-3.5 w-3.5 text-primary shrink-0" />
+          <span className="text-[10px] font-black text-gray-900 uppercase tracking-wider truncate max-w-[16rem]">
+            {meta.label}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Cabecera del apartado abierto: ubica al usuario (grupo › apartado) y explica
+// para qué sirve, en vez de dejarlo adivinar por el título.
+function SectionHeader({ tabKey, count }) {
+  const meta = TAB_META[tabKey];
+  return (
+    <div className="flex items-start gap-4">
+      <div className="h-11 w-11 shrink-0 rounded-2xl bg-primary/10 flex items-center justify-center">
+        <meta.icon className="h-5 w-5 text-primary" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-[8px] font-black text-gray-400 uppercase tracking-[0.2em]">{GROUP_OF[tabKey]}</p>
+        <div className="flex items-baseline gap-2 flex-wrap">
+          <h2 className="text-base font-black text-gray-900 tracking-tight">{meta.label}</h2>
+          {count !== null && count !== undefined && (
+            <span className="text-[9px] font-black text-gray-400 uppercase tracking-wider tabular-nums">
+              {count} registro{count === 1 ? '' : 's'}
+            </span>
+          )}
+        </div>
+        <p className="text-[11px] font-medium text-gray-400 mt-0.5">{meta.desc}</p>
+      </div>
+    </div>
+  );
+}
+
 export default function ProjectDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -310,15 +564,6 @@ export default function ProjectDetail() {
     await projectService.remove(id);
     navigate('/projects');
   };
-
-  const TABS = [
-    { key: 'resumen', label: 'Acta', icon: FileText },
-    { key: 'kpis', label: 'KPIs', icon: LayoutDashboard },
-    ...SECTIONS.map(s => ({ key: s.key, label: s.label, icon: s.icon })),
-    { key: 'vinculos', label: 'Vínculos', icon: Link2 },
-    { key: 'actividad', label: 'Actividad', icon: History },
-    { key: 'cierre', label: 'Cierre', icon: CheckCircle2 },
-  ];
 
   return (
     <div className="w-full space-y-6">
@@ -395,31 +640,28 @@ export default function ProjectDetail() {
         </div>
       )}
 
-      {/* Tabs */}
-      <div className="flex gap-1 overflow-x-auto pb-1 -mx-1 px-1">
-        {TABS.map(t => (
-          <button key={t.key} onClick={() => setTab(t.key)}
-            className={cn(
-              'flex items-center gap-2 px-4 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-wider whitespace-nowrap transition-all',
-              tab === t.key ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'bg-white border text-gray-500 hover:text-gray-700'
-            )}>
-            <t.icon className="h-3.5 w-3.5" /> {t.label}
-          </button>
-        ))}
-      </div>
+      {/* Navegación por grupos */}
+      <ProjectNavBar tab={tab} setTab={setTab} project={project} alerts={alerts} />
 
-      {/* Contenido */}
-      {tab === 'resumen' && <ActaTab project={project} onSaved={reload} employees={employees} />}
-      {tab === 'kpis' && <KpisTab kpis={kpis} project={project} />}
-      {tab === 'vinculos' && <VinculosTab project={project} onSaved={reload} />}
-      {tab === 'actividad' && <ActividadTab activities={project.activities || []} />}
-      {tab === 'cierre' && <CierreTab project={project} onSaved={reload} />}
-      {SECTIONS.map(s => tab === s.key && (
-        <div key={s.key} className="space-y-6">
-          {s.key === 'tasks' && <GanttChart tasks={project.tasks || []} />}
-          <CrudSection section={s} items={project[relationKey(s.key)] || []} projectId={id} onChanged={reload} employees={employees} />
+      {/* Contenido del apartado. Cada apartado trae ya sus propias tarjetas,
+          así que la cabecera va en tarjeta aparte y el contenedor transparente. */}
+      <section className="min-w-0 space-y-4">
+        <div className="bg-white border rounded-3xl shadow-sm p-5">
+          <SectionHeader tabKey={tab} count={tabCount(tab, project)} />
         </div>
-      ))}
+
+        {tab === 'resumen' && <ActaTab project={project} onSaved={reload} employees={employees} />}
+        {tab === 'kpis' && <KpisTab kpis={kpis} project={project} />}
+        {tab === 'vinculos' && <VinculosTab project={project} onSaved={reload} />}
+        {tab === 'actividad' && <ActividadTab activities={project.activities || []} />}
+        {tab === 'cierre' && <CierreTab project={project} onSaved={reload} />}
+        {SECTIONS.map(s => tab === s.key && (
+          <div key={s.key} className="space-y-6">
+            {s.key === 'tasks' && <GanttChart tasks={project.tasks || []} />}
+            <CrudSection section={s} items={project[relationKey(s.key)] || []} projectId={id} onChanged={reload} employees={employees} />
+          </div>
+        ))}
+      </section>
     </div>
   );
 }
@@ -629,7 +871,6 @@ const ACTA_FIELDS = [
   { name: 'name', label: 'Nombre del proyecto', type: 'text' },
   { name: 'objective', label: 'Objetivo', type: 'textarea', rows: 3 },
   { name: 'scope', label: 'Meta', type: 'textarea', rows: 3 },
-  { name: 'justification', label: 'Justificación', type: 'textarea', rows: 3 },
   { name: 'requirements', label: 'Requerimientos', type: 'textarea', rows: 3 },
   { name: 'deliverables', label: 'Entregables', type: 'textarea', rows: 3 },
   { name: 'sponsor', label: 'Nombre', type: 'text' },
@@ -655,7 +896,7 @@ const ACTA_FIELD_MAP = Object.fromEntries(ACTA_FIELDS.map(f => [f.name, f]));
 // Agrupación del acta en secciones tipo documento.
 const ACTA_GROUPS = [
   { title: 'Identificación',        icon: FileText,   accent: '#2563eb', bg: '#eff6ff', fields: ['name'] },
-  { title: 'Definición del proyecto', icon: ListChecks, accent: '#7c3aed', bg: '#f5f3ff', fields: ['objective', 'scope', 'justification', 'requirements', 'deliverables'] },
+  { title: 'Definición del proyecto', icon: ListChecks, accent: '#7c3aed', bg: '#f5f3ff', fields: ['objective', 'scope', 'requirements', 'deliverables'] },
   { title: 'Responsables',          icon: Users,      accent: '#0891b2', bg: '#ecfeff', fields: ['sponsor', 'managerName', 'clientName'] },
   { title: 'Tiempo y presupuesto',  icon: DollarSign, accent: '#059669', bg: '#ecfdf5', fields: ['startDate', 'endDate', 'budget', 'progress'] },
   // De aquí salen la zonificación, la prioridad, la regla de anticipación y el
@@ -675,30 +916,118 @@ function HeaderChip({ cls, children }) {
   );
 }
 
-function ActaSection({ icon: Icon, title, accent, bg, children }) {
+// ¿El campo cuenta como capturado? Sirve para el avance de llenado del acta.
+function isFilled(v) {
+  if (v === null || v === undefined) return false;
+  if (Array.isArray(v)) return v.length > 0;
+  return String(v).trim() !== '';
+}
+
+// Campos visibles de un grupo (el % de avance se oculta si es automático).
+function groupFieldNames(group, autoProgress) {
+  return group.fields.filter(n => !(autoProgress && n === 'progress'));
+}
+
+function groupStats(group, form, autoProgress) {
+  const names = groupFieldNames(group, autoProgress);
+  const filled = names.filter(n => isFilled(form[n])).length;
+  return { filled, total: names.length, pct: names.length ? Math.round((filled / names.length) * 100) : 100 };
+}
+
+// Anillo de avance. Se usa en el banner (grande, con %) y en cada sección
+// y chip del índice (pequeño, sin texto).
+function ActaRing({ pct, size = 38, stroke = 3.5, color = '#6366f1', track = '#e5e7eb', showLabel = true }) {
+  const r = (size - stroke) / 2;
+  const c = 2 * Math.PI * r;
   return (
-    <section className="space-y-4">
-      <div className="flex items-center gap-3">
+    <div className="relative shrink-0" style={{ width: size, height: size }}>
+      <svg width={size} height={size} className="-rotate-90">
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={track} strokeWidth={stroke} />
+        <circle
+          cx={size / 2} cy={size / 2} r={r} fill="none" stroke={color} strokeWidth={stroke}
+          strokeDasharray={c} strokeDashoffset={c - (c * Math.max(0, Math.min(100, pct))) / 100}
+          strokeLinecap="round" style={{ transition: 'stroke-dashoffset .45s ease' }}
+        />
+      </svg>
+      {showLabel && (
+        <span className="absolute inset-0 flex items-center justify-center text-[9px] font-black tabular-nums" style={{ color }}>
+          {pct}%
+        </span>
+      )}
+    </div>
+  );
+}
+
+function ActaSection({ icon: Icon, title, accent, bg, stats, open, onToggle, sectionRef, children }) {
+  const done = stats.filled === stats.total;
+  return (
+    <section ref={sectionRef} className="scroll-mt-4 rounded-2xl border border-gray-100 overflow-hidden">
+      <button
+        type="button"
+        onClick={onToggle}
+        className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-50/70 transition-colors"
+      >
         <div className="h-9 w-9 rounded-2xl flex items-center justify-center shrink-0" style={{ background: bg }}>
           <Icon className="h-4 w-4" style={{ color: accent }} />
         </div>
-        <h3 className="text-[13px] font-black text-gray-900 tracking-tight">{title}</h3>
-        <div className="flex-1 h-px bg-gray-100" />
-      </div>
-      {children}
+        <div className="flex-1 min-w-0">
+          <h3 className="text-[13px] font-black text-gray-900 tracking-tight truncate">{title}</h3>
+          <p className={cn('text-[9px] font-black uppercase tracking-widest', done ? 'text-emerald-500' : 'text-gray-400')}>
+            {done ? 'Completa' : `${stats.filled} de ${stats.total} campos`}
+          </p>
+        </div>
+        {done
+          ? <CheckCircle2 className="h-5 w-5 text-emerald-500 shrink-0" />
+          : <ActaRing pct={stats.pct} size={26} stroke={3} color={accent} showLabel={false} />}
+        <ChevronDown className={cn('h-4 w-4 text-gray-300 shrink-0 transition-transform duration-200', open && 'rotate-180')} />
+      </button>
+      {open && <div className="px-4 pb-5 pt-1 space-y-4">{children}</div>}
     </section>
   );
 }
 
 function ActaTab({ project, onSaved, employees }) {
-  const [form, setForm] = useState(() => buildForm(project, ACTA_FIELDS));
+  const initial = useMemo(() => buildForm(project, ACTA_FIELDS), [project]);
+  const [form, setForm] = useState(initial);
   const [autoProgress, setAutoProgress] = useState(!!project.autoProgress);
   const [saving, setSaving] = useState(false);
   const [ok, setOk] = useState(false);
+  const [open, setOpen] = useState(() => Object.fromEntries(ACTA_GROUPS.map(g => [g.title, true])));
+  const sectionRefs = useRef({});
+
+  // Al recargar el proyecto tras guardar, el formulario vuelve a partir del dato
+  // fresco; si no, quedaría marcado como "sin guardar" para siempre.
+  useEffect(() => {
+    setForm(initial);
+    setAutoProgress(!!project.autoProgress);
+  }, [initial, project.autoProgress]);
 
   const svc = PROJECT_SERVICES[normalizeService(project.serviceType)];
   const st = PROJECT_STATUS[normalizePhase(project.status)] || PROJECT_STATUS.INICIACION;
   const progress = Math.max(0, Math.min(100, parseInt(form.progress, 10) || 0));
+
+  // ¿Hay cambios sin guardar? Evita guardados en vano y avisa al usuario.
+  const dirty = useMemo(
+    () => JSON.stringify(form) !== JSON.stringify(initial) || autoProgress !== !!project.autoProgress,
+    [form, initial, autoProgress, project.autoProgress]
+  );
+
+  // Avance de llenado del acta (distinto del avance de obra del proyecto).
+  const filling = useMemo(() => {
+    const names = ACTA_FIELDS.map(f => f.name).filter(n => !(autoProgress && n === 'progress'));
+    const filled = names.filter(n => isFilled(form[n])).length;
+    return { filled, total: names.length, pct: Math.round((filled / names.length) * 100) };
+  }, [form, autoProgress]);
+
+  // Duración calculada en vivo entre las dos fechas del acta.
+  const durationDays = useMemo(() => {
+    if (!form.startDate || !form.endDate) return null;
+    const s = new Date(form.startDate).getTime();
+    const e = new Date(form.endDate).getTime();
+    if (Number.isNaN(s) || Number.isNaN(e)) return null;
+    return Math.round((e - s) / 86400000);
+  }, [form.startDate, form.endDate]);
+  const dateError = durationDays !== null && durationDays < 0;
 
   const save = async () => {
     setSaving(true); setOk(false);
@@ -716,10 +1045,33 @@ function ActaTab({ project, onSaved, employees }) {
     } finally { setSaving(false); }
   };
 
+  // Ctrl/Cmd+S guarda sin bajar hasta la barra de acciones.
+  useEffect(() => {
+    const onKeyDown = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        if (dirty && !saving) save();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+    /* eslint-disable-next-line */
+  }, [dirty, saving, form, autoProgress]);
+
+  const setAll = (v) => setOpen(Object.fromEntries(ACTA_GROUPS.map(g => [g.title, v])));
+  const jump = (title) => {
+    setOpen(o => ({ ...o, [title]: true }));
+    requestAnimationFrame(() =>
+      sectionRefs.current[title]?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    );
+  };
+
   return (
-    <div className="bg-white rounded-3xl border shadow-sm overflow-hidden">
+    // Sin overflow-hidden en la tarjeta: cortaría el sticky de la barra de
+    // acciones. Las esquinas se redondean en el banner y en la barra.
+    <div className="bg-white rounded-3xl border shadow-sm">
       {/* Banner tipo documento */}
-      <div className="relative overflow-hidden px-7 py-7" style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 55%, #312e81 100%)' }}>
+      <div className="relative overflow-hidden rounded-t-3xl px-7 py-7" style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 55%, #312e81 100%)' }}>
         <div className="absolute inset-0 pointer-events-none opacity-[0.06]"
           style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,0.7) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.7) 1px, transparent 1px)', backgroundSize: '34px 34px' }} />
         <div className="absolute -right-6 -top-8 opacity-10 pointer-events-none"><FileText className="h-32 w-32 text-white" /></div>
@@ -731,53 +1083,135 @@ function ActaTab({ project, onSaved, employees }) {
           </div>
           <p className="text-[10px] font-black text-indigo-300 uppercase tracking-[0.2em] mb-1">Acta de Constitución del Proyecto</p>
           <h2 className="text-xl font-black text-slate-50 leading-tight">{form.name || project.name || 'Proyecto sin nombre'}</h2>
-          {/* Avance */}
-          <div className="mt-5 max-w-md">
-            <div className="flex justify-between text-[9px] font-black uppercase tracking-wider text-slate-400 mb-1.5">
-              <span>Avance {autoProgress && '· automático'}</span><span className="text-slate-200">{progress}%</span>
+
+          {/* Avance de obra + avance de llenado del acta */}
+          <div className="mt-5 flex items-center gap-5 flex-wrap">
+            <div className="flex-1 min-w-[220px] max-w-md">
+              <div className="flex justify-between text-[9px] font-black uppercase tracking-wider text-slate-400 mb-1.5">
+                <span>Avance {autoProgress && '· automático'}</span><span className="text-slate-200">{progress}%</span>
+              </div>
+              <div className="h-2 bg-white/10 rounded-full overflow-hidden">
+                <div className="h-full rounded-full transition-all" style={{ width: `${progress}%`, background: 'linear-gradient(90deg, #6366f1, #22d3ee)' }} />
+              </div>
             </div>
-            <div className="h-2 bg-white/10 rounded-full overflow-hidden">
-              <div className="h-full rounded-full transition-all" style={{ width: `${progress}%`, background: 'linear-gradient(90deg, #6366f1, #22d3ee)' }} />
+            <div className="flex items-center gap-2.5">
+              <ActaRing pct={filling.pct} size={42} stroke={4} color="#a5b4fc" track="rgba(255,255,255,0.15)" />
+              <div className="leading-tight">
+                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Acta capturada</p>
+                <p className="text-[10px] font-black text-slate-200 tabular-nums">{filling.filled} de {filling.total} campos</p>
+              </div>
             </div>
           </div>
         </div>
       </div>
 
+      {/* Índice de secciones: salta a la sección y muestra qué falta capturar */}
+      <div className="px-7 pt-5 pb-4 border-b border-gray-100 flex flex-wrap items-center gap-2">
+        {ACTA_GROUPS.map(group => {
+          const stats = groupStats(group, form, autoProgress);
+          const done = stats.filled === stats.total;
+          return (
+            <button
+              key={group.title}
+              type="button"
+              onClick={() => jump(group.title)}
+              title={`Ir a ${group.title}`}
+              className={cn(
+                'flex items-center gap-2 pl-2 pr-3 py-1.5 rounded-xl border text-[10px] font-black uppercase tracking-wider transition-all',
+                done
+                  ? 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                  : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300 hover:text-gray-800'
+              )}
+            >
+              <ActaRing pct={stats.pct} size={16} stroke={2.5} color={done ? '#059669' : group.accent} showLabel={false} />
+              <span>{group.title}</span>
+              <span className="tabular-nums opacity-50">{stats.filled}/{stats.total}</span>
+            </button>
+          );
+        })}
+        <button
+          type="button"
+          onClick={() => setAll(!Object.values(open).every(Boolean))}
+          className="ml-auto text-[9px] font-black text-gray-400 uppercase tracking-widest hover:text-primary transition-colors"
+        >
+          {Object.values(open).every(Boolean) ? 'Contraer todo' : 'Expandir todo'}
+        </button>
+      </div>
+
       {/* Cuerpo del acta */}
-      <div className="p-7 space-y-8">
+      <div className="p-7 space-y-3">
         {ACTA_GROUPS.map(group => (
-          <ActaSection key={group.title} icon={group.icon} title={group.title} accent={group.accent} bg={group.bg}>
+          <ActaSection
+            key={group.title}
+            icon={group.icon}
+            title={group.title}
+            accent={group.accent}
+            bg={group.bg}
+            stats={groupStats(group, form, autoProgress)}
+            open={!!open[group.title]}
+            onToggle={() => setOpen(o => ({ ...o, [group.title]: !o[group.title] }))}
+            sectionRef={(el) => { sectionRefs.current[group.title] = el; }}
+          >
             <div className="grid sm:grid-cols-2 gap-4">
-              {group.fields
-                .filter(name => !(autoProgress && name === 'progress'))
-                .map(name => {
-                  const f = ACTA_FIELD_MAP[name];
-                  return (
-                    <div key={name} className={f.type === 'textarea' ? 'sm:col-span-2' : ''}>
-                      <FieldInput field={f} value={form[name]} onChange={(v) => setForm({ ...form, [name]: v })} context={{ employees }} />
-                    </div>
-                  );
-                })}
+              {groupFieldNames(group, autoProgress).map(name => {
+                const f = ACTA_FIELD_MAP[name];
+                return (
+                  <div key={name} className={f.type === 'textarea' ? 'sm:col-span-2' : ''}>
+                    <FieldInput field={f} value={form[name]} onChange={(v) => setForm({ ...form, [name]: v })} context={{ employees }} />
+                  </div>
+                );
+              })}
             </div>
+
             {group.title === 'Tiempo y presupuesto' && (
-              <label className="flex items-center gap-2.5 cursor-pointer mt-1 p-3 rounded-2xl bg-emerald-50/60 border border-emerald-100">
-                <input type="checkbox" checked={autoProgress} onChange={(e) => setAutoProgress(e.target.checked)} className="h-4 w-4 accent-emerald-600" />
-                <span className="text-[11px] font-black text-emerald-700 uppercase tracking-wider">Calcular avance automáticamente desde las tareas</span>
-              </label>
+              <>
+                {/* Cálculos en vivo sobre lo que se acaba de teclear */}
+                <div className="flex flex-wrap items-center gap-2">
+                  {durationDays !== null && !dateError && (
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-gray-50 border border-gray-200 text-[10px] font-black text-gray-500 uppercase tracking-wider">
+                      Duración: <span className="tabular-nums text-gray-800">{durationDays}</span> días
+                    </span>
+                  )}
+                  {parseFloat(form.budget) > 0 && (
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 border border-emerald-200 text-[10px] font-black text-emerald-700 uppercase tracking-wider">
+                      Presupuesto: {money(form.budget)}
+                    </span>
+                  )}
+                </div>
+                {dateError && (
+                  <p className="flex items-center gap-1.5 text-[10px] font-black text-red-500 uppercase tracking-wider">
+                    <AlertTriangle className="h-3.5 w-3.5 shrink-0" /> La fecha de fin es anterior a la de inicio
+                  </p>
+                )}
+                <label className="flex items-center gap-2.5 cursor-pointer p-3 rounded-2xl bg-emerald-50/60 border border-emerald-100">
+                  <input type="checkbox" checked={autoProgress} onChange={(e) => setAutoProgress(e.target.checked)} className="h-4 w-4 accent-emerald-600" />
+                  <span className="text-[11px] font-black text-emerald-700 uppercase tracking-wider">Calcular avance automáticamente desde las tareas</span>
+                </label>
+              </>
             )}
           </ActaSection>
         ))}
       </div>
 
-      {/* Barra de acciones */}
-      <div className="flex flex-wrap justify-end items-center gap-3 px-7 py-5 border-t border-gray-100 bg-gray-50/60">
-        {ok && <span className="text-[11px] font-black text-emerald-500 uppercase tracking-wider mr-auto flex items-center gap-1.5"><CheckCircle2 className="h-4 w-4" /> Guardado</span>}
+      {/* Barra de acciones: pegada abajo para no perseguirla al final del acta */}
+      <div className="sticky bottom-0 rounded-b-3xl flex flex-wrap justify-end items-center gap-3 px-7 py-4 border-t border-gray-100 bg-white/90 backdrop-blur">
+        <span className="mr-auto flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider">
+          {ok ? (
+            <span className="flex items-center gap-1.5 text-emerald-500"><CheckCircle2 className="h-4 w-4" /> Guardado</span>
+          ) : dirty ? (
+            <span className="flex items-center gap-1.5 text-amber-500">
+              <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" /> Cambios sin guardar
+            </span>
+          ) : (
+            <span className="flex items-center gap-1.5 text-gray-300"><Check className="h-3.5 w-3.5" /> Sin cambios</span>
+          )}
+        </span>
         <button onClick={() => generateProjectActaPDF(project, 'inicio')}
           className="flex items-center gap-2 px-5 py-3 border border-gray-200 bg-white text-gray-600 rounded-2xl text-[11px] font-black uppercase tracking-wider hover:bg-gray-50 transition-all">
           <FileDown className="h-4 w-4" /> Descargar PDF
         </button>
-        <button onClick={save} disabled={saving}
-          className="flex items-center gap-2 px-6 py-3 bg-primary text-white rounded-2xl text-[11px] font-black uppercase tracking-wider shadow-lg shadow-primary/20 hover:opacity-90 disabled:opacity-50">
+        <button onClick={save} disabled={saving || !dirty} title="Ctrl + S"
+          className="flex items-center gap-2 px-6 py-3 bg-primary text-white rounded-2xl text-[11px] font-black uppercase tracking-wider shadow-lg shadow-primary/20 hover:opacity-90 disabled:opacity-40 disabled:shadow-none transition-all">
           {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Guardar acta
         </button>
       </div>

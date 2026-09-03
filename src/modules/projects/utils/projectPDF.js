@@ -130,7 +130,6 @@ export async function generateProjectActaPDF(project, kind = 'inicio', { downloa
   } else {
     textBlock('Objetivo', project.objective);
     textBlock('Meta', project.scope);
-    textBlock('Justificación', project.justification);
     textBlock('Requerimientos', project.requirements);
     textBlock('Entregables', project.deliverables);
   }
