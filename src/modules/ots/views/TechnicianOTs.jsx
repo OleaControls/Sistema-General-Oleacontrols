@@ -16,6 +16,7 @@ import { cn } from '@/lib/utils';
 import techDocsService from '@/api/techDocsService';
 import { resumenExpediente, DOC_STATUS } from '@/lib/fieldDocs';
 import MisDocsDrawer from '../components/MisDocsDrawer';
+import Pager from '@/components/shared/Pager';
 
 // ── Leaflet icons ──────────────────────────────────────────────────────────────
 const otIcon = new L.Icon({
@@ -66,26 +67,28 @@ const FILTERS = [
   { id: 'done',     label: 'Completadas',statuses: ['COMPLETED','VALIDATED'] },
 ];
 
+// Cuántas órdenes por página. En celular una lista larga se vuelve un scroll
+// infinito donde el técnico pierde de vista lo que ya revisó.
+const PER_PAGE = 6;
+
 // ── Skeleton card ──────────────────────────────────────────────────────────────
 function SkeletonCard() {
   return (
     <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm animate-pulse">
       <div className="h-1 bg-gray-200 w-full" />
-      <div className="p-5">
-        <div className="flex justify-between mb-4">
-          <div className="h-3 bg-gray-100 rounded-full w-24" />
-          <div className="h-5 bg-gray-100 rounded-full w-16" />
+      <div className="p-3.5">
+        <div className="flex justify-between mb-2.5">
+          <div className="h-3 bg-gray-100 rounded-full w-20" />
+          <div className="h-4 bg-gray-100 rounded-full w-16" />
         </div>
-        <div className="h-5 bg-gray-100 rounded w-3/4 mb-4" />
-        <div className="grid grid-cols-2 gap-2">
-          <div className="h-12 bg-gray-50 rounded-xl" />
-          <div className="h-12 bg-gray-50 rounded-xl" />
-          <div className="h-12 bg-gray-50 rounded-xl" />
-          <div className="h-12 bg-gray-50 rounded-xl" />
-        </div>
-        <div className="mt-4 pt-4 border-t border-gray-50 flex justify-between">
-          <div className="h-6 bg-gray-100 rounded-full w-24" />
-          <div className="h-6 bg-gray-100 rounded-full w-20" />
+        <div className="h-4 bg-gray-100 rounded w-3/4 mb-2.5" />
+        <div className="h-3 bg-gray-50 rounded w-2/3 mb-1.5" />
+        <div className="h-3 bg-gray-50 rounded w-1/2 mb-3" />
+        <div className="pt-2.5 border-t border-gray-50 flex gap-1.5">
+          <div className="h-6 bg-gray-50 rounded-lg w-16" />
+          <div className="h-6 bg-gray-50 rounded-lg w-14" />
+          <div className="h-6 bg-gray-50 rounded-lg w-14" />
+          <div className="h-6 bg-gray-100 rounded-lg w-16 ml-auto" />
         </div>
       </div>
     </div>
@@ -101,126 +104,80 @@ function OTCard({ ot, userId, index, navigate }) {
   const supportCount = (ot.supportTechs?.length || 0) + (ot.assistantTechs?.length || 0);
   const isDone    = ot.status === 'COMPLETED' || ot.status === 'VALIDATED';
 
+  const isUrgent = ot.priority === 'HIGH' || ot.priority === 'URGENT';
+  const dateLabel = ot.scheduledDate
+    ? new Date(ot.scheduledDate.split('T')[0] + 'T12:00:00').toLocaleDateString('es-MX', { day: '2-digit', month: 'short' })
+    : null;
+
   return (
     <div
       onClick={() => navigate(`/ots/${ot.id}`)}
       className="group bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm hover:shadow-md hover:border-gray-200 transition-all duration-200 cursor-pointer active:scale-[0.99]"
       style={{ animationDelay: `${index * 60}ms` }}
     >
-      {/* Status stripe — top color bar */}
+      {/* Franja de estado */}
       <div className={cn('h-1 w-full', s.stripe, s.pulse && 'animate-pulse')} />
 
-      <div className="p-5">
-        {/* Top row: OT number + priority + status */}
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] font-black text-gray-400 tracking-widest uppercase bg-gray-50 border border-gray-100 px-2 py-0.5 rounded-md">
-              {ot.id}
+      <div className="p-3.5">
+        {/* Folio + prioridad + estado, todo en una línea */}
+        <div className="flex items-center gap-1.5 mb-2">
+          <span className="text-[9px] font-black text-gray-400 tracking-wider uppercase bg-gray-50 border border-gray-100 px-1.5 py-0.5 rounded-md shrink-0">
+            {ot.id}
+          </span>
+          {isUrgent && (
+            <span className={cn('flex items-center gap-0.5 text-[8px] font-black uppercase px-1.5 py-0.5 rounded-md border shrink-0', p.color, p.bg, p.border)}>
+              <AlertTriangle className="h-2.5 w-2.5" />
+              {p.label}
             </span>
-            {ot.priority === 'HIGH' || ot.priority === 'URGENT' ? (
-              <span className={cn('flex items-center gap-1 text-[9px] font-black uppercase px-2 py-0.5 rounded-md border', p.color, p.bg, p.border)}>
-                <AlertTriangle className="h-2.5 w-2.5" />
-                {p.label}
-              </span>
-            ) : null}
-          </div>
-          <span className={cn(
-            'text-[9px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full border',
-            s.badge
-          )}>
+          )}
+          <span className={cn('ml-auto text-[8px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border shrink-0', s.badge)}>
             {s.short}
           </span>
         </div>
 
-        {/* Title */}
+        {/* Título — máx. 2 líneas para que todas las tarjetas midan casi igual */}
         <h3 className={cn(
-          'text-base font-black leading-snug mb-1 group-hover:text-primary transition-colors',
-          isDone ? 'text-gray-400 line-through-[0.5px]' : 'text-gray-900'
+          'text-[13px] font-black leading-snug line-clamp-2 mb-2 group-hover:text-primary transition-colors',
+          isDone ? 'text-gray-400' : 'text-gray-900'
         )}>
           {ot.title}
         </h3>
 
-        {/* Rol badge */}
-        <div className="mb-4">
+        {/* Establecimiento y técnico: texto con icono, sin cajas (ahorra ~90px) */}
+        <div className="space-y-1 mb-2.5">
+          <p className="flex items-center gap-1.5 min-w-0">
+            <Store className="h-3 w-3 text-primary shrink-0" />
+            <span className="text-[11px] font-bold text-gray-600 truncate">{ot.storeName || ot.client || 'Sin establecimiento'}</span>
+          </p>
+          <p className="flex items-center gap-1.5 min-w-0">
+            <User className="h-3 w-3 text-gray-300 shrink-0" />
+            <span className="text-[11px] font-bold text-gray-500 truncate">{techName || 'Sin asignar'}</span>
+            {supportCount > 0 && (
+              <span className="text-[10px] font-black text-gray-300 shrink-0">+{supportCount}</span>
+            )}
+          </p>
+        </div>
+
+        {/* Pie: fecha, hora, rol y acción en una sola fila */}
+        <div className="flex items-center gap-1.5 pt-2.5 border-t border-gray-50">
+          <span className="flex items-center gap-1 text-[10px] font-black text-gray-500 tabular-nums bg-gray-50 border border-gray-100 px-1.5 py-1 rounded-lg shrink-0">
+            <Calendar className="h-2.5 w-2.5 text-primary" />{dateLabel || '—'}
+          </span>
+          <span className="flex items-center gap-1 text-[10px] font-black text-gray-500 tabular-nums bg-gray-50 border border-gray-100 px-1.5 py-1 rounded-lg shrink-0">
+            <Clock className="h-2.5 w-2.5 text-primary" />{ot.arrivalTime || '—'}
+          </span>
           <span className={cn(
-            'inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md',
+            'flex items-center gap-1 text-[9px] font-black uppercase tracking-wider px-1.5 py-1 rounded-lg shrink-0',
             isLead ? 'bg-primary/8 text-primary' : 'bg-amber-50 text-amber-600'
           )}>
             {isLead ? <Star className="h-2.5 w-2.5" /> : <Zap className="h-2.5 w-2.5" />}
-            {isLead ? 'Técnico Líder' : 'Técnico de Apoyo'}
+            {isLead ? 'Líder' : 'Apoyo'}
           </span>
-        </div>
-
-        {/* Info grid — 2 cols */}
-        <div className="grid grid-cols-2 gap-2 mb-4">
-          {/* Establecimiento */}
-          <div className="col-span-2 flex items-center gap-2.5 bg-gray-50 rounded-xl px-3 py-2.5 border border-gray-100">
-            <Store className="h-3.5 w-3.5 text-primary shrink-0" />
-            <div className="min-w-0">
-              <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest leading-none">Establecimiento</p>
-              <p className="text-xs font-bold text-gray-700 truncate mt-0.5">{ot.storeName || ot.client || '—'}</p>
-            </div>
-          </div>
-
-          {/* Hora */}
-          <div className="flex items-center gap-2 bg-gray-50 rounded-xl px-3 py-2.5 border border-gray-100">
-            <Clock className="h-3.5 w-3.5 text-primary shrink-0" />
-            <div>
-              <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest leading-none">Hora</p>
-              <p className="text-xs font-bold text-gray-700 mt-0.5">{ot.arrivalTime || '—'}</p>
-            </div>
-          </div>
-
-          {/* Fecha */}
-          <div className="flex items-center gap-2 bg-gray-50 rounded-xl px-3 py-2.5 border border-gray-100">
-            <Calendar className="h-3.5 w-3.5 text-primary shrink-0" />
-            <div>
-              <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest leading-none">Fecha</p>
-              <p className="text-xs font-bold text-gray-700 mt-0.5">
-                {ot.scheduledDate
-                  ? new Date(ot.scheduledDate.split('T')[0] + 'T12:00:00').toLocaleDateString('es-MX', { day: '2-digit', month: 'short' })
-                  : '—'}
-              </p>
-            </div>
-          </div>
-
-          {/* Técnico líder */}
-          <div className="col-span-2 flex items-center gap-2.5 bg-gray-50 rounded-xl px-3 py-2.5 border border-gray-100">
-            <User className="h-3.5 w-3.5 text-primary shrink-0" />
-            <div className="min-w-0">
-              <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest leading-none">Técnico Líder</p>
-              <p className="text-xs font-bold text-gray-700 truncate mt-0.5">{techName || 'Sin asignar'}</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Footer */}
-        <div className="flex items-center justify-between pt-3 border-t border-gray-50">
-          {/* Team avatars */}
-          <div className="flex items-center gap-2">
-            <div className="flex -space-x-1.5">
-              <div className="h-7 w-7 rounded-full border-2 border-white bg-primary/90 flex items-center justify-center text-[8px] font-black text-white shadow-sm">
-                {(techName || 'T').charAt(0).toUpperCase()}
-              </div>
-              {supportCount > 0 && (
-                <div className="h-7 w-7 rounded-full border-2 border-white bg-gray-100 flex items-center justify-center text-[8px] font-black text-gray-500 shadow-sm">
-                  +{supportCount}
-                </div>
-              )}
-            </div>
-            <span className="text-[9px] font-bold text-gray-400">
-              {supportCount > 0 ? `${1 + supportCount} técnicos` : 'Solo líder'}
-            </span>
-          </div>
-
-          {/* CTA */}
           <span className={cn(
-            'flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider px-3 py-1.5 rounded-xl transition-all',
-            isDone
-              ? 'text-emerald-600 bg-emerald-50'
-              : 'text-primary bg-primary/8 group-hover:bg-primary group-hover:text-white'
+            'ml-auto flex items-center gap-1 text-[10px] font-black uppercase tracking-wider px-2 py-1 rounded-lg shrink-0 transition-all',
+            isDone ? 'text-emerald-600 bg-emerald-50' : 'text-primary bg-primary/8 group-hover:bg-primary group-hover:text-white'
           )}>
-            {isDone ? 'Ver detalle' : 'Gestionar'}
+            {isDone ? 'Ver' : 'Abrir'}
             <ArrowRight className="h-3 w-3" />
           </span>
         </div>
@@ -237,6 +194,8 @@ export default function TechnicianOTs() {
   const [loading, setLoading] = useState(true);
   const [showMap, setShowMap] = useState(false);
   const [filter, setFilter] = useState('all');
+  const [page, setPage] = useState(1);
+  const listRef = useRef(null);
 
   // Expediente de campo propio: se avisa al técnico, no se le bloquea nada.
   const [misDocsRaw, setMisDocsRaw] = useState([]);
@@ -351,23 +310,36 @@ export default function TechnicianOTs() {
   const filtered = filter === 'all' ? ots
     : ots.filter(o => FILTERS.find(f => f.id === filter)?.statuses?.includes(o.status));
 
+  // ── Paginación ─────────────────────────────────────────────────────────────
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PER_PAGE));
+  // Si el filtro deja menos páginas de las que había, no dejar la vista en vacío.
+  const safePage = Math.min(page, totalPages);
+  const from = (safePage - 1) * PER_PAGE;
+  const pageItems = filtered.slice(from, from + PER_PAGE);
+
+  const goPage = (p) => {
+    const next = Math.max(1, Math.min(p, totalPages));
+    setPage(next);
+    requestAnimationFrame(() => listRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+  };
+
   return (
-    <div className="max-w-xl mx-auto pb-28 px-3 md:px-0 space-y-5">
+    <div className="max-w-xl mx-auto pb-28 px-3 md:px-0 space-y-4 sm:space-y-5">
 
       {/* ── HEADER ────────────────────────────────────────────────────────── */}
-      <div className="relative overflow-hidden rounded-3xl bg-gray-900 text-white px-6 py-7 shadow-2xl shadow-gray-900/20">
+      <div className="relative overflow-hidden rounded-3xl bg-gray-900 text-white px-5 py-5 sm:px-6 sm:py-7 shadow-2xl shadow-gray-900/20">
         {/* Decorative circles */}
         <div className="absolute -top-10 -right-10 h-48 w-48 rounded-full bg-primary/10 blur-2xl pointer-events-none" />
         <div className="absolute -bottom-10 -left-6 h-32 w-32 rounded-full bg-white/5 blur-2xl pointer-events-none" />
 
         {/* Top row */}
-        <div className="relative flex items-start justify-between mb-5">
+        <div className="relative flex items-start justify-between mb-4">
           <div>
             <div className="flex items-center gap-2 mb-1.5">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-ping" />
               <span className="text-[9px] font-black tracking-[0.3em] uppercase text-emerald-400">Operativo Activo</span>
             </div>
-            <h1 className="text-3xl font-black tracking-tighter leading-none">Mi Jornada</h1>
+            <h1 className="text-2xl sm:text-3xl font-black tracking-tighter leading-none">Mi Jornada</h1>
             <p className="text-gray-400 text-[10px] font-bold uppercase tracking-widest mt-1">
               {new Date().toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' })}
             </p>
@@ -437,8 +409,8 @@ export default function TechnicianOTs() {
             { label: 'Activas', value: active, color: 'text-amber-400' },
             { label: 'Completadas', value: completed, color: 'text-emerald-400' },
           ].map(stat => (
-            <div key={stat.label} className="bg-white/8 rounded-2xl px-3 py-3 text-center border border-white/10">
-              <p className={cn('text-2xl font-black leading-none', stat.color)}>{stat.value}</p>
+            <div key={stat.label} className="bg-white/8 rounded-2xl px-3 py-2.5 sm:py-3 text-center border border-white/10">
+              <p className={cn('text-xl sm:text-2xl font-black leading-none tabular-nums', stat.color)}>{stat.value}</p>
               <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest mt-1">{stat.label}</p>
             </div>
           ))}
@@ -556,7 +528,7 @@ export default function TechnicianOTs() {
         {FILTERS.map(f => (
           <button
             key={f.id}
-            onClick={() => setFilter(f.id)}
+            onClick={() => { setFilter(f.id); setPage(1); }}
             className={cn(
               'flex-1 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all border',
               filter === f.id
@@ -578,7 +550,21 @@ export default function TechnicianOTs() {
       </div>
 
       {/* ── LISTA DE OTs ──────────────────────────────────────────────────── */}
-      <div className="space-y-3">
+      <div ref={listRef} className="scroll-mt-3 space-y-3">
+        {/* Cuántas se están viendo del total filtrado */}
+        {!loading && filtered.length > 0 && (
+          <div className="flex items-center justify-between px-1">
+            <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest tabular-nums">
+              {from + 1}–{Math.min(from + PER_PAGE, filtered.length)} de {filtered.length}
+            </p>
+            {totalPages > 1 && (
+              <p className="text-[9px] font-black text-gray-300 uppercase tracking-widest tabular-nums">
+                Página {safePage}/{totalPages}
+              </p>
+            )}
+          </div>
+        )}
+
         {loading ? (
           [1, 2, 3].map(i => <SkeletonCard key={i} />)
         ) : filtered.length === 0 ? (
@@ -589,10 +575,13 @@ export default function TechnicianOTs() {
             </p>
           </div>
         ) : (
-          filtered.map((ot, i) => (
+          pageItems.map((ot, i) => (
             <OTCard key={ot.id} ot={ot} userId={user.id} index={i} navigate={navigate} />
           ))
         )}
+
+        {/* Paginador numerado */}
+        {!loading && <Pager page={safePage} totalPages={totalPages} onChange={goPage} />}
       </div>
 
       {/* ── MIS DOCUMENTOS — abre la pestaña lateral con el visor ─────────── */}

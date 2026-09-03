@@ -22,6 +22,7 @@ import {
   relDays, telHref,
 } from '../utils/reglas';
 import { cn } from '@/lib/utils';
+import ClientPicker from '../components/ClientPicker';
 
 const money = (n) => `$${Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 0 })}`;
 const fmtDate = (d) => (d ? new Date(d).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' }) : '—');
@@ -537,6 +538,8 @@ export default function ProjectDetail() {
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState('resumen');
   const [employees, setEmployees] = useState([]);
+  // Catálogo de clientes de OT: alimenta el autocompletado del acta.
+  const [otClients, setOtClients] = useState([]);
 
   const load = async () => {
     try { setProject(await projectService.get(id)); }
@@ -546,6 +549,7 @@ export default function ProjectDetail() {
   useEffect(() => {
     load();
     projectService.employees().then(setEmployees).catch(() => {});
+    projectService.otClients().then(setOtClients).catch(() => {});
     /* eslint-disable-next-line */
   }, [id]);
 
@@ -650,7 +654,7 @@ export default function ProjectDetail() {
           <SectionHeader tabKey={tab} count={tabCount(tab, project)} />
         </div>
 
-        {tab === 'resumen' && <ActaTab project={project} onSaved={reload} employees={employees} />}
+        {tab === 'resumen' && <ActaTab project={project} onSaved={reload} employees={employees} otClients={otClients} />}
         {tab === 'kpis' && <KpisTab kpis={kpis} project={project} />}
         {tab === 'vinculos' && <VinculosTab project={project} onSaved={reload} />}
         {tab === 'actividad' && <ActividadTab activities={project.activities || []} />}
@@ -986,7 +990,7 @@ function ActaSection({ icon: Icon, title, accent, bg, stats, open, onToggle, sec
   );
 }
 
-function ActaTab({ project, onSaved, employees }) {
+function ActaTab({ project, onSaved, employees, otClients = [] }) {
   const initial = useMemo(() => buildForm(project, ACTA_FIELDS), [project]);
   const [form, setForm] = useState(initial);
   const [autoProgress, setAutoProgress] = useState(!!project.autoProgress);
@@ -1140,6 +1144,18 @@ function ActaTab({ project, onSaved, employees }) {
 
       {/* Cuerpo del acta */}
       <div className="p-7 space-y-3">
+        {/* Autocompletado desde el catálogo de clientes de OT. Llena campos de
+            tres secciones distintas, por eso vive arriba y no dentro de una. */}
+        {otClients.length > 0 && (
+          <ClientPicker
+            clients={otClients}
+            onPick={(datos) => {
+              setForm(f => ({ ...f, ...datos }));
+              setOpen(o => ({ ...o, 'Responsables': true, 'Operación y cliente': true, 'Encargado del cliente': true }));
+            }}
+          />
+        )}
+
         {ACTA_GROUPS.map(group => (
           <ActaSection
             key={group.title}

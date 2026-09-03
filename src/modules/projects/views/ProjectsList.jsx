@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import projectService from '@/api/projectService';
 import { cn } from '@/lib/utils';
+import ClientPicker from '../components/ClientPicker';
 import {
   PROJECT_TYPES, PROJECT_TYPE_KEYS, typeMeta, PRIORITIES, PRIORITY_KEYS,
   priorityMeta, zonesFrom, targetDateOf, daysUntil, relDays, fmtDate, telHref,
@@ -427,6 +428,12 @@ export default function ProjectsList() {
                 <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-[11px] font-bold text-red-600">{error}</div>
               )}
 
+              {/* Trae empresa, encargado, teléfono, correo y ubicación del
+                  catálogo de clientes de OT en un solo clic. */}
+              {otClients.length > 0 && (
+                <ClientPicker clients={otClients} onPick={(datos) => setForm(f => ({ ...f, ...datos }))} />
+              )}
+
               <Field label="Nombre del proyecto *">
                 <input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
                   className="input" placeholder="Ej. Instalación CCTV Sucursal Centro" />
@@ -452,10 +459,7 @@ export default function ProjectsList() {
                   </select>
                 </Field>
                 <Field label="Empresa">
-                  <input list="proj-clients" value={form.clientName} onChange={(e) => setForm({ ...form, clientName: e.target.value })} className="input" />
-                  <datalist id="proj-clients">
-                    {otClients.map(c => <option key={c.id} value={c.name} />)}
-                  </datalist>
+                  <input value={form.clientName} onChange={(e) => setForm({ ...form, clientName: e.target.value })} className="input" />
                 </Field>
               </div>
 
