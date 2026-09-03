@@ -48,7 +48,7 @@ export default function MisDocsDrawer({ abierto, onClose, resumen }) {
   const vigentes = items.filter(i => i.status === 'VIGENTE').length;
 
   return (
-    <div className="fixed inset-0 z-[90] flex justify-end">
+    <div className="fixed inset-0 z-90 flex justify-end">
       <button
         type="button"
         aria-label="Cerrar"

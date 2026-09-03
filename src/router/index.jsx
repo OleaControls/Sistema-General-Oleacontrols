@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth, ROLES } from '@/store/AuthContext';
 import AppShell from '@/components/layout/AppShell';
 import Login from '@/modules/Login';
+import SplashScreen from '@/components/SplashScreen';
 import { cn } from '@/lib/utils';
 
 // ── Carga diferida de todos los módulos ───────────────────────────────────────
@@ -89,16 +90,7 @@ const ClientPortal = lazy(() => import('@/modules/ots/views/ClientPortal'));
 const AppointmentBooking = lazy(() => import('@/modules/ots/views/AppointmentBooking'));
 
 // ── Fallback de carga ─────────────────────────────────────────────────────────
-function PageLoader() {
-  return (
-    <div className="min-h-[60vh] flex items-center justify-center">
-      <div className="flex flex-col items-center gap-3">
-        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-        <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Cargando…</p>
-      </div>
-    </div>
-  );
-}
+const PageLoader = ({ mensaje }) => <SplashScreen mensaje={mensaje} />;
 
 // ── Selectores condicionales ──────────────────────────────────────────────────
 const OTSelector = () => {
@@ -155,7 +147,7 @@ const DashboardSelector = () => {
 // ── Ruta protegida ────────────────────────────────────────────────────────────
 const ProtectedRoute = ({ children, noShell = false }) => {
   const { user, loading } = useAuth();
-  if (loading) return <PageLoader />;
+  if (loading) return <PageLoader mensaje="Verificando tu sesión" />;
   if (!user) return <Navigate to="/login" />;
   if (noShell) return children;
   return <AppShell>{children}</AppShell>;

@@ -6,6 +6,7 @@ import {
   Lock, Mail, AlertCircle, Eye, EyeOff, Shield, CalendarPlus,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { fraseAlAzar } from '@/lib/frases';
 
 /* ─── Imagen de fondo ───────────────────────────────────────────────────────
    Coloca tu imagen en /public/img/login-bg.jpg
@@ -195,6 +196,7 @@ const STYLES = `
   .lp-ov-lbl   { animation: lp-text-in .5s ease .3s  both; }
   .lp-ov-name  { animation: lp-text-in .5s ease .55s both; }
   .lp-ov-sub   { animation: lp-text-in .5s ease .75s both; }
+  .lp-ov-frase { animation: lp-text-in .6s ease .95s both; }
   .lp-pbar {
     height: 3px; border-radius: 2px; overflow: hidden;
     background: rgba(255,255,255,.08);
@@ -232,6 +234,7 @@ export default function Login() {
   const [step,        setStep]        = useState(1);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [welcomeMsg,  setWelcomeMsg]  = useState(null);
+  const [frase,       setFrase]       = useState(null);
   const [email,       setEmail]       = useState('');
   const [password,    setPassword]    = useState('');
   const [showPass,    setShowPass]    = useState(false);
@@ -250,6 +253,7 @@ export default function Login() {
       const { ok, error: motivo } = await loginWithCredentials(email, password, portal);
       if (ok) {
         setWelcomeMsg('Acceso concedido.');
+        setFrase(fraseAlAzar());
         setTimeout(() => {
           if (portal === 'COLLABORATOR') navigate('/profile');
           else                           navigate('/');
@@ -689,6 +693,16 @@ export default function Login() {
               </div>
 
               <div style={{ width: '100%', height: '1px', background: 'rgba(255,255,255,.07)' }} />
+
+              {frase && (
+                <p className="lp-display lp-ov-frase" style={{
+                  margin: 0, maxWidth: '360px',
+                  fontSize: '15px', fontWeight: 300, lineHeight: 1.55,
+                  color: '#dbeafe', textWrap: 'balance',
+                }}>
+                  “{frase}”
+                </p>
+              )}
 
               <div className="lp-ov-sub" style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '10px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
