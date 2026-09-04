@@ -33,6 +33,7 @@ const handlers = {
   upload: () => import('./_handlers/upload.js'),
   'tech-locations':  () => import('./_handlers/tech-locations.js'),
   'tech-attendance': () => import('./_handlers/tech-attendance.js'),
+  'tech-toolkit':    () => import('./_handlers/tech-toolkit.js'),
   attendance:    () => import('./_handlers/attendance.js'),
   performance:   () => import('./_handlers/performance.js'),
   'tech-kpis':   () => import('./_handlers/tech-kpis.js'),

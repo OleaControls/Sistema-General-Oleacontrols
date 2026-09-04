@@ -30,6 +30,7 @@ import quotePhraseHandler from './api/_handlers/quote-phrases.js';
 import attendanceHandler from './api/_handlers/attendance.js';
 import techAttendanceHandler from './api/_handlers/tech-attendance.js';
 import techLocationsHandler  from './api/_handlers/tech-locations.js';
+import techToolkitHandler    from './api/_handlers/tech-toolkit.js';
 import performanceHandler    from './api/_handlers/performance.js';
 import techKpisHandler       from './api/_handlers/tech-kpis.js';
 import announcementsHandler  from './api/_handlers/announcements.js';
@@ -188,6 +189,7 @@ app.delete('/api/attendance', adaptHandler(attendanceHandler));
 // Tech Attendance (metas + checklists)
 app.all('/api/tech-attendance/:resource', adaptHandler(techAttendanceHandler));
 app.all('/api/tech-attendance',           adaptHandler(techAttendanceHandler));
+app.all('/api/tech-toolkit',              adaptHandler(techToolkitHandler));
 
 // Tech Locations (GPS de técnicos)
 app.get('/api/tech-locations',  adaptHandler(techLocationsHandler));

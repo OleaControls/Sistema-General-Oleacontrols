@@ -1,14 +1,18 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
+// Debe coincidir con EPP_SPOTS de TechDailyAttendance: si una llave no está
+// aquí, la fila no sale en el PDF. Las herramientas ya no viven en este
+// checklist — el técnico las mantiene en su perfil.
 const PERSONAL_LABELS = {
-  casco:        'Casco de seguridad',
-  lentes:       'Lentes de protección',
-  chaleco:      'Chaleco reflectante',
-  guantes:      'Guantes de trabajo',
-  botas:        'Botas de seguridad',
-  toolsGeneral: 'Herramientas generales',
-  toolsSpecial: 'Herramientas especiales',
+  casco:      'Casco de seguridad',
+  gafas:      'Gafas protectoras',
+  chaleco:    'Chaleco multibolsas reflejante',
+  camisa:     'Camisa',
+  guantes:    'Guantes de trabajo',
+  rodilleras: 'Rodilleras',
+  pantalon:   'Pantalón',
+  zapatos:    'Zapatos con casquillo',
 };
 
 const VEHICLE_LABELS = {

@@ -6,11 +6,12 @@ import {
   Star, TrendingUp, Users, DollarSign, Shield, X,
   ChevronRight, ChevronLeft, BadgeCheck, Zap, Plus, ClipboardList, ChevronDown, Trash2,
   Megaphone, ClipboardCheck, CalendarDays, Wallet, XCircle, Umbrella, HeartPulse,
-  Send, Loader2, Inbox, Coins, Check, ThumbsUp, ThumbsDown, LayoutGrid,
+  Send, Loader2, Inbox, Coins, Check, ThumbsUp, ThumbsDown, LayoutGrid, Wrench,
 } from 'lucide-react';
 import { apiFetch } from '@/lib/api';
 import { useAuth, ROLES } from '@/store/AuthContext';
 import { hrService } from '@/api/hrService';
+import ToolkitTab from '../components/ToolkitTab';
 import { cn } from '@/lib/utils';
 
 const money = (n) => `$${Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -789,6 +790,10 @@ export default function MyProfile() {
   const unreadAnn = announcements.filter(a => !a.readByMe).length;
   const pendingSurveys = surveys.filter(s => s.status === 'ACTIVE' && !s.answeredByMe).length;
 
+  // La herramienta solo la trae quien sale a campo
+  const isField = (user.roles || []).some(r => r === ROLES.TECH || r === ROLES.OPS)
+    || user.role === ROLES.TECH || user.role === ROLES.OPS;
+
   const PROFILE_TABS = [
     { id: 'OVERVIEW', label: 'Resumen', icon: LayoutGrid },
     { id: 'ANNOUNCEMENTS', label: 'Comunicados', icon: Megaphone, badge: unreadAnn },
@@ -797,6 +802,7 @@ export default function MyProfile() {
     { id: 'TIMEOFF', label: 'Tiempo libre', icon: Palmtree, badge: vacPending },
     { id: 'PAYROLL', label: 'Nómina', icon: Wallet },
     { id: 'ASSETS', label: 'Equipamiento', icon: HardHat },
+    ...(isField ? [{ id: 'TOOLKIT', label: 'Herramientas', icon: Wrench }] : []),
     { id: 'REGLAMENTO', label: 'Reglamento', icon: Shield },
     { id: 'AUDITORIA', label: 'Auditoría', icon: ClipboardList },
   ];
@@ -1122,6 +1128,9 @@ export default function MyProfile() {
           )}
         </div>
       )}
+
+      {/* ═══ HERRAMIENTAS ═══ */}
+      {activeTab === 'TOOLKIT' && <ToolkitTab techId={employee.id} />}
 
       {/* ═══ REGLAMENTO ═══ */}
       {activeTab === 'REGLAMENTO' && (

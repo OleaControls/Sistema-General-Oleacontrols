@@ -131,6 +131,7 @@ model Employee {
   goalsSet          TechDailyGoal[]    @relation("GoalSetBy")
   techAttendance    TechAttendanceLog[]
   panoramizaciones  OtPanoramizacion[]
+  toolkit           TechToolkit?
 
   @@index([status])
   @@index([department])
@@ -1495,4 +1496,28 @@ model Improvement {
   @@index([status])
   @@index([priority])
   @@index([module])
+}
+
+/// Inventario de herramienta del técnico.
+///
+/// Una fila por técnico, no una por día: el técnico la actualiza desde su
+/// perfil cuando su herramienta cambia (se le rompe, se la reponen, compra
+/// una nueva). Antes esto se capturaba dentro del checklist diario de
+/// asistencia, lo que obligaba a repetir las 15 herramientas cada mañana.
+model TechToolkit {
+  id      String   @id @default(cuid())
+  techId  String   @unique
+  tech    Employee @relation(fields: [techId], references: [id], onDelete: Cascade)
+
+  /// { multimetro: true, navaja: false, ... } — presencia por herramienta
+  tools     Json     @default("{}")
+  /// { multimetro: 80, ... } — vida útil 0-100 de las herramientas presentes
+  toolsLife Json     @default("{}")
+  /// Notas del técnico sobre lo que le falta o está por reponerse
+  notes     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([techId])
 }

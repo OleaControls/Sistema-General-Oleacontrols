@@ -12,6 +12,7 @@ import { generateAttendanceReportPDF } from '../utils/attendanceReportPDF';
 import {
   SHIFT_LABEL, getCheckInStatus, getCheckOutStatus, workedLabel,
 } from '../utils/attendanceSchedule';
+import { TOOLS_KEYS } from '../utils/toolsCatalog';
 
 // Paleta por tono sobre fondo claro — puntualidad de la entrada / salida
 const TONE_LIGHT = {
@@ -37,11 +38,6 @@ const PERSONAL_LABELS = {
   // legacy
   lentes: 'Lentes', botas: 'Botas', toolsGeneral: 'Herr. generales', toolsSpecial: 'Herr. especiales',
 };
-const TOOLS_KEYS = [
-  'multimetro','desPlanoChico','desPlanoMed','desCruzChico','desCruzMed','kitPerilleros',
-  'pinzasElec','pinzasPela','pinzasPunta','pinzasRas','flexometro',
-  'portaHerramienta','navaja','martillo','cintasAislar',
-];
 const VEHICLE_LABELS = {
   fuel: 'Combustible', cleanInterior: 'Limp. interior',
   cleanExterior: 'Estética', odometer: 'Tacómetro', functionality: 'Funcionalidad',
@@ -72,6 +68,63 @@ const monthCells = (y, m) => {
 
 const DOW_SHORT = ['D', 'L', 'M', 'M', 'J', 'V', 'S'];
 
+/**
+ * Herramienta del técnico dentro del detalle de una meta.
+ *
+ * La fuente actual es el inventario que el técnico mantiene en su perfil
+ * (una fila permanente). `legacy` es el checklist diario de antes, que traía
+ * las herramientas adentro; se usa solo si ese log las tiene, para que los
+ * registros anteriores al cambio se sigan viendo completos.
+ */
+function ToolsBlock({ toolkit, legacy }) {
+  const legacyKeys = TOOLS_KEYS.filter(k => legacy?.[k] !== undefined);
+  const usaLegacy  = legacyKeys.length > 0;
+
+  const tools     = usaLegacy ? legacy               : (toolkit?.tools     || {});
+  const life      = usaLegacy ? (legacy.toolsLife || {}) : (toolkit?.toolsLife || {});
+  const keys      = usaLegacy ? legacyKeys           : TOOLS_KEYS.filter(k => tools[k] !== undefined);
+
+  return (
+    <div>
+      <div className="flex items-baseline gap-2 mb-1.5">
+        <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Herramientas</p>
+        {!usaLegacy && toolkit?.updatedAt && (
+          <span className="text-[8px] font-bold text-gray-400">
+            inventario del {new Date(toolkit.updatedAt).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' })}
+          </span>
+        )}
+      </div>
+
+      {keys.length === 0 ? (
+        <p className="text-[10px] font-bold text-gray-400">
+          El técnico aún no registra su herramienta en su perfil.
+        </p>
+      ) : (
+        <div className="space-y-1">
+          {keys.map(k => {
+            const present = tools[k];
+            const pct     = life[k];
+            return (
+              <div key={k} className="flex items-center gap-2">
+                <span className={`text-[8px] font-black shrink-0 ${present ? 'text-emerald-600' : 'text-red-500'}`}>{present ? '✓' : '✗'}</span>
+                <span className="text-[10px] font-bold text-gray-700 flex-1">{PERSONAL_LABELS[k] || k}</span>
+                {present && pct !== undefined && (
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <div className="w-12 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                      <div className={`h-full rounded-full ${pct >= 70 ? 'bg-emerald-500' : pct >= 40 ? 'bg-amber-400' : 'bg-rose-500'}`} style={{ width: `${pct}%` }} />
+                    </div>
+                    <span className={`text-[9px] font-black tabular-nums w-6 text-right ${pct >= 70 ? 'text-emerald-600' : pct >= 40 ? 'text-amber-500' : 'text-rose-500'}`}>{pct}%</span>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function TechAttendanceAdmin() {
   const { user } = useAuth();
   const today = (() => {
@@ -99,12 +152,25 @@ export default function TechAttendanceAdmin() {
   const [expanded,  setExpanded]  = useState(null); // técnico con detalle abierto
   const [openPano,  setOpenPano]  = useState(null); // panoramización abierta
   const [openGoal,  setOpenGoal]  = useState(null); // meta con checklist abierto
+  const [toolkits,  setToolkits]  = useState({});   // techId → inventario de herramienta
 
   useEffect(() => {
     hrService.getEmployees().then(data => {
       const all = Array.isArray(data) ? data : data?.employees || [];
       setTechnicians(all.filter(e => (e.roles || [e.role]).includes(ROLES.TECH)));
     }).catch(() => {});
+  }, []);
+
+  // La herramienta ya no se captura a diario: cada técnico mantiene un solo
+  // inventario desde su perfil, así que se trae una vez y no por fecha.
+  useEffect(() => {
+    apiFetch('/api/tech-toolkit')
+      .then(r => r.ok ? r.json() : [])
+      .then(list => {
+        if (!Array.isArray(list)) return;
+        setToolkits(Object.fromEntries(list.map(t => [t.techId, t])));
+      })
+      .catch(() => {});
   }, []);
 
   const load = useCallback(async () => {
@@ -624,30 +690,10 @@ export default function TechAttendanceAdmin() {
                         </div>
                       </div>
 
-                      {/* Herramientas */}
-                      <div>
-                        <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1.5">Herramientas</p>
-                        <div className="space-y-1">
-                          {TOOLS_KEYS.filter(k => log.checklistPersonal[k] !== undefined).map(k => {
-                            const present = log.checklistPersonal[k];
-                            const life    = log.checklistPersonal?.toolsLife?.[k];
-                            return (
-                              <div key={k} className="flex items-center gap-2">
-                                <span className={`text-[8px] font-black shrink-0 ${present ? 'text-emerald-600' : 'text-red-500'}`}>{present ? '✓' : '✗'}</span>
-                                <span className="text-[10px] font-bold text-gray-700 flex-1">{PERSONAL_LABELS[k] || k}</span>
-                                {present && life !== undefined && (
-                                  <div className="flex items-center gap-1.5 shrink-0">
-                                    <div className="w-12 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                                      <div className={`h-full rounded-full ${life >= 70 ? 'bg-emerald-500' : life >= 40 ? 'bg-amber-400' : 'bg-rose-500'}`} style={{ width: `${life}%` }} />
-                                    </div>
-                                    <span className={`text-[9px] font-black tabular-nums w-6 text-right ${life >= 70 ? 'text-emerald-600' : life >= 40 ? 'text-amber-500' : 'text-rose-500'}`}>{life}%</span>
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
+                      {/* Herramientas — del inventario del perfil del técnico.
+                          Los logs viejos las traen dentro del checklist, así que
+                          esos se siguen leyendo de ahí. */}
+                      <ToolsBlock toolkit={toolkits[g.techId]} legacy={log.checklistPersonal} />
                     </div>
                   )}
                 </div>

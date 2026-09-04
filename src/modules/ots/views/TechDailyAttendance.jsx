@@ -3,9 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import {
   MapPin, User2, Clock, CheckCircle2, XCircle, AlertTriangle, ChevronRight, ChevronLeft,
   Send, ShieldCheck, Car, Fuel, Sparkles, Gauge, HardHat, Glasses, Hand, Footprints,
-  Wrench, Zap, ClipboardList, CheckCheck, RotateCcw, ExternalLink, Target, X, ChevronDown, Download,
+  Wrench, ClipboardList, CheckCheck, RotateCcw, ExternalLink, Target, X, ChevronDown, Download,
   ScanSearch, HardDriveUpload, Boxes, TriangleAlert, GitBranch, Camera, ImagePlus,
-  Shirt, CreditCard, Ruler, Scissors, Hammer, Briefcase, Layers, BadgeCheck, Tag,
+  Shirt, CreditCard, BadgeCheck, Tag,
   LogIn, LogOut, Hourglass, Star, Wallet
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -35,25 +35,6 @@ const EPP_SPOTS = [
   { key: 'rodilleras', label: 'Rodilleras',                     icon: BadgeCheck, top: '71%', left: '72%', labelLeft: false },
   { key: 'pantalon',   label: 'Pantalón',                       icon: Tag,        top: '60%', left: '28%', labelLeft: true  },
   { key: 'zapatos',    label: 'Zapatos con casquillo',           icon: Footprints, top: '87%', left: '50%', labelLeft: true  },
-];
-
-// ── Herramientas — sin hotspot en imagen ─────────────────────────────────────
-const TOOLS_ITEMS = [
-  { key: 'multimetro',       label: 'Multímetro',                        icon: Gauge     },
-  { key: 'desPlanoChico',    label: 'Desarmador plano chico',            icon: Wrench    },
-  { key: 'desPlanoMed',      label: 'Desarmador plano mediano',          icon: Wrench    },
-  { key: 'desCruzChico',     label: 'Desarmador de cruz chico',          icon: Wrench    },
-  { key: 'desCruzMed',       label: 'Desarmador de cruz mediano',        icon: Wrench    },
-  { key: 'kitPerilleros',    label: 'Kit de desarmadores perilleros (6)', icon: Wrench    },
-  { key: 'pinzasElec',       label: 'Pinzas electricista',               icon: Zap       },
-  { key: 'pinzasPela',       label: 'Pinzas pelacables generales',       icon: Scissors  },
-  { key: 'pinzasPunta',      label: 'Pinzas de punta',                   icon: Zap       },
-  { key: 'pinzasRas',        label: 'Pinzas corte al ras',               icon: Scissors  },
-  { key: 'flexometro',       label: 'Flexómetro',                        icon: Ruler     },
-  { key: 'portaHerramienta', label: 'Porta herramienta de cinturón',     icon: Briefcase },
-  { key: 'navaja',           label: 'Navaja',                            icon: Scissors  },
-  { key: 'martillo',         label: 'Martillo pequeño',                  icon: Hammer    },
-  { key: 'cintasAislar',     label: 'Cintas de aislar',                  icon: Layers    },
 ];
 
 const VEHICLE_ITEMS = [
@@ -536,16 +517,16 @@ function CarVisualStep({ damage, onDamageChange, photos, onPhotosChange }) {
 
 // ── ChecklistModal ────────────────────────────────────────────────────────────
 function ChecklistModal({ goal, techName, log: existingLog, onClose }) {
-  const STEPS_DEF = ['Equipo Personal', 'Herramientas', ...(goal?.hasVehicle ? ['Vehículo'] : []), 'Resumen'];
+  // Las herramientas ya no van aquí: el técnico las registra en su perfil
+  // (/profile → Herramientas) cuando cambia su herramienta, no cada día.
+  const STEPS_DEF = ['Equipo Personal', ...(goal?.hasVehicle ? ['Vehículo'] : []), 'Resumen'];
 
   const [modalStep,       setModalStep]       = useState(0);
   const [mPersonal,       setMPersonal]       = useState({});
-  const [mToolLife,       setMToolLife]       = useState({});
   const [mVehicle,        setMVehicle]        = useState({});
   const [carDamage,       setCarDamage]       = useState({});
   const [carPhotos,       setCarPhotos]       = useState([]);
   const [mPNotes,         setMPNotes]         = useState('');
-  const [mTNotes,         setMTNotes]         = useState('');
   const [mVNotes,         setMVNotes]         = useState('');
   const [generating,      setGenerating]      = useState(false);
   const [downloading,     setDownloading]     = useState(false);
@@ -560,40 +541,31 @@ function ChecklistModal({ goal, techName, log: existingLog, onClose }) {
     });
   })();
 
-  const ALL_PERSONAL    = [...EPP_SPOTS, ...TOOLS_ITEMS];
-  const eppHasMissing   = EPP_SPOTS.some(i => mPersonal[i.key] === false);
-  const toolsHasMissing = TOOLS_ITEMS.some(i => mPersonal[i.key] === false);
-  const pHasMissing     = eppHasMissing || toolsHasMissing;
+  const pHasMissing     = EPP_SPOTS.some(i => mPersonal[i.key] === false);
   const carHasDamage    = CAR_SPOTS.some(s => carDamage[s.key] === true);
   const vHasMissing     = goal?.hasVehicle && VEHICLE_ITEMS.filter(i => !i.isNumber).some(i => mVehicle[i.key] === false);
-  const eppAllDone      = EPP_SPOTS.every(i => mPersonal[i.key] !== undefined);
-  const toolsAllDone    = TOOLS_ITEMS.every(i => mPersonal[i.key] !== undefined);
-  const pAllDone        = eppAllDone && toolsAllDone;
+  const pAllDone        = EPP_SPOTS.every(i => mPersonal[i.key] !== undefined);
   const carAllDone      = CAR_SPOTS.every(s => carDamage[s.key] !== undefined);
   const vAllDone        = !goal?.hasVehicle || (carAllDone && VEHICLE_ITEMS.every(i => {
     const v = mVehicle[i.key];
     return i.isNumber ? (v !== undefined && v !== null && v !== '') : v !== undefined;
   }));
 
-  const canNext = modalStep === 0 ? eppAllDone
-                : modalStep === 1 ? toolsAllDone
-                : vAllDone;
+  const canNext = modalStep === 0 ? pAllDone : vAllDone;
   const isLast  = modalStep === STEPS_DEF.length - 1;
 
   // PDF solo se genera cuando todo está respondido y si hay faltantes, las notas están llenas
-  const eppNotesRequired   = eppHasMissing && mPNotes.trim() === '';
-  const toolsNotesRequired = toolsHasMissing && mTNotes.trim() === '';
-  const pNotesRequired     = eppNotesRequired || toolsNotesRequired;
+  const pNotesRequired     = pHasMissing && mPNotes.trim() === '';
   const vNotesRequired     = goal?.hasVehicle && (vHasMissing || carHasDamage) && mVNotes.trim() === '';
   const canGenerate        = pAllDone && vAllDone && !pNotesRequired && !vNotesRequired;
 
   const buildPdfParams = () => {
     const now         = new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', hour12: false });
-    const pMissing    = [mPNotes, mTNotes].filter(Boolean).join(' / ') || ALL_PERSONAL.filter(i => mPersonal[i.key] === false).map(i => i.label).join(', ') || null;
+    const pMissing    = mPNotes || EPP_SPOTS.filter(i => mPersonal[i.key] === false).map(i => i.label).join(', ') || null;
     const vMissing    = mVNotes || VEHICLE_ITEMS.filter(i => !i.isNumber && mVehicle[i.key] === false).map(i => i.label).join(', ') || null;
     const checkInTime = existingLog?.checkInTime || now;
     const type        = goal?.hasVehicle ? 'both' : 'personal';
-    const logData     = { date: goal.date, checklistPersonal: { ...mPersonal, toolsLife: mToolLife },
+    const logData     = { date: goal.date, checklistPersonal: { ...mPersonal },
                           checklistVehicle: goal.hasVehicle ? mVehicle : null,
                           carDamage: goal.hasVehicle ? carDamage : null,
                           carPhotos: goal.hasVehicle ? carPhotos : null,
@@ -615,7 +587,7 @@ function ChecklistModal({ goal, techName, log: existingLog, onClose }) {
         method: 'PATCH',
         body: JSON.stringify({
           id: logId,
-          checklistPersonal:  { ...mPersonal, toolsLife: mToolLife },
+          checklistPersonal:  { ...mPersonal },
           checklistVehicle:   goal.hasVehicle ? { ...mVehicle, carDamage, carPhotos: carPhotos.map(p => p.url) } : null,
           personalMissing:    pMissing,
           vehicleMissing:     vMissing,
@@ -794,112 +766,8 @@ function ChecklistModal({ goal, techName, log: existingLog, onClose }) {
             </>
           )}
 
-          {/* Paso 1: Herramientas */}
-          {modalStep === 1 && (
-            <>
-              <div className="flex items-center gap-3 mb-5">
-                <div className="h-10 w-10 rounded-2xl bg-violet-50 flex items-center justify-center shrink-0">
-                  <Wrench className="h-5 w-5 text-violet-600" />
-                </div>
-                <div>
-                  <h2 className="text-base font-black text-gray-900">Herramientas</h2>
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">15 herramientas · Vida útil por herramienta</p>
-                </div>
-              </div>
-              <div className="space-y-2">
-                {TOOLS_ITEMS.map(({ key, label, icon: Icon }) => {
-                  const v    = mPersonal[key];
-                  const life = mToolLife[key] ?? 100;
-                  return (
-                    <div key={key} className={cn(
-                      'p-3 rounded-2xl border transition-all',
-                      v === true  ? 'bg-emerald-50 border-emerald-200' :
-                      v === false ? 'bg-red-50 border-red-200' :
-                                    'bg-gray-50 border-gray-100'
-                    )}>
-                      {/* Fila: icono + nombre + botones */}
-                      <div className="flex items-center gap-3">
-                        <div className={cn(
-                          'h-9 w-9 rounded-xl flex items-center justify-center shrink-0',
-                          v === true  ? 'bg-emerald-100 text-emerald-600' :
-                          v === false ? 'bg-red-100 text-red-600' :
-                                        'bg-white text-gray-400 border border-gray-200'
-                        )}>
-                          <Icon className="h-4 w-4" />
-                        </div>
-                        <p className="text-sm font-bold text-gray-800 flex-1 leading-tight">{label}</p>
-                        <div className="flex gap-2 shrink-0">
-                          <button
-                            onClick={() => {
-                              setMPersonal(p => ({ ...p, [key]: true }));
-                              if (mToolLife[key] === undefined) setMToolLife(p => ({ ...p, [key]: 100 }));
-                            }}
-                            className={cn(
-                              'min-h-[44px] min-w-[44px] rounded-xl flex items-center justify-center border transition-all touch-manipulation',
-                              v === true
-                                ? 'bg-emerald-500 border-emerald-500 text-white shadow-sm'
-                                : 'bg-white border-gray-200 text-gray-400 active:border-emerald-400 active:text-emerald-500'
-                            )}>
-                            <CheckCircle2 className="h-5 w-5" />
-                          </button>
-                          <button
-                            onClick={() => setMPersonal(p => ({ ...p, [key]: false }))}
-                            className={cn(
-                              'min-h-[44px] min-w-[44px] rounded-xl flex items-center justify-center border transition-all touch-manipulation',
-                              v === false
-                                ? 'bg-red-500 border-red-500 text-white shadow-sm'
-                                : 'bg-white border-gray-200 text-gray-400 active:border-red-400 active:text-red-500'
-                            )}>
-                            <XCircle className="h-5 w-5" />
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Slider de vida útil — solo si herramienta presente */}
-                      {v === true && (
-                        <div className="mt-3 pt-2 border-t border-emerald-100">
-                          <div className="flex justify-between items-center mb-1.5">
-                            <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Vida útil</span>
-                            <span className={cn(
-                              'text-[11px] font-black tabular-nums',
-                              life >= 70 ? 'text-emerald-600' : life >= 40 ? 'text-amber-500' : 'text-rose-500'
-                            )}>{life}%</span>
-                          </div>
-                          <input
-                            type="range" min={0} max={100} step={5} value={life}
-                            onChange={e => setMToolLife(p => ({ ...p, [key]: Number(e.target.value) }))}
-                            className="w-full accent-violet-600 h-1.5 cursor-pointer touch-manipulation"
-                          />
-                          <div className="w-full bg-white/60 rounded-full h-1.5 mt-1.5 overflow-hidden border border-emerald-100">
-                            <div
-                              className={cn('h-1.5 rounded-full transition-all duration-300',
-                                life >= 70 ? 'bg-emerald-500' : life >= 40 ? 'bg-amber-400' : 'bg-rose-500'
-                              )}
-                              style={{ width: `${life}%` }}
-                            />
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-              {toolsHasMissing && (
-                <div className="space-y-2 pt-2">
-                  <div className="flex items-center gap-2 p-3 bg-amber-50 rounded-2xl border border-amber-200">
-                    <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
-                    <p className="text-xs font-bold text-amber-700">Herramientas faltantes — se incluirán en el reporte PDF.</p>
-                  </div>
-                  <textarea value={mTNotes} onChange={e => setMTNotes(e.target.value)}
-                    placeholder="Detalla qué herramientas faltan..." rows={2}
-                    className="w-full border border-amber-200 rounded-2xl px-4 py-3 text-sm font-bold text-gray-800 focus:outline-none focus:ring-2 focus:ring-amber-300 resize-none bg-amber-50/50" />
-                </div>
-              )}
-            </>
-          )}
-
-          {/* Paso 2 (vehículo): solo si aplica */}
-          {goal?.hasVehicle && modalStep === 2 && (
+          {/* Paso 1 (vehículo): solo si aplica */}
+          {goal?.hasVehicle && modalStep === 1 && (
             <>
               <div className="flex items-center gap-3 mb-4">
                 <div className="h-10 w-10 rounded-2xl bg-indigo-50 flex items-center justify-center shrink-0">
@@ -968,26 +836,6 @@ function ChecklistModal({ goal, techName, log: existingLog, onClose }) {
                       <span className="text-xs font-bold text-gray-700">{s.label}</span>
                     </div>
                   ))}
-                  <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mt-2 mb-1">Herramientas</p>
-                  {TOOLS_ITEMS.map(t => {
-                    const life = mToolLife[t.key];
-                    return (
-                      <div key={t.key} className="flex items-center gap-2">
-                        {mPersonal[t.key] === true
-                          ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
-                          : <XCircle className="h-3.5 w-3.5 text-red-400 shrink-0" />}
-                        <span className="text-xs font-bold text-gray-700 flex-1">{t.label}</span>
-                        {mPersonal[t.key] === true && life !== undefined && (
-                          <span className={cn(
-                            'text-[9px] font-black px-1.5 py-0.5 rounded-full tabular-nums',
-                            life >= 70 ? 'bg-emerald-100 text-emerald-600' :
-                            life >= 40 ? 'bg-amber-100 text-amber-600' :
-                                         'bg-rose-100 text-rose-600'
-                          )}>{life}%</span>
-                        )}
-                      </div>
-                    );
-                  })}
                 </div>
                 {goal?.hasVehicle && (
                   <div className="border-t border-gray-200 pt-3 space-y-1.5">
@@ -1400,6 +1248,22 @@ export default function TechDailyAttendance() {
             </p>
           </div>
         </div>
+
+        {/* La herramienta ya no se captura aquí: se registra una sola vez en el
+            perfil y se actualiza cuando cambia. */}
+        <button
+          onClick={() => navigate('/profile')}
+          className="w-full mb-3 flex items-center gap-2.5 px-3 py-2.5 rounded-2xl bg-violet-500/10 border border-violet-500/25 active:bg-violet-500/20 touch-manipulation transition-all text-left"
+        >
+          <span className="h-7 w-7 rounded-xl bg-violet-500/20 flex items-center justify-center shrink-0">
+            <Wrench className="h-3.5 w-3.5 text-violet-300" />
+          </span>
+          <span className="flex-1 min-w-0">
+            <span className="block text-[11px] font-black text-violet-200 uppercase tracking-widest">Mis herramientas</span>
+            <span className="block text-[9px] font-bold text-gray-500">Actualízalas en tu perfil cuando cambien — ya no van en el checklist diario</span>
+          </span>
+          <ChevronRight className="h-3.5 w-3.5 text-violet-300 shrink-0" />
+        </button>
 
         <div className="space-y-2">
           {!hasGoals ? (
