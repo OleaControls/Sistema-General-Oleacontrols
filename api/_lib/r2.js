@@ -27,6 +27,12 @@ function getR2Client() {
       accessKeyId: accessKey,
       secretAccessKey: secretKey,
     },
+    // El SDK v3 (>= 3.729) calcula un CRC32 por defecto y el presigner lo cuelga
+    // de la query como x-amz-checksum-crc32=AAAAAA== (el CRC de un cuerpo vacío,
+    // porque al firmar todavía no hay body). R2 compara ese valor contra el
+    // archivo real y rechaza el PUT. Con WHEN_REQUIRED no se añade el checksum.
+    requestChecksumCalculation: "WHEN_REQUIRED",
+    responseChecksumValidation: "WHEN_REQUIRED",
   });
   return r2Client;
 }
