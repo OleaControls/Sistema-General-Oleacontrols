@@ -9,6 +9,7 @@ import { otService } from '@/api/otService';
 import { FIELD_DOC_TYPES, resumenExpediente, DOC_STATUS, fieldDocLabel } from '@/lib/fieldDocs';
 import { ROLES } from '@/store/AuthContext';
 import { cn } from '@/lib/utils';
+import { validarTamanoArchivo, MAX_UPLOAD_LABEL } from '@/lib/uploadLimits';
 
 /* Expediente de campo: la documentación vigente que la tienda exige para dejar
    entrar a un técnico a tienda. La carga y la renueva el supervisor. Es distinto
@@ -68,6 +69,11 @@ export default function FieldDocs() {
   }, [tecnicos, docsPorTec]);
 
   const subirYGuardar = async (file) => {
+    // Antes de leerlo: el FileReader carga el archivo completo en memoria y el
+    // base64 lo engorda ~33% más.
+    const excede = validarTamanoArchivo(file);
+    if (excede) { setError(excede); return; }
+
     setGuardando(true);
     setError(null);
     try {
@@ -308,6 +314,9 @@ export default function FieldDocs() {
                         <input type="file" accept=".pdf,.jpg,.jpeg,.png,.webp" className="hidden" disabled={guardando}
                           onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; if (f) subirYGuardar(f); }} />
                       </label>
+                      <span className="ml-2 text-[9px] font-black text-gray-300 uppercase tracking-widest">
+                        PDF o imagen · {MAX_UPLOAD_LABEL}
+                      </span>
                     </div>
                   ) : (
                     <button

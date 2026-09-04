@@ -23,6 +23,7 @@ import {
 } from '../utils/reglas';
 import { cn } from '@/lib/utils';
 import ClientPicker from '../components/ClientPicker';
+import { validarTamanoArchivo, MAX_UPLOAD_LABEL } from '@/lib/uploadLimits';
 
 const money = (n) => `$${Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 0 })}`;
 const fmtDate = (d) => (d ? new Date(d).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' }) : '—');
@@ -1609,7 +1610,12 @@ function FieldInput({ field, value, onChange, context }) {
   if (field.type === 'file') {
     const handleFile = async (e) => {
       const file = e.target.files?.[0];
+      e.target.value = ''; // permite volver a elegir el mismo archivo
       if (!file) return;
+      // Se valida antes de leerlo: un archivo enorme tumba la pestaña en el
+      // FileReader mucho antes de llegar al servidor.
+      const excede = validarTamanoArchivo(file);
+      if (excede) { alert(excede); return; }
       setUploading(true);
       try {
         const dataUri = await new Promise((res, rej) => {
@@ -1629,6 +1635,7 @@ function FieldInput({ field, value, onChange, context }) {
           <label className="flex-1 cursor-pointer flex items-center gap-2 px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-[11px] font-bold text-gray-500 hover:border-primary/40 transition-all">
             {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
             {uploading ? 'Subiendo…' : (value ? 'Reemplazar archivo' : 'Seleccionar archivo')}
+            <span className="ml-auto text-[9px] font-black text-gray-300 uppercase tracking-wider shrink-0">{MAX_UPLOAD_LABEL}</span>
             <input type="file" className="hidden" onChange={handleFile} />
           </label>
           {value && (

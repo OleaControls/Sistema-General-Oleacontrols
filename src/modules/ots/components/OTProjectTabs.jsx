@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { otService } from '@/api/otService';
 import { cn } from '@/lib/utils';
+import { validarTamanoArchivo, MAX_UPLOAD_LABEL } from '@/lib/uploadLimits';
 
 /* Pestañas del proyecto que el técnico ve dentro de su OT de tienda.
    Los datos llegan por /api/ots?sub=…, no por /api/projects: ese módulo está
@@ -255,6 +256,10 @@ function DocumentsPanel({ otId, project, onReload, puedeEditar }) {
     e.target.value = ''; // permite volver a elegir el mismo archivo
     if (!file) return;
 
+    // Antes de leerlo: el FileReader carga el archivo completo en memoria.
+    const excede = validarTamanoArchivo(file);
+    if (excede) { setError(excede); return; }
+
     setSubiendo(true);
     setError(null);
     try {
@@ -278,7 +283,7 @@ function DocumentsPanel({ otId, project, onReload, puedeEditar }) {
     <Panel
       icon={FolderOpen}
       title="Documentación"
-      subtitle={`${docs.length} documento${docs.length === 1 ? '' : 's'} · lo que pide la tienda`}
+      subtitle={`${docs.length} documento${docs.length === 1 ? '' : 's'} · lo que pide la tienda · ${MAX_UPLOAD_LABEL}`}
       action={puedeEditar && (
         <label className={cn(
           'cursor-pointer flex items-center gap-1.5 px-3 py-2 rounded-lg bg-gray-950 text-white text-[10px] font-black uppercase tracking-widest hover:bg-gray-800 transition-colors',
