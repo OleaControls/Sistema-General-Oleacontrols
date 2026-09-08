@@ -93,6 +93,22 @@ export const projectService = {
   // Clientes operativos (catálogo OT): [{id, name, ...}]
   otClients() { return this._fetchArray('/api/ot-clients'); },
 
+  // Alta de cliente desde el proyecto. Escribe en el mismo catálogo que
+  // /ops/ots/catalogs, para que Operaciones no lo capture otra vez.
+  // A diferencia de otClients(), aquí un fallo sí se propaga: el usuario está
+  // esperando a que se guarde y tiene que enterarse si no pasó.
+  async createOtClient(data) {
+    const res = await apiFetch('/api/ot-clients', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body.error || `No se pudo guardar el cliente (${res.status})`);
+    }
+    return res.json();
+  },
+
   // Órdenes de trabajo: [{id, otNumber, title, ...}]
   // El listado pagina y topa en 100 por página, así que ?limit=500 dejaba fuera
   // las OT más viejas y sus vínculos se mostraban como ID crudo. 'metrics'

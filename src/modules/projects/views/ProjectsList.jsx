@@ -429,10 +429,13 @@ export default function ProjectsList() {
               )}
 
               {/* Trae empresa, encargado, teléfono, correo y ubicación del
-                  catálogo de clientes de OT en un solo clic. */}
-              {otClients.length > 0 && (
-                <ClientPicker clients={otClients} onPick={(datos) => setForm(f => ({ ...f, ...datos }))} />
-              )}
+                  catálogo de clientes de OT en un solo clic. Se muestra aunque
+                  el catálogo venga vacío: desde aquí también se da de alta. */}
+              <ClientPicker
+                clients={otClients}
+                onPick={(datos) => setForm(f => ({ ...f, ...datos }))}
+                onCreated={(c) => setOtClients(prev => [c, ...prev])}
+              />
 
               <Field label="Nombre del proyecto *">
                 <input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}

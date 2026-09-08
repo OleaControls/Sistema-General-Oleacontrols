@@ -1,0 +1,1300 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  html{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  img{max-width:100%}
+  [hidden]{display:none !important}
+</style>
+<title>Manual de Campo Olea</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800;900&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap">
+
+<style>
+/* ── Tokens: paleta completa en :root, luego redefinición por tema ────────── */
+:root{
+  --paper:#F3F4F1;
+  --surface:#FFFFFF;
+  --surface-2:#EAECE7;
+  --ink:#101519;
+  --ink-soft:#333C44;
+  --muted:#5B6670;
+  --rule:#D5D8D2;
+  --rule-soft:#E3E5E0;
+  --hivis:#B87407;
+  --hivis-bg:#FBF0DC;
+  --hivis-rule:#E8C88A;
+  --ops:#16637F;
+  --ops-bg:#E2EFF4;
+  --ops-rule:#A9CBD8;
+  --ok:#2E7D51;
+  --ok-bg:#E6F2EA;
+  --warn:#A96608;
+  --warn-bg:#FBEEDC;
+  --stop:#A8291F;
+  --stop-bg:#F8E7E5;
+  --shadow:0 1px 2px rgba(16,21,25,.06),0 8px 24px -16px rgba(16,21,25,.25);
+  --accent:var(--hivis);
+  --accent-bg:var(--hivis-bg);
+  --accent-rule:var(--hivis-rule);
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --paper:#11161A;
+    --surface:#171D22;
+    --surface-2:#1E252B;
+    --ink:#E9EBE7;
+    --ink-soft:#C3C9CD;
+    --muted:#939DA6;
+    --rule:#2B333A;
+    --rule-soft:#232A30;
+    --hivis:#F0AE3C;
+    --hivis-bg:#2A2013;
+    --hivis-rule:#5C4620;
+    --ops:#5FB4D2;
+    --ops-bg:#132730;
+    --ops-rule:#2A4E5E;
+    --ok:#5FBE8B;
+    --ok-bg:#132318;
+    --warn:#E0A346;
+    --warn-bg:#2A2113;
+    --stop:#E8837A;
+    --stop-bg:#2B1715;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px -16px rgba(0,0,0,.8);
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#11161A;
+  --surface:#171D22;
+  --surface-2:#1E252B;
+  --ink:#E9EBE7;
+  --ink-soft:#C3C9CD;
+  --muted:#939DA6;
+  --rule:#2B333A;
+  --rule-soft:#232A30;
+  --hivis:#F0AE3C;
+  --hivis-bg:#2A2013;
+  --hivis-rule:#5C4620;
+  --ops:#5FB4D2;
+  --ops-bg:#132730;
+  --ops-rule:#2A4E5E;
+  --ok:#5FBE8B;
+  --ok-bg:#132318;
+  --warn:#E0A346;
+  --warn-bg:#2A2113;
+  --stop:#E8837A;
+  --stop-bg:#2B1715;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px -16px rgba(0,0,0,.8);
+  color-scheme:dark;
+}
+body[data-manual="ops"]{
+  --accent:var(--ops);
+  --accent-bg:var(--ops-bg);
+  --accent-rule:var(--ops-rule);
+}
+
+*{box-sizing:border-box}
+body{
+  margin:0;
+  background:var(--paper);
+  color:var(--ink);
+  font-family:"IBM Plex Sans","Segoe UI",system-ui,sans-serif;
+  font-size:16px;
+  line-height:1.62;
+  -webkit-font-smoothing:antialiased;
+}
+h1,h2,h3,h4{font-family:Archivo,"Arial Narrow",system-ui,sans-serif;text-wrap:balance;margin:0;line-height:1.12}
+code,kbd,.mono{font-family:"IBM Plex Mono",ui-monospace,Menlo,monospace}
+a{color:var(--accent)}
+
+/* ── Barra superior ───────────────────────────────────────────────────────── */
+.topbar{
+  position:sticky;top:0;z-index:40;
+  background:color-mix(in srgb,var(--paper) 88%,transparent);
+  backdrop-filter:blur(10px);
+  border-bottom:1px solid var(--rule);
+}
+.topbar-in{
+  max-width:1180px;margin:0 auto;padding:10px 20px;
+  display:flex;align-items:center;gap:16px;flex-wrap:wrap;
+}
+.brandmark{display:flex;align-items:center;gap:10px;margin-right:auto}
+.brandmark .bolt{
+  width:28px;height:28px;border-radius:6px;flex:none;
+  background:var(--accent);color:var(--paper);
+  display:grid;place-items:center;font-weight:900;font-size:13px;
+  font-family:Archivo,sans-serif;
+}
+.brandmark b{font-family:Archivo,sans-serif;font-weight:800;font-size:14px;letter-spacing:-.01em}
+.brandmark span{display:block;font-size:10px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;font-weight:600;line-height:1.3}
+
+.switch{display:flex;gap:2px;background:var(--surface-2);padding:3px;border-radius:9px;border:1px solid var(--rule)}
+.switch button{
+  font:600 11.5px/1 "IBM Plex Sans",sans-serif;letter-spacing:.06em;text-transform:uppercase;
+  padding:9px 14px;border:0;border-radius:7px;background:transparent;color:var(--muted);cursor:pointer;
+}
+.switch button[aria-selected="true"]{background:var(--surface);color:var(--ink);box-shadow:var(--shadow)}
+.switch button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.print-btn{
+  font:600 11.5px/1 "IBM Plex Sans",sans-serif;letter-spacing:.06em;text-transform:uppercase;
+  padding:10px 14px;border-radius:8px;border:1px solid var(--rule);
+  background:var(--surface);color:var(--ink-soft);cursor:pointer;
+}
+
+/* ── Estructura ───────────────────────────────────────────────────────────── */
+.wrap{max-width:1180px;margin:0 auto;padding:0 20px 96px;display:grid;grid-template-columns:238px minmax(0,1fr);gap:44px;align-items:start}
+@media (max-width:900px){.wrap{grid-template-columns:1fr;gap:0}}
+
+.toc{position:sticky;top:74px;padding:32px 0;font-size:13.5px}
+@media (max-width:900px){.toc{position:static;padding:20px 0 0;border-bottom:1px solid var(--rule);margin-bottom:8px}}
+.toc-h{font:700 10px/1 "IBM Plex Sans",sans-serif;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:12px}
+.toc ol{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:1px}
+@media (max-width:900px){.toc ol{flex-direction:row;flex-wrap:wrap;gap:6px;padding-bottom:16px}}
+.toc a{
+  display:flex;gap:9px;padding:5px 9px;border-radius:6px;text-decoration:none;color:var(--muted);
+  border-left:2px solid transparent;line-height:1.35;
+}
+.toc a:hover{color:var(--ink);background:var(--surface-2)}
+.toc a .n{font:500 11px/1.5 "IBM Plex Mono",monospace;color:var(--accent);flex:none;padding-top:1px}
+@media (max-width:900px){.toc a{border:1px solid var(--rule);background:var(--surface);font-size:12px}}
+
+main{padding:36px 0 0;min-width:0}
+
+/* ── Portada de cada manual ───────────────────────────────────────────────── */
+.cover{border-bottom:2px solid var(--ink);padding-bottom:26px;margin-bottom:38px}
+.eyebrow{font:600 11px/1 "IBM Plex Mono",monospace;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);margin-bottom:14px;display:block}
+.cover h1{font-size:clamp(38px,6.4vw,62px);font-weight:900;letter-spacing:-.03em;margin-bottom:14px}
+.cover .lede{font-size:18px;color:var(--ink-soft);max-width:60ch;margin:0}
+.cover-meta{display:flex;gap:22px;flex-wrap:wrap;margin-top:22px;font:500 12px/1.4 "IBM Plex Mono",monospace;color:var(--muted)}
+.cover-meta b{color:var(--ink);font-weight:600}
+
+/* ── Secciones ────────────────────────────────────────────────────────────── */
+section{margin-bottom:56px;scroll-margin-top:76px}
+.sec-h{display:flex;align-items:baseline;gap:12px;border-bottom:1px solid var(--rule);padding-bottom:9px;margin-bottom:20px}
+.sec-h .num{font:600 12px/1 "IBM Plex Mono",monospace;color:var(--accent);flex:none}
+.sec-h h2{font-size:26px;font-weight:800;letter-spacing:-.02em}
+h3{font-size:17.5px;font-weight:700;margin:30px 0 8px;letter-spacing:-.01em}
+h4{font-size:14px;font-weight:700;margin:22px 0 6px}
+p{margin:0 0 14px;max-width:68ch}
+ul,ol{margin:0 0 16px;padding-left:22px;max-width:68ch}
+li{margin-bottom:6px}
+strong{font-weight:600}
+em{font-style:italic;color:var(--ink-soft)}
+
+/* ── Ruta / folio / tecla ─────────────────────────────────────────────────── */
+.route{
+  font:500 12.5px/1 "IBM Plex Mono",monospace;
+  background:var(--surface-2);border:1px solid var(--rule);
+  padding:3px 7px;border-radius:5px;white-space:nowrap;color:var(--ink-soft);
+}
+p code,li code,td code{font-size:13px;background:var(--surface-2);border:1px solid var(--rule-soft);padding:1px 5px;border-radius:4px}
+
+/* ── Bloque de pantalla ───────────────────────────────────────────────────── */
+.screen{
+  background:var(--surface);border:1px solid var(--rule);border-radius:12px;
+  padding:20px 22px;margin:0 0 18px;box-shadow:var(--shadow);
+}
+.screen-h{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:4px}
+.screen-h h3{margin:0;font-size:17px}
+.screen > p:last-child{margin-bottom:0}
+.screen ul:last-child,.screen ol:last-child{margin-bottom:0}
+
+/* ── Avisos ───────────────────────────────────────────────────────────────── */
+.note{
+  border-left:3px solid var(--accent);background:var(--accent-bg);
+  padding:14px 16px;border-radius:0 8px 8px 0;margin:0 0 18px;max-width:68ch;
+}
+.note.gate{border-color:var(--stop);background:var(--stop-bg)}
+.note.warn{border-color:var(--warn);background:var(--warn-bg)}
+.note.ok{border-color:var(--ok);background:var(--ok-bg)}
+.note p:last-child{margin-bottom:0}
+.note-t{font:700 10.5px/1 "IBM Plex Sans",sans-serif;letter-spacing:.13em;text-transform:uppercase;display:block;margin-bottom:7px}
+.note .note-t{color:var(--accent)}
+.note.gate .note-t{color:var(--stop)}
+.note.warn .note-t{color:var(--warn)}
+.note.ok .note-t{color:var(--ok)}
+
+/* ── Flujo del día: secuencia real, por eso va numerada ───────────────────── */
+.flow{list-style:none;margin:0 0 22px;padding:0;counter-reset:paso}
+.flow > li{
+  position:relative;padding:0 0 20px 46px;margin:0;
+  border-left:2px solid var(--rule);
+}
+.flow > li:last-child{border-left-color:transparent;padding-bottom:0}
+.flow > li::before{
+  counter-increment:paso;content:counter(paso);
+  position:absolute;left:-15px;top:-2px;
+  width:28px;height:28px;border-radius:50%;
+  background:var(--surface);border:2px solid var(--rule);
+  display:grid;place-items:center;
+  font:700 12px/1 "IBM Plex Mono",monospace;color:var(--muted);
+}
+.flow > li.is-gate{border-left-color:var(--stop)}
+.flow > li.is-gate::before{content:"!";background:var(--stop);border-color:var(--stop);color:#fff}
+.flow h4{margin:0 0 4px;font-size:15px}
+.flow p{margin:0 0 6px;font-size:14.5px}
+.flow p:last-child{margin-bottom:0}
+.flow .when{font:500 11.5px/1 "IBM Plex Mono",monospace;color:var(--accent);display:block;margin-bottom:5px}
+.flow > li.is-gate .when{color:var(--stop)}
+
+/* ── Tablas ───────────────────────────────────────────────────────────────── */
+.tw{overflow-x:auto;margin:0 0 20px;border:1px solid var(--rule);border-radius:10px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:14px;min-width:440px}
+th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--rule-soft);vertical-align:top}
+th{font:600 10.5px/1.3 "IBM Plex Sans",sans-serif;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);background:var(--surface-2);white-space:nowrap}
+tr:last-child td{border-bottom:0}
+td.num{font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;white-space:nowrap}
+td b{font-weight:600}
+
+/* ── Píldoras de estado ───────────────────────────────────────────────────── */
+.pill{display:inline-block;font:600 10.5px/1.5 "IBM Plex Sans",sans-serif;letter-spacing:.05em;text-transform:uppercase;padding:2px 8px;border-radius:20px;border:1px solid;white-space:nowrap}
+.p-ok{color:var(--ok);background:var(--ok-bg);border-color:var(--ok)}
+.p-warn{color:var(--warn);background:var(--warn-bg);border-color:var(--warn)}
+.p-stop{color:var(--stop);background:var(--stop-bg);border-color:var(--stop)}
+.p-neutral{color:var(--muted);background:var(--surface-2);border-color:var(--rule)}
+.p-accent{color:var(--accent);background:var(--accent-bg);border-color:var(--accent-rule)}
+
+/* ── Lista de menú ────────────────────────────────────────────────────────── */
+.menu-list{list-style:none;padding:0;margin:0 0 20px;border:1px solid var(--rule);border-radius:10px;overflow:hidden;background:var(--surface);max-width:none}
+.menu-list li{
+  display:grid;grid-template-columns:minmax(150px,190px) minmax(120px,180px) 1fr;gap:14px;
+  padding:11px 16px;border-bottom:1px solid var(--rule-soft);margin:0;align-items:baseline;font-size:14px;
+}
+.menu-list li:last-child{border-bottom:0}
+.menu-list b{font-weight:600}
+.menu-list .r{font:500 12px/1.5 "IBM Plex Mono",monospace;color:var(--muted);word-break:break-all}
+.menu-list .d{color:var(--ink-soft);font-size:13.5px}
+@media (max-width:680px){.menu-list li{grid-template-columns:1fr;gap:3px}}
+
+/* ── Definiciones ─────────────────────────────────────────────────────────── */
+.defs{margin:0 0 18px;max-width:68ch}
+.defs div{padding:9px 0;border-bottom:1px solid var(--rule-soft)}
+.defs div:last-child{border-bottom:0}
+.defs dt{font-weight:600;font-size:14.5px;margin-bottom:2px}
+.defs dd{margin:0;color:var(--ink-soft);font-size:14px}
+
+.hidden{display:none}
+
+footer{max-width:1180px;margin:0 auto;padding:26px 20px 60px;border-top:1px solid var(--rule);color:var(--muted);font-size:13px}
+
+@media print{
+  .topbar,.toc,.print-btn{display:none}
+  .wrap{grid-template-columns:1fr;padding:0}
+  body{background:#fff;color:#000;font-size:11pt}
+  .hidden{display:block !important}
+  section{break-inside:auto;page-break-inside:auto}
+  .screen,.note,.tw{break-inside:avoid}
+  .cover{break-before:page}
+  #manual-tech .cover{break-before:auto}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none !important;transition:none !important}}
+</style>
+
+<div class="topbar">
+  <div class="topbar-in">
+    <div class="brandmark">
+      <div class="bolt">O</div>
+      <div>
+        <b>Olea Controls</b>
+        <span>Sistema General · Manual de uso</span>
+      </div>
+    </div>
+    <div class="switch" role="tablist" aria-label="Elegir manual">
+      <button role="tab" id="tab-tech" aria-selected="true" aria-controls="manual-tech">Técnico</button>
+      <button role="tab" id="tab-ops" aria-selected="false" aria-controls="manual-ops">Operaciones</button>
+    </div>
+    <button class="print-btn" onclick="window.print()">Imprimir</button>
+  </div>
+</div>
+
+<div class="wrap">
+  <!-- ══════════════════ ÍNDICE TÉCNICO ══════════════════ -->
+  <nav class="toc" id="toc-tech">
+    <div class="toc-h">Manual del técnico</div>
+    <ol>
+      <li><a href="#t1"><span class="n">01</span>Entrar a la app</a></li>
+      <li><a href="#t2"><span class="n">02</span>Tu menú</a></li>
+      <li><a href="#t3"><span class="n">03</span>El orden del día</a></li>
+      <li><a href="#t4"><span class="n">04</span>Mi Asistencia</a></li>
+      <li><a href="#t5"><span class="n">05</span>Mis Órdenes</a></li>
+      <li><a href="#t6"><span class="n">06</span>La OT por dentro</a></li>
+      <li><a href="#t7"><span class="n">07</span>Mis Viáticos</a></li>
+      <li><a href="#t8"><span class="n">08</span>PROP</a></li>
+      <li><a href="#t9"><span class="n">09</span>Arena de Líderes</a></li>
+      <li><a href="#t10"><span class="n">10</span>Mis Métricas y Ventas</a></li>
+      <li><a href="#t11"><span class="n">11</span>Mi Perfil</a></li>
+      <li><a href="#t12"><span class="n">12</span>Herramientas</a></li>
+      <li><a href="#t13"><span class="n">13</span>Problemas comunes</a></li>
+    </ol>
+  </nav>
+
+  <!-- ══════════════════ ÍNDICE OPERACIONES ══════════════════ -->
+  <nav class="toc hidden" id="toc-ops">
+    <div class="toc-h">Manual de operaciones</div>
+    <ol>
+      <li><a href="#o1"><span class="n">01</span>Entrar a la app</a></li>
+      <li><a href="#o2"><span class="n">02</span>Tu menú</a></li>
+      <li><a href="#o3"><span class="n">03</span>Control de OTs</a></li>
+      <li><a href="#o4"><span class="n">04</span>Crear una OT</a></li>
+      <li><a href="#o5"><span class="n">05</span>Asistencia Técnicos</a></li>
+      <li><a href="#o6"><span class="n">06</span>Agenda Operativa</a></li>
+      <li><a href="#o7"><span class="n">07</span>Catálogos OT</a></li>
+      <li><a href="#o8"><span class="n">08</span>Aprobaciones</a></li>
+      <li><a href="#o9"><span class="n">09</span>Control de Gastos</a></li>
+      <li><a href="#o10"><span class="n">10</span>Métricas Ops</a></li>
+      <li><a href="#o11"><span class="n">11</span>PROP Técnicos</a></li>
+      <li><a href="#o12"><span class="n">12</span>Calificaciones</a></li>
+      <li><a href="#o13"><span class="n">13</span>Docs. de Campo</a></li>
+      <li><a href="#o14"><span class="n">14</span>Cerrar una OT</a></li>
+      <li><a href="#o15"><span class="n">15</span>Mi Perfil</a></li>
+    </ol>
+  </nav>
+
+  <main>
+  <!-- ═════════════════════════════════════════════════════════════════════
+       MANUAL DEL TÉCNICO
+       ═════════════════════════════════════════════════════════════════════ -->
+  <div id="manual-tech" role="tabpanel" aria-labelledby="tab-tech">
+
+    <div class="cover">
+      <span class="eyebrow">Manual 1 de 2 · Personal de campo</span>
+      <h1>Manual del Técnico</h1>
+      <p class="lede">Todo lo que haces en la app, en el orden en que lo haces: registrar tu entrada, salir del taller con el equipo completo, aceptar tu orden, trabajar el sitio y cerrar el día.</p>
+      <div class="cover-meta">
+        <span>Rol <b>TECHNICIAN</b></span>
+        <span>Turno <b>09:00 – 18:00</b></span>
+        <span>Pantallas <b>8</b></span>
+      </div>
+    </div>
+
+    <!-- 01 ────────────────────────────────────────────────────────────── -->
+    <section id="t1">
+      <div class="sec-h"><span class="num">01</span><h2>Entrar a la app</h2></div>
+
+      <p>La app se abre desde el navegador del celular. No se descarga de ninguna tienda.</p>
+
+      <ol>
+        <li>Abre la dirección del sistema en Chrome (celular) o en cualquier navegador (computadora).</li>
+        <li>En la pantalla de acceso elige <strong>Portal de Operaciones</strong>. El <em>Portal Colaborador</em> es para personal que no sale a campo.</li>
+        <li>Escribe tu correo de la empresa y tu contraseña, y pulsa <strong>Validar Credenciales</strong>.</li>
+      </ol>
+
+      <div class="note ok">
+        <span class="note-t">Instálala en tu celular</span>
+        <p>Desde el menú de Chrome elige <em>Agregar a pantalla de inicio</em>. Queda como una app normal, con su icono, y abre más rápido. Es la forma recomendada para trabajar en campo.</p>
+      </div>
+
+      <div class="note warn">
+        <span class="note-t">Si te saca solo</span>
+        <p>La sesión dura 7 días. Cuando caduca, la app te regresa a la pantalla de acceso sin avisar. No es una falla: vuelve a entrar con tu correo y contraseña.</p>
+      </div>
+
+      <p>Si un compañero se dio de baja y su usuario ya no entra, es correcto: un empleado marcado como inactivo no puede acceder y el sistema le pide contactar a Recursos Humanos.</p>
+    </section>
+
+    <!-- 02 ────────────────────────────────────────────────────────────── -->
+    <section id="t2">
+      <div class="sec-h"><span class="num">02</span><h2>Tu menú</h2></div>
+
+      <p>Estas son las ocho entradas que ves como técnico. Nada más. Si alguien te describe una pantalla que no aparece en tu menú, es de otro rol.</p>
+
+      <ul class="menu-list">
+        <li><b>Mi Asistencia</b><span class="r">/tech/attendance</span><span class="d">Tu entrada, tu salida, el checklist del día y las metas que te asignaron.</span></li>
+        <li><b>Mis Órdenes</b><span class="r">/ots</span><span class="d">Las OT que tienes asignadas, con mapa y estado de cada una.</span></li>
+        <li><b>Mis Viáticos</b><span class="r">/expenses</span><span class="d">Registrar gastos y ver si te los aprobaron.</span></li>
+        <li><b>Arena de Líderes</b><span class="r">/ots/leaderboard</span><span class="d">Tabla de posiciones por puntos, rangos y podio.</span></li>
+        <li><b>Mis Métricas</b><span class="r">/tech/metricas</span><span class="d">Cuántas OT llevas, cuántas cerraste, cuánto gastaste.</span></li>
+        <li><b>Mis Ventas Directas</b><span class="r">/crm/indirect-sales</span><span class="d">Ventas que se te acreditaron a ti.</span></li>
+        <li><b>PROP</b><span class="r">/prop</span><span class="d">Tu registro de Prioridades, Realidades, Opciones y Plan.</span></li>
+        <li><b>Mi Perfil</b><span class="r">/profile</span><span class="d">Tus datos, nómina, vacaciones, comunicados y tus herramientas.</span></li>
+      </ul>
+    </section>
+
+    <!-- 03 ────────────────────────────────────────────────────────────── -->
+    <section id="t3">
+      <div class="sec-h"><span class="num">03</span><h2>El orden del día</h2></div>
+
+      <p>Este es el corazón del sistema y la parte que hay que aprenderse. Los pasos van en orden, y hay <strong>dos puertas</strong> que la app no te deja saltar: si no cumpliste el paso anterior, el botón siguiente no funciona.</p>
+
+      <ol class="flow">
+        <li>
+          <h4>Registra tu entrada</h4>
+          <span class="when">Mi Asistencia · antes de las 09:00</span>
+          <p>Pulsa el botón de entrada apenas llegues al taller. Queda la hora exacta.</p>
+        </li>
+        <li>
+          <h4>Haz el checklist del día</h4>
+          <span class="when">Mi Asistencia · antes de salir del taller</span>
+          <p>Revisas tu equipo de protección personal y, si llevas camioneta, la inspección del vehículo. Al terminar, el sistema manda un PDF a tus supervisores.</p>
+        </li>
+        <li class="is-gate">
+          <h4>Puerta 1 — para aceptar una orden</h4>
+          <span class="when">Necesitas: entrada registrada + checklist enviado</span>
+          <p>Si te falta cualquiera de las dos, al abrir la OT verás el aviso <em>«Falta cerrar tu salida del taller»</em> y no podrás aceptarla. El aviso trae un botón que te lleva directo a Mi Asistencia.</p>
+        </li>
+        <li>
+          <h4>Acepta la orden</h4>
+          <span class="when">Mis Órdenes → abre la OT</span>
+          <p>La orden pasa de <span class="pill p-neutral">Asignada</span> a <span class="pill p-ok">Orden Aceptada</span>. Mientras más rápido la aceptes, más puntos de reacción ganas.</p>
+        </li>
+        <li>
+          <h4>Llega al sitio y haz la panoramización</h4>
+          <span class="when">Dentro de la OT</span>
+          <p>Seis preguntas sobre lo que encontraste en el sitio. Cada respuesta pide mínimo 10 caracteres: no acepta respuestas de una palabra.</p>
+        </li>
+        <li class="is-gate">
+          <h4>Puerta 2 — para iniciar jornada</h4>
+          <span class="when">Necesitas: la panoramización de esa OT registrada</span>
+          <p>Sin panoramización el botón de iniciar jornada no arranca el cronómetro. Es por OT, no por día: cada orden pide la suya.</p>
+        </li>
+        <li>
+          <h4>Inicia la jornada</h4>
+          <span class="when">Dentro de la OT</span>
+          <p>Arranca el cronómetro de trabajo. Puedes pausar y reanudar las veces que necesites; cada tramo se guarda como una sesión.</p>
+        </li>
+        <li>
+          <h4>Trabaja y documenta</h4>
+          <span class="when">Durante el servicio</span>
+          <p>Sube fotos de evidencia, reporta incidencias y registra los viáticos que vayas gastando. No lo dejes para el final: el reporte de cierre se arma con esto.</p>
+        </li>
+        <li>
+          <h4>Finaliza el trabajo</h4>
+          <span class="when">Al terminar en el sitio</span>
+          <p>Escribes el reporte de actividades y cierras. La orden pasa a <span class="pill p-accent">Completada</span> y queda esperando la validación de tu supervisor.</p>
+        </li>
+        <li>
+          <h4>Registra tu salida</h4>
+          <span class="when">Mi Asistencia · 18:00</span>
+          <p>Cierra tu día. El sistema calcula las horas trabajadas.</p>
+        </li>
+      </ol>
+
+      <div class="note gate">
+        <span class="note-t">Por qué existen las puertas</span>
+        <p>No son un trámite. La Puerta 1 asegura que sales del taller con el equipo completo y que quedó registro de lo que te faltaba. La Puerta 2 asegura que antes de meter las manos entendiste el sitio, la meta del cliente y los obstáculos. Un supervisor sí puede avanzar una orden sin esto; un técnico no.</p>
+      </div>
+    </section>
+
+    <!-- 04 ────────────────────────────────────────────────────────────── -->
+    <section id="t4">
+      <div class="sec-h"><span class="num">04</span><h2>Mi Asistencia</h2></div>
+      <p>Es tu pantalla de arranque. Tiene tres bloques: tu jornada, tus metas del día y tus próximas órdenes.</p>
+
+      <div class="screen">
+        <div class="screen-h"><h3>Entrada y salida</h3><span class="route">/tech/attendance</span></div>
+        <p>Dos botones grandes. La entrada se compara contra las 09:00 y el sistema la clasifica sola:</p>
+        <div class="tw">
+          <table>
+            <thead><tr><th>Hora de entrada</th><th>Cómo cuenta</th><th>Color</th></tr></thead>
+            <tbody>
+              <tr><td class="num">09:00 – 09:04</td><td><b>A tiempo</b></td><td><span class="pill p-ok">Verde</span></td></tr>
+              <tr><td class="num">09:05 – 09:09</td><td><b>Retardo</b></td><td><span class="pill p-warn">Amarillo</span></td></tr>
+              <tr><td class="num">09:10 en adelante</td><td><b>Tarde</b></td><td><span class="pill p-stop">Rojo</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>Si llegas antes de las 09:00, te muestra cuántos minutos te adelantaste. La salida se compara contra las 18:00: antes de esa hora aparece como <em>salida anticipada</em>; a las 18:00 o después, como <em>turno completo</em>.</p>
+        <p>Tu asistencia es independiente del checklist. Puedes registrar entrada aunque todavía no tengas metas asignadas.</p>
+      </div>
+
+      <div class="screen">
+        <div class="screen-h"><h3>Checklist del día</h3><span class="pill p-accent">Obligatorio</span></div>
+        <p>Se abre con <strong>Hacer checklist del día</strong>. Es un asistente de dos o tres pasos según si te asignaron vehículo.</p>
+
+        <h4>Paso 1 · Equipo Personal</h4>
+        <p>Un dibujo del técnico con ocho puntos. Tocas cada punto para marcarlo: verde si lo traes, rojo si te falta. Los ocho puntos son:</p>
+        <ul>
+          <li>Casco</li><li>Gafas protectoras</li><li>Chaleco multibolsas reflejante</li><li>Camisa</li>
+          <li>Guantes de trabajo</li><li>Rodilleras</li><li>Pantalón</li><li>Zapatos con casquillo</li>
+        </ul>
+        <p>Si marcas algo en rojo se abre una caja de texto <strong>obligatoria</strong> para que expliques qué falta. Sin ese texto no puedes enviar.</p>
+
+        <h4>Paso 2 · Vehículo <em>(solo si te asignaron camioneta)</em></h4>
+        <p>Primero la inspección visual por zonas: Frontal, Interior, Trasero, Lado Izquierdo y Lado Derecho. Marcas si hay daño en cada zona y puedes subir fotos como evidencia. Después el checklist:</p>
+        <ul>
+          <li>Combustible suficiente</li>
+          <li>Limpieza interior</li>
+          <li>Estética exterior</li>
+          <li>Tacómetro — aquí escribes la lectura en kilómetros, no es sí/no</li>
+          <li>Funcionalidad (luces, frenos, motor)</li>
+        </ul>
+        <p>Si hay daños o falta algo, la caja de observaciones también es obligatoria.</p>
+
+        <h4>Paso 3 · Resumen y envío</h4>
+        <p>Revisas todo en una lista y pulsas enviar. Pasan dos cosas: se guarda en el sistema y se manda un PDF a los supervisores por Telegram. Si te faltaba algo, el mensaje va marcado como <strong>Reporte de Faltantes</strong>; si venías completo, como <strong>Checklist Completado</strong>. También hay un botón aparte para descargar el PDF a tu celular.</p>
+      </div>
+
+      <div class="note">
+        <span class="note-t">Las herramientas ya no van aquí</span>
+        <p>Antes el checklist te pedía las 15 herramientas todos los días. Ya no. Ahora se registran una sola vez en <strong>Mi Perfil → Herramientas</strong> y las actualizas cuando cambie tu herramienta. En Mi Asistencia hay un acceso directo que te lleva ahí. Ver la <a href="#t12">sección 12</a>.</p>
+      </div>
+
+      <div class="screen">
+        <div class="screen-h"><h3>Metas del día</h3></div>
+        <p>Lo que tu supervisor definió para cada orden de hoy. Cada tarjeta te muestra:</p>
+        <dl class="defs">
+          <div><dt>Meta del cliente</dt><dd>Qué espera lograr el cliente con este trabajo, en sus palabras.</dd></div>
+          <div><dt>Tiempo para completar</dt><dd>Las horas estimadas para el trabajo.</dd></div>
+          <div><dt>Nivel de calidad esperado</dt><dd>Dos niveles: <em>Alto</em> (el resultado ideal, un trabajo sobresaliente) y <em>Mínimo</em> (lo mínimo aceptable para dar por terminada la asignación).</dd></div>
+          <div><dt>Viáticos</dt><dd>El presupuesto autorizado para esa orden.</dd></div>
+        </dl>
+        <p>Desde cada meta también entras a la <strong>panoramización</strong> de esa OT.</p>
+      </div>
+
+      <div class="screen">
+        <div class="screen-h"><h3>Panoramización del sitio</h3><span class="pill p-stop">Puerta 2</span></div>
+        <p>Seis campos, todos obligatorios, mínimo 10 caracteres cada uno:</p>
+        <div class="tw">
+          <table>
+            <thead><tr><th>Campo</th><th>Qué contestar</th></tr></thead>
+            <tbody>
+              <tr><td><b>Plática casual</b></td><td>Cómo está el ambiente en el sitio, qué encontraste al llegar.</td></tr>
+              <tr><td><b>Meta del cliente</b></td><td>Qué espera lograr el cliente, con sus palabras.</td></tr>
+              <tr><td><b>Objetivos</b></td><td>Las metas concretas que deben quedar completadas hoy.</td></tr>
+              <tr><td><b>Obstáculos</b></td><td>Bloqueos, falta de acceso o riesgos que identificaste.</td></tr>
+              <tr><td><b>Algoritmos</b></td><td>Tu plan paso a paso para resolver esos obstáculos.</td></tr>
+              <tr><td><b>Desea lo mejor</b></td><td>Con qué mensaje motivas hoy al equipo.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>Tu supervisor lee todas las panoramizaciones del día en su panel. Es la foto del sitio antes de empezar.</p>
+      </div>
+
+      <div class="screen">
+        <div class="screen-h"><h3>Próximas Órdenes</h3></div>
+        <p>Las órdenes que te vienen en los siguientes días. Sirve para que confirmes tu asistencia con anticipación y no te tome por sorpresa un traslado largo.</p>
+      </div>
+    </section>
+
+    <!-- 05 ────────────────────────────────────────────────────────────── -->
+    <section id="t5">
+      <div class="sec-h"><span class="num">05</span><h2>Mis Órdenes</h2></div>
+
+      <div class="screen">
+        <div class="screen-h"><h3>La lista</h3><span class="route">/ots</span></div>
+        <p>Tres filtros arriba: <strong>Todas</strong>, <strong>Activas</strong> y <strong>Completadas</strong>. La lista se pagina para que no se vuelva un scroll infinito en el celular.</p>
+        <p>Cada orden muestra su folio, el cliente, el sitio y su estado. Los estados que verás:</p>
+        <p>
+          <span class="pill p-neutral">Sin Asignar</span>
+          <span class="pill p-neutral">Asignada</span>
+          <span class="pill p-ok">Orden Aceptada</span>
+          <span class="pill p-accent">En Ejecución</span>
+          <span class="pill p-accent">Completada</span>
+          <span class="pill p-ok">Validada</span>
+          <span class="pill p-stop">Cancelada</span>
+        </p>
+        <p>La prioridad va como etiqueta: Urgente, Alta, Media o Baja. Determina cuántos puntos vale la orden.</p>
+      </div>
+
+      <div class="screen">
+        <div class="screen-h"><h3>Operativo Activo — tu ubicación</h3></div>
+        <p>Hay un botón para activar tu ubicación. Cuando lo enciendes, la app manda tu posición al servidor y tu supervisor te ve en el mapa de operaciones. Se actualiza sola mientras trabajas.</p>
+        <p>Si le diste <em>Bloquear</em> al permiso del navegador, verás <strong>«Permiso de ubicación denegado»</strong>. Tienes que habilitarlo desde la configuración de Chrome para ese sitio; desde la app no se puede volver a pedir.</p>
+      </div>
+
+      <div class="screen">
+        <div class="screen-h"><h3>Mis documentos</h3></div>
+        <p>Si te falta algún documento de campo vigente, aparece el aviso <strong>«Documentación pendiente»</strong>. Ábrelo con <strong>Mis documentos</strong> para ver cuáles son.</p>
+        <p>Esto <strong>no te bloquea</strong> la app: es un aviso para que lo resuelvas con tu supervisor, porque es la tienda la que te puede negar la entrada. Los seis documentos son alta del IMSS, DC-3, pago del seguro, lista de trabajadores, INE y espirometría. Quien los carga y los renueva es tu supervisor, no tú.</p>
+      </div>
+    </section>
+
+    <!-- 06 ────────────────────────────────────────────────────────────── -->
+    <section id="t6">
+      <div class="sec-h"><span class="num">06</span><h2>La OT por dentro</h2></div>
+
+      <p>Al abrir una orden encuentras pestañas. Las cuatro básicas están en toda OT:</p>
+
+      <div class="tw">
+        <table>
+          <thead><tr><th>Pestaña</th><th>Qué contiene</th></tr></thead>
+          <tbody>
+            <tr><td><b>Hoja de Servicio</b></td><td>Cliente y sitio, contacto en sitio, expectativas de la asignación, instrucciones técnicas, logística y folio.</td></tr>
+            <tr><td><b>Ejecución</b></td><td>Aceptar la orden, iniciar y pausar jornada, y finalizar el trabajo.</td></tr>
+            <tr><td><b>Evidencias</b></td><td>Fotos e incidencias en vivo durante el servicio.</td></tr>
+            <tr><td><b>Viáticos</b></td><td>El fondo de la orden y los gastos que llevas cargados a ella.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p>Si la orden es de <strong>tienda</strong> y está ligada a un proyecto, aparecen cuatro pestañas más: <em>Recursos</em>, <em>Inventario</em>, <em>Documentación</em> y <em>Pendientes</em>.</p>
+
+      <div class="screen">
+        <div class="screen-h"><h3>El fondo de la orden</h3></div>
+        <p>Arriba ves tres cifras:</p>
+        <dl class="defs">
+          <div><dt>Autorizado</dt><dd>El presupuesto que Operaciones te asignó para esta orden.</dd></div>
+          <div><dt>Gastado</dt><dd>Lo que llevas comprometido. Cuentan los gastos aprobados <em>y</em> los pendientes de aprobar.</dd></div>
+          <div><dt>Balance</dt><dd>Lo que te queda disponible.</dd></div>
+        </dl>
+        <p>Un gasto rechazado deja de contar y el dinero regresa a tu balance. Si necesitas más fondo, tu supervisor puede inyectarlo desde esta misma pantalla.</p>
+      </div>
+
+      <div class="screen">
+        <div class="screen-h"><h3>Las jornadas</h3></div>
+        <p>Cada vez que inicias y pausas se guarda una sesión. La orden lleva la cuenta de <strong>tiempo total</strong>, <strong>sesiones</strong> y <strong>días trabajados</strong>, así que un trabajo de varios días queda registrado completo.</p>
+        <p>Si se te olvida pausar, el sistema cierra la jornada automáticamente a la medianoche para que no te queden 14 horas fantasma.</p>
+      </div>
+
+      <div class="screen">
+        <div class="screen-h"><h3>Finalizar el trabajo</h3></div>
+        <p>Al cerrar escribes el <strong>Reporte de Actividades</strong>: los trabajos realizados, las fallas corregidas y tus observaciones. Este texto es el que lee el supervisor y el que sustenta el cierre, así que escríbelo completo.</p>
+        <p>La orden pasa a validación. Una vez <span class="pill p-ok">Validada</span> queda bloqueada: ya no puedes modificar el acta. Si necesitas corregir algo después, solo Operaciones puede desbloquearla.</p>
+      </div>
+    </section>
+
+    <!-- 07 ────────────────────────────────────────────────────────────── -->
+    <section id="t7">
+      <div class="sec-h"><span class="num">07</span><h2>Mis Viáticos</h2></div>
+
+      <div class="screen">
+        <div class="screen-h"><h3>Registrar un gasto</h3><span class="route">/expenses</span></div>
+        <p>Botón <strong>Registrar Gasto</strong>. Son tres pasos.</p>
+
+        <h4>Paso 1 · Vinculación</h4>
+        <p>Decides a qué se carga el gasto. Dos opciones: buscas la OT por folio, cliente o tienda, o marcas <strong>Gasto Administrativo / Externo a OT</strong> si no pertenece a ninguna orden. Si entraste desde una OT, se vincula solo.</p>
+
+        <h4>Paso 2 · Datos del gasto</h4>
+        <div class="tw">
+          <table>
+            <thead><tr><th>Campo</th><th>Detalle</th></tr></thead>
+            <tbody>
+              <tr><td><b>Fecha del comprobante</b></td><td>La del ticket, no la de hoy.</td></tr>
+              <tr><td><b>Categoría</b></td><td>Combustible · Casetas · Alimentos · Hospedaje · Refacciones · Herramientas · Otros</td></tr>
+              <tr><td><b>Monto</b></td><td>En pesos mexicanos.</td></tr>
+              <tr><td><b>Descripción</b></td><td>En qué se usó el recurso. Sé específico: es lo que lee quien aprueba.</td></tr>
+              <tr><td><b>Método de pago</b></td><td>Efectivo · T. Olea (tarjeta de la empresa) · T. Propia</td></tr>
+              <tr><td><b>Evidencia</b></td><td>Foto del ticket o PDF. JPG, PNG o PDF, hasta 20 MB.</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h4>Paso 3 · Confirmación</h4>
+        <p>Revisas y pulsas <strong>Enviar Reporte</strong>. El gasto queda <span class="pill p-warn">Pendiente</span> hasta que tu supervisor lo dictamine.</p>
+      </div>
+
+      <div class="note warn">
+        <span class="note-t">La foto del ticket</span>
+        <p>Toma la foto derecha y con luz. La app corrige sola la orientación y comprime la imagen, pero si el ticket sale borroso o cortado, quien aprueba no puede leer el monto y te lo va a rechazar.</p>
+      </div>
+
+      <div class="screen">
+        <div class="screen-h"><h3>Ver tus gastos</h3></div>
+        <p>Filtros: <strong>Todos</strong>, <strong>Pendientes</strong>, <strong>Aprobados</strong> y <strong>Rechazados</strong>. Hay dos formas de ver la lista y se cambian con los botones de la derecha:</p>
+        <ul>
+          <li><strong>Agrupado por OT</strong> — cada orden con su fondo y sus gastos adentro. Útil para saber cuánto llevas de una orden.</li>
+          <li><strong>Cronológico</strong> — todos los gastos por fecha, sin agrupar.</li>
+        </ul>
+        <p>Arriba tienes el total, el número de gastos y el número de órdenes. Los rechazados no suman al total: no son dinero comprometido.</p>
+      </div>
+    </section>
+
+    <!-- 08 ────────────────────────────────────────────────────────────── -->
+    <section id="t8">
+      <div class="sec-h"><span class="num">08</span><h2>PROP</h2></div>
+      <p>PROP es un método de planeación personal: <strong>P</strong>rioridades, <strong>R</strong>ealidades, <strong>O</strong>pciones y <strong>P</strong>lan. Lo registras tú y lo lee Operaciones.</p>
+
+      <div class="screen">
+        <div class="screen-h"><h3>Crear un PROP</h3><span class="route">/prop</span></div>
+        <p>Pulsas <strong>Nuevo PROP</strong>. Primero escribes el <strong>Enfoque / Objetivo</strong> — por ejemplo <em>«Instalación de CCTV en Tienda Norte, cierre de OT-1234»</em>. Después llenas las cuatro categorías, con hasta tres opciones cada una:</p>
+        <div class="tw">
+          <table>
+            <thead><tr><th>Categoría</th><th>La pregunta que responde</th></tr></thead>
+            <tbody>
+              <tr><td><b>Prioridades</b></td><td>¿Qué es lo más importante ahora?</td></tr>
+              <tr><td><b>Realidades</b></td><td>¿Cuál es la situación real actual?</td></tr>
+              <tr><td><b>Opciones</b></td><td>¿Qué caminos o alternativas tienes?</td></tr>
+              <tr><td><b>Plan</b></td><td>¿Qué vas a hacer, paso a paso?</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>Necesitas al menos una opción con contenido en cada una de las cuatro categorías. Al guardar se envía a Operaciones por Telegram, y tu registro queda en tu historial.</p>
+      </div>
+    </section>
+
+    <!-- 09 ────────────────────────────────────────────────────────────── -->
+    <section id="t9">
+      <div class="sec-h"><span class="num">09</span><h2>Arena de Líderes</h2></div>
+      <p>La tabla de posiciones de los técnicos. Se puede ver por <strong>Mes</strong>, por <strong>Año</strong> o <strong>Total</strong> histórico, y tiene podio para los tres primeros.</p>
+
+      <h3>Cómo se ganan los puntos</h3>
+      <div class="tw">
+        <table>
+          <thead><tr><th>Concepto</th><th>Líder</th><th>Apoyo</th></tr></thead>
+          <tbody>
+            <tr><td><b>OT Urgente</b> completada</td><td class="num">+200</td><td class="num">+130</td></tr>
+            <tr><td><b>OT Alta</b> completada</td><td class="num">+150</td><td class="num">+97</td></tr>
+            <tr><td><b>OT Media</b> completada</td><td class="num">+100</td><td class="num">+65</td></tr>
+            <tr><td><b>OT Baja</b> completada</td><td class="num">+60</td><td class="num">+39</td></tr>
+            <tr><td>Reacción en menos de <b>30 min</b></td><td class="num">+50</td><td class="num">—</td></tr>
+            <tr><td>Reacción en menos de <b>60 min</b></td><td class="num">+25</td><td class="num">—</td></tr>
+            <tr><td>Resolución en menos de <b>4 h</b></td><td class="num">+40</td><td class="num">—</td></tr>
+            <tr><td>Resolución en menos de <b>8 h</b></td><td class="num">+20</td><td class="num">—</td></tr>
+            <tr><td>OT <b>validada</b> por el supervisor</td><td class="num">+20</td><td class="num">—</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p><em>Reacción</em> es lo que tardas en aceptar la orden desde que te la asignan. <em>Resolución</em> es lo que tardas en cerrarla.</p>
+
+      <h3>Los rangos</h3>
+      <div class="tw">
+        <table>
+          <thead><tr><th>Rango</th><th>Puntos para alcanzarlo</th></tr></thead>
+          <tbody>
+            <tr><td><b>Élite</b></td><td class="num">20,000</td></tr>
+            <tr><td><b>Diamante</b></td><td class="num">10,000</td></tr>
+            <tr><td><b>Oro</b></td><td class="num">5,000</td></tr>
+            <tr><td><b>Plata</b></td><td class="num">1,000</td></tr>
+            <tr><td><b>Bronce</b></td><td class="num">0</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- 10 ────────────────────────────────────────────────────────────── -->
+    <section id="t10">
+      <div class="sec-h"><span class="num">10</span><h2>Mis Métricas y Mis Ventas</h2></div>
+
+      <div class="screen">
+        <div class="screen-h"><h3>Mis Métricas</h3><span class="route">/tech/metricas</span></div>
+        <p>Cuatro números arriba: <strong>Mis OTs Total</strong>, <strong>Completadas</strong>, <strong>En Proceso</strong> y <strong>Viáticos del Mes</strong>. Debajo, tu porcentaje de eficiencia, una gráfica de OT por mes y el listado de tus últimas órdenes.</p>
+      </div>
+
+      <div class="screen">
+        <div class="screen-h"><h3>Mis Ventas Directas</h3><span class="route">/crm/indirect-sales</span></div>
+        <p>Si detectaste una oportunidad en campo y se convirtió en venta, aquí la ves acreditada. Muestra <strong>Ganadas</strong>, <strong>Pendientes</strong> y <strong>Monto Cerrado</strong>.</p>
+      </div>
+    </section>
+
+    <!-- 11 ────────────────────────────────────────────────────────────── -->
+    <section id="t11">
+      <div class="sec-h"><span class="num">11</span><h2>Mi Perfil</h2></div>
+      <p>Tu expediente completo, en <span class="route">/profile</span>. A la izquierda tu tarjeta con foto, rol y tres contadores rápidos: días de vacaciones, activos a tu resguardo y pendientes. <strong>Para cambiar tu foto, tócala y elige la nueva.</strong></p>
+      <p>Las pestañas son diez:</p>
+
+      <div class="screen">
+        <div class="screen-h"><h3>Resumen</h3></div>
+        <p>Tus datos de contacto (ID de empleado, correo, teléfono, ubicación), tu antigüedad con la fecha de ingreso, tus insignias y tu desempeño de los últimos 15 días con el bono proyectado. Desde aquí saltas a comunicados, encuestas y tiempo libre.</p>
+      </div>
+
+      <div class="screen">
+        <div class="screen-h"><h3>Comunicados</h3></div>
+        <p>Los avisos de la empresa, clasificados en Información, Urgente, Logro y Aviso. El número rojo en la pestaña son los que no has leído; al abrir uno se marca como leído.</p>
+      </div>
+
+      <div class="screen">
+        <div class="screen-h"><h3>Encuestas</h3></div>
+        <p>Las encuestas de clima que RH publica. Algunas están marcadas como <strong>Anónima</strong>: en esas tu nombre no queda ligado a la respuesta. El número rojo son las que te faltan por contestar.</p>
+      </div>
+
+      <div class="screen">
+        <div class="screen-h"><h3>Asistencia</h3></div>
+        <p>Tu historial mensual con navegación por mes. Cada día se clasifica como Asistencia, Falta, Retardo, Permiso, Incapacidad o Vacaciones. Arriba te suma cuántos minutos de retardo acumulaste en el mes.</p>
+      </div>
+
+      <div class="screen">
+        <div class="screen-h"><h3>Tiempo libre</h3></div>
+        <p>Tres datos: <strong>días disponibles</strong>, <strong>solicitudes en proceso</strong> y <strong>última renovación</strong>. Desde aquí solicitas vacaciones: eliges fecha de inicio y fin y el sistema calcula los días solo. No te deja pedir más días de los que tienes de saldo.</p>
+      </div>
+
+      <div class="screen">
+        <div class="screen-h"><h3>Nómina</h3></div>
+        <p>Tus recibos por período, con el desglose de percepciones, deducciones y neto a pagar. Aparecen conforme RH publica cada período.</p>
+      </div>
+
+      <div class="screen">
+        <div class="screen-h"><h3>Equipamiento</h3></div>
+        <p>Los activos y el EPP que la empresa te asignó formalmente, con su fecha de asignación. Es distinto de <em>Herramientas</em>: aquí está lo que la empresa registró bajo tu resguardo; allá está lo que tú declaras que traes.</p>
+      </div>
+
+      <div class="screen">
+        <div class="screen-h"><h3>Herramientas</h3><span class="pill p-accent">Nuevo</span></div>
+        <p>Tu inventario de herramienta. Se explica completo en la <a href="#t12">sección 12</a>.</p>
+      </div>
+
+      <div class="screen">
+        <div class="screen-h"><h3>Reglamento</h3></div>
+        <p>El reglamento interno vigente, en PDF, para consultarlo o descargarlo cuando lo necesites.</p>
+      </div>
+
+      <div class="screen">
+        <div class="screen-h"><h3>Auditoría</h3></div>
+        <p>Tu autoevaluación por proyecto. Al crear una entrada capturas el nombre del proyecto, la fecha y hora, si fuiste líder o colaborador, y tu área de acción (eléctrica, mecánica, supervisión…). Después tres bloques con mínimos:</p>
+        <ul>
+          <li><strong>¿Qué hice bien?</strong> — mínimo 3 puntos</li>
+          <li><strong>¿Qué hice mal?</strong> — mínimo 2 puntos</li>
+          <li><strong>¿Cómo podemos mejorar?</strong> — mínimo 2 puntos</li>
+        </ul>
+        <p>Cada entrada queda con estado Pendiente, Aprobado o Rechazado según la revise tu jefatura.</p>
+      </div>
+    </section>
+
+    <!-- 12 ────────────────────────────────────────────────────────────── -->
+    <section id="t12">
+      <div class="sec-h"><span class="num">12</span><h2>Herramientas</h2></div>
+
+      <div class="note ok">
+        <span class="note-t">Esto cambió</span>
+        <p>Las 15 herramientas <strong>ya no se capturan a diario</strong> en el checklist. Ahora viven en tu perfil como un registro permanente que actualizas <em>cuando cambie tu herramienta</em>: si se te rompe una, si te reponen otra, o si compras una nueva.</p>
+      </div>
+
+      <p>Entra a <span class="route">/profile</span> → pestaña <strong>Herramientas</strong>. También hay un acceso directo en Mi Asistencia.</p>
+
+      <h3>Cómo se llena</h3>
+      <ol>
+        <li>Por cada herramienta pulsas el botón <strong>verde</strong> si la traes, o el <strong>rojo</strong> si te falta.</li>
+        <li>Al marcarla en verde aparece la barra de <strong>vida útil</strong>. Muévela para indicar en qué estado está: 100 % es nueva, 50 % está a la mitad de su vida, 20 % está por reponerse.</li>
+        <li>En <strong>Notas</strong> escribes lo que no cabe en la lista: qué pediste de reposición, qué está por romperse.</li>
+        <li>Pulsas <strong>Guardar mi herramienta</strong>. El botón solo se activa si hiciste algún cambio; cuando todo está guardado dice <em>Todo guardado</em>.</li>
+      </ol>
+
+      <h3>Las 15 herramientas</h3>
+      <div class="tw">
+        <table>
+          <thead><tr><th>Medición y corte</th><th>Desarmadores</th><th>Pinzas y varios</th></tr></thead>
+          <tbody>
+            <tr>
+              <td>Multímetro<br>Flexómetro<br>Navaja<br>Martillo pequeño<br>Cintas de aislar</td>
+              <td>Plano chico<br>Plano mediano<br>De cruz chico<br>De cruz mediano<br>Kit de perilleros (6)</td>
+              <td>Electricista<br>Pelacables generales<br>De punta<br>Corte al ras<br>Porta herramienta de cinturón</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Qué ves arriba</h3>
+      <p>Cuatro contadores que se actualizan solos: <strong>Completas</strong> (las que tienes), <strong>Faltantes</strong> (las que marcaste en rojo), <strong>Desgastadas</strong> (las que tienes con vida útil bajo 40 %) y <strong>Sin marcar</strong> (las que todavía no contestas). Debajo aparece la fecha de tu última actualización.</p>
+
+      <div class="note">
+        <span class="note-t">Quién lo ve</span>
+        <p>Operaciones lee tu inventario desde su panel de Asistencia Técnicos, con la fecha en que lo actualizaste. Si marcas faltantes, ahí quedan a la vista para reposición. Manténlo al día: es tu respaldo cuando pidas herramienta.</p>
+      </div>
+    </section>
+
+    <!-- 13 ────────────────────────────────────────────────────────────── -->
+    <section id="t13">
+      <div class="sec-h"><span class="num">13</span><h2>Problemas comunes</h2></div>
+
+      <dl class="defs">
+        <div>
+          <dt>«No me deja aceptar la orden»</dt>
+          <dd>Te falta registrar la entrada del día o enviar el checklist. Es la Puerta 1. El propio aviso trae el botón que te lleva a Mi Asistencia.</dd>
+        </div>
+        <div>
+          <dt>«El botón de iniciar jornada no hace nada»</dt>
+          <dd>Falta la panoramización de esa OT. Es la Puerta 2, y es por orden: aunque ya hayas panoramizado otra hoy, esta pide la suya.</dd>
+        </div>
+        <div>
+          <dt>«No puedo enviar el checklist»</dt>
+          <dd>Marcaste algo en rojo y dejaste vacía la caja de observaciones. Es obligatoria cuando hay faltantes. Revisa también que no te haya quedado un punto sin contestar.</dd>
+        </div>
+        <div>
+          <dt>«No me sube la foto del ticket»</dt>
+          <dd>Revisa el peso del archivo: el límite en viáticos es de 20 MB. En las demás pantallas del sistema el tope es de 10 MB. Si la foto pesa más, tómala de nuevo con menor resolución.</dd>
+        </div>
+        <div>
+          <dt>«El supervisor no me ve en el mapa»</dt>
+          <dd>No activaste tu ubicación, o el navegador tiene el permiso bloqueado. Entra a Mis Órdenes y activa <em>Operativo Activo</em>; si dice permiso denegado, habilítalo desde la configuración de Chrome para ese sitio.</dd>
+        </div>
+        <div>
+          <dt>«Me dice que tengo documentación pendiente»</dt>
+          <dd>Es un aviso, no un bloqueo. Alguno de tus seis documentos de campo está vencido, por vencer o no se ha cargado. Avísale a tu supervisor: él los sube y los renueva.</dd>
+        </div>
+        <div>
+          <dt>«Ya no puedo editar la orden que cerré»</dt>
+          <dd>Está validada, y al validarse se bloquea. Solo Operaciones puede desbloquearla.</dd>
+        </div>
+        <div>
+          <dt>«Me sacó de la sesión»</dt>
+          <dd>La sesión dura 7 días. Vuelve a entrar con tu correo y contraseña.</dd>
+        </div>
+      </dl>
+    </section>
+  </div>
+
+  <!-- ═════════════════════════════════════════════════════════════════════
+       MANUAL DE OPERACIONES
+       ═════════════════════════════════════════════════════════════════════ -->
+  <div id="manual-ops" class="hidden" role="tabpanel" aria-labelledby="tab-ops">
+
+    <div class="cover">
+      <span class="eyebrow">Manual 2 de 2 · Supervisión</span>
+      <h1>Manual de Operaciones</h1>
+      <p class="lede">Cómo se arma el día de la cuadrilla: crear y despachar órdenes, vigilar la asistencia y el equipo, aprobar el dinero, cerrar el servicio y sostener la documentación que deja entrar a los técnicos a sitio.</p>
+      <div class="cover-meta">
+        <span>Rol <b>SUPERVISOR</b></span>
+        <span>Pantallas <b>11</b></span>
+        <span>Aprueba <b>viáticos · cierres</b></span>
+      </div>
+    </div>
+
+    <!-- O1 ────────────────────────────────────────────────────────────── -->
+    <section id="o1">
+      <div class="sec-h"><span class="num">01</span><h2>Entrar a la app</h2></div>
+      <p>Entras por <strong>Portal de Operaciones</strong> con tu correo de la empresa. La sesión dura 7 días.</p>
+      <p>Al entrar, tu pantalla de inicio es <strong>Métricas Ops</strong>, no una lista de órdenes. Si quieres empezar por las OT, ve directo a <em>Control OTs</em>.</p>
+      <div class="note">
+        <span class="note-t">Puedes tener dos roles</span>
+        <p>Si además de supervisor estás dado de alta como técnico, la pantalla de órdenes te muestra dos pestañas arriba: <strong>Operaciones</strong> (todas las OT) y <strong>Mis OTs</strong> (las tuyas como técnico).</p>
+      </div>
+    </section>
+
+    <!-- O2 ────────────────────────────────────────────────────────────── -->
+    <section id="o2">
+      <div class="sec-h"><span class="num">02</span><h2>Tu menú</h2></div>
+      <p>El grupo <strong>Operaciones</strong> del menú lateral trae once entradas, más tu perfil.</p>
+      <ul class="menu-list">
+        <li><b>Control OTs</b><span class="r">/ots</span><span class="d">Alta, despacho y seguimiento de todas las órdenes.</span></li>
+        <li><b>Agenda Operativa</b><span class="r">/ops/calendar</span><span class="d">Calendario de OT, citas de cliente, garantías y visitas.</span></li>
+        <li><b>Arena de Líderes</b><span class="r">/ots/leaderboard</span><span class="d">Tabla de posiciones de los técnicos.</span></li>
+        <li><b>Catálogos OT</b><span class="r">/ops/ots/catalogs</span><span class="d">Clientes recurrentes y plantillas de servicio.</span></li>
+        <li><b>Control de Gastos</b><span class="r">/ops/expenses/control</span><span class="d">Analítica del gasto por período.</span></li>
+        <li><b>Aprobaciones</b><span class="r">/ops/approvals/expenses</span><span class="d">Bandeja de viáticos por dictaminar.</span></li>
+        <li><b>Métricas Ops</b><span class="r">/ops/metricas</span><span class="d">Indicadores generales de la operación.</span></li>
+        <li><b>PROP Técnicos</b><span class="r">/prop</span><span class="d">Las respuestas PROP de toda la cuadrilla.</span></li>
+        <li><b>Calificaciones</b><span class="r">/performance</span><span class="d">Control quincenal, encuestas de cliente y bonos.</span></li>
+        <li><b>Asistencia Técnicos</b><span class="r">/ops/tech-attendance</span><span class="d">Entradas, checklists, metas, vehículos y panoramizaciones.</span></li>
+        <li><b>Docs. de Campo</b><span class="r">/hr/documentacion-campo</span><span class="d">Expediente vigente para entrar a tienda.</span></li>
+      </ul>
+      <p>Además tienes acceso a <strong>Inventario de Tiendas</strong> en <span class="route">/projects/inventario-tiendas</span>.</p>
+    </section>
+
+    <!-- O3 ────────────────────────────────────────────────────────────── -->
+    <section id="o3">
+      <div class="sec-h"><span class="num">03</span><h2>Control de OTs</h2></div>
+
+      <div class="screen">
+        <div class="screen-h"><h3>El riel de estados</h3><span class="route">/ots</span></div>
+        <p>La fila de números de arriba no es decorativa: <strong>el número es el filtro</strong>. Tocas <em>En proceso</em> y la lista se reduce a esas. Los cortes son Todas, Sin asignar, Aceptadas, En proceso y Completadas.</p>
+        <p>Junto al riel eliges el <strong>tipo de orden</strong>, y este filtro viaja al servidor:</p>
+        <ul>
+          <li><strong>OTs de Tienda</strong> — se gestionan como proyecto y tienen pestañas de recursos, inventario, documentación y pendientes.</li>
+          <li><strong>Asignaciones</strong> — todo lo demás, trabajo que no es de tienda.</li>
+        </ul>
+        <p>Los demás filtros: por <strong>técnico</strong> (encuentra tanto al líder como al apoyo), por <strong>prioridad</strong>, y la búsqueda por folio o cliente.</p>
+      </div>
+
+      <div class="screen">
+        <div class="screen-h"><h3>La ventana horaria</h3></div>
+        <p>Puedes restringir el horario en que se pueden crear OT. Se configura con el icono junto a <em>Nueva OT</em>: activas <strong>Restringir el horario</strong> y defines a qué hora abre y a qué hora cierra.</p>
+        <p>Fuera de ese rango el botón <em>Nueva OT</em> aparece como <strong>Cerrado</strong> y no deja dar de alta. El bloqueo se aplica solo, aunque hayas dejado la pestaña abierta desde antes de la hora de cierre.</p>
+      </div>
+
+      <div class="screen">
+        <div class="screen-h"><h3>La tabla</h3></div>
+        <p>Cinco columnas: <strong>Folio</strong>, <strong>Servicio · Cliente</strong>, <strong>Técnico · Fondos</strong>, <strong>Estado</strong> y <strong>Acciones</strong>. Desde acciones entras al detalle, editas o eliminas.</p>
+        <div class="note gate">
+          <span class="note-t">Eliminar es irreversible</span>
+          <p>La app te pide confirmación, y con razón: al borrar una orden se va con todo su historial. Si el problema es que quedó mal capturada, edítala en vez de borrarla.</p>
+        </div>
+      </div>
+
+      <div class="screen">
+        <div class="screen-h"><h3>Estado financiero de una orden</h3></div>
+        <p>Muestra presupuesto, gastado y balance, con el desglose de gastos. Cuando lo gastado rebasa lo autorizado, la orden se marca como <strong>Excedente — requiere auditoría</strong>.</p>
+      </div>
+
+      <div class="screen">
+        <div class="screen-h"><h3>Calificaciones de encuestas</h3></div>
+        <p>Las respuestas de los clientes por orden: promedio, calificación del material, mejoras sugeridas y comentario abierto, con el técnico al que corresponden.</p>
+      </div>
+    </section>
+
+    <!-- O4 ────────────────────────────────────────────────────────────── -->
+    <section id="o4">
+      <div class="sec-h"><span class="num">04</span><h2>Crear una OT</h2></div>
+      <p>El alta es un asistente de <strong>tres pasos</strong> con barra de progreso: Identificación, Ubicación y Equipo. Hay vista previa de cómo le va a llegar al técnico.</p>
+
+      <h3>Antes de empezar: autocompletar</h3>
+      <p>Si el cliente ya está en el catálogo, búscalo en <strong>¿Cuál cliente?</strong> por empresa o sitio y se llenan solos los datos de contacto y dirección. Si el trabajo es recurrente, elige una <strong>Plantilla de Servicio</strong> y se llena el título, la descripción, la prioridad y la hora sugerida.</p>
+
+      <h3>Paso 1 · Identificación</h3>
+      <div class="tw">
+        <table>
+          <thead><tr><th>Campo</th><th>Detalle</th></tr></thead>
+          <tbody>
+            <tr><td><b>Tipo de orden *</b></td><td>OT de Tienda (se gestiona como proyecto) o Asignación.</td></tr>
+            <tr><td><b>Qué se va a hacer *</b></td><td>El título del trabajo. Ej. <em>Mantenimiento preventivo sistema eléctrico</em>.</td></tr>
+            <tr><td><b>Marca</b></td><td>La cadena: Coppel, Elektra, Chedraui… La tienda concreta va en los campos de sitio.</td></tr>
+            <tr><td><b>Clave y Nombre de Sitio</b></td><td>Número de sucursal y su nombre. Ej. <code>152</code> · <em>Insurgentes Norte</em>.</td></tr>
+            <tr><td><b>Razón Social</b></td><td>La empresa del cliente.</td></tr>
+            <tr><td><b>Zona</b></td><td>Si la dejas vacía, se hereda del proyecto.</td></tr>
+            <tr><td><b>Prioridad</b></td><td>Baja, Media, Alta o Urgente. Define los puntos que vale la orden.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Paso 2 · Ubicación</h3>
+      <p>La <strong>dirección principal</strong> es obligatoria. La buscas por texto o haces clic directo en el mapa para ajustar el punto exacto. Además: interior o piso, zona de referencia, y el <strong>contacto en sitio</strong> con nombre, correo, teléfono y referencia de acceso (<em>«Acceso por puerta lateral, preguntar por Juan»</em>).</p>
+      <div class="note">
+        <span class="note-t">La referencia de acceso ahorra llamadas</span>
+        <p>Es el campo que más tiempo le ahorra al técnico cuando llega a un centro comercial o a una tienda con andén de servicio. Llénalo aunque parezca obvio.</p>
+      </div>
+
+      <h3>Paso 3 · Equipo</h3>
+      <p>Fecha programada, hora de llegada, <strong>técnico líder</strong> (obligatorio) y miembros del equipo de apoyo. Aquí también defines el <strong>presupuesto inicial por viáticos</strong>.</p>
+      <p>Después vienen los campos que <strong>ve el técnico</strong> y que alimentan su pantalla de metas:</p>
+      <dl class="defs">
+        <div><dt>Meta del cliente</dt><dd>Qué espera lograr el cliente, en sus palabras.</dd></div>
+        <div><dt>Horas estimadas</dt><dd>El tiempo para completar.</dd></div>
+        <div><dt>Resultado ideal</dt><dd>Qué debe entregar para considerarse un trabajo sobresaliente.</dd></div>
+        <div><dt>Mínimo aceptable</dt><dd>Lo mínimo para dar la asignación por terminada.</dd></div>
+        <div><dt>Instrucciones técnicas</dt><dd>Objetivos, material requerido, verificaciones previas y condiciones especiales.</dd></div>
+      </dl>
+
+      <div class="note ok">
+        <span class="note-t">Al guardar se crean las metas del día</span>
+        <p>El sistema genera automáticamente la meta diaria de cada técnico involucrado — el líder y cada apoyo — para que les aparezca en su pantalla de Mi Asistencia. Si marcaste que el líder lleva vehículo, su checklist incluirá el paso de inspección vehicular.</p>
+      </div>
+    </section>
+
+    <!-- O5 ────────────────────────────────────────────────────────────── -->
+    <section id="o5">
+      <div class="sec-h"><span class="num">05</span><h2>Asistencia Técnicos</h2></div>
+      <p>Tu panel de control de la cuadrilla, en <span class="route">/ops/tech-attendance</span>. Navegas por día con las flechas o el calendario. Tiene cinco pestañas.</p>
+
+      <div class="screen">
+        <div class="screen-h"><h3>Asistencia</h3></div>
+        <p>Un renglón por técnico con su entrada y su salida, clasificadas igual que las ve él: <span class="pill p-ok">A tiempo</span> <span class="pill p-warn">Retardo</span> <span class="pill p-stop">Tarde</span> <span class="pill p-neutral">Sin registrar</span>. El detalle se abre bajo demanda para no amontonar la lista.</p>
+      </div>
+
+      <div class="screen">
+        <div class="screen-h"><h3>Metas del día</h3></div>
+        <p>Las metas asignadas a cada técnico. Con <strong>Asignar Meta</strong> creas una nueva: eliges técnico, número de OT, cliente, ubicación y el texto de metas (objetivos a cumplir, material requerido, verificaciones previas).</p>
+        <p>En cada meta con checklist enviado aparece <strong>Ver checklist</strong>, que despliega:</p>
+        <ul>
+          <li><strong>Equipo Personal</strong> — los ocho puntos de EPP con ✓ o ✗.</li>
+          <li><strong>Herramientas</strong> — el inventario que el técnico mantiene en su perfil, con la barra de vida útil de cada una y la fecha en que lo actualizó. Si nunca lo ha llenado, lo dice explícitamente.</li>
+        </ul>
+        <div class="note">
+          <span class="note-t">Las herramientas cambiaron de lugar</span>
+          <p>Ya no se capturan a diario dentro del checklist: cada técnico mantiene un solo inventario desde su perfil y lo actualiza cuando su herramienta cambia. Los registros anteriores al cambio siguen mostrando las herramientas que traían dentro, así que no se perdió historial.</p>
+        </div>
+      </div>
+
+      <div class="screen">
+        <div class="screen-h"><h3>Reportes</h3></div>
+        <p>Solo los checklists que llegaron con faltantes — el número en la pestaña es cuántos hay hoy. Es tu lista de reposición del día. Cuando no hay ninguno dice <em>«Todos los técnicos llegaron completos»</em>.</p>
+      </div>
+
+      <div class="screen">
+        <div class="screen-h"><h3>Vehículos</h3></div>
+        <p>Las inspecciones vehiculares del día: daños por zona (Frontal, Interior, Trasero, Lado Izquierdo, Lado Derecho), fotos de evidencia y el checklist de combustible, limpieza, tacómetro y funcionalidad.</p>
+      </div>
+
+      <div class="screen">
+        <div class="screen-h"><h3>Panoramización</h3></div>
+        <p>Las panoramizaciones registradas ese día, con los seis campos completos: plática casual, meta del cliente, objetivos, obstáculos, algoritmos y desea lo mejor. Es la lectura del sitio antes de que la cuadrilla empezara a trabajar.</p>
+      </div>
+    </section>
+
+    <!-- O6 ────────────────────────────────────────────────────────────── -->
+    <section id="o6">
+      <div class="sec-h"><span class="num">06</span><h2>Agenda Operativa</h2></div>
+      <p>El calendario de la operación, en <span class="route">/ops/calendar</span>. Seis tipos de evento, cada uno con su color:</p>
+      <p>
+        <span class="pill p-neutral">Orden de Trabajo</span>
+        <span class="pill p-neutral">Cita de Cliente</span>
+        <span class="pill p-neutral">Reporte de Garantía</span>
+        <span class="pill p-neutral">Visita Técnica</span>
+        <span class="pill p-neutral">Mantenimiento</span>
+        <span class="pill p-neutral">Otro</span>
+      </p>
+      <p>Con <strong>Agendar Actividad</strong> creas un evento: título, tipo, fecha, hora y, opcionalmente, el cliente al que se vincula.</p>
+      <p>Al abrir un evento ves el equipo asignado (líder, supervisor que asignó, auxiliares), la ubicación, el presupuesto y las evidencias. Si el evento es una <strong>cita de cliente</strong>, desde ahí puedes convertirla en OT; el sistema marca las citas que ya generaron su orden para que no la dupliques.</p>
+      <p>El botón de <strong>Portales de Clientes</strong> te da los enlaces públicos para copiar y enviar al cliente.</p>
+    </section>
+
+    <!-- O7 ────────────────────────────────────────────────────────────── -->
+    <section id="o7">
+      <div class="sec-h"><span class="num">07</span><h2>Catálogos OT</h2></div>
+      <p>Dos catálogos que te ahorran capturar lo mismo cada vez, en <span class="route">/ops/ots/catalogs</span>.</p>
+
+      <div class="screen">
+        <div class="screen-h"><h3>Clientes OT</h3></div>
+        <p>Las sucursales recurrentes. Cada ficha guarda razón social, número y nombre de sucursal, contacto en sitio con teléfono y correo, dirección y referencias de acceso. Al crear una OT los eliges y todo se llena solo.</p>
+        <p>Cada cliente tiene su <strong>portal</strong>: un enlace público que puedes copiar o abrir, donde el cliente da seguimiento a sus órdenes.</p>
+      </div>
+
+      <div class="screen">
+        <div class="screen-h"><h3>Plantillas OT</h3></div>
+        <p>Los servicios que se repiten. Guardas nombre de referencia interna, título de la OT, prioridad por defecto, hora sugerida y la descripción del trabajo. Ej. <em>«Mant. Preventivo Mensual»</em>.</p>
+      </div>
+    </section>
+
+    <!-- O8 ────────────────────────────────────────────────────────────── -->
+    <section id="o8">
+      <div class="sec-h"><span class="num">08</span><h2>Aprobaciones</h2></div>
+      <p>Tu bandeja de viáticos por dictaminar, en <span class="route">/ops/approvals/expenses</span>. Cinco columnas: técnico responsable, concepto y orden, evidencia, monto y dictamen.</p>
+      <p>Antes de aprobar, <strong>abre el ticket</strong> con <em>Ver Ticket</em>. Si el gasto no trae comprobante, la columna lo dice: <em>Sin recibo</em>. Los PDF se pueden descargar.</p>
+      <p>El dictamen se aplica al instante en pantalla y se sincroniza con el servidor en segundo plano. Si algo falla, el cambio se revierte solo.</p>
+      <div class="note warn">
+        <span class="note-t">Aprobar por encima del fondo</span>
+        <p>Si apruebas un gasto que rebasa el presupuesto de la orden, el sistema inyecta automáticamente el excedente al fondo. Es decir: aprobar equivale a autorizar más presupuesto. Revísalo antes de dar el visto bueno.</p>
+      </div>
+      <p>Cuando la bandeja queda limpia dice <em>«Todo al día. No hay gastos por aprobar.»</em></p>
+    </section>
+
+    <!-- O9 ────────────────────────────────────────────────────────────── -->
+    <section id="o9">
+      <div class="sec-h"><span class="num">09</span><h2>Control de Gastos</h2></div>
+      <p>La analítica del dinero, en <span class="route">/ops/expenses/control</span>. Eliges el período: <strong>Esta Semana</strong> o <strong>Por Mes</strong> (con selector de los últimos 12 meses).</p>
+      <p>Los indicadores del período: <strong>Inversión Aprobada</strong>, <strong>Ticket Promedio</strong>, <strong>En Cola (Pendiente)</strong> y la comparación contra el <strong>Período Anterior</strong>. Debajo, las gráficas de tendencia y el desglose semanal.</p>
+      <p>La tabla lista técnico, fecha, concepto, OT, observaciones, monto y estado, filtrable por Todos, Aprobados, Pendientes o Rechazados, con búsqueda por técnico, OT o concepto. Desde cada renglón saltas a la OT o descargas el PDF del comprobante. Todo el período se puede exportar a PDF.</p>
+    </section>
+
+    <!-- O10 ───────────────────────────────────────────────────────────── -->
+    <section id="o10">
+      <div class="sec-h"><span class="num">10</span><h2>Métricas Ops</h2></div>
+      <p>Tu pantalla de inicio, en <span class="route">/ops/metricas</span>. El estado general de la operación: volumen de órdenes, cumplimiento, distribución por estado y comportamiento del gasto. Úsala como tablero de arranque del día, antes de bajar al detalle de cada orden.</p>
+    </section>
+
+    <!-- O11 ───────────────────────────────────────────────────────────── -->
+    <section id="o11">
+      <div class="sec-h"><span class="num">11</span><h2>PROP Técnicos</h2></div>
+      <p>En <span class="route">/prop</span> ves las respuestas PROP de todos los técnicos, agrupadas por persona. Cada registro trae el enfoque u objetivo que el técnico se planteó y sus Prioridades, Realidades, Opciones y Plan.</p>
+      <p>Los PROP también te llegan por Telegram en cuanto el técnico los guarda. Esta pantalla es el histórico consultable.</p>
+    </section>
+
+    <!-- O12 ───────────────────────────────────────────────────────────── -->
+    <section id="o12">
+      <div class="sec-h"><span class="num">12</span><h2>Calificaciones</h2></div>
+      <p>El control quincenal del desempeño, en <span class="route">/performance</span>.</p>
+      <p>Arriba, tres indicadores del período: <strong>Satisfacción</strong>, <strong>Eficiencia</strong> y número de <strong>Encuestas</strong>, más el <strong>bono quincenal</strong> proyectado.</p>
+      <p>La tabla compara a cada técnico: score actual, cómo va contra la quincena pasada, encuestas recibidas y bono. Los niveles son <strong>Excelente</strong>, <strong>Muy Bueno</strong> y <strong>Bueno</strong>.</p>
+      <p>Abajo están las respuestas directas de los clientes de la quincena, con calificación de servicio y puntualidad, mejoras sugeridas y comentario.</p>
+      <p>Con <strong>Configurar Metas Quincenales</strong> defines el mínimo de estrellas y el monto del bono.</p>
+    </section>
+
+    <!-- O13 ───────────────────────────────────────────────────────────── -->
+    <section id="o13">
+      <div class="sec-h"><span class="num">13</span><h2>Docs. de Campo</h2></div>
+      <p>El expediente que la tienda exige para dejar entrar a un técnico, en <span class="route">/hr/documentacion-campo</span>. <strong>Lo cargas y lo renuevas tú</strong>, no el técnico. Es distinto del expediente de RH, que guarda contratos e identificaciones sin fecha de vencimiento.</p>
+
+      <h3>Los seis documentos</h3>
+      <div class="tw">
+        <table>
+          <thead><tr><th>Documento</th><th>Requerido</th></tr></thead>
+          <tbody>
+            <tr><td><b>Alta del IMSS</b></td><td>Sí</td></tr>
+            <tr><td><b>DC-3</b></td><td>Sí</td></tr>
+            <tr><td><b>Pago del seguro</b></td><td>Sí</td></tr>
+            <tr><td><b>Lista de trabajadores</b></td><td>Sí</td></tr>
+            <tr><td><b>INE</b></td><td>Sí</td></tr>
+            <tr><td><b>Espirometría</b></td><td>Sí</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Los cuatro estados</h3>
+      <p>
+        <span class="pill p-ok">Vigente</span>
+        <span class="pill p-warn">Por vencer</span>
+        <span class="pill p-stop">Vencido</span>
+        <span class="pill p-neutral">Faltante</span>
+      </p>
+      <p>Un documento entra en <strong>Por vencer</strong> cuando le quedan <strong>30 días o menos</strong>. Un documento sin fecha de vencimiento —como la INE— se considera siempre vigente.</p>
+      <p>Al cargar cada documento capturas el tipo, la fecha de expedición y la de vencimiento. Al renovar uno, el anterior se retira solo.</p>
+      <p>El listado se filtra por <strong>En regla</strong> o <strong>Con pendientes</strong>, y tiene búsqueda por técnico. Si hay varios documentos del mismo tipo, gana el de vencimiento más lejano.</p>
+      <div class="note warn">
+        <span class="note-t">Revísalo antes de programar</span>
+        <p>Un técnico con espirometría vencida se te queda en la puerta de la tienda. Filtra por <em>Con pendientes</em> al inicio de cada semana, antes de armar la agenda.</p>
+      </div>
+    </section>
+
+    <!-- O14 ───────────────────────────────────────────────────────────── -->
+    <section id="o14">
+      <div class="sec-h"><span class="num">14</span><h2>Cerrar una OT</h2></div>
+
+      <div class="screen">
+        <div class="screen-h"><h3>Validar</h3><span class="route">/ops/ots/validate/:id</span></div>
+        <p>Cuando el técnico finaliza, la orden queda <span class="pill p-accent">Completada</span> esperando tu validación. La pantalla de auditoría te muestra el reporte, los gastos registrados y la <strong>ubicación de cierre confirmada por GPS</strong> de la cuadrilla.</p>
+        <p>Al validar, la orden se bloquea: el técnico ya no puede modificar el acta. Si después hay que corregir algo, tú puedes <strong>desbloquearla</strong> desde el detalle de la orden.</p>
+      </div>
+
+      <div class="screen">
+        <div class="screen-h"><h3>Acta de entrega / recepción</h3><span class="route">/ops/ots/delivery-act/:id</span></div>
+        <p>El documento formal que se entrega y se envía al cliente. Se compone de:</p>
+        <ul>
+          <li><strong>Sistema</strong> — SDI (Sistema de Incendio), SCA (Control de Acceso), CCTV, SSA (Sonido Ambiental), RMC (Aire Acondicionado), MDE (Muro de Electrónica) o SINT (Interfonía).</li>
+          <li><strong>Descripción de lo entregado/recibido</strong> — obligatoria.</li>
+          <li><strong>Observaciones y pendientes</strong> — lo que queda abierto en el sitio.</li>
+          <li><strong>Fotos</strong> con su descripción, e <strong>incidencias</strong> con lo que pasó.</li>
+          <li><strong>Firmas</strong> — la del técnico responsable y la del cliente, con nombre, apellido y correo para el envío del acta.</li>
+        </ul>
+        <p>Al procesar se guarda el historial y el PDF se envía al correo del cliente. El acta guarda borrador: si se cierra la pantalla a medias, al volver te avisa <em>«Se recuperó tu borrador»</em>.</p>
+      </div>
+    </section>
+
+    <!-- O15 ───────────────────────────────────────────────────────────── -->
+    <section id="o15">
+      <div class="sec-h"><span class="num">15</span><h2>Mi Perfil</h2></div>
+      <p>Tu perfil en <span class="route">/profile</span> es el mismo que el del técnico, con las mismas pestañas: Resumen, Comunicados, Encuestas, Asistencia, Tiempo libre, Nómina, Equipamiento, Herramientas, Reglamento y Auditoría. Están explicadas a detalle en la <strong>sección 11 del Manual del Técnico</strong>.</p>
+      <p>La pestaña <strong>Herramientas</strong> también te aparece a ti, porque el rol de supervisión sale a campo. Funciona igual: registras tu herramienta una vez y la actualizas cuando cambie.</p>
+      <p>Si eres administrador, en <strong>Reglamento</strong> puedes publicar o reemplazar el PDF del reglamento interno para toda la empresa.</p>
+    </section>
+  </div>
+  </main>
+</div>
+
+<footer>
+  <p><strong>Manual de Campo Olea</strong> — Sistema General de OleaControls. Documenta el sistema tal como está funcionando hoy. Cuando cambie una pantalla, actualiza la sección correspondiente.</p>
+</footer>
+
+<script>
+(function(){
+  var tabs = { tech: document.getElementById('tab-tech'), ops: document.getElementById('tab-ops') };
+  var panels = { tech: document.getElementById('manual-tech'), ops: document.getElementById('manual-ops') };
+  var tocs = { tech: document.getElementById('toc-tech'), ops: document.getElementById('toc-ops') };
+
+  function show(which){
+    ['tech','ops'].forEach(function(k){
+      var on = k === which;
+      tabs[k].setAttribute('aria-selected', on ? 'true' : 'false');
+      panels[k].classList.toggle('hidden', !on);
+      tocs[k].classList.toggle('hidden', !on);
+    });
+    document.body.setAttribute('data-manual', which);
+    try { localStorage.setItem('olea-manual', which); } catch (e) { /* modo privado */ }
+  }
+
+  tabs.tech.addEventListener('click', function(){ show('tech'); window.scrollTo(0,0); });
+  tabs.ops.addEventListener('click', function(){ show('ops'); window.scrollTo(0,0); });
+
+  var guardado = null;
+  try { guardado = localStorage.getItem('olea-manual'); } catch (e) { /* sin acceso */ }
+  show(guardado === 'ops' ? 'ops' : 'tech');
+
+  // Al imprimir se muestran los dos manuales completos
+  window.addEventListener('beforeprint', function(){
+    panels.tech.classList.remove('hidden');
+    panels.ops.classList.remove('hidden');
+  });
+  window.addEventListener('afterprint', function(){
+    show(document.body.getAttribute('data-manual') || 'tech');
+  });
+})();
+</script>
+
+<style>
+  /* Versión PDF: los dos manuales completos, tema claro, sin barra ni índices */
+  #manual-tech, #manual-ops { display:block !important; }
+  .topbar, .toc, .print-btn { display:none !important; }
+  .wrap { grid-template-columns:1fr !important; padding:0 !important; max-width:none !important; }
+  main { padding:0 !important; }
+  footer { max-width:none !important; padding-left:0; padding-right:0; }
+  @page { size:Letter; margin:16mm 15mm 14mm; }
+  body { font-size:10.5pt; }
+  section { break-inside:auto; }
+  .screen, .note, .tw, .flow > li { break-inside:avoid; }
+  h2, h3 { break-after:avoid; }
+  #manual-ops .cover { break-before:page; }
+  #manual-tech .cover { break-before:auto; }
+</style>
+</body>
+</html>

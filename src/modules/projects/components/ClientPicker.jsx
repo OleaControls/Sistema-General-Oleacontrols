@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Building2, Search, ChevronDown, Check, MapPin, Phone, X } from 'lucide-react';
+import { Building2, Search, ChevronDown, Check, MapPin, Phone, X, Plus, Loader2, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { projectService } from '@/api/projectService';
 
 /**
  * Selector de cliente del catálogo de OTs (/ops/ots/catalogs) para autocompletar
@@ -30,25 +31,158 @@ function clientLabel(c) {
   return sucursal ? `${c.name} · ${sucursal}` : c.name;
 }
 
-export default function ClientPicker({ clients = [], onPick, compact = false, className }) {
+// Los cuatro que el servidor exige (api/_handlers/ot-clients.js). El resto es
+// opcional y se puede completar después desde /ops/ots/catalogs.
+const NUEVO_VACIO = {
+  name: '', storeNumber: '', storeName: '',
+  contact: '', phone: '', email: '', address: '', otReference: '',
+};
+
+/**
+ * Alta rápida de cliente sin salir del proyecto.
+ *
+ * Existe para que quien levanta el proyecto no se frene cuando el cliente
+ * todavía no está en el catálogo: lo captura aquí, se guarda en OTClient y
+ * queda disponible para las OT, sin que Operaciones lo capture de nuevo.
+ */
+function NuevoClienteForm({ nombreSugerido, onCancel, onCreated }) {
+  const [f, setF] = useState({ ...NUEVO_VACIO, name: nombreSugerido || '' });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+
+  const set = (k) => (e) => setF(p => ({ ...p, [k]: e.target.value }));
+  const listo = f.name.trim() && f.contact.trim() && f.phone.trim() && f.address.trim();
+
+  const guardar = async () => {
+    if (!listo || saving) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const creado = await projectService.createOtClient({
+        name:        f.name.trim(),
+        storeNumber: f.storeNumber.trim() || null,
+        storeName:   f.storeName.trim()   || null,
+        contact:     f.contact.trim(),
+        phone:       f.phone.trim(),
+        email:       f.email.trim()       || null,
+        address:     f.address.trim(),
+        otReference: f.otReference.trim() || null,
+      });
+      onCreated(creado);
+    } catch (err) {
+      setError(err.message);
+      setSaving(false);
+    }
+  };
+
+  const campo = 'w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-[12px] font-bold text-gray-800 outline-none focus:border-primary/50 placeholder:text-gray-300 placeholder:font-medium';
+  const etiqueta = 'text-[9px] font-black text-gray-400 uppercase tracking-widest block mb-1';
+
+  return (
+    <div className="p-3 space-y-2.5">
+      <div>
+        <label className={etiqueta}>Razón social / Empresa *</label>
+        <input value={f.name} onChange={set('name')} className={campo} placeholder="Coppel SA de CV" autoFocus />
+      </div>
+
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <label className={etiqueta}>No. sucursal</label>
+          <input value={f.storeNumber} onChange={set('storeNumber')} className={campo} placeholder="152" />
+        </div>
+        <div>
+          <label className={etiqueta}>Nombre sucursal</label>
+          <input value={f.storeName} onChange={set('storeName')} className={campo} placeholder="Insurgentes Norte" />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <label className={etiqueta}>Contacto en sitio *</label>
+          <input value={f.contact} onChange={set('contact')} className={campo} placeholder="Nombre del encargado" />
+        </div>
+        <div>
+          <label className={etiqueta}>Teléfono *</label>
+          <input value={f.phone} onChange={set('phone')} className={campo} placeholder="5512345678" inputMode="tel" />
+        </div>
+      </div>
+
+      <div>
+        <label className={etiqueta}>Email de contacto</label>
+        <input value={f.email} onChange={set('email')} className={campo} placeholder="contacto@empresa.com" inputMode="email" />
+      </div>
+
+      <div>
+        <label className={etiqueta}>Dirección *</label>
+        <input value={f.address} onChange={set('address')} className={campo} placeholder="Av. Insurgentes Norte 1234, Col. Lindavista" />
+      </div>
+
+      <div>
+        <label className={etiqueta}>Referencias de acceso</label>
+        <input value={f.otReference} onChange={set('otReference')} className={campo} placeholder="Entrada por estacionamiento lateral" />
+      </div>
+
+      {error && (
+        <div className="flex items-start gap-2 p-2.5 bg-red-50 border border-red-200 rounded-xl">
+          <AlertCircle className="h-3.5 w-3.5 text-red-500 shrink-0 mt-0.5" />
+          <p className="text-[10px] font-bold text-red-600 leading-snug">{error}</p>
+        </div>
+      )}
+
+      <div className="flex gap-2 pt-1">
+        <button
+          type="button" onClick={onCancel} disabled={saving}
+          className="px-4 py-2.5 rounded-xl bg-gray-100 text-gray-600 text-[10px] font-black uppercase tracking-wider hover:bg-gray-200 transition-colors disabled:opacity-50"
+        >
+          Cancelar
+        </button>
+        <button
+          type="button" onClick={guardar} disabled={!listo || saving}
+          className={cn(
+            'flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-colors',
+            listo && !saving ? 'bg-primary text-white hover:bg-primary/90' : 'bg-gray-100 text-gray-300 cursor-not-allowed'
+          )}
+        >
+          {saving
+            ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Guardando…</>
+            : <><Check className="h-3.5 w-3.5" /> Guardar en el catálogo</>}
+        </button>
+      </div>
+      <p className="text-[9px] font-medium text-gray-400 leading-snug">
+        Se guarda en el catálogo de clientes OT. Operaciones ya no tendrá que capturarlo.
+      </p>
+    </div>
+  );
+}
+
+export default function ClientPicker({ clients = [], onPick, onCreated, compact = false, className }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState('');
   const [picked, setPicked] = useState(null);
+  const [creando, setCreando] = useState(false);
   const ref = useRef(null);
   const inputRef = useRef(null);
 
   useEffect(() => {
     if (!open) return;
-    inputRef.current?.focus();
-    const onDown = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
-    const onKey = (e) => { if (e.key === 'Escape') setOpen(false); };
+    if (!creando) inputRef.current?.focus();
+    // Con el alta abierta no se cierra por clic fuera: se perdería lo capturado.
+    const onDown = (e) => {
+      if (creando) return;
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    };
+    const onKey = (e) => {
+      if (e.key !== 'Escape') return;
+      if (creando) { setCreando(false); return; }
+      setOpen(false);
+    };
     document.addEventListener('mousedown', onDown);
     document.addEventListener('keydown', onKey);
     return () => {
       document.removeEventListener('mousedown', onDown);
       document.removeEventListener('keydown', onKey);
     };
-  }, [open]);
+  }, [open, creando]);
 
   const filtered = useMemo(() => {
     const t = q.trim().toLowerCase();
@@ -65,6 +199,14 @@ export default function ClientPicker({ clients = [], onPick, compact = false, cl
     setPicked(clientLabel(c));
     setOpen(false);
     setQ('');
+  };
+
+  // Recién creado: se avisa al padre para que lo sume al catálogo en pantalla
+  // y se deja seleccionado, que es a lo que iba el usuario.
+  const trasCrear = (creado) => {
+    onCreated?.(creado);
+    setCreando(false);
+    pick(creado);
   };
 
   return (
@@ -91,7 +233,7 @@ export default function ClientPicker({ clients = [], onPick, compact = false, cl
             <>
               <p className="text-[9px] font-black text-primary uppercase tracking-widest">Catálogo de clientes</p>
               <p className="text-[10px] font-bold text-gray-400 leading-tight">
-                Llena {CLIENT_FIELD_LABELS.join(', ').toLowerCase()} de una sola vez
+                Búscalo y llena {CLIENT_FIELD_LABELS.join(', ').toLowerCase()} de una sola vez, o da de alta uno nuevo
               </p>
             </>
           )}
@@ -99,7 +241,7 @@ export default function ClientPicker({ clients = [], onPick, compact = false, cl
 
         <button
           type="button"
-          onClick={() => setOpen(o => !o)}
+          onClick={() => { setOpen(o => !o); setCreando(false); }}
           className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white border border-gray-200 text-[10px] font-black text-gray-600 uppercase tracking-wider hover:border-primary/40 hover:text-primary transition-all shrink-0"
         >
           <Search className="h-3.5 w-3.5" />
@@ -108,7 +250,25 @@ export default function ClientPicker({ clients = [], onPick, compact = false, cl
         </button>
       </div>
 
-      {open && (
+      {open && creando && (
+        <div className="absolute left-0 right-0 top-full mt-2 z-50 bg-white border rounded-2xl shadow-xl overflow-hidden">
+          <div className="flex items-center justify-between gap-2 px-3 py-2.5 border-b border-gray-100 bg-primary/[0.04]">
+            <p className="text-[10px] font-black text-primary uppercase tracking-widest">Nuevo cliente</p>
+            <button type="button" onClick={() => setCreando(false)} className="p-1 text-gray-300 hover:text-gray-500">
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+          <div className="max-h-[26rem] overflow-y-auto">
+            <NuevoClienteForm
+              nombreSugerido={q}
+              onCancel={() => setCreando(false)}
+              onCreated={trasCrear}
+            />
+          </div>
+        </div>
+      )}
+
+      {open && !creando && (
         <div className="absolute left-0 right-0 top-full mt-2 z-50 bg-white border rounded-2xl shadow-xl overflow-hidden">
           <div className="flex items-center gap-2 px-3 py-2.5 border-b border-gray-100">
             <Search className="h-3.5 w-3.5 text-gray-300 shrink-0" />
@@ -167,6 +327,26 @@ export default function ClientPicker({ clients = [], onPick, compact = false, cl
               ))
             )}
           </div>
+
+          {/* Salida cuando el cliente no está: se captura aquí y queda en el
+              catálogo, en vez de mandar al usuario a /ops/ots/catalogs. */}
+          <button
+            type="button"
+            onClick={() => setCreando(true)}
+            className="w-full flex items-center gap-2 px-3 py-3 border-t border-gray-100 bg-gray-50/80 hover:bg-primary/5 transition-colors text-left"
+          >
+            <span className="h-7 w-7 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
+              <Plus className="h-3.5 w-3.5" />
+            </span>
+            <span className="min-w-0">
+              <span className="block text-[11px] font-black text-gray-800 truncate">
+                {q.trim() ? `Dar de alta “${q.trim()}”` : 'Dar de alta un cliente nuevo'}
+              </span>
+              <span className="block text-[9px] font-bold text-gray-400">
+                Se guarda en el catálogo de clientes OT
+              </span>
+            </span>
+          </button>
         </div>
       )}
     </div>

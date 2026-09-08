@@ -15,7 +15,7 @@ import projectService from '@/api/projectService';
 import { otService } from '@/api/otService';
 import { useAuth } from '@/store/AuthContext';
 import { generateProjectActaPDF } from '../utils/projectPDF';
-import { PROJECT_STATUS, normalizePhase, PROJECT_SERVICES, normalizeService } from './ProjectsList';
+import { PROJECT_STATUS, normalizePhase, PROJECT_SERVICES, SERVICE_KEYS, normalizeService } from './ProjectsList';
 import {
   PROJECT_TYPES, PROJECT_TYPE_KEYS, typeMeta, PRIORITIES, PRIORITY_KEYS,
   priorityMeta, assignmentWindow, WINDOW_STATUS, targetDateOf, daysUntil,
@@ -655,7 +655,15 @@ export default function ProjectDetail() {
           <SectionHeader tabKey={tab} count={tabCount(tab, project)} />
         </div>
 
-        {tab === 'resumen' && <ActaTab project={project} onSaved={reload} employees={employees} otClients={otClients} />}
+        {tab === 'resumen' && (
+          <ActaTab
+            project={project}
+            onSaved={reload}
+            employees={employees}
+            otClients={otClients}
+            onClientCreated={(c) => setOtClients(prev => [c, ...prev])}
+          />
+        )}
         {tab === 'kpis' && <KpisTab kpis={kpis} project={project} />}
         {tab === 'vinculos' && <VinculosTab project={project} onSaved={reload} />}
         {tab === 'actividad' && <ActividadTab activities={project.activities || []} />}
@@ -991,10 +999,14 @@ function ActaSection({ icon: Icon, title, accent, bg, stats, open, onToggle, sec
   );
 }
 
-function ActaTab({ project, onSaved, employees, otClients = [] }) {
+function ActaTab({ project, onSaved, employees, otClients = [], onClientCreated }) {
   const initial = useMemo(() => buildForm(project, ACTA_FIELDS), [project]);
   const [form, setForm] = useState(initial);
   const [autoProgress, setAutoProgress] = useState(!!project.autoProgress);
+  // Embudo comercial. Vive fuera de ACTA_FIELDS a propósito: no es un campo del
+  // acta que se llene, es la clasificación que decide en qué pipeline sale el
+  // proyecto, y se corrige cuando se eligió mal al crearlo.
+  const [serviceType, setServiceType] = useState(normalizeService(project.serviceType));
   const [saving, setSaving] = useState(false);
   const [ok, setOk] = useState(false);
   const [open, setOpen] = useState(() => Object.fromEntries(ACTA_GROUPS.map(g => [g.title, true])));
@@ -1005,16 +1017,20 @@ function ActaTab({ project, onSaved, employees, otClients = [] }) {
   useEffect(() => {
     setForm(initial);
     setAutoProgress(!!project.autoProgress);
-  }, [initial, project.autoProgress]);
+    setServiceType(normalizeService(project.serviceType));
+  }, [initial, project.autoProgress, project.serviceType]);
 
-  const svc = PROJECT_SERVICES[normalizeService(project.serviceType)];
+  const svc = PROJECT_SERVICES[serviceType];
+  const svcCambiado = serviceType !== normalizeService(project.serviceType);
   const st = PROJECT_STATUS[normalizePhase(project.status)] || PROJECT_STATUS.INICIACION;
   const progress = Math.max(0, Math.min(100, parseInt(form.progress, 10) || 0));
 
   // ¿Hay cambios sin guardar? Evita guardados en vano y avisa al usuario.
   const dirty = useMemo(
-    () => JSON.stringify(form) !== JSON.stringify(initial) || autoProgress !== !!project.autoProgress,
-    [form, initial, autoProgress, project.autoProgress]
+    () => JSON.stringify(form) !== JSON.stringify(initial)
+      || autoProgress !== !!project.autoProgress
+      || serviceType !== normalizeService(project.serviceType),
+    [form, initial, autoProgress, project.autoProgress, serviceType, project.serviceType]
   );
 
   // Avance de llenado del acta (distinto del avance de obra del proyecto).
@@ -1039,6 +1055,7 @@ function ActaTab({ project, onSaved, employees, otClients = [] }) {
     try {
       await projectService.update(project.id, {
         ...form,
+        serviceType,
         autoProgress,
         budget: parseFloat(form.budget) || 0,
         progress: Math.max(0, Math.min(100, parseInt(form.progress, 10) || 0)),
@@ -1061,7 +1078,7 @@ function ActaTab({ project, onSaved, employees, otClients = [] }) {
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
     /* eslint-disable-next-line */
-  }, [dirty, saving, form, autoProgress]);
+  }, [dirty, saving, form, autoProgress, serviceType]);
 
   const setAll = (v) => setOpen(Object.fromEntries(ACTA_GROUPS.map(g => [g.title, v])));
   const jump = (title) => {
@@ -1147,15 +1164,71 @@ function ActaTab({ project, onSaved, employees, otClients = [] }) {
       <div className="p-7 space-y-3">
         {/* Autocompletado desde el catálogo de clientes de OT. Llena campos de
             tres secciones distintas, por eso vive arriba y no dentro de una. */}
-        {otClients.length > 0 && (
-          <ClientPicker
-            clients={otClients}
-            onPick={(datos) => {
-              setForm(f => ({ ...f, ...datos }));
-              setOpen(o => ({ ...o, 'Responsables': true, 'Operación y cliente': true, 'Encargado del cliente': true }));
-            }}
-          />
-        )}
+        <ClientPicker
+          clients={otClients}
+          onPick={(datos) => {
+            setForm(f => ({ ...f, ...datos }));
+            setOpen(o => ({ ...o, 'Responsables': true, 'Operación y cliente': true, 'Encargado del cliente': true }));
+          }}
+          onCreated={onClientCreated}
+        />
+
+        {/* Tipo de servicio — corregible después de crear el proyecto.
+            Decide en qué pipeline del menú aparece, así que si se eligió mal
+            al darlo de alta, el proyecto "desaparece" de donde se le busca. */}
+        <div className={cn(
+          'rounded-2xl border p-4 transition-colors',
+          svcCambiado ? 'border-amber-300 bg-amber-50/70' : 'border-gray-200 bg-gray-50/60'
+        )}>
+          <div className="flex items-start justify-between gap-3 mb-3">
+            <div className="min-w-0">
+              <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: svc.accent }}>
+                Tipo de servicio
+              </p>
+              <p className="text-[10px] font-bold text-gray-400 leading-tight">
+                Define en qué apartado del menú se lista el proyecto
+              </p>
+            </div>
+            {svcCambiado && (
+              <span className="text-[9px] font-black text-amber-700 bg-amber-100 border border-amber-300 rounded-full px-2.5 py-1 uppercase tracking-wider shrink-0">
+                Sin guardar
+              </span>
+            )}
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            {SERVICE_KEYS.map(key => {
+              const s = PROJECT_SERVICES[key];
+              const activo = serviceType === key;
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setServiceType(key)}
+                  aria-pressed={activo}
+                  className={cn(
+                    'flex items-center gap-2 px-3 py-2.5 rounded-xl border text-left transition-all',
+                    activo ? 'bg-white shadow-sm' : 'bg-white/60 border-gray-200 hover:border-gray-300'
+                  )}
+                  style={activo ? { borderColor: s.accent, boxShadow: `inset 0 0 0 1px ${s.accent}` } : undefined}
+                >
+                  <span className={cn('h-2 w-2 rounded-full shrink-0', s.dot)} />
+                  <span className={cn(
+                    'text-[11px] font-black truncate',
+                    activo ? 'text-gray-900' : 'text-gray-500'
+                  )}>{s.short}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          {svcCambiado && (
+            <p className="mt-3 text-[10px] font-bold text-amber-700 leading-snug">
+              Al guardar, el proyecto sale de «{PROJECT_SERVICES[normalizeService(project.serviceType)].short}»
+              y pasa a listarse en «{svc.short}». No se pierde nada: cambia dónde aparece.
+            </p>
+          )}
+        </div>
 
         {ACTA_GROUPS.map(group => (
           <ActaSection

@@ -180,6 +180,10 @@ const NAV_STRUCTURE = [
       { name: 'Tiendas',        path: '/projects/servicio/tiendas',       icon: Store,        roles: [ROLES.PM, ROLES.ADMIN] },
       // Un solo inventario para toda la operación de tiendas, no uno por proyecto.
       { name: 'Inventario de Tiendas', path: '/projects/inventario-tiendas', icon: Boxes,     roles: [ROLES.PM, ROLES.ADMIN, ROLES.OPS] },
+      // El mismo catálogo que usa Operaciones. Se enlaza aquí —en vez de
+      // duplicarlo— para que quien levanta el proyecto dé de alta al cliente
+      // sin pedírselo a Operaciones, y siga habiendo una sola lista.
+      { name: 'Clientes',       path: '/ops/ots/catalogs',                icon: Building2,    roles: [ROLES.PM, ROLES.ADMIN] },
     ]
   },
 
