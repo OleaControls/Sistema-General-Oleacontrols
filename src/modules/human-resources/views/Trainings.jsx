@@ -109,13 +109,7 @@ export default function Trainings() {
     if (!file) return;
     setSubiendo(true);
     try {
-      const dataUri = await new Promise((res, rej) => {
-        const r = new FileReader();
-        r.onload = () => res(r.result);
-        r.onerror = rej;
-        r.readAsDataURL(file);
-      });
-      const url = await otService.uploadLargeFile(dataUri, 'trainings');
+      const url = await otService.uploadArchivo(file, 'trainings');
       setForm(f => ({ ...f, evidenceUrl: url }));
     } catch (e) {
       setError('No se pudo subir la evidencia: ' + e.message);

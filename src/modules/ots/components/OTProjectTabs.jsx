@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import { otService } from '@/api/otService';
 import { cn } from '@/lib/utils';
-import { validarTamanoArchivo, MAX_UPLOAD_LABEL } from '@/lib/uploadLimits';
+import { MAX_UPLOAD_LABEL } from '@/lib/uploadLimits';
 
 /* Pestañas del proyecto que el técnico ve dentro de su OT de tienda.
    Los datos llegan por /api/ots?sub=…, no por /api/projects: ese módulo está
@@ -256,20 +256,10 @@ function DocumentsPanel({ otId, project, onReload, puedeEditar }) {
     e.target.value = ''; // permite volver a elegir el mismo archivo
     if (!file) return;
 
-    // Antes de leerlo: el FileReader carga el archivo completo en memoria.
-    const excede = validarTamanoArchivo(file);
-    if (excede) { setError(excede); return; }
-
     setSubiendo(true);
     setError(null);
     try {
-      const dataUri = await new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result);
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-      });
-      const url = await otService.uploadLargeFile(dataUri, 'project-docs');
+      const url = await otService.uploadArchivo(file, 'project-docs');
       await otService.addOTDocument(otId, { name: file.name, category: 'EVIDENCIA', url });
       await onReload();
     } catch (err) {

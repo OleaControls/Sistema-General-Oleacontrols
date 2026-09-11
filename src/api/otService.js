@@ -51,6 +51,23 @@ export const otService = {
     }
   },
 
+  // Tope del camino de respaldo (/api/upload), no del archivo: Vercel corta el
+  // request en 4.5 MB antes de que la función corra y ahí el archivo viaja como
+  // base64 dentro de un JSON, que abulta ~33%. En peso de archivo son ~3 MB.
+  // La subida directa a R2 no pasa por aquí y no tiene este tope.
+  _BYTES_RESPALDO: 3 * 1024 * 1024,
+  _MB_RESPALDO: 3,
+
+  _EXT_POR_MIME: { 'application/pdf': 'pdf', 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' },
+
+  /** Extensión a usar en R2: la del nombre real si la trae, si no la del MIME. */
+  _extensionDe(contentType, nombre = '') {
+    const delNombre = nombre.includes('.') ? nombre.split('.').pop().toLowerCase() : '';
+    if (/^[a-z0-9]{1,5}$/.test(delNombre)) return delNombre;
+    const delMime = this._EXT_POR_MIME[contentType] || contentType.split('/')[1]?.split('+')[0] || '';
+    return /^[a-z0-9]{1,5}$/.test(delMime) ? delMime : 'bin';
+  },
+
   // Convierte un data-URI base64 en { blob, contentType, extension }.
   _dataUriToBlob(dataUri) {
     const match = dataUri.match(/^data:([^;]+);base64,(.+)$/);
@@ -59,37 +76,17 @@ export const otService = {
     const binary = atob(match[2]);
     const bytes = new Uint8Array(binary.length);
     for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-    const mimeToExt = { 'application/pdf': 'pdf', 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
-    const extension = mimeToExt[contentType] || contentType.split('/')[1]?.split('+')[0] || 'bin';
-    return { blob: new Blob([bytes], { type: contentType }), contentType, extension };
+    return { blob: new Blob([bytes], { type: contentType }), contentType, extension: this._extensionDe(contentType) };
   },
 
-  // Máximo que aguanta /api/upload: Vercel corta el request en 4.5 MB antes de
-  // que la función corra, y el cuerpo JSON pesa ≈ lo que mide el data-URI.
-  // Dejamos margen para el resto del JSON y las cabeceras.
-  _LIMITE_RESPALDO: 4 * 1024 * 1024,
-
-  // El mismo tope expresado en peso de archivo, para los mensajes: 4 MB de
-  // base64 son ~3 MB de PDF.
-  _MB_RESPALDO: 3,
-
-  // Sube archivos grandes (PDFs, planos) DIRECTO a R2 mediante URL prefirmada,
-  // evitando el límite de 4.5 MB de las funciones serverless de Vercel.
-  // Si la subida directa falla (p. ej. CORS no configurado en R2), cae de
-  // vuelta al método clásico vía /api/upload, PERO solo si el archivo cabe:
-  // reintentar con uno pesado garantiza un 413 y esconde el error de verdad.
-  async uploadLargeFile(base64Data, folder = 'uploads') {
-    if (!base64Data?.startsWith('data:')) return base64Data;
-    let etapa = 'preparar';
-    // Peso real del archivo. El data-URI mide ~33% más por el base64, y
-    // reportar ese número en el error hacía que un PDF de 3 MB se anunciara
-    // como 4.1 MB: el usuario comprimía de más persiguiendo un límite falso.
-    let pesoReal = null;
+  /**
+   * Pide una URL prefirmada y escribe el archivo directo en R2. Es el único
+   * camino sin tope de tamaño: el archivo nunca toca el servidor.
+   * Devuelve la URL pública; lanza si algo falla, con la etapa en `err.etapa`.
+   */
+  async _subirDirecto(blob, contentType, extension, folder) {
+    let etapa = 'firmar';
     try {
-      const { blob, contentType, extension } = this._dataUriToBlob(base64Data);
-      pesoReal = blob.size;
-
-      etapa = 'firmar';
       const presignRes = await apiFetch('/api/upload', {
         method: 'POST',
         body: JSON.stringify({ presign: true, folder, contentType, extension }),
@@ -105,27 +102,78 @@ export const otService = {
       });
       if (!putRes.ok) throw new Error(`Fallo subida directa a R2 (${putRes.status})`);
 
-      console.log(`[otService] Archivo grande subido directo a R2:`, publicUrl);
+      console.log('[otService] Archivo subido directo a R2:', publicUrl);
       return publicUrl;
     } catch (err) {
-      console.warn(`[otService] Subida directa a R2 falló en la etapa "${etapa}":`, err.message);
+      err.etapa = etapa;
+      throw err;
+    }
+  },
 
-      // El archivo no cabe por /api/upload: mejor un error que explique la causa
-      // real que un 413 de Vercel que no le dice nada al técnico.
-      // El respaldo viaja como JSON base64, así que lo que topa contra el
-      // límite de Vercel es el largo del data-URI, no el peso del archivo.
-      if (base64Data.length > this._LIMITE_RESPALDO) {
-        const mb = ((pesoReal ?? base64Data.length * 0.75) / 1024 / 1024).toFixed(1);
-        const causa = etapa === 'subir'
-          ? 'el navegador no pudo escribir en R2 (revisa la regla CORS del bucket)'
-          : 'no se pudo firmar la URL de subida en el servidor';
-        throw new Error(
-          `No se pudo subir el archivo (${mb} MB): ${causa}. ` +
-          `Mientras la subida directa no funcione, el respaldo solo admite hasta ${this._MB_RESPALDO} MB. ` +
-          `Avisa a sistemas.`
-        );
-      }
+  /** Mensaje del respaldo cuando el archivo ya no cabe por /api/upload. */
+  _errorRespaldo(bytes, etapa) {
+    const mb = (bytes / 1024 / 1024).toFixed(1);
+    const causa = etapa === 'subir'
+      ? 'el navegador no pudo escribir en R2 (revisa la regla CORS del bucket)'
+      : 'no se pudo firmar la URL de subida en el servidor';
+    return new Error(
+      `No se pudo subir el archivo (${mb} MB): ${causa}. ` +
+      `Mientras la subida directa no funcione, el respaldo solo admite hasta ${this._MB_RESPALDO} MB. ` +
+      `Avisa a sistemas.`
+    );
+  },
 
+  /**
+   * Sube un File/Blob del disco del usuario. Sin límite de tamaño: va directo
+   * a R2 en binario, sin FileReader y sin base64 — antes un archivo grande se
+   * cargaba entero en memoria y crecía un tercio antes siquiera de salir del
+   * navegador, que en un celular de campo era una pestaña muerta.
+   *
+   * Solo si la subida directa falla (p. ej. CORS sin configurar en el bucket)
+   * cae al respaldo por /api/upload, y ahí sí topa: reintentar con un archivo
+   * pesado garantiza un 413 que no le dice nada al técnico.
+   */
+  async uploadArchivo(file, folder = 'uploads') {
+    if (!file) throw new Error('No hay archivo que subir');
+    const contentType = file.type || 'application/octet-stream';
+    const extension   = this._extensionDe(contentType, file.name || '');
+
+    try {
+      return await this._subirDirecto(file, contentType, extension, folder);
+    } catch (err) {
+      console.warn(`[otService] Subida directa a R2 falló en la etapa "${err.etapa}":`, err.message);
+      if (file.size > this._BYTES_RESPALDO) throw this._errorRespaldo(file.size, err.etapa);
+
+      const dataUri = await new Promise((resolve, reject) => {
+        const r = new FileReader();
+        r.onload  = () => resolve(r.result);
+        r.onerror = reject;
+        r.readAsDataURL(file);
+      });
+      return this.uploadFile(dataUri, folder);
+    }
+  },
+
+  /**
+   * Igual que uploadArchivo pero desde un data-URI, para lo que se genera en el
+   * navegador (PDFs de jsPDF, firmas). Ahí el base64 ya existe y no hay File.
+   */
+  async uploadLargeFile(base64Data, folder = 'uploads') {
+    if (!base64Data?.startsWith('data:')) return base64Data;
+    let blob, contentType, extension;
+    try {
+      ({ blob, contentType, extension } = this._dataUriToBlob(base64Data));
+    } catch {
+      return this.uploadFile(base64Data, folder);
+    }
+
+    try {
+      return await this._subirDirecto(blob, contentType, extension, folder);
+    } catch (err) {
+      console.warn(`[otService] Subida directa a R2 falló en la etapa "${err.etapa}":`, err.message);
+      // El respaldo manda el data-URI dentro de un JSON: lo que topa contra el
+      // límite de Vercel es el largo en base64, no el peso del archivo.
+      if (blob.size > this._BYTES_RESPALDO) throw this._errorRespaldo(blob.size, err.etapa);
       return this.uploadFile(base64Data, folder);
     }
   },

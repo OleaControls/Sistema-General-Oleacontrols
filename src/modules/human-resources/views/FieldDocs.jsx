@@ -9,7 +9,7 @@ import { otService } from '@/api/otService';
 import { FIELD_DOC_TYPES, resumenExpediente, DOC_STATUS, fieldDocLabel } from '@/lib/fieldDocs';
 import { ROLES } from '@/store/AuthContext';
 import { cn } from '@/lib/utils';
-import { validarTamanoArchivo, MAX_UPLOAD_LABEL } from '@/lib/uploadLimits';
+import { MAX_UPLOAD_LABEL } from '@/lib/uploadLimits';
 
 /* Expediente de campo: la documentación vigente que la tienda exige para dejar
    entrar a un técnico a tienda. La carga y la renueva el supervisor. Es distinto
@@ -69,21 +69,10 @@ export default function FieldDocs() {
   }, [tecnicos, docsPorTec]);
 
   const subirYGuardar = async (file) => {
-    // Antes de leerlo: el FileReader carga el archivo completo en memoria y el
-    // base64 lo engorda ~33% más.
-    const excede = validarTamanoArchivo(file);
-    if (excede) { setError(excede); return; }
-
     setGuardando(true);
     setError(null);
     try {
-      const dataUri = await new Promise((resolve, reject) => {
-        const r = new FileReader();
-        r.onload = () => resolve(r.result);
-        r.onerror = reject;
-        r.readAsDataURL(file);
-      });
-      const url = await otService.uploadLargeFile(dataUri, 'tech-field-docs');
+      const url = await otService.uploadArchivo(file, 'tech-field-docs');
       const { reemplazaId, ...datos } = form;
       await techDocsService.create({ ...datos, url });
       // Renovación: el nuevo ya quedó guardado, así que se retira el anterior.

@@ -23,7 +23,7 @@ import {
 } from '../utils/reglas';
 import { cn } from '@/lib/utils';
 import ClientPicker from '../components/ClientPicker';
-import { validarTamanoArchivo, MAX_UPLOAD_LABEL } from '@/lib/uploadLimits';
+import { MAX_UPLOAD_LABEL } from '@/lib/uploadLimits';
 
 const money = (n) => `$${Number(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 0 })}`;
 const fmtDate = (d) => (d ? new Date(d).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' }) : '—');
@@ -1684,19 +1684,9 @@ function FieldInput({ field, value, onChange, context }) {
       const file = e.target.files?.[0];
       e.target.value = ''; // permite volver a elegir el mismo archivo
       if (!file) return;
-      // Se valida antes de leerlo: un archivo enorme tumba la pestaña en el
-      // FileReader mucho antes de llegar al servidor.
-      const excede = validarTamanoArchivo(file);
-      if (excede) { alert(excede); return; }
       setUploading(true);
       try {
-        const dataUri = await new Promise((res, rej) => {
-          const r = new FileReader();
-          r.onload = () => res(r.result);
-          r.onerror = rej;
-          r.readAsDataURL(file);
-        });
-        onChange(await otService.uploadLargeFile(dataUri, 'project-docs'));
+        onChange(await otService.uploadArchivo(file, 'project-docs'));
       } catch (err) { alert('Error al subir el archivo: ' + err.message); }
       finally { setUploading(false); }
     };
