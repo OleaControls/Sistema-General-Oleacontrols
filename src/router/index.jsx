@@ -81,6 +81,11 @@ const SupervisionPanel      = lazy(() => import('@/modules/projects/views/Superv
 const ZonesMap              = lazy(() => import('@/modules/projects/views/ZonesMap'));
 const ContinuousImprovement = lazy(() => import('@/modules/projects/views/ContinuousImprovement'));
 
+// Compras (órdenes de compra + proveedores)
+const PurchaseOrders      = lazy(() => import('@/modules/compras/views/PurchaseOrders'));
+const PurchaseOrderDetail = lazy(() => import('@/modules/compras/views/PurchaseOrderDetail'));
+const Suppliers           = lazy(() => import('@/modules/compras/views/Suppliers'));
+
 // PROP (técnicos registran · operaciones ven respuestas)
 const PropView = lazy(() => import('@/modules/prop/views/PropView'));
 
@@ -140,6 +145,7 @@ const DashboardSelector = () => {
     case ROLES.HR:     return <HRDashboard />;
     case ROLES.SALES:  return <DealsKanban />;
     case ROLES.PM:     return <ProjectsList />;
+    case ROLES.PURCHASING: return <PurchaseOrders />;
     default:           return <MyProfile />;
   }
 };
@@ -226,6 +232,12 @@ export default function AppRouter() {
             <Route path="catalog"       element={<ProductCatalog />} />
             <Route path="calendar"      element={<SalesCalendar />} />
           </Route>
+
+          {/* Compras — la ruta estática va antes que /:id */}
+          <Route path="/compras"             element={<ProtectedRoute><PurchaseOrders /></ProtectedRoute>} />
+          <Route path="/compras/proveedores" element={<ProtectedRoute><Suppliers /></ProtectedRoute>} />
+          <Route path="/compras/nueva"       element={<ProtectedRoute><PurchaseOrderDetail /></ProtectedRoute>} />
+          <Route path="/compras/:id"         element={<ProtectedRoute><PurchaseOrderDetail /></ProtectedRoute>} />
 
           {/* Módulo Proyectos */}
           <Route path="/projects"                    element={<ProtectedRoute><ProjectsList /></ProtectedRoute>} />

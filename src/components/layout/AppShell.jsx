@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
-  LayoutDashboard, ClipboardList, Receipt, Users, GraduationCap,
+  LayoutDashboard, ClipboardList, Receipt, Users, GraduationCap, ShoppingCart,
   Briefcase, Menu, X, LogOut, Bell, ChevronDown, Trophy, User as UserIcon,
   BarChart3, Wallet, Target, Users2, FileText, Sliders, TrendingUp,
   Activity, Settings, BarChart4, BookOpen, Calendar, Package, Star, CalendarCheck, ClipboardCheck,
@@ -184,6 +184,21 @@ const NAV_STRUCTURE = [
       // duplicarlo— para que quien levanta el proyecto dé de alta al cliente
       // sin pedírselo a Operaciones, y siga habiendo una sola lista.
       { name: 'Clientes',       path: '/ops/ots/catalogs',                icon: Building2,    roles: [ROLES.PM, ROLES.ADMIN] },
+    ]
+  },
+
+  // ── COMPRAS ───────────────────────────────────────────────────────────────
+  // Dirección entra al mismo módulo para autorizar: no hay una vista aparte
+  // de aprobaciones, la firma se da dentro de cada orden.
+  {
+    type: 'group',
+    name: 'Compras',
+    icon: ShoppingCart,
+    roles: [ROLES.PURCHASING, ROLES.ADMIN],
+    defaultOpen: true,
+    items: [
+      { name: 'Órdenes de Compra', path: '/compras',             icon: ShoppingCart, roles: [ROLES.PURCHASING, ROLES.ADMIN], exact: true },
+      { name: 'Proveedores',       path: '/compras/proveedores', icon: Building2,    roles: [ROLES.PURCHASING, ROLES.ADMIN] },
     ]
   },
 
@@ -465,6 +480,7 @@ export default function AppShell({ children }) {
                   r === ROLES.TECH  ? 'Técnico' :
                   r === ROLES.HR    ? 'R. Humanos' :
                   r === ROLES.PM    ? 'Gerente de Proyectos' :
+                  r === ROLES.PURCHASING ? 'Compras' :
                   r === ROLES.COLLABORATOR ? 'Colaborador' : r
                 ).join(' · ')}
               </span>

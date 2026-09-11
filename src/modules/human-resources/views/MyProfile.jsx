@@ -779,6 +779,7 @@ export default function MyProfile() {
     [ROLES.ADMIN]: 'Administrador', [ROLES.OPS]: 'Operaciones',
     [ROLES.TECH]: 'Técnico', [ROLES.HR]: 'Recursos Humanos',
     [ROLES.SALES]: 'Ventas', [ROLES.COLLABORATOR]: 'Colaborador',
+    [ROLES.PURCHASING]: 'Compras',
   }[user.role] || user.role;
 
   const vacBalance = vacationInfo?.vacationBalance ?? 0;

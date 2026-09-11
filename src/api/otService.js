@@ -69,6 +69,10 @@ export const otService = {
   // Dejamos margen para el resto del JSON y las cabeceras.
   _LIMITE_RESPALDO: 4 * 1024 * 1024,
 
+  // El mismo tope expresado en peso de archivo, para los mensajes: 4 MB de
+  // base64 son ~3 MB de PDF.
+  _MB_RESPALDO: 3,
+
   // Sube archivos grandes (PDFs, planos) DIRECTO a R2 mediante URL prefirmada,
   // evitando el límite de 4.5 MB de las funciones serverless de Vercel.
   // Si la subida directa falla (p. ej. CORS no configurado en R2), cae de
@@ -77,8 +81,13 @@ export const otService = {
   async uploadLargeFile(base64Data, folder = 'uploads') {
     if (!base64Data?.startsWith('data:')) return base64Data;
     let etapa = 'preparar';
+    // Peso real del archivo. El data-URI mide ~33% más por el base64, y
+    // reportar ese número en el error hacía que un PDF de 3 MB se anunciara
+    // como 4.1 MB: el usuario comprimía de más persiguiendo un límite falso.
+    let pesoReal = null;
     try {
       const { blob, contentType, extension } = this._dataUriToBlob(base64Data);
+      pesoReal = blob.size;
 
       etapa = 'firmar';
       const presignRes = await apiFetch('/api/upload', {
@@ -103,14 +112,17 @@ export const otService = {
 
       // El archivo no cabe por /api/upload: mejor un error que explique la causa
       // real que un 413 de Vercel que no le dice nada al técnico.
+      // El respaldo viaja como JSON base64, así que lo que topa contra el
+      // límite de Vercel es el largo del data-URI, no el peso del archivo.
       if (base64Data.length > this._LIMITE_RESPALDO) {
-        const mb = (base64Data.length / 1024 / 1024).toFixed(1);
+        const mb = ((pesoReal ?? base64Data.length * 0.75) / 1024 / 1024).toFixed(1);
         const causa = etapa === 'subir'
           ? 'el navegador no pudo escribir en R2 (revisa la regla CORS del bucket)'
           : 'no se pudo firmar la URL de subida en el servidor';
         throw new Error(
           `No se pudo subir el archivo (${mb} MB): ${causa}. ` +
-          `Archivos de más de 4 MB solo pueden subirse directo a R2.`
+          `Mientras la subida directa no funcione, el respaldo solo admite hasta ${this._MB_RESPALDO} MB. ` +
+          `Avisa a sistemas.`
         );
       }
 

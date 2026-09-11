@@ -1083,6 +1083,7 @@ model Project {
 
   // OT de tienda gestionadas bajo este proyecto
   workOrders     WorkOrder[] @relation("ProjectWorkOrders")
+  purchaseOrders PurchaseOrder[]
 
   @@index([status])
   @@index([serviceType])
@@ -1520,4 +1521,137 @@ model TechToolkit {
   updatedAt DateTime @updatedAt
 
   @@index([techId])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// COMPRAS — Proveedores y Órdenes de Compra
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// Proveedor. Catálogo propio: un proveedor no es un Client (a quien se le
+/// vende) ni un OTClient (la sucursal donde se trabaja).
+model Supplier {
+  id          String  @id @default(cuid())
+  name        String                     // Razón social
+  rfc         String?
+  contactName String?
+  phone       String?
+  email       String?
+
+  // Domicilio fiscal / de facturación
+  address     String?
+  city        String?
+  state       String?
+  zip         String?
+  country     String? @default("México")
+
+  paymentTerms String?                   // "30 días", "Contado"...
+  notes        String?
+  status       String  @default("ACTIVE") // ACTIVE, INACTIVE
+
+  purchaseOrders PurchaseOrder[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@index([name])
+}
+
+/// Orden de compra. Los totales se guardan calculados (no se recalculan al
+/// leer) para que una orden ya aprobada no cambie de importe si mañana se
+/// edita un precio de catálogo.
+model PurchaseOrder {
+  id          String   @id @default(cuid())
+  orderNumber String   @unique          // OC-000001
+
+  projectId   String?
+  project     Project? @relation(fields: [projectId], references: [id])
+  supplierId  String
+  supplier    Supplier @relation(fields: [supplierId], references: [id])
+
+  subject     String?                    // Asunto
+  ownerId     String?                    // Propietario de la orden (Employee.id)
+  ownerName   String?
+
+  orderDate    DateTime @default(now())
+  deliveryDate DateTime?
+
+  paymentMethod String?                  // Transferencia, Efectivo, Crédito...
+  currency      String   @default("MXN")
+  exchangeRate  Float    @default(1)
+  carrier       String?                  // Transportista
+  contactName   String?                  // Contacto en el proveedor para esta orden
+
+  // BORRADOR, SOLICITADA, EN_REVISION, APROBADA, ENVIADA, RECIBIDA,
+  // FACTURADA, PAGADA, RECHAZADA, CANCELADA
+  status String @default("BORRADOR")
+
+  // Totales calculados en el servidor a partir de las partidas
+  subtotal   Float @default(0)
+  discount   Float @default(0)
+  tax        Float @default(0)
+  adjustment Float @default(0)
+  total      Float @default(0)
+
+  billingAddress  String?
+  shippingAddress String?
+  terms           String?
+
+  // Autorización. `requiredApprovals` se congela al solicitar, según el monto:
+  // así un cambio posterior de la política no reabre órdenes ya aprobadas.
+  requiredApprovals Int     @default(1)
+  rejectionReason   String?
+
+  createdById   String?
+  createdByName String?
+
+  items     PurchaseOrderItem[]
+  approvals PurchaseOrderApproval[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@index([supplierId])
+  @@index([projectId])
+  @@index([orderDate])
+}
+
+/// Partida de una orden de compra.
+model PurchaseOrderItem {
+  id              String        @id @default(cuid())
+  purchaseOrderId String
+  purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+
+  description String                    // Producto o servicio
+  quantity    Float  @default(1)
+  unitPrice   Float  @default(0)
+  discount    Float  @default(0)        // Importe, no porcentaje
+  taxRate     Float  @default(0)        // 0.16 = 16%
+  tax         Float  @default(0)        // Importe de impuesto calculado
+  total       Float  @default(0)        // cantidad × precio − descuento + impuesto
+  order       Int    @default(0)
+
+  createdAt DateTime @default(now())
+
+  @@index([purchaseOrderId])
+}
+
+/// Firma de autorización. Una fila por persona que aprueba: el número de filas
+/// contra `requiredApprovals` decide si la orden queda APROBADA.
+model PurchaseOrderApproval {
+  id              String        @id @default(cuid())
+  purchaseOrderId String
+  purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+
+  approverId   String
+  approverName String
+  approverRole String?                   // Rol con el que autorizó
+  decision     String                    // APROBADA, RECHAZADA
+  comment      String?
+
+  createdAt DateTime @default(now())
+
+  @@unique([purchaseOrderId, approverId])
+  @@index([purchaseOrderId])
 }

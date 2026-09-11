@@ -56,9 +56,14 @@ export default defineConfig({
         short_name: 'OleaControls',
         description: 'Plataforma Global de Gestión Olea Controls',
         theme_color: '#0066FF',
+        background_color: '#FFFFFF',
+        // Los iconos se generan del logo cuadrado con scripts/gen-pwa-icons.cjs.
+        // El maskable lleva el logo más chico: Android recorta el icono a la
+        // forma del launcher y con el logo a tamaño completo le comía el aro.
         icons: [
           { src: 'pwa-192x192.png', sizes: '192x192', type: 'image/png' },
           { src: 'pwa-512x512.png', sizes: '512x512', type: 'image/png' },
+          { src: 'pwa-maskable-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
       },
     }),

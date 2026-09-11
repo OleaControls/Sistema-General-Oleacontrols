@@ -49,6 +49,8 @@ const handlers = {
   zones:         () => import('./_handlers/zones.js'),
   trainings:     () => import('./_handlers/trainings.js'),
   improvements:  () => import('./_handlers/improvements.js'),
+  suppliers:        () => import('./_handlers/suppliers.js'),
+  'purchase-orders':() => import('./_handlers/purchase-orders.js'),
 };
 
 export default async function handler(req, res) {

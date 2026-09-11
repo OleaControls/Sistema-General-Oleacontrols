@@ -43,6 +43,8 @@ import storeInventoryHandler from './api/_handlers/store-inventory.js';
 import zonesHandler from './api/_handlers/zones.js';
 import trainingsHandler from './api/_handlers/trainings.js';
 import improvementsHandler from './api/_handlers/improvements.js';
+import suppliersHandler from './api/_handlers/suppliers.js';
+import purchaseOrdersHandler from './api/_handlers/purchase-orders.js';
 import warrantyHandler       from './api/_handlers/warranty.js';
 
 const app = express();
@@ -190,6 +192,10 @@ app.delete('/api/attendance', adaptHandler(attendanceHandler));
 app.all('/api/tech-attendance/:resource', adaptHandler(techAttendanceHandler));
 app.all('/api/tech-attendance',           adaptHandler(techAttendanceHandler));
 app.all('/api/tech-toolkit',              adaptHandler(techToolkitHandler));
+
+// Compras (proveedores + órdenes de compra)
+app.all('/api/suppliers',                adaptHandler(suppliersHandler));
+app.all('/api/purchase-orders',          adaptHandler(purchaseOrdersHandler));
 
 // Tech Locations (GPS de técnicos)
 app.get('/api/tech-locations',  adaptHandler(techLocationsHandler));

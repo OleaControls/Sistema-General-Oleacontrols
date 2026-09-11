@@ -265,7 +265,6 @@ const SECTIONS = [
 const BADGE_CLS = {
   INSTALADO: 'bg-emerald-50 text-emerald-600', EN_SITIO: 'bg-blue-50 text-blue-600',
   EN_ALMACEN: 'bg-gray-100 text-gray-500', EN_REPARACION: 'bg-amber-50 text-amber-600',
-  BAJA: 'bg-red-50 text-red-500',
   DONE: 'bg-emerald-50 text-emerald-600', APROBADO: 'bg-emerald-50 text-emerald-600',
   RESUELTA: 'bg-emerald-50 text-emerald-600', MITIGADO: 'bg-emerald-50 text-emerald-600', CERRADO: 'bg-emerald-50 text-emerald-600',
   IN_PROGRESS: 'bg-blue-50 text-blue-600', EN_PROCESO: 'bg-blue-50 text-blue-600',
