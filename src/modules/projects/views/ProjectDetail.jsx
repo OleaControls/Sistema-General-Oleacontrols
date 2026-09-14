@@ -5,7 +5,7 @@ import {
   FileText, ListChecks, DollarSign, Users, ShieldCheck, MessageSquare,
   AlertTriangle, FolderOpen, GitPullRequestArrow, Flag, CheckCircle2,
   FileDown, Upload, Link2, History, Archive, Check, Ban, Bell,
-  PackagePlus, ListTodo, MapPin, Phone, Boxes, ChevronDown
+  PackagePlus, ListTodo, MapPin, Phone, Boxes, ChevronDown, Search
 } from 'lucide-react';
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Cell,
@@ -1440,7 +1440,13 @@ function VinculosTab({ project, onSaved }) {
         title="Órdenes de Trabajo"
         icon={ListChecks}
         loading={loading}
-        options={ots.filter(o => !linkedOtIds.includes(o.id)).map(o => ({ id: o.id, label: `${o.otNumber || ''} · ${o.title || ''}` }))}
+        placeholder="Buscar OT por folio, título, cliente o tienda…"
+        options={ots.filter(o => !linkedOtIds.includes(o.id)).map(o => ({
+          id: o.id,
+          label: `${o.otNumber || ''} · ${o.title || ''}`,
+          sub: [o.clientName, o.brand, o.storeName].filter(Boolean).join(' · '),
+          search: [o.otNumber, o.title, o.clientName, o.brand, o.storeName, o.zone, o.activity].filter(Boolean).join(' '),
+        }))}
         onAdd={vincularOT}
         linked={linkedOtIds.map(oid => {
           const o = otById(oid);
@@ -1453,7 +1459,13 @@ function VinculosTab({ project, onSaved }) {
         title="Cotizaciones"
         icon={FileText}
         loading={loading}
-        options={quotes.filter(q => !linkedQuoteIds.includes(q.id)).map(q => ({ id: q.id, label: `${q.quoteNumber || ''} · ${q.projectName || ''}` }))}
+        placeholder="Buscar cotización por folio, proyecto o cliente…"
+        options={quotes.filter(q => !linkedQuoteIds.includes(q.id)).map(q => ({
+          id: q.id,
+          label: `${q.quoteNumber || ''} · ${q.projectName || ''}`,
+          sub: [q.client?.companyName, q.seller?.name].filter(Boolean).join(' · '),
+          search: [q.quoteNumber, q.projectName, q.client?.companyName, q.seller?.name].filter(Boolean).join(' '),
+        }))}
         onAdd={(qid) => saveLinks('linkedQuoteIds', [...linkedQuoteIds, qid])}
         linked={linkedQuoteIds.map(qid => {
           const q = quoteById(qid);
@@ -1465,9 +1477,43 @@ function VinculosTab({ project, onSaved }) {
   );
 }
 
-function LinkCard({ title, icon: Icon, loading, options, onAdd, linked, onRemove }) {
+// Minúsculas y sin acentos, para que "tecnologia" encuentre "Tecnología".
+const normalizeSearch = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+
+function LinkCard({ title, icon: Icon, loading, options, onAdd, linked, onRemove, placeholder }) {
+  const [query, setQuery] = useState('');
+  const [open, setOpen] = useState(false);
+  const [adding, setAdding] = useState(null);
+  const boxRef = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e) => { if (boxRef.current && !boxRef.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [open]);
+
+  // Cada palabra debe aparecer en algún campo: "coppel 1234" filtra por marca y folio a la vez.
+  const results = useMemo(() => {
+    const words = normalizeSearch(query).split(/\s+/).filter(Boolean);
+    const list = words.length === 0
+      ? options
+      : options.filter(o => {
+          const hay = normalizeSearch(`${o.label} ${o.search || ''}`);
+          return words.every(w => hay.includes(w));
+        });
+    return list.slice(0, 50);
+  }, [options, query]);
+
+  const pick = async (id) => {
+    setAdding(id);
+    try { await onAdd(id); setQuery(''); setOpen(false); }
+    finally { setAdding(null); }
+  };
+
   return (
-    <div className="bg-white rounded-3xl border shadow-sm overflow-hidden">
+    // Sin overflow-hidden: recortaría la lista de resultados del buscador.
+    <div className="bg-white rounded-3xl border shadow-sm">
       <div className="flex items-center gap-2 px-6 py-4 border-b">
         <Icon className="h-4 w-4 text-primary" />
         <h2 className="text-sm font-black text-gray-900 uppercase tracking-tight">{title}</h2>
@@ -1478,11 +1524,58 @@ function LinkCard({ title, icon: Icon, loading, options, onAdd, linked, onRemove
           <div className="py-6 flex justify-center"><Loader2 className="h-5 w-5 text-primary animate-spin" /></div>
         ) : (
           <>
-            <select defaultValue="" onChange={(e) => { if (e.target.value) { onAdd(e.target.value); e.target.value = ''; } }}
-              className="proj-input cursor-pointer">
-              <option value="">+ Vincular…</option>
-              {options.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
-            </select>
+            <div ref={boxRef} className="relative">
+              <div className="relative">
+                <Search className="h-4 w-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <input
+                  type="text"
+                  value={query}
+                  onChange={(e) => { setQuery(e.target.value); setOpen(true); }}
+                  onFocus={() => setOpen(true)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Escape') setOpen(false);
+                    if (e.key === 'Enter' && results.length > 0 && !adding) { e.preventDefault(); pick(results[0].id); }
+                  }}
+                  placeholder={placeholder || 'Buscar para vincular…'}
+                  className="proj-input !pl-9 !pr-9"
+                />
+                {query && (
+                  <button type="button" onClick={() => setQuery('')}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 p-0.5 text-gray-300 hover:text-gray-500">
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
+              {open && (
+                <div className="absolute z-30 left-0 right-0 mt-1 bg-white border rounded-2xl shadow-xl max-h-72 overflow-y-auto">
+                  {results.length === 0 ? (
+                    <p className="px-4 py-3 text-[11px] font-bold text-gray-400">
+                      {options.length === 0 ? 'No hay más elementos para vincular.' : 'Sin resultados.'}
+                    </p>
+                  ) : (
+                    <>
+                      {results.map(o => (
+                        <button key={o.id} type="button" disabled={!!adding} onClick={() => pick(o.id)}
+                          className="w-full flex items-center justify-between gap-2 px-4 py-2.5 text-left hover:bg-gray-50 disabled:opacity-60 border-b last:border-b-0">
+                          <span className="min-w-0">
+                            <span className="block text-[11px] font-bold text-gray-700 truncate">{o.label}</span>
+                            {o.sub && <span className="block text-[10px] font-semibold text-gray-400 truncate">{o.sub}</span>}
+                          </span>
+                          {adding === o.id
+                            ? <Loader2 className="h-3.5 w-3.5 text-primary animate-spin shrink-0" />
+                            : <Plus className="h-3.5 w-3.5 text-primary shrink-0" />}
+                        </button>
+                      ))}
+                      {options.length > results.length && (
+                        <p className="px-4 py-2 text-[10px] font-bold text-gray-300">
+                          Mostrando {results.length} — escribe para afinar la búsqueda.
+                        </p>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
             {linked.length === 0 ? (
               <p className="text-[11px] font-bold text-gray-300 py-2">Sin vínculos.</p>
             ) : (
