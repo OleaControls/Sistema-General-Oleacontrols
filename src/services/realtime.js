@@ -81,10 +81,19 @@ export const hayRealtime = () => socket.connected;
  * Devuelve la función de limpieza, para usarla tal cual en un useEffect.
  *
  *   useEffect(() => suscribirCambios('WorkOrder', recargarOTs), []);
+ *
+ * `opciones.id` y `opciones.padre` filtran en el navegador, antes de recargar.
+ * Es la diferencia entre recargar cuando cambia TU orden y recargar cada vez
+ * que alguien toca cualquiera de las de la empresa:
+ *
+ *   suscribirCambios('Evidence', recargar, { padre: otId })
  */
-export function suscribirCambios(tabla, alCambiar) {
+export function suscribirCambios(tabla, alCambiar, opciones = {}) {
   const manejar = (evento) => {
-    if (evento?.tabla === tabla) alCambiar(evento);
+    if (evento?.tabla !== tabla) return;
+    if (opciones.id !== undefined && evento.id !== opciones.id) return;
+    if (opciones.padre !== undefined && evento.padre !== opciones.padre) return;
+    alCambiar(evento);
   };
   socket.on('cambio', manejar);
   return () => socket.off('cambio', manejar);

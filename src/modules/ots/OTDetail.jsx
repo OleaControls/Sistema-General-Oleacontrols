@@ -17,6 +17,7 @@ import NewExpenseForm from '../expenses/components/NewExpenseForm';
 import PanoramizacionModal from './components/PanoramizacionModal';
 import OTProjectTabs from './components/OTProjectTabs';
 import OTEvidenceTab from './components/OTEvidenceTab';
+import { suscribirCambios } from '@/services/realtime';
 import FieldDocsAlert from './components/FieldDocsAlert';
 import techDocsService from '@/api/techDocsService';
 
@@ -270,6 +271,25 @@ export default function OTDetail() {
   const canStartJornada = !gateBlocks || startReqsMet;
 
   useEffect(() => { loadOT(); }, [id]);
+
+  // Evidencias y firmas al instante.
+  //
+  // Las firmas viven en WorkOrder y las fotos en Evidence, así que se escuchan
+  // las dos tablas; ambas se resuelven con el mismo loadOT(), que ya trae la
+  // OT con sus evidencias.
+  //
+  // El filtro por id/padre es lo que hace esto barato: solo recarga quien está
+  // viendo ESTA orden. Sin él, cada foto subida en cualquier OT de la empresa
+  // haría recargar a todos los que tuvieran una abierta.
+  useEffect(() => {
+    if (!id) return;
+    const bajas = [
+      suscribirCambios('WorkOrder', loadOT, { id }),
+      suscribirCambios('Evidence', loadOT, { padre: id }),
+    ];
+    return () => bajas.forEach(baja => baja());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
 
   // El expediente se consulta una vez por OT; si falla no estorba la vista.
   useEffect(() => {
