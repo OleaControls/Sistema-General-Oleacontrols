@@ -40,6 +40,19 @@ if (!encontrado) {
   }
   process.exit(1);
 }
+// Notepad y PowerShell suelen guardar en UTF-8 CON BOM. dotenv no lo quita, asi
+// que la primera variable queda leyendose como "﻿DATABASE_URL" y resulta
+// invisible: el error seria "falta DATABASE_URL" con la linea ahi, a la vista.
+const crudo = fs.readFileSync(encontrado);
+if (crudo[0] === 0xEF && crudo[1] === 0xBB && crudo[2] === 0xBF) {
+  mal('el .env empieza con BOM (lo guardo Notepad o PowerShell en UTF-8)');
+  pista('La primera variable del archivo se vuelve ilegible.');
+  pista('Arreglo rapido: pon un comentario con # como primera linea del .env.');
+  pista('O vuelve a guardarlo desde Notepad eligiendo codificacion ANSI.');
+  process.exit(1);
+}
+ok('sin BOM');
+
 dotenv.config({ path: encontrado });
 
 // ── 2. Las variables ────────────────────────────────────────────────────────
