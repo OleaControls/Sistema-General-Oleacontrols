@@ -1,6 +1,7 @@
 import prisma from '../_lib/prisma.js'
 import { uploadToR2 } from '../_lib/r2.js'
 import { authMiddleware } from '../_lib/auth.js'
+import { notificar } from '../_lib/notificaciones.js'
 
 /* Gastos de campo. Todo pasa por sesión: este endpoint mueve dinero —quién
    comprueba y quién aprueba— así que ninguna de sus ramas es pública.
@@ -227,6 +228,20 @@ export default async function handler(req, res) {
       }
 
       const updated = await prisma.expense.update({ where: { id }, data });
+
+      // Solo cuando cambia la decision, no al corregir un comentario.
+      if (status !== undefined && status !== actual.status) {
+        const aprobado = status === 'APPROVED';
+        await notificar({
+          para: actual.employeeId,
+          modulo: 'FINANZAS',
+          tipo: aprobado ? 'GASTO_APROBADO' : 'GASTO_RECHAZADO',
+          titulo: aprobado ? 'Tu gasto fue aprobado' : 'Tu gasto fue rechazado',
+          cuerpo: comment || null,
+          enlace: '/expenses',
+        });
+      }
+
       return res.status(200).json(updated);
     } catch (error) {
       return res.status(500).json({ error: error.message });

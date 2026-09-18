@@ -1,4 +1,5 @@
 import prisma from '../_lib/prisma.js'
+import { notificarARoles } from '../_lib/notificaciones.js';
 import { authMiddleware } from '../_lib/auth.js'
 
 export default async function handler(req, res) {
@@ -416,6 +417,27 @@ export default async function handler(req, res) {
               }
             });
           } catch (e) { console.error('[CRM] Stage log error:', e.message); }
+
+          // Solo dos etapas ameritan notificacion. Avisar de cada movimiento
+          // del embudo llenaria la campana de ruido y la gente dejaria de
+          // mirarla, que es como se matan estas funciones.
+          if (updateData.stage === 'CLOSED_WON_PENDING') {
+            await notificarARoles(['ADMIN'], {
+              modulo: 'CRM',
+              tipo: 'TRATO_POR_AUTORIZAR',
+              titulo: `${updated.title} espera autorizacion`,
+              cuerpo: `Cerrado por ${caller.name || caller.email || 'un vendedor'}`,
+              enlace: '/crm/deals',
+            });
+          } else if (updateData.stage === 'CLOSED_WON') {
+            await notificarARoles(['ADMIN'], {
+              modulo: 'CRM',
+              tipo: 'TRATO_GANADO',
+              titulo: `Trato ganado: ${updated.title}`,
+              cuerpo: updated.value ? `Valor: $${Number(updated.value).toLocaleString('es-MX')}` : null,
+              enlace: '/crm/deals',
+            });
+          }
         }
 
         // ── Auto-crear cliente cuando el trato es Ganado ──────────────────

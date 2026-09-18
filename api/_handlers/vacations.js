@@ -1,4 +1,5 @@
 import prisma from '../_lib/prisma.js'
+import { notificar } from '../_lib/notificaciones.js'
 import { authMiddleware } from '../_lib/auth.js'
 
 export default async function handler(req, res) {
@@ -141,6 +142,22 @@ export default async function handler(req, res) {
         where: { id: requestId },
         data: { status }
       })
+
+      // Al solicitante le cambia el plan segun la respuesta: es de las que no
+      // se pueden perder por no estar conectado en ese momento.
+      if (status !== request.status) {
+        const aprobada = status === 'APPROVED'
+        await notificar({
+          para: request.employeeId,
+          modulo: 'RH',
+          tipo: aprobada ? 'VACACION_APROBADA' : 'VACACION_RECHAZADA',
+          titulo: aprobada
+            ? `Tus ${request.days} dias fueron aprobados`
+            : 'Tu solicitud de dias no fue aprobada',
+          cuerpo: `Del ${new Date(request.startDate).toLocaleDateString('es-MX')} al ${new Date(request.endDate).toLocaleDateString('es-MX')}`,
+          enlace: '/hr/vacations',
+        })
+      }
 
       return res.status(200).json(updatedRequest)
     } catch (error) {

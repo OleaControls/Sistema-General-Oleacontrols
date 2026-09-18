@@ -1,4 +1,5 @@
 import prisma from '../_lib/prisma.js'
+import { notificar, notificarARoles } from '../_lib/notificaciones.js';
 import { authMiddleware } from '../_lib/auth.js'
 import {
   calcularPartida, calcularTotales, firmasRequeridas, requiereDireccion,
@@ -253,6 +254,14 @@ async function ejecutarAccion({ action, id, caller, roles, body, res }) {
         },
       }),
     ]);
+    await notificarARoles(['PURCHASING', 'ADMIN'], {
+      modulo: 'COMPRAS',
+      tipo: 'OC_POR_AUTORIZAR',
+      titulo: `Orden ${orden.orderNumber} espera autorizacion`,
+      cuerpo: orden.subject || null,
+      enlace: `/compras/ordenes/${id}`,
+    });
+
     return devolver();
   }
 
@@ -281,10 +290,24 @@ async function ejecutarAccion({ action, id, caller, roles, body, res }) {
     const conDireccion = firmas.some(a => a.approverRole === 'ADMIN');
     const faltaDireccion = requiereDireccion(orden.total) && !conDireccion;
 
+    const yaAprobada = completas && !faltaDireccion;
     await prisma.purchaseOrder.update({
       where: { id },
-      data: { status: completas && !faltaDireccion ? 'APROBADA' : 'EN_REVISION' },
+      data: { status: yaAprobada ? 'APROBADA' : 'EN_REVISION' },
     });
+
+    // Solo cuando queda aprobada del todo. Avisar en cada firma intermedia
+    // convertiria la campana en ruido y la gente dejaria de mirarla.
+    if (yaAprobada) {
+      await notificar({
+        para: orden.ownerId,
+        modulo: 'COMPRAS',
+        tipo: 'OC_APROBADA',
+        titulo: `Orden ${orden.orderNumber} aprobada`,
+        cuerpo: orden.subject || null,
+        enlace: `/compras/ordenes/${id}`,
+      });
+    }
     return devolver();
   }
 
@@ -307,6 +330,17 @@ async function ejecutarAccion({ action, id, caller, roles, body, res }) {
       }),
       prisma.purchaseOrder.update({ where: { id }, data: { status: 'RECHAZADA', rejectionReason: motivo } }),
     ]);
+
+    // El motivo va en el cuerpo: sin el, el dueño tiene que abrir la orden
+    // solo para enterarse de que le falta corregir.
+    await notificar({
+      para: orden.ownerId,
+      modulo: 'COMPRAS',
+      tipo: 'OC_RECHAZADA',
+      titulo: `Orden ${orden.orderNumber} rechazada`,
+      cuerpo: motivo,
+      enlace: `/compras/ordenes/${id}`,
+    });
     return devolver();
   }
 
