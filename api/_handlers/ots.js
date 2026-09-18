@@ -2,6 +2,7 @@ import prisma from '../_lib/prisma.js'
 import { uploadToR2, signUrlIfNeeded } from '../_lib/r2.js'
 import { authMiddleware } from '../_lib/auth.js'
 import { notifyOTAssigned, notifyOTCompleted, sendTelegramPhotoUrl } from '../_lib/telegram.js'
+import { notificar, notificarARoles } from '../_lib/notificaciones.js'
 import { businessDay } from '../_lib/businessDay.js'
 import { OT_WINDOW_KEY, isWindowOpen, windowLabel } from '../_lib/otWindow.js'
 import { createProjectWithCode } from '../_lib/projectCode.js'
@@ -855,6 +856,17 @@ export default async function handler(req, res) {
         });
         console.log('[Telegram] Técnicos encontrados:', techs.map(t => ({ name: t.name, chatId: t.telegramChatId })));
         await notifyOTAssigned(ot, techs);
+
+        // Telegram llega al teléfono; esto queda dentro del sistema, con enlace
+        // directo a la orden y sin depender de que tengan el bot configurado.
+        await notificar({
+          para: allIds,
+          modulo: 'OTS',
+          tipo: 'OT_ASIGNADA',
+          titulo: `Nueva orden: ${ot.otNumber}`,
+          cuerpo: ot.title,
+          enlace: `/ots/${ot.id}`,
+        });
       }
 
       // Crear metas de asistencia para todos los técnicos asignados
@@ -1018,11 +1030,28 @@ export default async function handler(req, res) {
           });
           console.log('[Telegram] Técnicos encontrados:', techs.map(t => ({ name: t.name, chatId: t.telegramChatId })));
           await notifyOTAssigned(updated, techs);
+
+          await notificar({
+            para: allIds,
+            modulo: 'OTS',
+            tipo: 'OT_ASIGNADA',
+            titulo: `Te asignaron la orden ${updated.otNumber}`,
+            cuerpo: updated.title,
+            enlace: `/ots/${updated.id}`,
+          });
         }
       }
 
       // 3b. OT completada → notificar a todos los empleados con rol SUPERVISOR (Operaciones)
       if (newStatus === 'COMPLETED' && prevStatus !== 'COMPLETED') {
+        await notificarARoles(['SUPERVISOR', 'ADMIN'], {
+          modulo: 'OTS',
+          tipo: 'OT_COMPLETADA',
+          titulo: `Orden ${updated.otNumber} completada`,
+          cuerpo: `${updated.title} — lista para validar`,
+          enlace: `/ots/${updated.id}`,
+        });
+
         const opsTeam = await prisma.employee.findMany({
           where: { roles: { has: 'SUPERVISOR' }, telegramChatId: { not: null } },
           select: { telegramChatId: true }

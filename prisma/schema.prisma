@@ -131,6 +131,7 @@ model Employee {
   goalsSet          TechDailyGoal[]    @relation("GoalSetBy")
   techAttendance    TechAttendanceLog[]
   panoramizaciones  OtPanoramizacion[]
+  notificaciones    Notificacion[]
   toolkit           TechToolkit?
 
   @@index([status])
@@ -1654,4 +1655,27 @@ model PurchaseOrderApproval {
 
   @@unique([purchaseOrderId, approverId])
   @@index([purchaseOrderId])
+}
+
+model Notificacion {
+  id             String    @id @default(cuid())
+
+  // A quien va dirigida. Una notificacion SIEMPRE tiene dueño: es lo que la
+  // distingue de un aviso de cambio, que es para quien este mirando.
+  destinatarioId String
+  destinatario   Employee  @relation(fields: [destinatarioId], references: [id], onDelete: Cascade)
+
+  modulo         String    // OTS, COMPRAS, RH, CRM, FINANZAS
+  tipo           String    // OT_ASIGNADA, GASTO_APROBADO, VACACION_APROBADA...
+  titulo         String
+  cuerpo         String?
+  enlace         String?   // ruta en la app: /ots/abc123
+
+  leida          Boolean   @default(false)
+  leidaEn        DateTime?
+  createdAt      DateTime  @default(now())
+
+  // La consulta que corre en cada carga de la campana: las mias, sin leer,
+  // de la mas nueva a la mas vieja.
+  @@index([destinatarioId, leida, createdAt])
 }

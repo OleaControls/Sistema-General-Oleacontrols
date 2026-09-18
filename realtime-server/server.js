@@ -244,6 +244,10 @@ io.on('connection', (socket) => {
   // Solo quien supervisa entra a la sala del mapa. Antes esto era un
   // broadcast a todos: con 100 tecnicos, cada reporte se copiaba 99 veces
   // hacia aparatos que no tienen mapa que pintar.
+  // Sala propia de cada persona: permite entregarle algo solo a ella, en todos
+  // los aparatos donde tenga la sesion abierta.
+  if (usuario?.id) socket.join(`usuario:${usuario.id}`);
+
   entraUsuario(usuario, socket.id);
 
   if (esSupervisor(usuario)) {
@@ -283,8 +287,18 @@ async function escucharPostgres(intento = 0) {
   cliente.on('notification', (msg) => {
     try {
       const evento = JSON.parse(msg.payload);
-      io.emit('cambio', evento);
-      console.log(`📢 ${evento.tabla} ${evento.op} ${evento.id}`);
+
+      // Una notificacion tiene dueño: se entrega solo a sus sesiones. Si se
+      // difundiera a todos, cada pantalla de la empresa se enteraria de lo que
+      // le notifican a cada quien, y ademas se copiaria el mensaje 100 veces
+      // para que 99 lo descartaran.
+      if (evento.tabla === 'Notificacion' && evento.padre) {
+        io.to(`usuario:${evento.padre}`).emit('cambio', evento);
+        console.log(`🔔 Notificacion ${evento.op} -> ${evento.padre}`);
+      } else {
+        io.emit('cambio', evento);
+        console.log(`📢 ${evento.tabla} ${evento.op} ${evento.id}`);
+      }
     } catch (err) {
       console.error('Aviso ilegible de Postgres:', err.message);
     }

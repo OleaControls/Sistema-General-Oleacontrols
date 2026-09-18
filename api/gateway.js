@@ -38,6 +38,7 @@ const handlers = {
   performance:   () => import('./_handlers/performance.js'),
   'tech-kpis':   () => import('./_handlers/tech-kpis.js'),
   announcements: () => import('./_handlers/announcements.js'),
+  notificaciones: () => import('./_handlers/notificaciones.js'),
   surveys:       () => import('./_handlers/surveys.js'),
   payroll:       () => import('./_handlers/payroll.js'),
   lms:           () => import('./_handlers/lms.js'),

@@ -14,6 +14,7 @@ import { useTechnicianTracking } from '@/hooks/useTechnicianTracking';
 import { cn } from '@/lib/utils';
 import ConnectivityAlert from '@/components/shared/ConnectivityAlert';
 import UsuariosConectados from '@/components/shared/UsuariosConectados';
+import CampanaNotificaciones from '@/components/shared/CampanaNotificaciones';
 
 // ── Estructura de navegación por rol ─────────────────────────────────────────
 // Cada entrada define qué roles la ven. Admin solo métricas.
@@ -557,10 +558,7 @@ export default function AppShell({ children }) {
               <p className="text-[10px] font-black text-primary uppercase tracking-widest">{activeTenant?.name}</p>
               <p className="text-[9px] font-bold text-gray-400">STATUS: ONLINE</p>
             </div>
-            <button className="relative p-2 text-gray-400 hover:text-primary transition-colors">
-              <Bell className="h-5 w-5" />
-              <span className="absolute top-2 right-2 h-2 w-2 bg-red-500 rounded-full border-2 border-white animate-pulse" />
-            </button>
+            <CampanaNotificaciones />
           </div>
         </header>
 

@@ -34,6 +34,7 @@ import techToolkitHandler    from './api/_handlers/tech-toolkit.js';
 import performanceHandler    from './api/_handlers/performance.js';
 import techKpisHandler       from './api/_handlers/tech-kpis.js';
 import announcementsHandler  from './api/_handlers/announcements.js';
+import notificacionesHandler from './api/_handlers/notificaciones.js';
 import surveysHandler        from './api/_handlers/surveys.js';
 import payrollHandler        from './api/_handlers/payroll.js';
 import projectsHandler       from './api/_handlers/projects.js';
@@ -115,6 +116,7 @@ app.all('/api/store-inventory', adaptHandler(storeInventoryHandler));
 // Sistema General: mapa de zonas, capacitación y mejora continua
 app.all('/api/zones', adaptHandler(zonesHandler));
 app.all('/api/trainings', adaptHandler(trainingsHandler));
+app.all('/api/notificaciones', adaptHandler(notificacionesHandler));
 app.all('/api/improvements', adaptHandler(improvementsHandler));
 
 // Categories
