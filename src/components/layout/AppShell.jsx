@@ -13,6 +13,7 @@ import { useTenant } from '@/store/TenantContext';
 import { useTechnicianTracking } from '@/hooks/useTechnicianTracking';
 import { cn } from '@/lib/utils';
 import ConnectivityAlert from '@/components/shared/ConnectivityAlert';
+import UsuariosConectados from '@/components/shared/UsuariosConectados';
 
 // ── Estructura de navegación por rol ─────────────────────────────────────────
 // Cada entrada define qué roles la ven. Admin solo métricas.
@@ -551,6 +552,7 @@ export default function AppShell({ children }) {
             </h1>
           </div>
           <div className="flex items-center gap-4">
+            <UsuariosConectados />
             <div className="text-right">
               <p className="text-[10px] font-black text-primary uppercase tracking-widest">{activeTenant?.name}</p>
               <p className="text-[9px] font-bold text-gray-400">STATUS: ONLINE</p>

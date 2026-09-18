@@ -127,3 +127,16 @@ export function suscribirUbicaciones(alRecibir) {
     socket.off('tech:ubicacion', punto);
   };
 }
+
+/**
+ * Escucha quién está conectado. Solo lo reciben los roles de supervisión; lo
+ * decide el servidor por el JWT, no el cliente.
+ *
+ * `alRecibir` llega con un arreglo de { id, email, roles, desde, aparatos }.
+ * `aparatos` es cuántas sesiones tiene abiertas esa persona: el móvil y la PC
+ * cuentan como una sola persona, no como dos.
+ */
+export function suscribirPresencia(alRecibir) {
+  socket.on('presencia', alRecibir);
+  return () => socket.off('presencia', alRecibir);
+}

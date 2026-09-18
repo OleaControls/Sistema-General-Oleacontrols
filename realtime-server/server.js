@@ -85,6 +85,7 @@ const servidor = http.createServer((req, res) => {
       escuchandoPostgres: escuchandoPostgres,
       clientes: io?.engine?.clientsCount ?? 0,
       tecnicosEnMapa: ubicaciones.size,
+      usuariosConectados: conectados.size,
       desde: arrancadoEn,
     }));
   }
@@ -168,6 +169,73 @@ function limpiarCaducadas() {
   }
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// PRESENCIA
+//
+// Quien esta conectado ahora mismo. Vive solo en memoria: no cuesta ni una
+// consulta a Postgres, y es un dato que no tiene sentido conservar —si el
+// servidor se reinicia, todos se reconectan y la lista se rehace sola.
+// ═══════════════════════════════════════════════════════════════════════════
+const MS_GRACIA = 5_000;
+const MS_ANUNCIO = 1_000;
+
+/** usuarioId -> { id, email, roles, sockets:Set, desde } */
+const conectados = new Map();
+/** Salidas en periodo de gracia: usuarioId -> timeout */
+const salidas = new Map();
+
+let anuncioPendiente = null;
+/**
+ * Avisa de la lista, coalescida.
+ *
+ * A las 8 de la manana entran 50 personas en pocos segundos. Sin esto se
+ * mandarian 50 listas casi identicas; asi se manda una.
+ */
+function anunciarPresencia() {
+  if (anuncioPendiente) return;
+  anuncioPendiente = setTimeout(() => {
+    anuncioPendiente = null;
+    io.to(SALA_SUPERVISORES).emit('presencia', [...conectados.values()].map(u => ({
+      id: u.id, email: u.email, roles: u.roles, desde: u.desde, aparatos: u.sockets.size,
+    })));
+  }, MS_ANUNCIO);
+}
+
+function entraUsuario(usuario, socketId) {
+  if (!usuario?.id) return;
+
+  // Volvio antes de que expirara la gracia: nunca estuvo "fuera".
+  const gracia = salidas.get(usuario.id);
+  if (gracia) { clearTimeout(gracia); salidas.delete(usuario.id); }
+
+  const ya = conectados.get(usuario.id);
+  if (ya) {
+    // Misma persona con el movil y la PC abiertos: dos sockets, un usuario.
+    ya.sockets.add(socketId);
+  } else {
+    conectados.set(usuario.id, {
+      id: usuario.id, email: usuario.email, roles: usuario.roles || [],
+      sockets: new Set([socketId]), desde: Date.now(),
+    });
+  }
+  anunciarPresencia();
+}
+
+function saleUsuario(usuario, socketId) {
+  const u = conectados.get(usuario?.id);
+  if (!u) return;
+  u.sockets.delete(socketId);
+  if (u.sockets.size) return anunciarPresencia(); // le quedan otros aparatos
+
+  // Periodo de gracia: recargar la pagina desconecta y reconecta en un segundo.
+  // Sin esto, cada F5 de cualquiera haria parpadear la lista de todos.
+  salidas.set(u.id, setTimeout(() => {
+    salidas.delete(u.id);
+    conectados.delete(u.id);
+    anunciarPresencia();
+  }, MS_GRACIA));
+}
+
 io.on('connection', (socket) => {
   const usuario = socket.data.usuario;
   const quien = usuario?.email || 'anónimo';
@@ -176,11 +244,14 @@ io.on('connection', (socket) => {
   // Solo quien supervisa entra a la sala del mapa. Antes esto era un
   // broadcast a todos: con 100 tecnicos, cada reporte se copiaba 99 veces
   // hacia aparatos que no tienen mapa que pintar.
+  entraUsuario(usuario, socket.id);
+
   if (esSupervisor(usuario)) {
     socket.join(SALA_SUPERVISORES);
     limpiarCaducadas();
     // Instantanea al entrar: el mapa se pinta completo desde el primer segundo.
     socket.emit('tech:instantanea', [...ubicaciones.values()]);
+    anunciarPresencia();
   }
 
   socket.on('tech:ubicacion', (datos) => {
@@ -190,6 +261,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('disconnect', (motivo) => {
+    saleUsuario(usuario, socket.id);
     console.log(`🔴 Desconectado: ${quien} (${motivo}) — quedan: ${io.engine.clientsCount}`);
   });
 });
