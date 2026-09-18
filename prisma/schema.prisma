@@ -1734,3 +1734,17 @@ model Mensaje {
   // El historial se lee siempre de una conversacion y por fecha descendente.
   @@index([conversacionId, createdAt])
 }
+
+/// Peticiones ya atendidas, para que un reintento no duplique el efecto.
+/// La cola offline reenvía lo que no pudo salir; sin esto, un acta que se
+/// mandó pero cuya respuesta nunca llegó se crearía dos veces.
+model PeticionIdempotente {
+  clave      String   @id          // la genera el cliente, una por intento
+  empleadoId String?
+  ruta       String
+  estado     Int?                  // nulo mientras se procesa
+  respuesta  String?               // el JSON que se devolvió, para repetirlo igual
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+}

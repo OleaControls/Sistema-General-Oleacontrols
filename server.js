@@ -36,6 +36,7 @@ import techKpisHandler       from './api/_handlers/tech-kpis.js';
 import announcementsHandler  from './api/_handlers/announcements.js';
 import notificacionesHandler from './api/_handlers/notificaciones.js';
 import chatHandler from './api/_handlers/chat.js';
+import { conIdempotencia } from './api/_lib/idempotencia.js';
 import surveysHandler        from './api/_handlers/surveys.js';
 import payrollHandler        from './api/_handlers/payroll.js';
 import projectsHandler       from './api/_handlers/projects.js';
@@ -59,9 +60,11 @@ import fs from 'fs';
 
 // Wrapper to adapt Vercel handlers to Express
 const adaptHandler = (handler) => {
+  // Mismo punto unico que en el gateway de Vercel.
+  const conGarantia = conIdempotencia(handler);
   return async (req, res) => {
     try {
-      await handler(req, res);
+      await conGarantia(req, res);
     } catch (error) {
       const errorMsg = `[${new Date().toISOString()}] API Error: ${error.message}\nStack: ${error.stack}\nBody: ${JSON.stringify(req.body)}\n\n`;
       console.error(errorMsg);

@@ -7,6 +7,8 @@ export const config = {
   },
 };
 
+import { conIdempotencia } from './_lib/idempotencia.js';
+
 const handlers = {
   employees: () => import('./_handlers/employees.js'),
   vacations: () => import('./_handlers/vacations.js'),
@@ -63,7 +65,10 @@ export default async function handler(req, res) {
     try {
       console.log(`[Gateway] Loading handler for: ${resourceName}`);
       const module = await handlers[resourceName.toLowerCase()]();
-      return await module.default(req, res);
+      // Un solo punto cubre los 45 handlers: la garantia se activa solo si el
+      // cliente manda la cabecera Idempotency-Key, asi que nada cambia para
+      // quien no la usa.
+      return await conIdempotencia(module.default)(req, res);
     } catch (error) {
       console.error(`[Gateway Error] ${resourceName}:`, error);
       return res.status(500).json({ 

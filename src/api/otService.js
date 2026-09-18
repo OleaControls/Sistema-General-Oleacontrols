@@ -317,16 +317,32 @@ export const otService = {
     });
   },
 
+  /**
+   * Cambia el estado de una OT.
+   *
+   * Es la accion que mas hace el tecnico en campo —aceptar, arrancar, terminar—
+   * y justo donde peor se pierde la senal. Si no hay red, se encola y sube sola:
+   * devuelve entonces { encolado: true } en vez de la OT actualizada.
+   *
+   * Quien llame debe contemplar ese caso. Es explicito a proposito: fingir que
+   * se guardo y devolver una OT inventada seria peor que decir la verdad.
+   */
   async updateStatus(otId, status, extraData = {}) {
     const isNowLocked = status === 'VALIDATED';
-    return this.updateOT(otId, { status, ...extraData, isLocked: isNowLocked });
+    return this.updateOT(otId, { status, ...extraData, isLocked: isNowLocked }, { encolarSiFalla: true });
   },
 
-  async updateOT(otId, updatedData) {
+  async updateOT(otId, updatedData, { encolarSiFalla = false } = {}) {
     const response = await apiFetch('/api/ots', {
       method: 'PUT',
-      body: JSON.stringify({ id: otId, ...updatedData })
+      body: JSON.stringify({ id: otId, ...updatedData }),
+      encolarSiFalla,
+      descripcion: `Cambio en la OT ${otId}`,
     });
+
+    // 202: no habia red y quedo en la cola. No hay OT que devolver todavia.
+    if (response.status === 202) return { encolado: true };
+
     if (!response.ok) {
       // El servidor explica el motivo (p. ej. requisitos previos faltantes: 409)
       let payload = null;
