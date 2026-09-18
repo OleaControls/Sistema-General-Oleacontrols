@@ -38,6 +38,23 @@ const aqui = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.join(aqui, '.env') });
 dotenv.config({ path: path.join(aqui, '..', '.env') });
 
+// Sin DATABASE_URL, pg no falla: se conecta a localhost:5432 con el usuario de
+// Windows y devuelve un ECONNREFUSED que parece un problema de red. El error
+// real es que no se leyo el .env, asi que mas vale decirlo con todas sus letras.
+if (!process.env.DATABASE_URL) {
+  console.error('');
+  console.error('X  No se encontro DATABASE_URL.');
+  console.error('   El .env no se leyo. Revisa que exista uno de estos archivos:');
+  console.error(`     ${path.join(aqui, '.env')}`);
+  console.error(`     ${path.join(aqui, '..', '.env')}`);
+  console.error('   Ojo: el Explorador de Windows esconde las extensiones y suele');
+  console.error('   guardarlo como ".env.txt". Comprueba con:  type .env');
+  console.error('');
+  console.error('   Diagnostico completo:  node diagnostico.js');
+  console.error('');
+  process.exit(1);
+}
+
 const PUERTO = parseInt(process.env.REALTIME_PORT || '3002', 10);
 const CANAL = 'olea_eventos';
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -152,6 +169,7 @@ async function escucharPostgres(intento = 0) {
   } catch (err) {
     escuchandoPostgres = false;
     console.error(`⚠️ No se pudo conectar a Postgres: ${err.message}`);
+    console.error('   Para saber en que paso falla:  node diagnostico.js');
     reintentar(intento + 1);
   }
 }
