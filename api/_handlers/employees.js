@@ -6,6 +6,36 @@ export default async function handler(req, res) {
   const auth = authMiddleware(req, res);
   if (!auth) return; // authMiddleware ya respondió 401
 
+  /* Autorizacion.
+   *
+   * Hasta ahora este handler solo comprobaba que el token fuera valido, y no
+   * volvia a mirar quien era. Cualquier usuario autenticado podia leer el
+   * expediente completo de cualquier otro —salario, cuenta bancaria, RFC,
+   * CURP, domicilio— y, peor, escribirlo: mandando `roles` en un PUT, un
+   * tecnico podia darse ADMIN a si mismo desde la consola del navegador.
+   *
+   * El listado se deja abierto porque medio sistema lo necesita (asignar una
+   * OT, elegir un vendedor, el organigrama), pero quien no es RH lo recibe sin
+   * los datos personales.
+   */
+  const esRH = (auth.roles || []).some(r => r === 'HR' || r === 'ADMIN');
+
+  // Lo que puede editar cualquiera de su propia ficha. Son datos de contacto:
+  // nada que decida su sueldo, su acceso o su situacion laboral.
+  const CAMPOS_PROPIOS = [
+    'avatar', 'phone', 'address',
+    'emergencyContactName', 'emergencyContactPhone',
+    'telegramChatId', 'birthPlace', 'nationality', 'maritalStatus',
+  ];
+
+  // Vista reducida para quien no es RH: lo justo para pintar un nombre, una
+  // foto y saber a quien asignarle trabajo.
+  const CAMPOS_PUBLICOS = {
+    id: true, employeeId: true, name: true, email: true, roles: true,
+    avatar: true, position: true, department: true, status: true,
+    location: true, reportsTo: true, joinDate: true,
+  };
+
   // Helper para procesar múltiples documentos a R2
   const processDocs = async (body) => {
     const docFields = [
@@ -42,6 +72,17 @@ export default async function handler(req, res) {
 
       // SI SE PIDE UN EMPLEADO ESPECÍFICO (Detalle completo)
       if (id) {
+          // El expediente completo lleva salario y cuenta bancaria. Quien no es
+          // RH solo puede verlo entero si es el suyo; del resto ve la ficha
+          // publica, que es lo que necesitan las vistas de CRM y Operaciones.
+          if (!esRH && id !== auth.id) {
+            const ficha = await prisma.employee.findUnique({
+              where: { id }, select: CAMPOS_PUBLICOS,
+            });
+            if (!ficha) return res.status(404).json({ error: 'Empleado no encontrado' });
+            return res.status(200).json(ficha);
+          }
+
           const employee = await prisma.employee.findUnique({
               where: { id },
               include: {
@@ -73,6 +114,18 @@ export default async function handler(req, res) {
       }
 
       // LISTADO GENERAL
+      // Abierto a todos —asignar una OT o pintar el organigrama lo necesitan—
+      // pero sin datos personales para quien no es RH. Antes este listado
+      // repartia la CURP, el RFC, el NSS y las ligas a los documentos de toda
+      // la plantilla a cualquiera que tuviera sesion.
+      if (!esRH) {
+        const ficha = await prisma.employee.findMany({
+          orderBy: { employeeId: 'asc' },
+          select: CAMPOS_PUBLICOS,
+        });
+        return res.status(200).json(ficha);
+      }
+
       const employees = await prisma.employee.findMany({
         orderBy: { employeeId: 'asc' },
         select: {
@@ -105,6 +158,9 @@ export default async function handler(req, res) {
   }
 
   if (req.method === 'POST') {
+    // Dar de alta a alguien crea tambien sus credenciales de acceso.
+    if (!esRH) return res.status(403).json({ error: 'Solo Recursos Humanos puede dar de alta empleados' });
+
     try {
       const body = await processDocs(req.body);
       const { 
@@ -272,6 +328,30 @@ export default async function handler(req, res) {
       } = body
       
       if (!id) return res.status(400).json({ error: 'ID requerido' });
+
+      /* Quien no es RH solo edita su propia ficha, y solo datos de contacto.
+       *
+       * La lista blanca no es paranoia: `roles` se escribe desde aqui y
+       * tambien en el upsert de credenciales de mas abajo, asi que sin este
+       * filtro bastaba un PUT con { id: <el mio>, roles: ['ADMIN'] } para
+       * darse acceso total. Igual de grave seria dejar tocar `salary`,
+       * `status` o `bankAccount` de la propia ficha.
+       */
+      if (!esRH) {
+        if (id !== auth.id) {
+          return res.status(403).json({ error: 'Solo Recursos Humanos puede editar el expediente de otra persona' });
+        }
+        const prohibidos = Object.keys(body).filter(
+          k => k !== 'id' && !CAMPOS_PROPIOS.includes(k)
+        );
+        if (prohibidos.length) {
+          return res.status(403).json({
+            error: 'No puedes modificar estos campos de tu propia ficha',
+            campos: prohibidos,
+          });
+        }
+      }
+
       /* Actualizacion parcial: solo se toca lo que viene en la peticion.
        *
        * Antes este bloque escribia TODOS los campos con `campo || null`. Como
@@ -402,6 +482,8 @@ export default async function handler(req, res) {
   }
 
   if (req.method === 'DELETE') {
+    if (!esRH) return res.status(403).json({ error: 'Solo Recursos Humanos puede dar de baja empleados' });
+
     const { id } = req.query;
     if (!id) return res.status(400).json({ error: 'ID requerido' });
 
