@@ -1,0 +1,17 @@
+{
+  "name": "olea-realtime-server",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Servidor de avisos en tiempo real. Se instala aparte para que la PC de la oficina no tenga que bajar Vite, Prisma ni el resto del proyecto.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "jsonwebtoken": "^9.0.3",
+    "pg": "^8.19.0",
+    "socket.io": "^4.8.3"
+  }
+}
