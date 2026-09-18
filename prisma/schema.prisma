@@ -132,6 +132,8 @@ model Employee {
   techAttendance    TechAttendanceLog[]
   panoramizaciones  OtPanoramizacion[]
   notificaciones    Notificacion[]
+  conversaciones    MiembroConversacion[]
+  mensajes          Mensaje[]
   toolkit           TechToolkit?
 
   @@index([status])
@@ -1678,4 +1680,57 @@ model Notificacion {
   // La consulta que corre en cada carga de la campana: las mias, sin leer,
   // de la mas nueva a la mas vieja.
   @@index([destinatarioId, leida, createdAt])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CHAT INTERNO
+// ═══════════════════════════════════════════════════════════════════════════
+
+model Conversacion {
+  id       String  @id @default(cuid())
+  tipo     String  @default("DIRECTA") // DIRECTA, GRUPO
+  nombre   String?                     // solo los grupos lo usan
+
+  // Se actualiza con cada mensaje. Sin esto, ordenar la lista de
+  // conversaciones por actividad obligaria a leer el ultimo mensaje de cada
+  // una: una consulta por conversacion cada vez que se abre el chat.
+  ultimoMensajeEn DateTime @default(now())
+  creadaPorId     String?
+  createdAt       DateTime @default(now())
+
+  miembros MiembroConversacion[]
+  mensajes Mensaje[]
+
+  @@index([ultimoMensajeEn])
+}
+
+model MiembroConversacion {
+  id             String       @id @default(cuid())
+  conversacionId String
+  conversacion   Conversacion @relation(fields: [conversacionId], references: [id], onDelete: Cascade)
+  empleadoId     String
+  empleado       Employee     @relation(fields: [empleadoId], references: [id], onDelete: Cascade)
+
+  // Marca de agua de lectura: los no leidos son los mensajes posteriores.
+  // Guardar una fecha y no un contador evita tener que actualizar una fila por
+  // miembro cada vez que alguien escribe.
+  ultimaLecturaEn DateTime?
+  createdAt       DateTime  @default(now())
+
+  // Nadie puede estar dos veces en la misma conversacion.
+  @@unique([conversacionId, empleadoId])
+  @@index([empleadoId])
+}
+
+model Mensaje {
+  id             String       @id @default(cuid())
+  conversacionId String
+  conversacion   Conversacion @relation(fields: [conversacionId], references: [id], onDelete: Cascade)
+  autorId        String
+  autor          Employee     @relation(fields: [autorId], references: [id], onDelete: Cascade)
+  cuerpo         String
+  createdAt      DateTime     @default(now())
+
+  // El historial se lee siempre de una conversacion y por fecha descendente.
+  @@index([conversacionId, createdAt])
 }

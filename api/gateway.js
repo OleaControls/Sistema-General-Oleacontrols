@@ -39,6 +39,7 @@ const handlers = {
   'tech-kpis':   () => import('./_handlers/tech-kpis.js'),
   announcements: () => import('./_handlers/announcements.js'),
   notificaciones: () => import('./_handlers/notificaciones.js'),
+  chat: () => import('./_handlers/chat.js'),
   surveys:       () => import('./_handlers/surveys.js'),
   payroll:       () => import('./_handlers/payroll.js'),
   lms:           () => import('./_handlers/lms.js'),

@@ -292,6 +292,19 @@ async function escucharPostgres(intento = 0) {
       // difundiera a todos, cada pantalla de la empresa se enteraria de lo que
       // le notifican a cada quien, y ademas se copiaria el mensaje 100 veces
       // para que 99 lo descartaran.
+      if (evento.tabla === 'Mensaje' && evento.padre) {
+        // Se resuelven los miembros y se entrega a cada uno en todos sus
+        // aparatos. Asi el contador de no leidos sube aunque no tenga esa
+        // conversacion abierta, que es justo cuando hace falta.
+        miembrosDe(evento.padre)
+          .then((ids) => {
+            ids.forEach(id => io.to(`usuario:${id}`).emit('cambio', evento));
+            console.log(`💬 Mensaje en ${evento.padre} -> ${ids.length} miembro(s)`);
+          })
+          .catch(err => console.error('No se pudieron resolver los miembros:', err.message));
+        return;
+      }
+
       if (evento.tabla === 'Notificacion' && evento.padre) {
         io.to(`usuario:${evento.padre}`).emit('cambio', evento);
         console.log(`🔔 Notificacion ${evento.op} -> ${evento.padre}`);
@@ -373,6 +386,30 @@ async function persistirUbicaciones() {
 }
 
 setInterval(() => { limpiarCaducadas(); persistirUbicaciones(); }, MS_PERSISTIR);
+
+// -- Miembros de una conversacion -------------------------------------------
+// Un mensaje solo debe llegar a quienes estan en su conversacion, y el aviso de
+// Postgres trae la conversacion, no la lista de miembros. Se consulta aqui.
+//
+// El cache existe porque en una conversacion activa se mandan muchos mensajes
+// seguidos entre las mismas personas: sin el, cada mensaje costaria una
+// consulta. Vence rapido porque a un grupo se le puede agregar gente.
+const MS_CACHE_MIEMBROS = 60_000;
+const cacheMiembros = new Map(); // conversacionId -> { ids, hasta }
+
+async function miembrosDe(conversacionId) {
+  const guardado = cacheMiembros.get(conversacionId);
+  if (guardado && guardado.hasta > Date.now()) return guardado.ids;
+
+  const { rows } = await escrituras.query(
+    'SELECT "empleadoId" FROM "MiembroConversacion" WHERE "conversacionId" = $1',
+    [conversacionId]
+  );
+  const ids = rows.map(r => r.empleadoId);
+  cacheMiembros.set(conversacionId, { ids, hasta: Date.now() + MS_CACHE_MIEMBROS });
+  return ids;
+}
+
 
 function ipLocal() {
   for (const redes of Object.values(os.networkInterfaces())) {

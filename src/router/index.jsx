@@ -36,6 +36,7 @@ const HRDocuments       = lazy(() => import('@/modules/human-resources/views/HRD
 const FieldDocs         = lazy(() => import('@/modules/human-resources/views/FieldDocs'));
 const Trainings             = lazy(() => import('@/modules/human-resources/views/Trainings'));
 const EmployeeDirectory = lazy(() => import('@/modules/human-resources/views/EmployeeDirectory'));
+const Chat              = lazy(() => import('@/modules/chat/views/Chat'));
 const EmployeeProfile   = lazy(() => import('@/modules/human-resources/views/EmployeeProfile'));
 const MyProfile         = lazy(() => import('@/modules/human-resources/views/MyProfile'));
 const Attendance        = lazy(() => import('@/modules/human-resources/views/Attendance'));
@@ -173,6 +174,7 @@ export default function AppRouter() {
 
           <Route path="/"           element={<ProtectedRoute><DashboardSelector /></ProtectedRoute>} />
           <Route path="/profile"    element={<ProtectedRoute><MyProfile /></ProtectedRoute>} />
+          <Route path="/chat"       element={<ProtectedRoute><Chat /></ProtectedRoute>} />
           <Route path="/prop"       element={<ProtectedRoute><PropView /></ProtectedRoute>} />
           <Route path="/performance" element={<ProtectedRoute><PerformanceDashboard /></ProtectedRoute>} />
 

@@ -15,6 +15,7 @@ import { cn } from '@/lib/utils';
 import ConnectivityAlert from '@/components/shared/ConnectivityAlert';
 import UsuariosConectados from '@/components/shared/UsuariosConectados';
 import CampanaNotificaciones from '@/components/shared/CampanaNotificaciones';
+import IndicadorChat from '@/components/shared/IndicadorChat';
 
 // ── Estructura de navegación por rol ─────────────────────────────────────────
 // Cada entrada define qué roles la ven. Admin solo métricas.
@@ -449,7 +450,13 @@ export default function AppShell({ children }) {
           </button>
           <img src="/img/OLEACONTROLS.png" className="h-5 object-contain" alt="Olea Controls" />
         </div>
-        <img src={user?.avatar} className="h-8 w-8 rounded-full border shadow-sm" alt="Profile" />
+        {/* En movil tambien: es donde estan los tecnicos en campo, y la cabecera
+            de escritorio es hidden md:flex, asi que no la verian nunca. */}
+        <div className="flex items-center gap-1">
+          <IndicadorChat />
+          <CampanaNotificaciones />
+          <img src={user?.avatar} className="h-8 w-8 rounded-full border shadow-sm ml-1" alt="Profile" />
+        </div>
       </header>
 
       {/* Sidebar */}
@@ -558,6 +565,7 @@ export default function AppShell({ children }) {
               <p className="text-[10px] font-black text-primary uppercase tracking-widest">{activeTenant?.name}</p>
               <p className="text-[9px] font-bold text-gray-400">STATUS: ONLINE</p>
             </div>
+            <IndicadorChat />
             <CampanaNotificaciones />
           </div>
         </header>
