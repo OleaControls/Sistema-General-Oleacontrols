@@ -272,83 +272,84 @@ export default async function handler(req, res) {
       } = body
       
       if (!id) return res.status(400).json({ error: 'ID requerido' });
-      const updateData = {
-        employeeId: employeeId || undefined,
-        name: name || undefined,
-        email: email || undefined,
-        roles: roles || undefined,
-        avatar: body.avatar || undefined,
-        position: position || null,
-        department: department || null,
-        location: location || null,
-        phone: phone || null,
-        status: status || 'ACTIVE',
-        reportsTo: (reportsTo && reportsTo.trim() !== "" && reportsTo !== id) ? reportsTo : null,
-        telegramChatId: body.telegramChatId !== undefined ? (body.telegramChatId || null) : undefined,
-        
-        birthPlace: birthPlace || null,
-        nationality: nationality || null,
-        maritalStatus: maritalStatus || null,
-        address: address || null,
-        emergencyContactName: emergencyContactName || null,
-        emergencyContactPhone: emergencyContactPhone || null,
+      /* Actualizacion parcial: solo se toca lo que viene en la peticion.
+       *
+       * Antes este bloque escribia TODOS los campos con `campo || null`. Como
+       * la pantalla de RH manda solo lo que edita —al subir un documento manda
+       * ese documento y poco mas—, cada guardado borraba los otros 26 campos
+       * del expediente. Y `status: status || 'ACTIVE'` volvia a dar de alta a
+       * quien estaba dado de baja.
+       *
+       * La regla ahora es la presencia de la clave: si el campo no viene, no se
+       * toca; si viene vacio, se limpia a proposito. Es ademas lo que hace
+       * seguro reintentar una peticion vieja, que es justo lo que hara la cola
+       * offline: sin esto, un reintento de hace horas pisaria lo ya corregido.
+       */
+      const presente = (campo) => Object.prototype.hasOwnProperty.call(body, campo);
+      const limpio   = (v) => (v === '' || v === null ? null : v);
 
-        // Documentos
-        ine: ine || null,
-        curp: curp || null,
-        rfc: rfc || null,
-        nss: nss || null,
-        birthCertificate: birthCertificate || null,
-        proofOfResidency: proofOfResidency || null,
-        cv: cv || null,
-        ineDoc: ineDoc || null,
-        contractSigned: contractSigned || null,
-        privacyPolicySigned: privacyPolicySigned || null,
-        internalRulesSigned: internalRulesSigned || null,
-        imssHigh: imssHigh || null,
-        studyCertificate: studyCertificate || null,
-        degreeOrProfessionalId: degreeOrProfessionalId || null,
-        diplomasOrCourses: diplomasOrCourses || null,
-        laborCertifications: laborCertifications || null,
-        recommendationLetter: recommendationLetter || null,
-        performanceEvaluations: performanceEvaluations || null,
-        receivedTraining: receivedTraining || null,
-        administrativeActs: administrativeActs || null,
-        disciplinaryReports: disciplinaryReports || null,
-        permitsOrLicenses: permitsOrLicenses || null,
-        resignationLetter: resignationLetter || null,
-        settlementOrLiquidation: settlementOrLiquidation || null,
-        imssLow: imssLow || null,
-        laborConstancy: laborConstancy || null,
+      const updateData = {};
 
-        // Laborales
-        contractType: contractType || null,
-        workSchedule: workSchedule || null,
-
-        // Nómina
-        bankName: bankName || null,
-        bankAccount: bankAccount || null,
-        paymentType: paymentType || null,
-      };
-
-      // Validar salario
-      if (salary !== undefined && salary !== null && salary !== '') {
-          const s = parseFloat(salary);
-          if (!isNaN(s)) updateData.salary = s;
-      } else {
-          updateData.salary = null;
+      // Texto libre y documentos: aqui el vacio si significa "borrar".
+      const CAMPOS_OPCIONALES = [
+        'position', 'department', 'location', 'phone',
+        'birthPlace', 'nationality', 'maritalStatus', 'address',
+        'emergencyContactName', 'emergencyContactPhone',
+        'ine', 'curp', 'rfc', 'nss', 'birthCertificate', 'proofOfResidency', 'cv', 'ineDoc',
+        'contractSigned', 'privacyPolicySigned', 'internalRulesSigned', 'imssHigh',
+        'studyCertificate', 'degreeOrProfessionalId', 'diplomasOrCourses',
+        'laborCertifications', 'recommendationLetter', 'performanceEvaluations',
+        'receivedTraining', 'administrativeActs', 'disciplinaryReports',
+        'permitsOrLicenses', 'resignationLetter', 'settlementOrLiquidation',
+        'imssLow', 'laborConstancy',
+        'contractType', 'workSchedule',
+        'bankName', 'bankAccount', 'paymentType',
+        'telegramChatId',
+      ];
+      for (const campo of CAMPOS_OPCIONALES) {
+        if (presente(campo)) updateData[campo] = limpio(body[campo]);
       }
 
-      // Validar fechas
-      if (joinDate) {
-          const d = new Date(joinDate);
-          if (!isNaN(d.getTime())) updateData.joinDate = d;
+      // Identificadores: vaciarlos dejaria al empleado sin nombre o sin correo,
+      // asi que un valor vacio se ignora en vez de escribirse.
+      for (const campo of ['employeeId', 'name', 'email', 'avatar']) {
+        if (presente(campo) && body[campo]) updateData[campo] = body[campo];
       }
-      if (birthDate) {
-          const d = new Date(birthDate);
-          if (!isNaN(d.getTime())) updateData.birthDate = d;
-      } else {
-          updateData.birthDate = null;
+
+      // Un arreglo vacio es truthy en JavaScript: sin comprobar la longitud,
+      // mandar roles: [] dejaria al empleado sin ningun rol y sin acceso.
+      if (presente('roles') && Array.isArray(roles) && roles.length > 0) {
+        updateData.roles = roles;
+      }
+
+      // Dar de baja o reactivar es una decision explicita, nunca el efecto
+      // secundario de guardar otra cosa.
+      if (presente('status') && status) updateData.status = status;
+
+      // Nadie puede ser su propio jefe.
+      if (presente('reportsTo')) {
+        updateData.reportsTo =
+          (reportsTo && String(reportsTo).trim() !== '' && reportsTo !== id) ? reportsTo : null;
+      }
+
+      if (presente('salary')) {
+        const s = parseFloat(salary);
+        updateData.salary = (salary === '' || salary === null || isNaN(s)) ? null : s;
+      }
+
+      // birthDate admite nulo; joinDate no (es obligatorio en el esquema), asi
+      // que solo se escribe cuando trae una fecha valida.
+      if (presente('birthDate')) {
+        const d = birthDate ? new Date(birthDate) : null;
+        updateData.birthDate = (d && !isNaN(d.getTime())) ? d : null;
+      }
+      if (presente('joinDate') && joinDate) {
+        const d = new Date(joinDate);
+        if (!isNaN(d.getTime())) updateData.joinDate = d;
+      }
+
+      if (Object.keys(updateData).length === 0) {
+        return res.status(400).json({ error: 'No hay nada que actualizar' });
       }
 
       // 1. Actualizar datos del empleado
@@ -373,7 +374,9 @@ export default async function handler(req, res) {
             },
             update: {
               email: normalizedUpdEmail,
-              roles: roles || undefined,
+              // Mismo cuidado que arriba: [] es truthy, y sin comprobar la
+              // longitud un guardado sin roles dejaria al empleado sin acceso.
+              roles: (Array.isArray(roles) && roles.length > 0) ? roles : undefined,
               ...(nuevaPass ? { password: await hashPassword(nuevaPass) } : {})
             }
           });
