@@ -16,6 +16,7 @@ import { crmService } from '@/api/crmService';
 import { hrService } from '@/api/hrService';
 import { apiFetch } from '@/lib/api';
 import { useAuth, ROLES } from '@/store/AuthContext';
+import { suscribirUbicaciones, hayRealtime } from '@/services/realtime';
 import { cn } from '@/lib/utils';
 import {
   OT_WINDOW_KEY, DEFAULT_OT_WINDOW, normalizeWindow, isWindowOpen, windowLabel, hourLabel,
@@ -448,8 +449,22 @@ export default function SupervisorOTs() {
     // Revisa cada minuto para que el botón se cierre solo al llegar la hora
     const clockTick = setInterval(() => setNowTick(new Date()), 60000);
 
-    const interval = setInterval(fetchTechLocations, 10000);
-    return () => { clearInterval(interval); clearInterval(clockTick); };
+    // Las posiciones llegan por el socket: el servidor manda la instantánea
+    // completa al entrar y luego solo al técnico que se mueve.
+    //
+    // Antes esto era `setInterval(fetchTechLocations, 10000)`: 8 640 consultas
+    // al día por cada supervisor con el mapa abierto, casi todas devolviendo lo
+    // mismo que la anterior.
+    const dejarDeEscuchar = suscribirUbicaciones(setTechLocations);
+
+    // Respaldo: si el servidor de la oficina está caído, se vuelve a consultar
+    // —cada 60 s, no cada 10— para que el mapa siga sirviendo. Es más lento,
+    // pero nunca deja de funcionar.
+    const respaldo = setInterval(() => {
+      if (!hayRealtime()) fetchTechLocations();
+    }, 60000);
+
+    return () => { dejarDeEscuchar(); clearInterval(respaldo); clearInterval(clockTick); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

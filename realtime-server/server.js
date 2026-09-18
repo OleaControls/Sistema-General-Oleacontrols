@@ -84,6 +84,7 @@ const servidor = http.createServer((req, res) => {
       ok: true,
       escuchandoPostgres: escuchandoPostgres,
       clientes: io?.engine?.clientsCount ?? 0,
+      tecnicosEnMapa: ubicaciones.size,
       desde: arrancadoEn,
     }));
   }
@@ -116,15 +117,76 @@ io.use((socket, next) => {
   }
 });
 
+// ═══════════════════════════════════════════════════════════════════════════
+// UBICACIONES DE TECNICOS
+//
+// Viven en memoria, no en Postgres. Un tecnico reporta su posicion cada pocos
+// minutos; con 100 tecnicos eso serian ~20 000 escrituras diarias a la base
+// para un dato que a los 5 minutos ya no le sirve a nadie. Aqui se guarda la
+// ultima de cada uno y se persiste cada 5 minutos, solo las que cambiaron.
+//
+// Tener la ultima posicion en memoria resuelve ademas un problema que el
+// sondeo tampoco resolvia bien: el supervisor que abre el mapa ve a los 100
+// tecnicos de inmediato, en vez de un mapa vacio que se va llenando conforme
+// cada uno vuelve a reportar.
+// ═══════════════════════════════════════════════════════════════════════════
+const SALA_SUPERVISORES = 'supervisores';
+const ROLES_SUPERVISION = ['ADMIN', 'SUPERVISOR', 'PROJECT_MANAGER'];
+const MS_PERSISTIR = 5 * 60_000;
+const MS_CADUCIDAD = 12 * 60 * 60_000; // 12 h sin reportar: fuera del mapa
+
+/** id del tecnico -> { id, nombre, lat, lng, ts, sinGuardar } */
+const ubicaciones = new Map();
+
+const esSupervisor = (u) => (u?.roles || []).some(r => ROLES_SUPERVISION.includes(r));
+
+function guardarUbicacion(usuario, datos) {
+  const lat = Number(datos?.lat);
+  const lng = Number(datos?.lng);
+  // Un NaN o un cero pegarian al tecnico en la isla nula, frente a Africa.
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  if (Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
+
+  // La identidad sale del JWT, nunca del mensaje: si viniera del cliente,
+  // cualquier tecnico podria mover el punto de otro en el mapa del supervisor.
+  const punto = {
+    id: usuario.id,
+    nombre: usuario.email,
+    lat, lng,
+    ts: Date.now(),
+    sinGuardar: true,
+  };
+  ubicaciones.set(usuario.id, punto);
+  return punto;
+}
+
+/** Quita del mapa a quien lleva medio dia sin reportar. */
+function limpiarCaducadas() {
+  const limite = Date.now() - MS_CADUCIDAD;
+  for (const [id, p] of ubicaciones) {
+    if (p.ts < limite) ubicaciones.delete(id);
+  }
+}
+
 io.on('connection', (socket) => {
-  const quien = socket.data.usuario?.email || 'anónimo';
+  const usuario = socket.data.usuario;
+  const quien = usuario?.email || 'anónimo';
   console.log(`🟢 Conectado: ${quien} (${socket.id}) — total: ${io.engine.clientsCount}`);
 
-  // GPS de técnicos: NO pasa por Postgres a propósito. Es un dato efímero que
-  // se emite cada pocos segundos; guardarlo en la base en cada latido la
-  // saturaría, y perder un punto no tiene consecuencia.
+  // Solo quien supervisa entra a la sala del mapa. Antes esto era un
+  // broadcast a todos: con 100 tecnicos, cada reporte se copiaba 99 veces
+  // hacia aparatos que no tienen mapa que pintar.
+  if (esSupervisor(usuario)) {
+    socket.join(SALA_SUPERVISORES);
+    limpiarCaducadas();
+    // Instantanea al entrar: el mapa se pinta completo desde el primer segundo.
+    socket.emit('tech:instantanea', [...ubicaciones.values()]);
+  }
+
   socket.on('tech:ubicacion', (datos) => {
-    socket.broadcast.emit('tech:ubicacion', { ...datos, socketId: socket.id });
+    if (!usuario?.id) return;
+    const punto = guardarUbicacion(usuario, datos);
+    if (punto) io.to(SALA_SUPERVISORES).emit('tech:ubicacion', punto);
   });
 
   socket.on('disconnect', (motivo) => {
@@ -185,6 +247,47 @@ function reintentar(intento) {
   setTimeout(() => escucharPostgres(intento), espera);
 }
 
+// -- Persistencia periodica -------------------------------------------------
+// Cada 5 minutos baja a Postgres solo lo que cambio. Sirve para dos cosas: que
+// el historico siga existiendo, y que si este servidor se reinicia el mapa no
+// quede en blanco (la API sigue sirviendo la ultima posicion conocida).
+//
+// Un pool chico basta: escribe un puñado de filas cada cinco minutos.
+const escrituras = new pg.Pool({
+  connectionString: process.env.DATABASE_URL,
+  max: 2,
+  idleTimeoutMillis: 30_000,
+});
+
+async function persistirUbicaciones() {
+  const pendientes = [...ubicaciones.values()].filter(p => p.sinGuardar);
+  if (!pendientes.length) return;
+
+  try {
+    // Una sola sentencia para todas: 100 tecnicos son 1 consulta, no 100.
+    await escrituras.query(
+      `UPDATE "Employee" AS e
+          SET "techLat" = v.lat, "techLng" = v.lng, "techLastSeen" = v.ts
+         FROM (SELECT * FROM unnest($1::text[], $2::float8[], $3::float8[], $4::timestamptz[])
+                      AS t(id, lat, lng, ts)) AS v
+        WHERE e.id = v.id`,
+      [
+        pendientes.map(p => p.id),
+        pendientes.map(p => p.lat),
+        pendientes.map(p => p.lng),
+        pendientes.map(p => new Date(p.ts)),
+      ]
+    );
+    pendientes.forEach(p => { p.sinGuardar = false; });
+    console.log(`> ${pendientes.length} ubicacion(es) guardadas`);
+  } catch (err) {
+    // No se marcan como guardadas: se reintentan en la siguiente vuelta.
+    console.error('!! No se pudieron guardar las ubicaciones:', err.message);
+  }
+}
+
+setInterval(() => { limpiarCaducadas(); persistirUbicaciones(); }, MS_PERSISTIR);
+
 function ipLocal() {
   for (const redes of Object.values(os.networkInterfaces())) {
     for (const red of redes || []) {
@@ -210,6 +313,10 @@ servidor.listen(PUERTO, '0.0.0.0', () => {
 for (const senal of ['SIGINT', 'SIGTERM']) {
   process.on(senal, () => {
     console.log('\nCerrando servidor realtime...');
-    io.close(() => servidor.close(() => process.exit(0)));
+    // Si no se guarda aqui, un apagado (o el aviso del no-break) se lleva
+    // hasta 5 minutos de posiciones que estaban solo en memoria.
+    persistirUbicaciones()
+      .catch(() => {})
+      .finally(() => io.close(() => servidor.close(() => process.exit(0))));
   });
 }

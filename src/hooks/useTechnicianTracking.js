@@ -1,6 +1,7 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { useAuth, ROLES } from '@/store/AuthContext';
 import { otService } from '@/api/otService';
+import { enviarUbicacion, socket } from '@/services/realtime';
 
 export function useTechnicianTracking() {
   const { user } = useAuth();
@@ -15,6 +16,16 @@ export function useTechnicianTracking() {
     const now = Date.now();
     const timeSinceLast = lastSentAt.current ? now - lastSentAt.current : Infinity;
 
+    // Por el socket, un reporte no cuesta ni una función de Vercel ni una
+    // escritura en la base: el servidor lo guarda en memoria y lo persiste cada
+    // 5 minutos. Por eso se puede reportar mucho más seguido y el supervisor ve
+    // moverse al técnico de verdad, en vez de a saltos de 200 metros.
+    // Si no hay socket, sale por la API y vuelven los umbrales de antes: ahí
+    // cada envío sí cuesta.
+    const porSocket = socket.connected;
+    const metrosMin = porSocket ? 50 : 200;
+    const msMin = porSocket ? 60_000 : 300_000;
+
     if (lastPos.current) {
       const R = 6371e3;
       const dLat = (lat - lastPos.current.lat) * Math.PI / 180;
@@ -24,12 +35,15 @@ export function useTechnicianTracking() {
         Math.sin(dLng / 2) ** 2;
       const distance = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 
-      // Solo enviar si movió > 200m O pasaron > 5 minutos
-      if (distance < 200 && timeSinceLast < 300000) return;
+      if (distance < metrosMin && timeSinceLast < msMin) return;
     }
 
     try {
-      await otService.updateTechnicianLocation(user.id, user.name, lat, lng);
+      // El socket es el camino barato; la API, la red de seguridad para cuando
+      // el servidor de la oficina no está.
+      if (!enviarUbicacion(lat, lng)) {
+        await otService.updateTechnicianLocation(user.id, user.name, lat, lng);
+      }
       lastPos.current = { lat, lng };
       lastSentAt.current = now;
     } catch (err) {

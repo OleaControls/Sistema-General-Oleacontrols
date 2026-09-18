@@ -89,3 +89,41 @@ export function suscribirCambios(tabla, alCambiar) {
   socket.on('cambio', manejar);
   return () => socket.off('cambio', manejar);
 }
+
+/**
+ * Reporta la posición del técnico. Devuelve true si salió por el socket.
+ *
+ * El false importa: quien llama debe entonces mandarla por la API. El servidor
+ * de la oficina se va a caer —apagones, reinicios— y el rastreo no puede
+ * depender de él.
+ */
+export function enviarUbicacion(lat, lng) {
+  if (!socket.connected) return false;
+  socket.emit('tech:ubicacion', { lat, lng });
+  return true;
+}
+
+/**
+ * Escucha las posiciones de los técnicos. Solo reciben quienes supervisan; el
+ * servidor lo decide por el rol del JWT, no por lo que pida el cliente.
+ *
+ * `alRecibir` llega con el mapa completo { id: {id, nombre, lat, lng, ts} }:
+ *   - al conectar, con la instantánea de todos (el mapa se pinta de una vez)
+ *   - después, con cada técnico que se mueve
+ *
+ * Devuelve la función de limpieza, lista para usar en un useEffect.
+ */
+export function suscribirUbicaciones(alRecibir) {
+  const indexar = (lista) =>
+    Object.fromEntries(lista.map(p => [p.id, { ...p, lastUpdate: new Date(p.ts).toISOString() }]));
+
+  const instantanea = (lista) => alRecibir(() => indexar(lista));
+  const punto = (p) => alRecibir(previas => ({ ...previas, ...indexar([p]) }));
+
+  socket.on('tech:instantanea', instantanea);
+  socket.on('tech:ubicacion', punto);
+  return () => {
+    socket.off('tech:instantanea', instantanea);
+    socket.off('tech:ubicacion', punto);
+  };
+}
