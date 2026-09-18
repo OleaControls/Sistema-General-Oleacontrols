@@ -136,9 +136,13 @@ io.on('connection', (socket) => {
 // Conexión dedicada (Client, no Pool): LISTEN vive en UNA sesión concreta, y
 // un pool podría devolverla a otra consulta y perder la suscripción.
 async function escucharPostgres(intento = 0) {
+  // El SSL lo gobierna el sslmode de la DATABASE_URL. Antes se forzaba aqui
+  // rejectUnauthorized:false, que cifra pero NO comprueba la identidad del
+  // servidor: quien pudiera interceptar el trafico entre esta PC y la base
+  // podria presentar su propio certificado. La verificacion completa funciona
+  // contra db.prisma.io, asi que no hay motivo para renunciar a ella.
   const cliente = new pg.Client({
     connectionString: process.env.DATABASE_URL,
-    ssl: { rejectUnauthorized: false },
     keepAlive: true,
   });
 

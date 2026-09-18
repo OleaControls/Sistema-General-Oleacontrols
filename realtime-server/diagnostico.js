@@ -71,6 +71,15 @@ if (!process.env.JWT_SECRET) {
   ok(`JWT_SECRET presente (${process.env.JWT_SECRET.length} caracteres)`);
 }
 
+const modo = (url.match(/sslmode=([^&]*)/) || [])[1];
+if (modo === 'verify-full') {
+  ok('sslmode=verify-full (identidad del servidor verificada)');
+} else if (modo) {
+  ok(`sslmode=${modo}`);
+  pista('Cambialo a verify-full: hoy pg lo trata igual, pero en pg v9 pasara a');
+  pista('cifrar sin verificar quien esta del otro lado. Tambien quita el warning.');
+}
+
 if (url.startsWith('prisma://') || url.startsWith('prisma+postgres://')) {
   mal('Es una URL de Accelerate. LISTEN no funciona sobre su pooler (es HTTP).');
   pista('Necesitas la URL directa postgres:// de tu proveedor.');
@@ -121,7 +130,7 @@ if (tcp === 'ok') {
 
 // ── 5. Postgres + LISTEN ────────────────────────────────────────────────────
 console.log('\n5. Postgres');
-const cli = new pg.Client({ connectionString: url, ssl: { rejectUnauthorized: false } });
+const cli = new pg.Client({ connectionString: url });
 try {
   await cli.connect();
   ok('autenticacion correcta');
