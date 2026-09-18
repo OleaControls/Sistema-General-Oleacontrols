@@ -106,6 +106,47 @@ export async function listaPendientes() {
   } catch { return []; }
 }
 
+/**
+ * Tareas con varios pasos.
+ *
+ * Una peticion suelta se reenvia tal cual, pero el acta de entrega no cabe en
+ * ese molde: sube dos firmas, N fotos y un PDF a R2, y solo al final actualiza
+ * la OT. Encolar unicamente el ultimo paso guardaria un acta apuntando a
+ * archivos que nunca se subieron.
+ *
+ * Por eso una tarea guarda su PROGRESO: si se fue la senal tras subir tres
+ * fotos, al reintentar se siguen desde la cuarta. Sin eso, cada reintento
+ * volveria a subir todo y dejaria copias huerfanas en el bucket.
+ *
+ * Las tareas se registran al arrancar la app y no en la vista que las crea: un
+ * acta encolada tiene que poder subir aunque el tecnico ya haya cerrado esa
+ * pantalla o recargado.
+ */
+const tareas = new Map();
+
+export function registrarTarea(nombre, fn) {
+  tareas.set(nombre, fn);
+}
+
+/** Encola una tarea de varios pasos. Devuelve su clave de idempotencia. */
+export async function encolarTarea({ nombre, datos, descripcion }) {
+  const clave = nuevaClave();
+  try {
+    await ejecutar('readwrite', store => store.add({
+      tipo: 'tarea', nombre, datos, clave,
+      descripcion: descripcion || nombre,
+      progreso: {},
+      creadoEn: Date.now(),
+      intentos: 0,
+    }));
+    avisarCambio();
+    return clave;
+  } catch (err) {
+    console.warn('[outbox] no se pudo encolar la tarea:', err?.message);
+    return null;
+  }
+}
+
 let reenviando = false;
 
 /**
@@ -122,6 +163,35 @@ export async function reenviar() {
     const token = localStorage.getItem('olea_token');
 
     for (const item of cola.sort((a, b) => a.orden - b.orden)) {
+      if (item.tipo === 'tarea') {
+        const fn = tareas.get(item.nombre);
+        if (!fn) {
+          // La tarea no esta registrada: no se descarta el trabajo del tecnico
+          // por un fallo de arranque nuestro. Se para y se reintenta.
+          console.warn(`[outbox] tarea "${item.nombre}" no registrada; se conserva`);
+          break;
+        }
+        try {
+          await fn(item.datos, {
+            clave: item.clave,
+            progreso: item.progreso || {},
+            // Anotar cada paso terminado es lo que evita volver a subir lo ya
+            // subido en el siguiente intento.
+            guardarProgreso: async (parcial) => {
+              const actual = { ...(item.progreso || {}), ...parcial };
+              item.progreso = actual;
+              await ejecutar('readwrite', store => store.put({ ...item, progreso: actual }));
+            },
+          });
+          await ejecutar('readwrite', store => store.delete(item.orden));
+          enviadas++;
+        } catch (err) {
+          console.warn(`[outbox] "${item.descripcion}" no pudo completarse:`, err?.message);
+          break;
+        }
+        continue;
+      }
+
       try {
         const res = await fetch(item.url, {
           method: item.metodo,

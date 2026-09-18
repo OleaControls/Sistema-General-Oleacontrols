@@ -12,6 +12,8 @@ import { otService } from '@/api/otService';
 import { useAuth } from '@/store/AuthContext';
 import { cn } from '@/lib/utils';
 import { saveDraft, loadDraft, clearDraft } from '@/lib/draftStore';
+import { encolarTarea } from '@/lib/outbox';
+import { TAREA_ACTA } from '@/modules/ots/tareaActaEntrega';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -748,6 +750,67 @@ export default function DeliveryAct() {
       const clientSigBase64 = await compressSig(clientSigPad.current.toDataURL());
       log(`Firma Cliente: ${Math.round(clientSigBase64.length / 1024)} KB`);
 
+      // Los campos de la OT son los mismos se suba ahora o se encole.
+      const camposOT = {
+          status: 'COMPLETED',
+          systemType: formData.systemType,
+          deliveryDetails: formData.deliveryDetails,
+          pendingTasks: formData.pendingTasks,
+          finishedAt: new Date().toISOString(),
+      };
+
+      const incidentesConFoto = (formData.incidents || []).filter(i => i.url || (i.description || '').trim());
+
+      // El PDF se genera aqui, con o sin red: jsPDF trabaja en el navegador.
+      // Asi el acta encolada ya lleva su documento y al reintentar solo hay que
+      // subirlo.
+      log('Generando PDF...');
+      const comprimirParaPdf = async (lista) => Promise.all(
+          (lista || []).map(async (item) => ({ ...item, url: await compressPhotoForPdf(item.url) }))
+      );
+      // El acta debe reflejar TODO el trabajo: lo subido en campo y lo del cierre.
+      const pdfPhotos    = await comprimirParaPdf([...previas.fotos, ...formData.photos]);
+      const pdfIncidents = await comprimirParaPdf([...previas.incidentes, ...incidentesConFoto]);
+      const pdfBase64 = await generatePDF({
+          ...formData,
+          tscSignature: tscSigBase64,
+          clientSignature: clientSigBase64,
+          photos: pdfPhotos,
+          incidents: pdfIncidents
+      });
+      log(`PDF generado: ${Math.round(pdfBase64.length / 1024)} KB`);
+
+      const datosActa = {
+          otId: ot.id,
+          claveBorrador: DRAFT_KEY,
+          firmaTecnico: tscSigBase64,
+          firmaCliente: clientSigBase64,
+          fotos: formData.photos,
+          incidentes: incidentesConFoto,
+          pdf: pdfBase64,
+          campos: camposOT,
+      };
+
+      /* Sin red, el acta se encola entera en vez de perderse.
+       *
+       * Es el caso que mas duele de todos: el tecnico documento el trabajo, hizo
+       * firmar al cliente, y si esto falla tiene que capturarlo otra vez — y si
+       * ya se fue del sitio, no puede. */
+      if (!navigator.onLine) {
+          log('Sin conexion: el acta queda guardada y subira sola.');
+          const clave = await encolarTarea({
+              nombre: TAREA_ACTA,
+              datos: datosActa,
+              descripcion: `Acta de entrega ${ot.otNumber || ot.id}`,
+          });
+          if (!clave) throw new Error('No se pudo guardar el acta en este dispositivo');
+          clearTimeout(saveTimer.current);
+          draftReady.current = false;
+          alert('Sin conexion. El acta quedo guardada en este dispositivo y se subira sola en cuanto haya senal. Puedes cerrar la app.');
+          navigate('/ots');
+          return;
+      }
+
       // 2. Subir firmas
       log('Paso 2: subiendo firma técnico a R2...');
       const tscSigUrl = await otService.uploadFile(tscSigBase64, 'signatures');
@@ -771,45 +834,23 @@ export default function DeliveryAct() {
       const photoUrls = await subirLista(formData.photos);
       log(`Fotos OK: ${photoUrls.length}`);
 
-      const incidentesConFoto = (formData.incidents || []).filter(i => i.url || (i.description || '').trim());
       log(`Paso 3b: subiendo ${incidentesConFoto.length} incidencia(s)...`);
       const incidentUrls = await subirLista(incidentesConFoto);
 
-      // 4. Generar PDF (con fotos re-comprimidas para no inflar el PDF)
-      log('Paso 4: generando PDF...');
-      const comprimirParaPdf = async (lista) => Promise.all(
-          (lista || []).map(async (item) => ({ ...item, url: await compressPhotoForPdf(item.url) }))
-      );
-      // El acta debe reflejar TODO el trabajo: lo subido en campo y lo del cierre.
-      const pdfPhotos    = await comprimirParaPdf([...previas.fotos, ...formData.photos]);
-      const pdfIncidents = await comprimirParaPdf([...previas.incidentes, ...incidentesConFoto]);
-      const pdfBase64 = await generatePDF({
-          ...formData,
-          tscSignature: tscSigBase64,
-          clientSignature: clientSigBase64,
-          photos: pdfPhotos,
-          incidents: pdfIncidents
-      });
-      log(`PDF generado: ${Math.round(pdfBase64.length / 1024)} KB`);
-
-      // 5. Subir PDF (directo a R2 con URL prefirmada; evita el límite de 4.5 MB)
-      log('Paso 5: subiendo PDF a R2...');
+      // 4. Subir PDF (directo a R2 con URL prefirmada; evita el límite de 4.5 MB)
+      log('Paso 4: subiendo PDF a R2...');
       const pdfUrl = await otService.uploadLargeFile(pdfBase64, 'delivery-acts');
       log(`PDF URL: ${String(pdfUrl).slice(0, 60)}`);
 
-      // 6. Actualizar OT
-      log('Paso 6: actualizando OT en servidor...');
+      // 5. Actualizar OT
+      log('Paso 5: actualizando OT en servidor...');
       await otService.updateOT(ot.id, {
-          status: 'COMPLETED',
-          systemType: formData.systemType,
-          deliveryDetails: formData.deliveryDetails,
-          pendingTasks: formData.pendingTasks,
+          ...camposOT,
           signature: tscSigUrl,
           clientSignature: clientSigUrl,
           deliveryActUrl: pdfUrl,
           photos: photoUrls,
           incidents: incidentUrls,
-          finishedAt: new Date().toISOString()
       });
 
       // El acta ya está en el servidor: el borrador local deja de ser útil y

@@ -27,7 +27,11 @@ export async function apiFetch(url, options = {}) {
         headers['Authorization'] = `Bearer ${token}`;
     }
 
-    const { encolarSiFalla, descripcion, ...opcionesFetch } = options;
+    const { encolarSiFalla, descripcion, claveIdempotencia, ...opcionesFetch } = options;
+
+    // Si quien llama trae una clave, el servidor garantiza que ese envio no se
+    // ejecute dos veces aunque llegue repetido.
+    if (claveIdempotencia) headers['Idempotency-Key'] = claveIdempotencia;
     const metodo = (opcionesFetch.method || 'GET').toUpperCase();
     const puedeEncolarse = encolarSiFalla && metodo !== 'GET' && metodo !== 'HEAD';
 

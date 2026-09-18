@@ -3,6 +3,7 @@ import { AuthProvider } from './store/AuthContext';
 import { TenantProvider } from './store/TenantContext';
 import { socket } from './services/realtime';
 import { iniciarOutbox } from './lib/outbox';
+import { registrarTareaActa } from './modules/ots/tareaActaEntrega';
 import AppRouter from './router';
 import './App.css';
 
@@ -13,7 +14,12 @@ function App() {
   // La cola de pendientes arranca con la app: reintenta al volver la red, al
   // volver a la pestaña y cada minuto. Va aquí y no en una vista porque el
   // técnico puede cerrar la pantalla donde capturó y la cola debe seguir viva.
-  useEffect(() => { iniciarOutbox(); }, []);
+  useEffect(() => {
+    // Las tareas se registran ANTES de arrancar la cola: un acta encolada en
+    // otra sesión debe poder subir sin que nadie abra esa pantalla.
+    registrarTareaActa();
+    iniciarOutbox();
+  }, []);
 
   useEffect(() => {
     const handleConnect = () => {
