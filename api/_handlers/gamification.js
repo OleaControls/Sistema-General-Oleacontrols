@@ -1,4 +1,5 @@
 import prisma from '../_lib/prisma.js'
+import { authMiddleware } from '../_lib/auth.js'
 
 // ── Sistema de puntos ────────────────────────────────────────────────────────
 const PRIORITY_PTS  = { URGENT: 200, HIGH: 150, MEDIUM: 100, LOW: 60 };
@@ -50,6 +51,11 @@ function parseSupportIds(ot) {
 }
 
 export default async function handler(req, res) {
+  // No comprobaba nada: el ranking y los puntos de los tecnicos quedaban
+  // abiertos. Sus dos consumidores van por apiFetch, que ya manda el token.
+  const auth = authMiddleware(req, res);
+  if (!auth) return;
+
   if (req.method !== 'GET') return res.status(405).json({ error: 'Método no permitido' });
 
   try {

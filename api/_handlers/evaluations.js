@@ -1,4 +1,5 @@
 import prisma from '../_lib/prisma.js'
+import { authMiddleware } from '../_lib/auth.js'
 
 const getQuincenaRange = (date, offset = 0) => {
   let d = new Date(date);
@@ -60,6 +61,21 @@ export default async function handler(req, res) {
   const currentQ = getQuincenaRange(now);
   const prevQ = getQuincenaRange(now, -1);
 
+  /* Este handler no comprobaba nada, y no se puede cerrar del todo: el
+   * formulario de satisfaccion vive en /feedback/:type/:otId, que es una ruta
+   * PUBLICA —el cliente recibe una liga y evalua sin iniciar sesion—. Cerrarlo
+   * entero romperia el producto.
+   *
+   * Asi que quedan abiertos exactamente dos caminos: preguntar si esa OT ya fue
+   * evaluada, y mandar la evaluacion. Todo lo demas —el ranking de tecnicos,
+   * las calificaciones de una persona, las recomendaciones— pide sesion.
+   */
+  const esFormularioPublico =
+    (method === 'GET' && req.query.otId && req.query.type) || method === 'POST';
+
+  const auth = esFormularioPublico ? null : authMiddleware(req, res);
+  if (!esFormularioPublico && !auth) return;
+
   if (method === 'GET') {
     try {
       const { targetId, ranking, otId, type } = req.query;
@@ -76,6 +92,10 @@ export default async function handler(req, res) {
           const evaluation = await prisma.evaluation.findFirst({
             where: { otId: targetOT.id, type }
           });
+          // Sin sesion se devuelve solo si existe, no su contenido: el
+          // formulario unicamente mira `id` para no dejar evaluar dos veces, y
+          // asi quien adivine un folio no lee las respuestas ni el comentario.
+          if (!auth) return res.status(200).json(evaluation ? { id: evaluation.id } : {});
           return res.status(200).json(evaluation || {});
         }
         return res.status(200).json({});

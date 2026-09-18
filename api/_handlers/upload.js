@@ -1,4 +1,5 @@
 import { uploadToR2, getUploadUrl } from '../_lib/r2.js'
+import { authMiddleware } from '../_lib/auth.js'
 
 export const config = {
   api: {
@@ -9,6 +10,16 @@ export const config = {
 };
 
 export default async function handler(req, res) {
+  // Este endpoint no comprobaba nada. Cualquiera que conociera la URL podia
+  // subir archivos al bucket, o pedir una URL firmada para subir directo: coste
+  // de almacenamiento ajeno y contenido arbitrario alojado bajo este dominio.
+  //
+  // Se comprobo antes de cerrarlo que los cinco lugares que lo usan
+  // (otService, HRDocuments, HRSettings, MyProfile) van por apiFetch, que ya
+  // manda el token. Cerrar esto no rompe ningun flujo existente.
+  const auth = authMiddleware(req, res);
+  if (!auth) return;
+
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   try {

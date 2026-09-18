@@ -81,6 +81,17 @@ export default async function handler(req, res) {
 
   const method = req.method?.toUpperCase();
 
+  /* Este handler autenticaba y no volvia a mirar quien era, asi que cualquier
+   * usuario con sesion podia leer el sueldo, el bruto, el neto y las
+   * deducciones de TODA la plantilla.
+   *
+   * No basta con cerrarlo a RH: MyProfile lo usa para que cada quien vea su
+   * propio recibo. Lo que hacia era descargar el periodo entero y quedarse con
+   * su fila en el navegador —el servidor ya habia mandado la nomina completa—.
+   * Ahora el recorte se hace aqui.
+   */
+  const esRH = (auth.roles || []).some(r => r === 'HR' || r === 'ADMIN');
+
   try {
     // ── GET ────────────────────────────────────────────────────────────────────
     if (method === 'GET') {
@@ -89,17 +100,40 @@ export default async function handler(req, res) {
       if (id) {
         const period = await prisma.payrollPeriod.findUnique({
           where: { id },
-          include: { items: { orderBy: { employeeName: 'asc' } } },
+          include: {
+            items: esRH
+              ? { orderBy: { employeeName: 'asc' } }
+              : { where: { employeeId: auth.id } }, // solo el recibo propio
+          },
         });
         if (!period) return res.status(404).json({ error: 'Período no encontrado' });
-        return res.status(200).json(period);
+
+        // Un borrador es un calculo en curso: no deberia verlo nadie mas que RH.
+        if (!esRH && period.status === 'DRAFT') {
+          return res.status(403).json({ error: 'Este período aún no está disponible' });
+        }
+
+        if (esRH) return res.status(200).json(period);
+
+        // Los totales de la empresa tampoco son asunto de quien solo viene por
+        // su recibo.
+        const { totalGross, totalDeductions, totalNet, employeeCount, ...propio } = period;
+        return res.status(200).json(propio);
       }
 
       const periods = await prisma.payrollPeriod.findMany({
+        where: esRH ? {} : { status: { in: ['APPROVED', 'PAID'] } },
         orderBy: { startDate: 'desc' },
-        include: { _count: { select: { items: true } } },
+        ...(esRH
+          ? { include: { _count: { select: { items: true } } } }
+          : { select: { id: true, name: true, type: true, startDate: true, endDate: true, status: true } }),
       });
       return res.status(200).json({ periods });
+    }
+
+    // Calcular, aprobar, editar una fila o borrar un periodo es trabajo de RH.
+    if (method !== 'GET' && !esRH) {
+      return res.status(403).json({ error: 'Solo Recursos Humanos puede administrar la nómina' });
     }
 
     // ── POST ───────────────────────────────────────────────────────────────────
