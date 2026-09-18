@@ -92,10 +92,81 @@ internet se murió con el apagón.
 
 ## Pendiente para producción
 
-La app en Vercel corre sobre HTTPS y el navegador **bloquea `ws://` en claro**
-desde una página segura. El cliente lo detecta y se desactiva solo con un aviso
-en consola, en vez de reintentar en vano.
+El realtime no funciona en producción por **dos** razones independientes:
 
-Mientras no se resuelva, el realtime funciona en la LAN con `npm run dev`. Para
-producción hace falta **Cloudflare Tunnel** (gratis: da dominio y certificado
-sin abrir puertos ni IP fija).
+1. La app en Vercel va por HTTPS y el navegador **bloquea `ws://` en claro**
+   desde una página segura. El cliente lo detecta y se desactiva solo con un
+   aviso en consola, en vez de reintentar en vano.
+2. `192.168.1.175` es una IP de red local: desde fuera de la oficina no la
+   alcanza nadie, aunque fuera HTTPS.
+
+Cloudflare Tunnel resuelve las dos, gratis y **sin abrir un solo puerto** en el
+router: el túnel sale desde esta PC hacia Cloudflare, igual que la conexión
+`LISTEN` sale hacia Postgres.
+
+### Requisito
+
+`oleacontrols.com` tiene que estar en Cloudflare (plan gratuito). Si su DNS vive
+en otro proveedor hay que cambiar los *nameservers* — trámite de una sola vez, y
+no afecta al correo si se copian antes los registros MX.
+
+Para comprobarlo: el paso 2 abre el navegador y lista los dominios de la cuenta.
+Si `oleacontrols.com` no aparece, todavía no está en Cloudflare.
+
+### Pasos, en la PC del servidor
+
+```powershell
+# 1. Instalar
+winget install --id Cloudflare.cloudflared
+
+# 2. Autorizar (abre el navegador; elegir oleacontrols.com)
+cloudflared tunnel login
+
+# 3. Crear el túnel. Anotar el UUID que imprime.
+cloudflared tunnel create olea-realtime
+
+# 4. Apuntarle un subdominio
+cloudflared tunnel route dns olea-realtime realtime.oleacontrols.com
+```
+
+Después, crear el archivo `%USERPROFILE%\.cloudflared\config.yml`:
+
+```yaml
+tunnel: olea-realtime
+credentials-file: C:\Users\TU-USUARIO\.cloudflared\UUID-DEL-PASO-3.json
+
+ingress:
+  - hostname: realtime.oleacontrols.com
+    service: http://localhost:3002
+  - service: http_status:404
+```
+
+Probar y dejarlo como servicio de Windows:
+
+```powershell
+cloudflared tunnel run olea-realtime     # probar; Ctrl+C para parar
+cloudflared service install              # que arranque solo con la PC
+```
+
+Comprobación: `https://realtime.oleacontrols.com/salud` debe responder desde
+cualquier red, incluso desde un celular con datos móviles.
+
+### Y en Vercel — el paso que siempre se olvida
+
+`VITE_REALTIME_URL` **la hornea Vite al construir**, no se lee en tiempo de
+ejecución. Cambiarla en Vercel no basta por sí solo: hay que volver a desplegar.
+
+1. Vercel → Settings → Environment Variables
+2. `VITE_REALTIME_URL` = `https://realtime.oleacontrols.com`
+3. Deployments → el último → **Redeploy**
+
+Los orígenes `*.vercel.app` ya están permitidos en el servidor, así que no hay
+que tocar `REALTIME_ORIGINS` salvo que la app pase a un dominio propio.
+
+### Si algo no conecta
+
+| Síntoma | Causa |
+|---|---|
+| En consola: `Realtime desactivado ... es http` | Falta el redeploy con la variable nueva |
+| `/salud` responde en la LAN pero no desde fuera | El túnel no está corriendo, o faltó el paso 4 |
+| Conecta y se cae cada rato | La PC se está suspendiendo: revisar el plan de energía |
