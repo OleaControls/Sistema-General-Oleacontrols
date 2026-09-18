@@ -42,7 +42,11 @@ if (!ACTIVO) {
   );
 } else {
   instancia = io(URL_REALTIME, {
-    transports: ["websocket"],
+    // WebSocket primero y polling de reserva. Con el servidor en la LAN el
+    // WebSocket siempre entraba, pero a traves del tunel y desde la red movil
+    // de un tecnico hay redes que bloquean el upgrade: sin reserva, el socket
+    // no conectaria nunca y no sabriamos por que.
+    transports: ["websocket", "polling"],
     // El servidor exige el mismo JWT que la API.
     auth: (cb) => cb({ token: localStorage.getItem('olea_token') }),
     // Reintento indefinido con backoff: cuando vuelva la luz en la oficina, los
