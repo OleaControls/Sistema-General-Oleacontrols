@@ -122,14 +122,24 @@ export function desconectarRealtime() {
  *   suscribirCambios('Evidence', recargar, { padre: otId })
  */
 export function suscribirCambios(tabla, alCambiar, opciones = {}) {
+  // `esperaMs` agrupa ráfagas. Publicar la carga de trabajo de la semana son
+  // decenas de avisos en pocos segundos; sin esto la lista se recargaría una
+  // vez por cada uno, que es justo cuando el usuario está mirándola.
+  let temporizador = null;
+  const disparar = (evento) => {
+    if (!opciones.esperaMs) return alCambiar(evento);
+    clearTimeout(temporizador);
+    temporizador = setTimeout(() => alCambiar(evento), opciones.esperaMs);
+  };
+
   const manejar = (evento) => {
     if (evento?.tabla !== tabla) return;
     if (opciones.id !== undefined && evento.id !== opciones.id) return;
     if (opciones.padre !== undefined && evento.padre !== opciones.padre) return;
-    alCambiar(evento);
+    disparar(evento);
   };
   socket.on('cambio', manejar);
-  return () => socket.off('cambio', manejar);
+  return () => { clearTimeout(temporizador); socket.off('cambio', manejar); };
 }
 
 /**

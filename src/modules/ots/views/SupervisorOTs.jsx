@@ -16,7 +16,7 @@ import { crmService } from '@/api/crmService';
 import { hrService } from '@/api/hrService';
 import { apiFetch } from '@/lib/api';
 import { useAuth, ROLES } from '@/store/AuthContext';
-import { suscribirUbicaciones, hayRealtime } from '@/services/realtime';
+import { suscribirCambios, suscribirUbicaciones, hayRealtime } from '@/services/realtime';
 import { cn } from '@/lib/utils';
 import {
   OT_WINDOW_KEY, DEFAULT_OT_WINDOW, normalizeWindow, isWindowOpen, windowLabel, hourLabel,
@@ -470,6 +470,21 @@ export default function SupervisorOTs() {
 
   // Alias para que llamadas internas (ej: después de guardar una OT) recarguen la página actual
   const loadData = () => loadOTs(otPage, searchTerm, filters.status, filters.techId, otKind);
+
+  /* Cuando un técnico acepta, inicia o termina una OT, el supervisor tenía que
+     recargar para enterarse. El aviso llega por el socket.
+
+     Va en su propio efecto, con los filtros como dependencias, para que la
+     recarga use la página y los filtros que hay AHORA en pantalla: el efecto
+     de montaje corre una sola vez y su closure se quedaría con los iniciales. */
+  useEffect(() => {
+    return suscribirCambios(
+      'WorkOrder',
+      () => loadOTs(otPage, searchTerm, filters.status, filters.techId, otKind),
+      { esperaMs: 400 }
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [otPage, searchTerm, filters.status, filters.techId, otKind]);
 
   /**
    * ✅ EXPORT AER (ARREGLADO):

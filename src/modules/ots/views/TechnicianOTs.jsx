@@ -11,6 +11,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { TILE_LAYER } from '@/lib/mapTiles';
 import { otService } from '@/api/otService';
+import { suscribirCambios } from '@/services/realtime';
 import { useAuth } from '@/store/AuthContext';
 import { cn } from '@/lib/utils';
 import techDocsService from '@/api/techDocsService';
@@ -290,14 +291,32 @@ export default function TechnicianOTs() {
     };
     pollLocation();
     const interval = setInterval(pollLocation, 10000);
-    return () => clearInterval(interval);
+
+    /* Cuando el supervisor publica o reasigna una OT, la lista tenía que
+       esperar a que el técnico recargara la pantalla. El aviso llega por el
+       socket y se recarga sola.
+
+       Se recarga ante CUALQUIER cambio de WorkOrder, no solo los de este
+       técnico: el aviso trae { tabla, op, id } y una OT recién asignada
+       todavía no está en la lista, así que no hay nada contra qué filtrar
+       —que es justo el caso que importa. */
+    const dejarDeEscuchar = suscribirCambios(
+      'WorkOrder',
+      () => loadData({ silencioso: true }),
+      { esperaMs: 400 }
+    );
+
+    return () => { clearInterval(interval); dejarDeEscuchar(); };
   }, [user.id]);
 
-  const loadData = async () => {
-    setLoading(true);
+  /* `silencioso` evita el esqueleto de carga en las recargas del socket: sin
+     eso, cualquier movimiento de OTs en la empresa haría parpadear la lista
+     que el técnico está leyendo. */
+  const loadData = async ({ silencioso = false } = {}) => {
+    if (!silencioso) setLoading(true);
     const data = await otService.getOTs({ techId: user.id });
     setOts(Array.isArray(data) ? data : []);
-    setLoading(false);
+    if (!silencioso) setLoading(false);
   };
 
   // ── Stats ──────────────────────────────────────────────────────────────────
