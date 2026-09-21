@@ -32,6 +32,7 @@ const handlers = {
   quotes: () => import('./_handlers/quotes.js'),
   'quote-phrases': () => import('./_handlers/quote-phrases.js'),
   catalog: () => import('./_handlers/catalog.js'),
+  catalogos: () => import('./_handlers/catalogos.js'),
   upload: () => import('./_handlers/upload.js'),
   'tech-locations':  () => import('./_handlers/tech-locations.js'),
   'tech-attendance': () => import('./_handlers/tech-attendance.js'),

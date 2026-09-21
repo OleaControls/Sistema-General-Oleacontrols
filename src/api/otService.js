@@ -1,4 +1,7 @@
 import { apiFetch } from '../lib/api';
+// Clientes de OT y plantillas viajan en el paquete de catálogos: al escribirlos
+// hay que tirar esa caché o la vista seguiría mostrando la lista anterior.
+import { invalidarCatalogos } from './catalogosService';
 
 
 export const otService = {
@@ -201,6 +204,7 @@ export const otService = {
       })
     });
     if (!response.ok) throw new Error('Error al guardar plantilla');
+    invalidarCatalogos();
     return response.json();
   },
 
@@ -209,6 +213,7 @@ export const otService = {
       method: 'DELETE'
     });
     if (!response.ok) throw new Error('Error al eliminar plantilla');
+    invalidarCatalogos();
   },
 
   // Clientes OT (guardados en BD vía /api/ot-clients)
@@ -249,6 +254,7 @@ export const otService = {
       body: JSON.stringify(body)
     });
     if (!response.ok) throw new Error('Error al guardar cliente OT');
+    invalidarCatalogos();
     return response.json();
   },
 
@@ -271,6 +277,7 @@ export const otService = {
       body: JSON.stringify(body)
     });
     if (!response.ok) throw new Error('Error al actualizar cliente OT');
+    invalidarCatalogos();
     return response.json();
   },
 
@@ -279,6 +286,7 @@ export const otService = {
       method: 'DELETE'
     });
     if (!response.ok) throw new Error('Error al eliminar cliente OT');
+    invalidarCatalogos();
   },
 
   async generatePortalToken(clientId) {

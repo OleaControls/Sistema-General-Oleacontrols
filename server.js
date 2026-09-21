@@ -23,6 +23,7 @@ import technicianPropsHandler from './api/_handlers/technician-props.js';
 import lmsHandler from './api/_handlers/lms.js';
 import otClientsHandler from './api/_handlers/ot-clients.js';
 import otTemplatesHandler from './api/_handlers/ot-templates.js';
+import catalogosHandler from './api/_handlers/catalogos.js';
 import calendarHandler from './api/_handlers/calendar.js';
 import portalHandler from './api/_handlers/portal.js';
 import catalogHandler from './api/_handlers/catalog.js';
@@ -217,6 +218,9 @@ app.get('/api/ot-clients', adaptHandler(otClientsHandler));
 app.post('/api/ot-clients', adaptHandler(otClientsHandler));
 app.put('/api/ot-clients', adaptHandler(otClientsHandler));
 app.delete('/api/ot-clients', adaptHandler(otClientsHandler));
+
+// Clientes de OT + plantillas + técnicos en una sola petición (solo lectura).
+app.get('/api/catalogos', adaptHandler(catalogosHandler));
 
 app.get('/api/ot-templates', adaptHandler(otTemplatesHandler));
 app.post('/api/ot-templates', adaptHandler(otTemplatesHandler));

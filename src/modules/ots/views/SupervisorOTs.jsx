@@ -13,7 +13,7 @@ import 'leaflet/dist/leaflet.css';
 import { TILE_LAYER } from '@/lib/mapTiles';
 import { otService } from '@/api/otService';
 import { crmService } from '@/api/crmService';
-import { hrService } from '@/api/hrService';
+import { getCatalogos } from '@/api/catalogosService';
 import { apiFetch } from '@/lib/api';
 import { useAuth, ROLES } from '@/store/AuthContext';
 import { suscribirCambios, suscribirUbicaciones, hayRealtime } from '@/services/realtime';
@@ -407,23 +407,21 @@ export default function SupervisorOTs() {
     const init = async () => {
       setLoading(true);
       try {
-        const [rawOTs, c, oc, t, allEmployees] = await Promise.all([
+        /* Los tres catálogos viajan juntos y cacheados (ver catalogosService):
+           antes eran tres peticiones sueltas en cada montaje de la vista.
+           El listado de OTs sigue aparte porque lleva paginación y filtros. */
+        const [rawOTs, c, catalogos] = await Promise.all([
           otService.getOTsPaginated({ page: 1, limit: OT_PAGE_SIZE, kind: otKind }),
           crmService.getClients(),
-          otService.getOTClients(),
-          otService.getTemplates(),
-          hrService.getEmployees()
+          getCatalogos()
         ]);
         const { data, total } = parseOTsResponse(rawOTs);
         setOts(data);
         setOtTotal(total);
         setClients(Array.isArray(c) ? c : []);
-        setOtClients(Array.isArray(oc) ? oc : []);
-        setTemplates(Array.isArray(t) ? t : []);
-        const techs = Array.isArray(allEmployees)
-          ? allEmployees.filter(emp => emp.roles?.includes(ROLES.TECH) || emp.roles?.includes('Tech'))
-          : [];
-        setAvailableTechs(techs);
+        setOtClients(catalogos.otClients);
+        setTemplates(catalogos.templates);
+        setAvailableTechs(catalogos.tecnicos);
       } catch (error) { console.error(error); }
       finally { setLoading(false); }
     };
