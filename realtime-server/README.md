@@ -152,7 +152,16 @@ cloudflared tunnel create olea-realtime
 cloudflared tunnel route dns olea-realtime realtime.oleacontrols.net
 ```
 
-Después, crear el archivo `%USERPROFILE%\.cloudflared\config.yml`:
+Después, el `config.yml`. Lo escribe este script, que resuelve solo el usuario
+de Windows y el UUID del paso 3 —se lo pregunta a Cloudflare por el nombre del
+túnel— y valida el resultado con `cloudflared` antes de terminar:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\generar-config-tunel.ps1
+```
+
+Si el archivo ya existe no lo pisa: lo muestra y termina. Para regenerarlo,
+`-Forzar`. Queda en `%USERPROFILE%\.cloudflared\config.yml` y se ve así:
 
 ```yaml
 tunnel: olea-realtime
@@ -163,6 +172,9 @@ ingress:
     service: http://localhost:3002
   - service: http_status:404
 ```
+
+El `service: http_status:404` del final no es opcional: sin esa regla de cierre
+`cloudflared` rechaza el archivo completo y el túnel no arranca.
 
 Probar y dejarlo como servicio de Windows:
 
