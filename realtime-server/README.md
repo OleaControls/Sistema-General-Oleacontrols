@@ -104,6 +104,25 @@ Cloudflare Tunnel resuelve las dos, gratis y **sin abrir un solo puerto** en el
 router: el túnel sale desde esta PC hacia Cloudflare, igual que la conexión
 `LISTEN` sale hacia Postgres.
 
+### Cómo se reparte el dominio
+
+`oleacontrols.net` a secas solo puede apuntar a un sitio, y aquí hay dos
+servicios distintos:
+
+| Nombre | Apunta a | Nube en Cloudflare |
+|---|---|---|
+| `oleacontrols.net` | La app, en Vercel | **Gris** (DNS only) |
+| `realtime.oleacontrols.net` | Esta PC, por el túnel | **Naranja** (proxied) |
+
+Esa diferencia de color importa y es la causa más común de que esto falle:
+
+- El registro del **túnel** lo crea `cloudflared` solo y va proxeado. Es la
+  única forma de que el túnel funcione: el tráfico tiene que pasar por
+  Cloudflare para bajar por él.
+- El registro de **Vercel** va en DNS only. Si se deja proxeado, Cloudflare y
+  Vercel intentan resolver el certificado cada uno por su lado y salen bucles
+  de redirección o errores de SSL difíciles de leer.
+
 ### Requisito
 
 `oleacontrols.net` tiene que estar en Cloudflare (plan gratuito). Si su DNS vive
