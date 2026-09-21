@@ -106,12 +106,16 @@ router: el túnel sale desde esta PC hacia Cloudflare, igual que la conexión
 
 ### Requisito
 
-`oleacontrols.com` tiene que estar en Cloudflare (plan gratuito). Si su DNS vive
-en otro proveedor hay que cambiar los *nameservers* — trámite de una sola vez, y
-no afecta al correo si se copian antes los registros MX.
+`oleacontrols.net` tiene que estar en Cloudflare (plan gratuito). Si su DNS vive
+en otro proveedor hay que cambiar los *nameservers* — trámite de una sola vez.
+
+El correo de la empresa está en `@oleacontrols.com`, que es **otro dominio**:
+mover los nameservers de `.net` no lo toca. Si `.net` tuviera algo publicado
+—una web, un redirect— conviene copiar antes sus registros DNS, que Cloudflare
+importa solos al agregar el dominio.
 
 Para comprobarlo: el paso 2 abre el navegador y lista los dominios de la cuenta.
-Si `oleacontrols.com` no aparece, todavía no está en Cloudflare.
+Si `oleacontrols.net` no aparece, todavía no está en Cloudflare.
 
 ### Pasos, en la PC del servidor
 
@@ -119,14 +123,14 @@ Si `oleacontrols.com` no aparece, todavía no está en Cloudflare.
 # 1. Instalar
 winget install --id Cloudflare.cloudflared
 
-# 2. Autorizar (abre el navegador; elegir oleacontrols.com)
+# 2. Autorizar (abre el navegador; elegir oleacontrols.net)
 cloudflared tunnel login
 
 # 3. Crear el túnel. Anotar el UUID que imprime.
 cloudflared tunnel create olea-realtime
 
 # 4. Apuntarle un subdominio
-cloudflared tunnel route dns olea-realtime realtime.oleacontrols.com
+cloudflared tunnel route dns olea-realtime realtime.oleacontrols.net
 ```
 
 Después, crear el archivo `%USERPROFILE%\.cloudflared\config.yml`:
@@ -136,7 +140,7 @@ tunnel: olea-realtime
 credentials-file: C:\Users\TU-USUARIO\.cloudflared\UUID-DEL-PASO-3.json
 
 ingress:
-  - hostname: realtime.oleacontrols.com
+  - hostname: realtime.oleacontrols.net
     service: http://localhost:3002
   - service: http_status:404
 ```
@@ -148,7 +152,7 @@ cloudflared tunnel run olea-realtime     # probar; Ctrl+C para parar
 cloudflared service install              # que arranque solo con la PC
 ```
 
-Comprobación: `https://realtime.oleacontrols.com/salud` debe responder desde
+Comprobación: `https://realtime.oleacontrols.net/salud` debe responder desde
 cualquier red, incluso desde un celular con datos móviles.
 
 ### Y en Vercel — el paso que siempre se olvida
@@ -157,7 +161,7 @@ cualquier red, incluso desde un celular con datos móviles.
 ejecución. Cambiarla en Vercel no basta por sí solo: hay que volver a desplegar.
 
 1. Vercel → Settings → Environment Variables
-2. `VITE_REALTIME_URL` = `https://realtime.oleacontrols.com`
+2. `VITE_REALTIME_URL` = `https://realtime.oleacontrols.net`
 3. Deployments → el último → **Redeploy**
 
 Los orígenes `*.vercel.app` ya están permitidos en el servidor, así que no hay
