@@ -73,6 +73,8 @@ const ORIGENES = [
   /^http:\/\/localhost:\d+$/,
   /^http:\/\/192\.168\.\d+\.\d+:\d+$/,
   /\.vercel\.app$/,
+  // El dominio propio, por si la app deja de vivir en la URL de Vercel.
+  /^https:\/\/([a-z0-9-]+\.)?oleacontrols\.net$/,
 ];
 
 const servidor = http.createServer((req, res) => {
