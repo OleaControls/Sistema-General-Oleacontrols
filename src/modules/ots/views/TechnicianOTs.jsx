@@ -233,11 +233,17 @@ export default function TechnicianOTs() {
   // ── Enviar ubicación al servidor ───────────────────────────────────────────
   const sendLocationToServer = useCallback(async (lat, lng) => {
     const now = Date.now();
+
+    /* El marcador se mueve con CADA lectura del GPS; lo que se limita es el
+       envío al servidor. Estaba al revés —dentro del try, después del throttle—
+       así que el técnico se veía saltar de 5 en 5 minutos aunque su aparato ya
+       supiera dónde estaba. Pintar es gratis; escribir en la base, no. */
+    setTechLocation({ lat, lng, lastUpdate: new Date().toISOString() });
+
     if (lastSentRef.current && now - lastSentRef.current < 290000) return; // throttle 5 min
     try {
       await otService.updateTechnicianLocation(user.id, user.name, lat, lng);
       lastSentRef.current = now;
-      setTechLocation({ lat, lng, lastUpdate: new Date().toISOString() });
     } catch (err) {
       console.error('[ubicación] Error al enviar:', err);
     }
@@ -285,12 +291,19 @@ export default function TechnicianOTs() {
 
   useEffect(() => {
     loadData();
-    const pollLocation = async () => {
+
+    /* Una sola vez, para sembrar el marcador antes de que el GPS dé la primera
+       lectura —o si el técnico no dio permiso de ubicación—. A partir de ahí el
+       marcador lo mueve el GPS del propio aparato (sendLocationToServer).
+
+       Antes esto era `setInterval(pollLocation, 10000)`: cada teléfono pedía
+       las posiciones de TODA la empresa cada 10 segundos para leer la suya, que
+       el aparato ya conocía. Eran 2 880 peticiones por técnico y jornada, y la
+       respuesta del servidor llegaba además más vieja que el GPS local. */
+    (async () => {
       const locs = await otService.getTechnicianLocations();
       if (locs[user.id]) setTechLocation(locs[user.id]);
-    };
-    pollLocation();
-    const interval = setInterval(pollLocation, 10000);
+    })();
 
     /* Cuando el supervisor publica o reasigna una OT, la lista tenía que
        esperar a que el técnico recargara la pantalla. El aviso llega por el
@@ -306,7 +319,7 @@ export default function TechnicianOTs() {
       { esperaMs: 400 }
     );
 
-    return () => { clearInterval(interval); dejarDeEscuchar(); };
+    return () => dejarDeEscuchar();
   }, [user.id]);
 
   /* `silencioso` evita el esqueleto de carga en las recargas del socket: sin

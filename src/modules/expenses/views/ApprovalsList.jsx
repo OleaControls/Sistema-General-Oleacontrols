@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   CheckCircle2, 
   XCircle, 
@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { expenseService } from '@/api/expenseService';
 import { otService } from '@/api/otService';
+import { suscribirCambios, hayRealtime } from '@/services/realtime';
 import { cn } from '@/lib/utils';
 
 export default function ApprovalsList() {
@@ -25,10 +26,32 @@ export default function ApprovalsList() {
   const [selectedImage, setSelectedImage] = useState(null);
   const [newCount, setNewCount] = useState(0);
 
+  /* La lista actual, para compararla desde los callbacks sin que se queden con
+     la de su render. `checkForNewExpenses` leía `expenses` de un efecto con
+     dependencias vacías, así que siempre veía la lista inicial y anunciaba
+     "nuevos" cada vez que había algún pendiente. */
+  const expensesRef = useRef(expenses);
+  useEffect(() => { expensesRef.current = expenses; }, [expenses]);
+
   useEffect(() => {
     loadPendingExpenses();
-    const interval = setInterval(checkForNewExpenses, 15000);
-    return () => clearInterval(interval);
+
+    // Un gasto nuevo o resuelto llega por el socket: la lista se recarga sola,
+    // sin esqueleto de carga y sin que nadie tenga que apretar nada.
+    const dejarDeEscuchar = suscribirCambios(
+      'Expense',
+      () => loadPendingExpenses(true),
+      { esperaMs: 400 }
+    );
+
+    /* Respaldo con el servidor de la oficina caído, cada 2 min como los demás
+       contadores. Antes era cada 15 s y sin condición: 1 920 peticiones por
+       jornada y pestaña abierta, casi todas devolviendo lo mismo. */
+    const respaldo = setInterval(() => {
+      if (!hayRealtime()) checkForNewExpenses();
+    }, 120000);
+
+    return () => { dejarDeEscuchar(); clearInterval(respaldo); };
   }, []);
 
   const loadPendingExpenses = async (silent = false) => {
@@ -48,7 +71,8 @@ export default function ApprovalsList() {
   const checkForNewExpenses = async () => {
     try {
         const data = await expenseService.getAll({ status: 'PENDING' });
-        if (data.length > expenses.length) setNewCount(data.length - expenses.length);
+        const actuales = expensesRef.current.length;
+        if (data.length > actuales) setNewCount(data.length - actuales);
     } catch (err) {}
   };
 

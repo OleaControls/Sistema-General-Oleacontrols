@@ -55,7 +55,7 @@ DO $$
 DECLARE
   t text;
 BEGIN
-  FOREACH t IN ARRAY ARRAY['WorkOrder', 'Project', 'Appointment', 'WarrantyClaim']
+  FOREACH t IN ARRAY ARRAY['WorkOrder', 'Project', 'Appointment', 'WarrantyClaim', 'Expense']
   LOOP
     EXECUTE format('DROP TRIGGER IF EXISTS trg_olea_realtime ON %I', t);
     EXECUTE format(

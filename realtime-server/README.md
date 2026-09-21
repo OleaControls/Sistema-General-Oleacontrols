@@ -151,7 +151,6 @@ cloudflared tunnel create olea-realtime
 # 4. Apuntarle un subdominio
 cloudflared tunnel route dns olea-realtime realtime.oleacontrols.net
 ```
-
 Después, el `config.yml`. Lo escribe este script, que resuelve solo el usuario
 de Windows y el UUID del paso 3 —se lo pregunta a Cloudflare por el nombre del
 túnel— y valida el resultado con `cloudflared` antes de terminar:
