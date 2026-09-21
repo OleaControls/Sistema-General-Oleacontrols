@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { conectarRealtime, desconectarRealtime } from '@/services/realtime';
 
 const AuthContext = createContext();
 
@@ -24,6 +25,16 @@ export function AuthProvider({ children }) {
     }
     setLoading(false);
   }, []);
+
+  /* El socket vive atado a la sesión, no al arranque de la app.
+     Aquí caen los tres casos con una sola regla: entrar, restaurar una sesión
+     guardada al recargar, y salir. Antes el socket se abría solo al cargar el
+     bundle —en la pantalla de login, sin token— y el servidor lo rechazaba
+     para siempre: ese rechazo no se reintenta. */
+  useEffect(() => {
+    if (user) conectarRealtime();
+    else desconectarRealtime();
+  }, [user]);
 
   const login = (role) => {
     // Esto es para QA/Invitado, sigue igual para pruebas rápidas
@@ -63,10 +74,12 @@ export function AuthProvider({ children }) {
                     // Si entra por el portal colaborador, forzamos ese rol, si no, usamos su rol principal
                     role: portal === 'COLLABORATOR' ? ROLES.COLLABORATOR : primaryRole
                 };
+                /* El token se guarda ANTES de setUser: el efecto que abre el
+                   socket lo lee de localStorage, y si aún no estuviera ahí
+                   intentaría conectar sin él —rechazo definitivo—. */
+                if (token) localStorage.setItem('olea_token', token);
                 setUser(fullUser);
                 localStorage.setItem('olea_user', JSON.stringify(fullUser));
-                // Opcional: guardar el token por separado para mayor facilidad si se prefiere
-                if (token) localStorage.setItem('olea_token', token);
                 return { ok: true };
             }
 

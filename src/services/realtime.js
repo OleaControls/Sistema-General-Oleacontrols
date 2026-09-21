@@ -47,6 +47,13 @@ if (!ACTIVO) {
     // de un tecnico hay redes que bloquean el upgrade: sin reserva, el socket
     // no conectaria nunca y no sabriamos por que.
     transports: ["websocket", "polling"],
+    // NO conectar al cargar el bundle. En la pantalla de login todavia no hay
+    // token, el servidor rechaza el handshake, y Socket.IO trata el rechazo de
+    // un middleware como error FATAL: pone socket.active = false y no vuelve a
+    // intentarlo jamas. El usuario entraba, el token ya estaba guardado, y el
+    // socket seguia muerto hasta que alguien recargaba la pagina.
+    // La conexion la abre AuthContext cuando hay sesion (conectarRealtime).
+    autoConnect: false,
     // El servidor exige el mismo JWT que la API.
     auth: (cb) => cb({ token: localStorage.getItem('olea_token') }),
     // Reintento indefinido con backoff: cuando vuelva la luz en la oficina, los
@@ -79,6 +86,28 @@ export const socket = instancia;
 
 /** true si ahora mismo hay socket vivo. Las vistas lo usan para decidir si necesitan polling. */
 export const hayRealtime = () => socket.connected;
+
+/**
+ * Abre la conexión. La llama AuthContext cuando hay sesión —al entrar y al
+ * restaurar una sesión guardada—, nunca las vistas.
+ *
+ * Sin token no intenta nada: el servidor rechazaría el handshake y ese rechazo
+ * es definitivo (ver `autoConnect` arriba), así que un intento a destiempo
+ * apaga el realtime hasta la siguiente recarga.
+ */
+export function conectarRealtime() {
+  if (!ACTIVO || MIXED_CONTENT) return;
+  if (!localStorage.getItem('olea_token')) return;
+  // `active` cubre el intervalo entre connect() y el primer connect: sin esto,
+  // dos renders seguidos abrirían dos conexiones.
+  if (socket.connected || socket.active) return;
+  socket.connect();
+}
+
+/** Cierra la conexión al salir, para no quedar contado como conectado. */
+export function desconectarRealtime() {
+  socket.disconnect();
+}
 
 /**
  * Escucha los cambios de una tabla y ejecuta `alCambiar`.
