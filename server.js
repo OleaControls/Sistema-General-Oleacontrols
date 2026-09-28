@@ -38,6 +38,7 @@ import announcementsHandler  from './api/_handlers/announcements.js';
 import notificacionesHandler from './api/_handlers/notificaciones.js';
 import chatHandler from './api/_handlers/chat.js';
 import { conIdempotencia } from './api/_lib/idempotencia.js';
+import { motivoRevocacion } from './api/_lib/sesiones.js';
 import surveysHandler        from './api/_handlers/surveys.js';
 import payrollHandler        from './api/_handlers/payroll.js';
 import projectsHandler       from './api/_handlers/projects.js';
@@ -65,6 +66,11 @@ const adaptHandler = (handler) => {
   const conGarantia = conIdempotencia(handler);
   return async (req, res) => {
     try {
+      // Mismas dos garantias que el gateway de Vercel, en el mismo orden, para
+      // que lo que se prueba en local sea lo que corre en produccion.
+      const revocada = await motivoRevocacion(req);
+      if (revocada) return res.status(401).json({ error: revocada });
+
       await conGarantia(req, res);
     } catch (error) {
       const errorMsg = `[${new Date().toISOString()}] API Error: ${error.message}\nStack: ${error.stack}\nBody: ${JSON.stringify(req.body)}\n\n`;

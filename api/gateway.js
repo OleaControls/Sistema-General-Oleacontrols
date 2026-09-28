@@ -8,6 +8,7 @@ export const config = {
 };
 
 import { conIdempotencia } from './_lib/idempotencia.js';
+import { motivoRevocacion } from './_lib/sesiones.js';
 
 const handlers = {
   employees: () => import('./_handlers/employees.js'),
@@ -66,9 +67,16 @@ export default async function handler(req, res) {
     try {
       console.log(`[Gateway] Loading handler for: ${resourceName}`);
       const module = await handlers[resourceName.toLowerCase()]();
-      // Un solo punto cubre los 45 handlers: la garantia se activa solo si el
-      // cliente manda la cabecera Idempotency-Key, asi que nada cambia para
-      // quien no la usa.
+
+      /* Mismo punto unico, segunda garantia: un token sigue siendo valido hasta
+         que caduca, asi que dar de baja a alguien o quitarle un rol no le
+         quitaba el acceso hasta 7 dias despues. Aqui se revalida contra la base
+         (cacheado 60s) antes de dejar pasar la peticion. */
+      const revocada = await motivoRevocacion(req);
+      if (revocada) return res.status(401).json({ error: revocada });
+
+      // La garantia de idempotencia se activa solo si el cliente manda la
+      // cabecera Idempotency-Key, asi que nada cambia para quien no la usa.
       return await conIdempotencia(module.default)(req, res);
     } catch (error) {
       console.error(`[Gateway Error] ${resourceName}:`, error);
