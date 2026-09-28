@@ -1,6 +1,12 @@
 import prisma from '../_lib/prisma.js'
 import { signToken, comparePassword } from '../_lib/auth.js'
 
+// Cinco intentos deja margen de sobra a quien se equivoca de verdad; quince
+// minutos vuelven inviable adivinar por fuerza bruta sin que un empleado
+// bloqueado tenga que esperar a que alguien lo rescate.
+const MAX_INTENTOS = 5
+const MS_BLOQUEO = 15 * 60 * 1000
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end()
 
@@ -17,6 +23,17 @@ export default async function handler(req, res) {
     })
 
     if (credentials) {
+      /* Cuenta bloqueada por intentos fallidos.
+         Se comprueba ANTES de verificar la contraseña: si no, quien adivina
+         seguiría obteniendo la respuesta de bcrypt y el bloqueo no frenaría
+         nada. Ver prisma/migrations-manual/2026-09-28-freno-fuerza-bruta.sql */
+      if (credentials.bloqueadoHasta && credentials.bloqueadoHasta > new Date()) {
+        const minutos = Math.ceil((credentials.bloqueadoHasta - new Date()) / 60000)
+        return res.status(429).json({
+          error: `Demasiados intentos fallidos. Intenta de nuevo en ${minutos} minuto(s).`
+        })
+      }
+
       /* La contraseña se valida SOLO contra el hash.
 
          Antes, si bcrypt fallaba o no coincidía, se volvía a comparar la
@@ -50,6 +67,15 @@ export default async function handler(req, res) {
           avatar: credentials.employee.avatar
         }
 
+        // Entró bien: se borra el rastro de los intentos fallidos previos, para
+        // que un despistado de ayer no arrastre el contador hasta bloquearse.
+        if (credentials.intentosFallidos > 0 || credentials.bloqueadoHasta) {
+          await prisma.credentials.update({
+            where: { id: credentials.id },
+            data: { intentosFallidos: 0, bloqueadoHasta: null }
+          }).catch(() => {}) // que un fallo al limpiar no impida entrar
+        }
+
         // Generar el token
         const token = signToken(user)
 
@@ -58,8 +84,25 @@ export default async function handler(req, res) {
           token
         })
       }
+
+      /* Contraseña incorrecta: se cuenta. A partir del quinto fallo la cuenta
+         queda bloqueada 15 minutos, y cada fallo posterior vuelve a correr el
+         reloj. Cinco deja margen de sobra a quien se equivoca de verdad, y
+         convierte adivinar por fuerza bruta en algo inviable. */
+      const fallidos = credentials.intentosFallidos + 1
+      await prisma.credentials.update({
+        where: { id: credentials.id },
+        data: {
+          intentosFallidos: fallidos,
+          bloqueadoHasta: fallidos >= MAX_INTENTOS
+            ? new Date(Date.now() + MS_BLOQUEO)
+            : null
+        }
+      }).catch(() => {}) // el freno es una mejora, no puede tumbar el login
     }
 
+    /* Mismo 401 y mismo texto exista o no la cuenta: si el mensaje cambiara,
+       este endpoint serviría además para averiguar qué correos son empleados. */
     return res.status(401).json({ error: 'Credenciales inválidas' })
   } catch (error) {
     console.error('Login Error:', error)

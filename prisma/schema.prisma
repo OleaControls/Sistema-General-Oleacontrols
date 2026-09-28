@@ -147,6 +147,12 @@ model Credentials {
   roles      String[]
   employeeId String   @unique
   employee   Employee @relation(fields: [employeeId], references: [id])
+
+  // Freno a la fuerza bruta. Vive en la base y no en memoria porque la API
+  // corre en Vercel: cada invocación puede caer en una instancia distinta, así
+  // que un contador en memoria se reinicia solo y no frena nada.
+  intentosFallidos Int       @default(0)
+  bloqueadoHasta   DateTime?
 }
 
 model Category {

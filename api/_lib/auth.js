@@ -1,7 +1,33 @@
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
+import dotenv from 'dotenv';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-default-secret-change-this';
+/* El .env se lee aquí y no solo en prisma.js. En ESM los imports se evalúan
+   antes del cuerpo del módulo, así que si un handler importara este archivo
+   antes que prisma.js, el JWT_SECRET todavía no estaría cargado y el arranque
+   fallaría por un problema de orden, no de configuración. dotenv no pisa lo ya
+   cargado, así que llamarlo dos veces no cuesta nada. */
+dotenv.config();
+
+/* Sin valor por defecto, a propósito.
+ *
+ * Antes esto era `process.env.JWT_SECRET || 'your-default-secret-change-this'`.
+ * Si la variable faltaba en cualquier entorno, el sistema arrancaba igual y
+ * firmaba las sesiones con un secreto escrito en el repositorio: cualquiera que
+ * lo leyera podía emitirse un token de ADMIN válido, y nada lo delataba —todo
+ * funcionaba con normalidad—.
+ *
+ * Un despliegue mal configurado tiene que fallar al arrancar, no seguir
+ * atendiendo con la puerta abierta. */
+const JWT_SECRET = process.env.JWT_SECRET;
+
+if (!JWT_SECRET) {
+  throw new Error(
+    'Falta JWT_SECRET. Sin el secreto no se pueden firmar ni verificar sesiones. ' +
+    'Defínelo en el .env (local) y en las variables de entorno de Vercel (producción). ' +
+    'Debe ser el mismo valor que usa realtime-server, y sin comillas alrededor.'
+  );
+}
 
 /**
  * Signs a JWT for a user.
