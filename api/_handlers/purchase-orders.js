@@ -37,6 +37,7 @@ function prepararItems(items) {
       const c = calcularPartida(it);
       return {
         description: txt(it.description),
+        resourceRequestId: it.resourceRequestId || null,
         quantity:  c.quantity,
         unitPrice: c.unitPrice,
         discount:  c.discount,
@@ -46,6 +47,34 @@ function prepararItems(items) {
         order:     i,
       };
     });
+}
+
+/**
+ * Comprueba que los renglones de requisición que se quieren surtir pertenezcan
+ * al proyecto de la orden.
+ *
+ * Sin esto, una orden del proyecto A podría descontar material de la
+ * requisición del proyecto B —basta con mandar otro id desde la consola— y el
+ * pendiente de dos proyectos quedaría mal sin que nadie supiera por qué.
+ *
+ * Devuelve un mensaje de error, o null si todo cuadra.
+ */
+async function validarRequisiciones(items, projectId) {
+  const ids = [...new Set(items.map(i => i.resourceRequestId).filter(Boolean))];
+  if (!ids.length) return null;
+
+  if (!projectId) {
+    return 'Para surtir una requisición, la orden tiene que estar ligada a un proyecto.';
+  }
+
+  const validos = await prisma.projectResourceRequest.findMany({
+    where: { id: { in: ids }, projectId },
+    select: { id: true },
+  });
+  if (validos.length !== ids.length) {
+    return 'Alguna partida apunta a una requisición que no es de este proyecto.';
+  }
+  return null;
 }
 
 export default async function handler(req, res) {
@@ -114,6 +143,9 @@ export default async function handler(req, res) {
       const items   = prepararItems(b.items);
       const totales = calcularTotales(items, b.adjustment);
 
+      const malRequisicion = await validarRequisiciones(items, b.projectId || null);
+      if (malRequisicion) return res.status(400).json({ error: malRequisicion });
+
       const data = {
         ...camposEditables(b),
         ...totales,
@@ -155,6 +187,9 @@ export default async function handler(req, res) {
       const b = req.body || {};
       const items   = prepararItems(b.items);
       const totales = calcularTotales(items, b.adjustment);
+
+      const malRequisicion = await validarRequisiciones(items, b.projectId || null);
+      if (malRequisicion) return res.status(400).json({ error: malRequisicion });
 
       // Las partidas se reemplazan completas: es más simple y más seguro que
       // conciliar altas, bajas y cambios de orden renglón por renglón.

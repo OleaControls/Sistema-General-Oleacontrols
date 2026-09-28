@@ -16,7 +16,7 @@ import {
   puedeEditarCompras, puedeAutorizar, esDireccion, FORMAS_PAGO, MONEDAS,
 } from '@/lib/compras';
 
-const PARTIDA_VACIA = { description: '', quantity: 1, unitPrice: 0, discount: 0, taxRate: 0.16 };
+const PARTIDA_VACIA = { description: '', resourceRequestId: '', quantity: 1, unitPrice: 0, discount: 0, taxRate: 0.16 };
 
 const hoy = () => new Date().toISOString().slice(0, 10);
 const fechaInput = (d) => (d ? new Date(d).toISOString().slice(0, 10) : '');
@@ -52,6 +52,8 @@ export default function PurchaseOrderDetail() {
   const [items, setItems] = useState([{ ...PARTIDA_VACIA }]);
   const [proveedores, setProveedores] = useState([]);
   const [proyectos, setProyectos] = useState([]);
+  // Requisiciones del proyecto elegido, con su pendiente ya calculado.
+  const [requisiciones, setRequisiciones] = useState([]);
   const [cargando, setCargando] = useState(!nueva);
   const [guardando, setGuardando] = useState(false);
   const [ocupado, setOcupado] = useState(null);   // acción de flujo en curso
@@ -69,6 +71,18 @@ export default function PurchaseOrderDetail() {
     comprasService.proveedores().then(setProveedores).catch(() => {});
     projectService.list().then(ps => setProyectos(Array.isArray(ps) ? ps : [])).catch(() => {});
   }, []);
+
+  /* Las requisiciones se recargan al cambiar de proyecto. Sin proyecto no hay
+     nada que surtir, y la lista se vacía: así el desplegable no puede quedar
+     ofreciendo renglones del proyecto anterior. */
+  useEffect(() => {
+    if (!form.projectId) { setRequisiciones([]); return; }
+    let vivo = true;
+    projectService.listItems(form.projectId, 'resourceRequests')
+      .then(rs => { if (vivo) setRequisiciones(Array.isArray(rs) ? rs : []); })
+      .catch(() => { if (vivo) setRequisiciones([]); });
+    return () => { vivo = false; };
+  }, [form.projectId]);
 
   const cargar = useCallback(async () => {
     if (nueva) return;
@@ -114,6 +128,22 @@ export default function PurchaseOrderDetail() {
   const setF = (k) => (e) => setForm(p => ({ ...p, [k]: e.target.value }));
 
   const setItem = (i, k, v) => setItems(prev => prev.map((it, idx) => (idx === i ? { ...it, [k]: v } : it)));
+
+  /* Al elegir la requisicion se arrastran descripcion y cantidad pendiente: es
+     lo que se iba a teclear igual, y evita que la partida diga una cosa y el
+     renglon que descuenta diga otra. Solo rellena lo que este vacio o en el
+     valor por defecto, para no pisar lo que alguien ya escribio a proposito. */
+  const setRequisicion = (i, requestId) => setItems(prev => prev.map((it, idx) => {
+    if (idx !== i) return it;
+    const r = requisiciones.find(x => x.id === requestId);
+    if (!r) return { ...it, resourceRequestId: '' };
+    return {
+      ...it,
+      resourceRequestId: requestId,
+      description: it.description?.trim() ? it.description : r.name,
+      quantity: !it.quantity || Number(it.quantity) === 1 ? (r.pendiente || r.quantity) : it.quantity,
+    };
+  }));
   const addItem = () => setItems(prev => [...prev, { ...PARTIDA_VACIA }]);
   const delItem = (i) => setItems(prev => (prev.length === 1 ? [{ ...PARTIDA_VACIA }] : prev.filter((_, idx) => idx !== i)));
 
@@ -485,7 +515,7 @@ export default function PurchaseOrderDetail() {
             <table className="w-full" style={{ minWidth: 720 }}>
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-200">
-                  {['#', 'Producto / Servicio', 'Cant.', 'Precio', 'Descuento', 'IVA', 'Total', ''].map((h, i) => (
+                  {['#', 'Producto / Servicio', 'Requisición', 'Cant.', 'Precio', 'Descuento', 'IVA', 'Total', ''].map((h, i) => (
                     <th key={i} className="px-3 py-2.5 text-left text-[9px] font-black text-gray-400 uppercase tracking-widest whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -499,6 +529,25 @@ export default function PurchaseOrderDetail() {
                       <td className="px-3 py-2 min-w-[200px]">
                         <input value={it.description || ''} onChange={e => setItem(i, 'description', e.target.value)}
                           className={cn(input, 'py-2')} placeholder="Descripción de lo que se compra" />
+                      </td>
+                      {/* Renglón de requisición que surte esta partida. Es lo que
+                          hace que lo comprado se descuente de lo solicitado. */}
+                      <td className="px-3 py-2 w-[190px]">
+                        {!form.projectId ? (
+                          <span className="text-[10px] font-bold text-gray-300">Elige un proyecto</span>
+                        ) : requisiciones.length === 0 ? (
+                          <span className="text-[10px] font-bold text-gray-300">Sin requisiciones</span>
+                        ) : (
+                          <select value={it.resourceRequestId || ''} onChange={e => setRequisicion(i, e.target.value)}
+                            className={cn(input, 'py-2')}>
+                            <option value="">— Sin requisición —</option>
+                            {requisiciones.map(r => (
+                              <option key={r.id} value={r.id}>
+                                {r.name} · faltan {r.pendiente ?? r.quantity}{r.unit ? ` ${r.unit}` : ''}
+                              </option>
+                            ))}
+                          </select>
+                        )}
                       </td>
                       <td className="px-3 py-2 w-[86px]">
                         <input type="number" step="0.01" min="0" value={it.quantity ?? ''} onChange={e => setItem(i, 'quantity', e.target.value)}

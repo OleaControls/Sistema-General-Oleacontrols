@@ -1364,6 +1364,11 @@ model ProjectResourceRequest {
   decidedByName   String?
   decidedAt       DateTime?
   decisionNotes   String?
+  /// Partidas de compra que surten este renglón. Lo ya surtido NO se guarda
+  /// aquí: se suma desde estas partidas al leer, para que no pueda quedar
+  /// desfasado de las órdenes reales.
+  purchaseItems   PurchaseOrderItem[]
+
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -1632,6 +1637,12 @@ model PurchaseOrderItem {
   purchaseOrderId String
   purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
 
+  /// Renglón de requisición que esta partida surte. Es lo que permite saber
+  /// cuánto de lo solicitado ya se compró. Opcional: hay compras que no nacen
+  /// de una requisición (papelería, un flete, una urgencia).
+  resourceRequestId String?
+  resourceRequest   ProjectResourceRequest? @relation(fields: [resourceRequestId], references: [id], onDelete: SetNull)
+
   description String                    // Producto o servicio
   quantity    Float  @default(1)
   unitPrice   Float  @default(0)
@@ -1644,6 +1655,7 @@ model PurchaseOrderItem {
   createdAt DateTime @default(now())
 
   @@index([purchaseOrderId])
+  @@index([resourceRequestId])
 }
 
 /// Firma de autorización. Una fila por persona que aprueba: el número de filas

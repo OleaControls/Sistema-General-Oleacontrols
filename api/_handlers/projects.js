@@ -1,6 +1,7 @@
 import prisma from '../_lib/prisma.js'
 import { authMiddleware } from '../_lib/auth.js'
 import { createProjectWithCode } from '../_lib/projectCode.js'
+import { conSurtido } from '../_lib/requisiciones.js'
 
 // Mapa de sub-recurso (query ?sub=) → delegate de Prisma.
 const SUB = {
@@ -242,6 +243,22 @@ export default async function handler(req, res) {
         pendings: 'pendiente', resourceRequests: 'solicitud de recurso',
       };
 
+      /* Lectura suelta de un sub-recurso. Existe para que compras pueda pedir
+         solo las requisiciones de un proyecto: traerse el proyecto entero
+         —tareas, riesgos, documentos, bitácora— para llenar un desplegable
+         sería mover cientos de filas para usar tres. No expone nada nuevo: es
+         un subconjunto de lo que el GET del proyecto ya devuelve. */
+      if (method === 'GET') {
+        if (!id) return res.status(400).json({ error: 'Falta id del proyecto' });
+        const filas = await delegate.findMany({
+          where: { projectId: id },
+          orderBy: { createdAt: 'desc' },
+        });
+        return res.status(200).json(
+          sub === 'resourceRequests' ? await conSurtido(filas) : filas
+        );
+      }
+
       if (method === 'POST') {
         if (!id) return res.status(400).json({ error: 'Falta id del proyecto' });
         const created = await delegate.create({ data: { ...sanitize(req.body), projectId: id } });
@@ -297,7 +314,14 @@ export default async function handler(req, res) {
           },
         });
         if (!project) return res.status(404).json({ error: 'Proyecto no encontrado' });
-        return res.status(200).json(project);
+
+        /* Cada renglon de requisicion viaja con lo ya comprado y lo que falta.
+           Se calcula aqui y no en el navegador porque la vista no tiene —ni
+           debe tener— las ordenes de compra de toda la empresa para sumarlas. */
+        return res.status(200).json({
+          ...project,
+          resourceRequests: await conSurtido(project.resourceRequests),
+        });
       }
 
       if (method === 'PUT') {

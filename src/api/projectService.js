@@ -51,6 +51,20 @@ export const projectService = {
   // ── Sub-recursos genéricos ─────────────────────────────────────────────
   // sub ∈ tasks | risks | costs | resources | quality | communications |
   //        incidents | documents | changes | quotes
+  /**
+   * Lee un sub-recurso suelto, sin arrastrar el proyecto entero.
+   *
+   * Compras lo usa para las requisiciones: traerse tareas, riesgos, documentos
+   * y bitácora para llenar un desplegable sería mover cientos de filas para
+   * usar tres. Las requisiciones vuelven con `surtido` y `pendiente` ya
+   * calculados por el servidor.
+   */
+  async listItems(projectId, sub) {
+    const res = await apiFetch(`/api/projects?id=${projectId}&sub=${sub}`);
+    if (!res.ok) throw new Error('Error al cargar el sub-recurso');
+    return res.json();
+  },
+
   async addItem(projectId, sub, data) {
     const res = await apiFetch(`/api/projects?id=${projectId}&sub=${sub}`, {
       method: 'POST',

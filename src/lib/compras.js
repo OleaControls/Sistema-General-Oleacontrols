@@ -40,6 +40,28 @@ export const PO_CERRADAS = ['PAGADA', 'RECHAZADA', 'CANCELADA'];
 /** Las partidas solo se tocan mientras la orden no está autorizada. */
 export const PO_EDITABLES = ['BORRADOR', 'SOLICITADA', 'EN_REVISION', 'RECHAZADA'];
 
+/**
+ * Estados en los que una orden ya descuenta de la requisición.
+ *
+ * Se corta en APROBADA porque ahí es donde el dinero queda comprometido: un
+ * borrador o una orden esperando firma todavía no compran nada, y contarlas
+ * haría que un borrador abandonado dejara material como surtido para siempre.
+ *
+ * Sale de PO_FLOW y no de una lista aparte: así, si mañana se agrega un estado
+ * intermedio, no hay dos listas que se puedan contradecir.
+ */
+export const PO_SURTEN = PO_FLOW.slice(PO_FLOW.indexOf('APROBADA'));
+
+/**
+ * Lo pendiente de un renglón de requisición.
+ *
+ * Nunca negativo: si se compró de más —pasa, el proveedor solo vendía la caja
+ * de 100— el pendiente es cero, no un número en rojo que parezca un error.
+ */
+export function pendienteRequisicion(solicitado, surtido) {
+  return Math.max(0, Number(solicitado || 0) - Number(surtido || 0));
+}
+
 // ── Política de autorización ───────────────────────────────────────────────
 // Tramos por monto total. El último exige que una de las firmas sea de
 // Dirección (ADMIN).

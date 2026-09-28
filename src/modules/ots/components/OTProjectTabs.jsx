@@ -164,6 +164,19 @@ function ResourcesPanel({ otId, project, onReload, puedeEditar }) {
                       {r.name}
                       <span className="ml-2 font-bold text-gray-400">{r.quantity} {r.unit || ''}</span>
                     </p>
+                    {/* Lo comprado sale de las órdenes de compra autorizadas que
+                        apuntan a este renglón; el servidor lo suma al leer. Solo
+                        se pinta cuando ya se compró algo: en lo demás sería una
+                        línea de ceros en cada solicitud. */}
+                    {r.surtido > 0 && (
+                      <p className="text-[10px] font-black mt-1 tabular-nums">
+                        <span className="text-emerald-600">Comprado {r.surtido} {r.unit || ''}</span>
+                        <span className="text-gray-300 mx-1.5">·</span>
+                        {r.pendiente > 0
+                          ? <span className="text-amber-600">Faltan {r.pendiente} {r.unit || ''}</span>
+                          : <span className="text-emerald-600">Surtido completo</span>}
+                      </p>
+                    )}
                     {r.justification && <p className="text-[11px] text-gray-500 font-medium mt-1">{r.justification}</p>}
                     <p className="text-[10px] text-gray-400 font-bold mt-1.5">
                       {r.requestedByName || '—'} · {fmtFecha(r.requestedAt)}
