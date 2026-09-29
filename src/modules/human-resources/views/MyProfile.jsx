@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { apiFetch } from '@/lib/api';
 import { useAuth, ROLES } from '@/store/AuthContext';
+import { ROL_INFO } from '@/lib/permisos';
 import { hrService } from '@/api/hrService';
 import ToolkitTab from '../components/ToolkitTab';
 import { cn } from '@/lib/utils';
@@ -775,12 +776,7 @@ export default function MyProfile() {
   );
 
   const isCollaborator = user.role === ROLES.COLLABORATOR;
-  const roleLabel = {
-    [ROLES.ADMIN]: 'Administrador', [ROLES.OPS]: 'Operaciones',
-    [ROLES.TECH]: 'Técnico', [ROLES.HR]: 'Recursos Humanos',
-    [ROLES.SALES]: 'Ventas', [ROLES.COLLABORATOR]: 'Colaborador',
-    [ROLES.PURCHASING]: 'Compras',
-  }[user.role] || user.role;
+  const roleLabel = ROL_INFO[user.role]?.label || user.role;
 
   const vacBalance = vacationInfo?.vacationBalance ?? 0;
   const vacPending = vacationInfo?.vacationRequests?.filter(r => r.status === 'PENDING').length ?? 0;

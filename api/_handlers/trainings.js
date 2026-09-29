@@ -6,8 +6,8 @@ import { authMiddleware } from '../_lib/auth.js'
    resultado, evidencia y —lo que vigila el supervisor— la fecha de la próxima.
    El técnico ve la suya; RH, proyectos y supervisión ven todas. */
 
-const EDITOR_ROLES = ['ADMIN', 'HR', 'PROJECT_MANAGER', 'SUPERVISOR'];
-const VIEW_ALL_ROLES = ['ADMIN', 'HR', 'PROJECT_MANAGER', 'SUPERVISOR'];
+const EDITOR_ROLES = ['ADMIN', 'HR', 'HR_DEVELOPMENT', 'PROJECT_MANAGER', 'SUPERVISOR'];
+const VIEW_ALL_ROLES = ['ADMIN', 'HR', 'HR_DEVELOPMENT', 'PROJECT_MANAGER', 'SUPERVISOR'];
 
 const rolesDe = (auth) => (Array.isArray(auth?.roles) ? auth.roles : [auth?.roles].filter(Boolean));
 const puedeEditar = (auth) => rolesDe(auth).some(r => EDITOR_ROLES.includes(r));

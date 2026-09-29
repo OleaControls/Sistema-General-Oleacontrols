@@ -1,18 +1,12 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { conectarRealtime, desconectarRealtime } from '@/services/realtime';
+import { ROLES } from '@/lib/permisos';
 
 const AuthContext = createContext();
 
-export const ROLES = {
-  ADMIN: 'ADMIN',
-  OPS: 'SUPERVISOR',
-  TECH: 'TECHNICIAN',
-  HR: 'HR',
-  SALES: 'SALES',
-  PM: 'PROJECT_MANAGER',
-  PURCHASING: 'PURCHASING',
-  COLLABORATOR: 'COLLABORATOR'
-};
+// Los roles se definen en src/lib/permisos.js, junto con lo que puede hacer
+// cada uno; aquí se reexportan para no cambiar los imports de siempre.
+export { ROLES };
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);

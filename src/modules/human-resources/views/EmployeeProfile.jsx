@@ -100,7 +100,10 @@ const PROFILE_TABS = [
 
 const ROLE_CONFIG = {
     [ROLES.ADMIN]: { label: 'Administrador', color: 'bg-red-50 text-red-600 border-red-100', icon: ShieldCheck },
-    [ROLES.HR]: { label: 'Recursos Humanos', color: 'bg-purple-50 text-purple-600 border-purple-100', icon: Users },
+    [ROLES.HR]: { label: 'Jefe(a) de Talento Humano', color: 'bg-purple-50 text-purple-600 border-purple-100', icon: Users },
+    [ROLES.HR_RECRUITER]: { label: 'RH · Contratación', color: 'bg-purple-50 text-purple-600 border-purple-100', icon: Users },
+    [ROLES.HR_DEVELOPMENT]: { label: 'RH · Desarrollo', color: 'bg-purple-50 text-purple-600 border-purple-100', icon: Users },
+    [ROLES.HR_PAYROLL]: { label: 'RH · Nómina y Personal', color: 'bg-purple-50 text-purple-600 border-purple-100', icon: Users },
     [ROLES.OPS]: { label: 'Supervisor de Operaciones', color: 'bg-blue-50 text-blue-600 border-blue-100', icon: HardHat },
     [ROLES.TECH]: { label: 'Técnico Especialista', color: 'bg-emerald-50 text-emerald-600 border-emerald-100', icon: Zap },
     [ROLES.SALES]: { label: 'Consultor de Ventas', color: 'bg-orange-50 text-orange-600 border-orange-100', icon: TrendingUp },

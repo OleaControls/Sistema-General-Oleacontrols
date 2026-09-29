@@ -1,5 +1,6 @@
 import prisma from '../_lib/prisma.js';
 import { authMiddleware } from '../_lib/auth.js';
+import { puede } from '../_lib/permisos.js';
 
 // ── ISR simplificado (tabla 2024 SAT, quincena → mensual equiv.) ─────────────
 const ISR_TABLE = [
@@ -90,7 +91,23 @@ export default async function handler(req, res) {
    * su fila en el navegador —el servidor ya habia mandado la nomina completa—.
    * Ahora el recorte se hace aqui.
    */
-  const esRH = (auth.roles || []).some(r => r === 'HR' || r === 'ADMIN');
+  const misRoles  = auth.roles || [];
+  const esRH      = puede(misRoles, 'rh.nomina.ver');
+  const aprueba   = puede(misRoles, 'rh.nomina.aprobar');
+
+  /* Separacion de funciones: Nomina (HR_PAYROLL) calcula y ajusta; aprobar y
+   * marcar pagada es de la jefatura. Y una vez aprobada, el periodo queda
+   * congelado para quien la capturo: si pudiera seguir editando filas, la
+   * aprobacion no significaria nada. */
+  const soloBorrador = async (periodId) => {
+    if (aprueba) return null;
+    const p = await prisma.payrollPeriod.findUnique({ where: { id: periodId }, select: { status: true } });
+    if (!p) return res.status(404).json({ error: 'Período no encontrado' });
+    if (p.status !== 'DRAFT') {
+      return res.status(403).json({ error: 'El período ya fue aprobado; solo la jefatura de RH puede modificarlo' });
+    }
+    return null;
+  };
 
   try {
     // ── GET ────────────────────────────────────────────────────────────────────
@@ -132,8 +149,8 @@ export default async function handler(req, res) {
     }
 
     // Calcular, aprobar, editar una fila o borrar un periodo es trabajo de RH.
-    if (method !== 'GET' && !esRH) {
-      return res.status(403).json({ error: 'Solo Recursos Humanos puede administrar la nómina' });
+    if (method !== 'GET' && !puede(misRoles, 'rh.nomina.capturar')) {
+      return res.status(403).json({ error: 'Solo Nómina o la jefatura de RH pueden administrar la nómina' });
     }
 
     // ── POST ───────────────────────────────────────────────────────────────────
@@ -142,6 +159,7 @@ export default async function handler(req, res) {
 
       // Aprobar período
       if (action === 'approve') {
+        if (!aprueba) return res.status(403).json({ error: 'Solo la jefatura de RH puede aprobar o pagar la nómina' });
         const { id } = req.body;
         const updated = await prisma.payrollPeriod.update({
           where: { id }, data: { status: 'APPROVED', updatedAt: new Date() }
@@ -151,6 +169,7 @@ export default async function handler(req, res) {
 
       // Marcar como pagada
       if (action === 'pay') {
+        if (!aprueba) return res.status(403).json({ error: 'Solo la jefatura de RH puede aprobar o pagar la nómina' });
         const { id } = req.body;
         const updated = await prisma.payrollPeriod.update({
           where: { id }, data: { status: 'PAID', updatedAt: new Date() }
@@ -163,6 +182,7 @@ export default async function handler(req, res) {
         const { itemId, absenceDays, overtimeHours, bonuses, extraDeductions, notes } = req.body;
         const item = await prisma.payrollItem.findUnique({ where: { id: itemId } });
         if (!item) return res.status(404).json({ error: 'Ítem no encontrado' });
+        if (await soloBorrador(item.periodId)) return;
 
         const period = await prisma.payrollPeriod.findUnique({ where: { id: item.periodId } });
         const empSnap = {
@@ -238,8 +258,9 @@ export default async function handler(req, res) {
 
     // ── PUT ────────────────────────────────────────────────────────────────────
     if (method === 'PUT') {
-      const { id, ...data } = req.body;
+      const { id, status, ...data } = req.body; // el estado solo cambia con approve/pay
       if (!id) return res.status(400).json({ error: 'ID requerido' });
+      if (await soloBorrador(id)) return;
       if (data.startDate) data.startDate = new Date(data.startDate);
       if (data.endDate)   data.endDate   = new Date(data.endDate);
       const updated = await prisma.payrollPeriod.update({ where: { id }, data });
@@ -250,6 +271,7 @@ export default async function handler(req, res) {
     if (method === 'DELETE') {
       const id = req.query.id || req.body?.id;
       if (!id) return res.status(400).json({ error: 'ID requerido' });
+      if (await soloBorrador(id)) return;
       await prisma.payrollPeriod.delete({ where: { id } });
       return res.status(200).json({ ok: true });
     }

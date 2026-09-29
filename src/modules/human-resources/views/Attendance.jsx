@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils';
 import { apiFetch } from '@/lib/api';
 import { hrService } from '@/api/hrService';
 import { useAuth, ROLES } from '@/store/AuthContext';
+import { puede } from '@/lib/permisos';
 
 // ── Constantes ─────────────────────────────────────────────────────────────────
 const TYPES = {
@@ -145,7 +146,7 @@ function AbsenceCalendar({ employees }) {
 export default function Attendance() {
   const { user } = useAuth();
   const userRoles = user?.roles || [user?.role];
-  const canEdit = userRoles.some(r=>[ROLES.ADMIN,ROLES.HR,ROLES.OPS].includes(r));
+  const canEdit = puede(userRoles, 'rh.asistencia') || userRoles.includes(ROLES.OPS);
 
   const now = new Date();
   const [tab,         setTab]         = useState('ATTENDANCE');

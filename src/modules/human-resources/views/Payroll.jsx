@@ -6,6 +6,8 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { apiFetch } from '@/lib/api';
+import { useAuth } from '@/store/AuthContext';
+import { puede } from '@/lib/permisos';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const fmt  = (n) => `$${Number(n||0).toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2})}`;
@@ -700,6 +702,9 @@ function CulturaConfigModal({ catalog = DEFAULT_CULTURA, onClose, onSaved }) {
 
 // ── Drawer de detalle de período ──────────────────────────────────────────────
 function PeriodDrawer({ periodId, catalog = DEFAULT_CULTURA, onClose, onRefresh }) {
+  const { user } = useAuth();
+  // Nómina captura; aprobar y pagar es de la jefatura (separación de funciones).
+  const puedeAprobar = puede(user?.roles || [user?.role], 'rh.nomina.aprobar');
   const [period,      setPeriod]      = useState(null);
   const [loading,     setLoading]     = useState(true);
   const [search,      setSearch]      = useState('');
@@ -942,13 +947,13 @@ function PeriodDrawer({ periodId, catalog = DEFAULT_CULTURA, onClose, onRefresh 
                   className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-teal-600 hover:bg-teal-700 text-white text-[10px] font-black uppercase transition-all disabled:opacity-50">
                   <FileText className="h-3.5 w-3.5"/> Cultura (Todos)
                 </button>
-                {period?.status==='DRAFT'&&(
+                {puedeAprobar&&period?.status==='DRAFT'&&(
                   <button onClick={()=>handleAction('approve')} disabled={acting}
                     className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-black uppercase transition-all disabled:opacity-50">
                     <CheckCircle2 className="h-3.5 w-3.5"/> Aprobar
                   </button>
                 )}
-                {period?.status==='APPROVED'&&(
+                {puedeAprobar&&period?.status==='APPROVED'&&(
                   <button onClick={()=>handleAction('pay')} disabled={acting}
                     className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-black uppercase transition-all disabled:opacity-50">
                     <Wallet className="h-3.5 w-3.5"/> Marcar Pagada

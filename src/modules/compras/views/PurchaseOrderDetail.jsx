@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils';
 import { useAuth } from '@/store/AuthContext';
 import comprasService from '@/api/comprasService';
 import { projectService } from '@/api/projectService';
+import { suscribirCambios } from '@/services/realtime';
 import { generarOrdenCompraPDF } from '../utils/ordenCompraPDF';
 import {
   poStatusMeta, money, calcularTotales, calcularPartida, firmasRequeridas,
@@ -109,6 +110,22 @@ export default function PurchaseOrderDetail() {
   }, [id, nueva]);
 
   useEffect(() => { cargar(); }, [cargar]);
+
+  /* Cuando otra persona firma, se refresca SOLO la cabecera —estado y firmas—,
+     nunca el formulario ni las partidas.
+
+     Recargarlo entero seria mas simple y estaria mal: una firma que llega
+     mientras alguien escribe le borraria lo tecleado. Lo que se esta esperando
+     ver es el estado, y eso vive en `orden`; `form` e `items` son la copia de
+     trabajo de quien tiene la pantalla abierta. */
+  useEffect(() => {
+    if (nueva) return;
+    return suscribirCambios(
+      'PurchaseOrder',
+      async () => { try { setOrden(await comprasService.orden(id)); } catch { /* sin cambios visibles */ } },
+      { id, esperaMs: 400 },
+    );
+  }, [id, nueva]);
 
   // ── Derivados ────────────────────────────────────────────────────────────
   const totales = useMemo(() => calcularTotales(items, form.adjustment), [items, form.adjustment]);

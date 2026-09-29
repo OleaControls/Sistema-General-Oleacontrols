@@ -1,6 +1,7 @@
 import prisma from '../_lib/prisma.js'
 import { uploadToR2, signUrlIfNeeded } from '../_lib/r2.js'
 import { authMiddleware, hashPassword } from '../_lib/auth.js'
+import { puede, puedeAsignarRol } from '../_lib/permisos.js'
 
 export default async function handler(req, res) {
   const auth = authMiddleware(req, res);
@@ -18,7 +19,12 @@ export default async function handler(req, res) {
    * OT, elegir un vendedor, el organigrama), pero quien no es RH lo recibe sin
    * los datos personales.
    */
-  const esRH = (auth.roles || []).some(r => r === 'HR' || r === 'ADMIN');
+  //
+  // Quien puede qué sale de src/lib/permisos.js. Ver el expediente completo
+  // (sueldo, banco, CURP) es de Contratación, Nómina y la jefatura; Desarrollo
+  // recibe la ficha pública como el resto.
+  const misRoles = auth.roles || [];
+  const esRH = puede(misRoles, 'rh.expediente.ver');
 
   // Lo que puede editar cualquiera de su propia ficha. Son datos de contacto:
   // nada que decida su sueldo, su acceso o su situacion laboral.
@@ -159,7 +165,9 @@ export default async function handler(req, res) {
 
   if (req.method === 'POST') {
     // Dar de alta a alguien crea tambien sus credenciales de acceso.
-    if (!esRH) return res.status(403).json({ error: 'Solo Recursos Humanos puede dar de alta empleados' });
+    if (!puede(misRoles, 'rh.empleados.alta')) {
+      return res.status(403).json({ error: 'Solo Contratación o la jefatura de RH pueden dar de alta empleados' });
+    }
 
     try {
       const body = await processDocs(req.body);
@@ -217,6 +225,12 @@ export default async function handler(req, res) {
 
       // 4. Formatear datos
       const finalRoles = Array.isArray(roles) ? roles : (roles ? [roles] : ['COLLABORATOR']);
+      // Contratación da de alta a la gente, pero no puede crear una cuenta con
+      // un rol que ella misma no puede asignar (RH, ADMIN).
+      const noAsignables = finalRoles.filter(r => !puedeAsignarRol(misRoles, r));
+      if (noAsignables.length) {
+        return res.status(403).json({ error: 'No puedes asignar estos roles', roles: noAsignables });
+      }
       let finalJoinDate = new Date();
       if (joinDate) {
           const d = new Date(joinDate);
@@ -329,27 +343,99 @@ export default async function handler(req, res) {
       
       if (!id) return res.status(400).json({ error: 'ID requerido' });
 
-      /* Quien no es RH solo edita su propia ficha, y solo datos de contacto.
+      /* Autorizacion por campo, segun lo que CAMBIA.
        *
-       * La lista blanca no es paranoia: `roles` se escribe desde aqui y
-       * tambien en el upsert de credenciales de mas abajo, asi que sin este
-       * filtro bastaba un PUT con { id: <el mio>, roles: ['ADMIN'] } para
-       * darse acceso total. Igual de grave seria dejar tocar `salary`,
-       * `status` o `bankAccount` de la propia ficha.
+       * La pantalla de RH manda el expediente entero en cada guardado, asi que
+       * mirar solo que claves vienen no sirve: Nomina no podria corregir un
+       * sueldo porque el formulario tambien trae el nombre, sin tocarlo. Se
+       * compara contra lo guardado y cada campo que cambia se revisa contra su
+       * permiso:
+       *
+       * - Datos de contacto propios: cualquiera, en su propia ficha.
+       * - Sueldo y banco: Nomina y jefatura (un alta nueva los trae en el POST).
+       * - Acceso (correo, contraseña, roles) y baja/reactivacion: solo sobre
+       *   alguien cuyos roles uno mismo podria asignar. Sin esto Contratacion
+       *   podria cambiarle la contraseña a la jefa o a un ADMIN y entrar como
+       *   ella. Y cada rol que se agrega o quita tiene que ser asignable.
+       * - Todo lo demas del expediente: Contratacion y jefatura.
+       *
+       * La lista blanca de campos propios sigue siendo lo que impide que alguien
+       * se de ADMIN a si mismo con un PUT a su propia ficha.
        */
-      if (!esRH) {
-        if (id !== auth.id) {
-          return res.status(403).json({ error: 'Solo Recursos Humanos puede editar el expediente de otra persona' });
+      const actual = await prisma.employee.findUnique({ where: { id } });
+      if (!actual) return res.status(404).json({ error: 'Empleado no encontrado' });
+
+      const normal = (v) => {
+        if (v === undefined || v === null) return '';
+        if (v instanceof Date) return v.toISOString().slice(0, 10);
+        if (Array.isArray(v)) return [...v].sort().join(',');
+        const t = String(v).trim();
+        return /^\d{4}-\d{2}-\d{2}/.test(t) ? t.slice(0, 10) : t;
+      };
+      const mismoValor = (a, b) => {
+        const na = normal(a), nb = normal(b);
+        if (na === nb) return true;
+        // '15000' del formulario contra 15000 guardado
+        return na !== '' && nb !== '' && isFinite(na) && isFinite(nb) && Number(na) === Number(nb);
+      };
+
+      const CAMPOS_SUELDO = ['salary', 'bankName', 'bankAccount', 'paymentType'];
+      const CAMPOS_ACCESO = ['email', 'password', 'roles', 'status'];
+      const CAMPOS_EXPEDIENTE = [
+        'employeeId', 'name', 'avatar', 'position', 'department', 'location', 'phone',
+        'reportsTo', 'birthDate', 'joinDate', 'birthPlace', 'nationality', 'maritalStatus',
+        'address', 'emergencyContactName', 'emergencyContactPhone',
+        'ine', 'curp', 'rfc', 'nss', 'birthCertificate', 'proofOfResidency', 'cv', 'ineDoc',
+        'contractSigned', 'privacyPolicySigned', 'internalRulesSigned', 'imssHigh',
+        'studyCertificate', 'degreeOrProfessionalId', 'diplomasOrCourses',
+        'laborCertifications', 'recommendationLetter', 'performanceEvaluations',
+        'receivedTraining', 'administrativeActs', 'disciplinaryReports',
+        'permitsOrLicenses', 'resignationLetter', 'settlementOrLiquidation',
+        'imssLow', 'laborConstancy', 'contractType', 'workSchedule', 'telegramChatId',
+      ];
+
+      const cambia = (campo) => {
+        if (!Object.prototype.hasOwnProperty.call(body, campo)) return false;
+        if (campo === 'password') return !!(body.password && String(body.password).trim());
+        // Un arreglo de roles vacio se ignora mas abajo; no cuenta como cambio.
+        if (campo === 'roles' && !(Array.isArray(body.roles) && body.roles.length)) return false;
+        // El correo se guarda en minusculas; 'Ana@...' no es un cambio.
+        if (campo === 'email') return normal(body.email).toLowerCase() !== normal(actual.email).toLowerCase();
+        return !mismoValor(body[campo], actual[campo]);
+      };
+
+      const esPropia = id === auth.id;
+      const puedoTocarSuCuenta = (actual.roles || []).every(r => puedeAsignarRol(misRoles, r));
+      const denegados = [];
+
+      for (const campo of [...CAMPOS_EXPEDIENTE, ...CAMPOS_SUELDO, ...CAMPOS_ACCESO]) {
+        if (!cambia(campo)) continue;
+        let ok;
+        if (esPropia && CAMPOS_PROPIOS.includes(campo)) ok = true;
+        else if (CAMPOS_SUELDO.includes(campo)) ok = puede(misRoles, 'rh.sueldos.editar');
+        else if (campo === 'status') ok = puede(misRoles, 'rh.empleados.baja') && puedoTocarSuCuenta;
+        else if (campo === 'roles') {
+          const antes = actual.roles || [];
+          const despues = body.roles;
+          const tocados = [
+            ...despues.filter(r => !antes.includes(r)),
+            ...antes.filter(r => !despues.includes(r)),
+          ];
+          ok = puede(misRoles, 'rh.expediente.editar') && puedoTocarSuCuenta
+            && tocados.every(r => puedeAsignarRol(misRoles, r));
         }
-        const prohibidos = Object.keys(body).filter(
-          k => k !== 'id' && !CAMPOS_PROPIOS.includes(k)
-        );
-        if (prohibidos.length) {
-          return res.status(403).json({
-            error: 'No puedes modificar estos campos de tu propia ficha',
-            campos: prohibidos,
-          });
-        }
+        else if (CAMPOS_ACCESO.includes(campo)) ok = puede(misRoles, 'rh.expediente.editar') && puedoTocarSuCuenta;
+        else ok = puede(misRoles, 'rh.expediente.editar');
+        if (!ok) denegados.push(campo);
+      }
+
+      if (denegados.length) {
+        return res.status(403).json({
+          error: esPropia && !esRH
+            ? 'No puedes modificar estos campos de tu propia ficha'
+            : 'Tu rol no permite modificar estos campos',
+          campos: denegados,
+        });
       }
 
       /* Actualizacion parcial: solo se toca lo que viene en la peticion.
@@ -482,7 +568,9 @@ export default async function handler(req, res) {
   }
 
   if (req.method === 'DELETE') {
-    if (!esRH) return res.status(403).json({ error: 'Solo Recursos Humanos puede dar de baja empleados' });
+    if (!puede(misRoles, 'rh.empleados.baja')) {
+      return res.status(403).json({ error: 'Solo la jefatura de RH puede dar de baja empleados' });
+    }
 
     const { id } = req.query;
     if (!id) return res.status(400).json({ error: 'ID requerido' });

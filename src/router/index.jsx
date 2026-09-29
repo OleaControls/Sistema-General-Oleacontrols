@@ -143,7 +143,10 @@ const DashboardSelector = () => {
     case ROLES.ADMIN:  return <SalesMetrics />;
     case ROLES.OPS:    return <OpsMetrics />;
     case ROLES.TECH:   return <TechMetrics />;
-    case ROLES.HR:     return <HRDashboard />;
+    case ROLES.HR:
+    case ROLES.HR_RECRUITER:
+    case ROLES.HR_DEVELOPMENT:
+    case ROLES.HR_PAYROLL: return <HRDashboard />;
     case ROLES.SALES:  return <DealsKanban />;
     case ROLES.PM:     return <ProjectsList />;
     case ROLES.PURCHASING: return <PurchaseOrders />;

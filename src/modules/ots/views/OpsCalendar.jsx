@@ -39,6 +39,7 @@ import { hrService } from '@/api/hrService';
 import { apiFetch } from '@/lib/api';
 import { useAuth, ROLES } from '@/store/AuthContext';
 import { cn } from '@/lib/utils';
+import { suscribirCambios } from '@/services/realtime';
 
 const EVENT_TYPES = {
   OT:          { label: 'Orden de Trabajo', icon: Briefcase,   pill: { bg: '#dbeafe', border: '#93c5fd', text: '#1e40af', dot: '#3b82f6' } },
@@ -130,8 +131,19 @@ export default function OpsCalendar() {
 
   useEffect(() => { fetchData(); }, [currentDate]);
 
-  const fetchData = async () => {
-    setLoading(true);
+  /* Las citas las agenda el cliente desde el portal publico, sin contrasena
+     (AppointmentBooking), y caen aqui. Hasta ahora Operaciones no se enteraba
+     hasta recargar: esta vista solo consultaba al cambiar de mes.
+
+     Se recarga en silencio para no levantar el esqueleto de carga encima de
+     alguien que esta mirando el mes. */
+  useEffect(() => {
+    return suscribirCambios('Appointment', () => fetchData({ silencioso: true }), { esperaMs: 500 });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentDate]);
+
+  const fetchData = async ({ silencioso = false } = {}) => {
+    if (!silencioso) setLoading(true);
     try {
       const [otsData, calendarRes, clientsRes, apptRes, claimRes, templatesData, allEmployees] = await Promise.all([
         otService.getOTs(),

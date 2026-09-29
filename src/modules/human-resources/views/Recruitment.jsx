@@ -7,7 +7,8 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { hrService } from '@/api/hrService';
-import { ROLES } from '@/store/AuthContext';
+import { ROLES, useAuth } from '@/store/AuthContext';
+import { ROL_INFO, puedeAsignarRol } from '@/lib/permisos';
 
 // ── Config ────────────────────────────────────────────────────────────────────
 const PIPELINE = [
@@ -20,7 +21,6 @@ const PIPELINE = [
 const NEXT_STAGE  = { APPLIED: 'SCREENING', SCREENING: 'TECHNICAL', TECHNICAL: 'OFFER' };
 const NEXT_LABEL  = { APPLIED: 'Entrevista RH', SCREENING: 'Prueba Técnica', TECHNICAL: 'Oferta' };
 const SOURCES     = ['Web', 'LinkedIn', 'Referido', 'Bolsa Trabajo', 'Headhunter', 'Instagram', 'Otro'];
-const ROLE_LABELS = { [ROLES.ADMIN]:'Admin',[ROLES.HR]:'RH',[ROLES.OPS]:'Super',[ROLES.TECH]:'Tech',[ROLES.SALES]:'Ventas',[ROLES.COLLABORATOR]:'Colab' };
 
 const AVATAR_COLORS = [
   'bg-blue-500','bg-violet-500','bg-emerald-500','bg-amber-500',
@@ -125,6 +125,8 @@ const FileFld = ({ label, value, onChange }) => {
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 export default function Recruitment() {
+  const { user } = useAuth();
+  const misRoles = user?.roles || [user?.role];
   const [candidates, setCandidates] = useState([]);
   const [loading, setLoading]       = useState(true);
   const [dragged, setDragged]       = useState(null);
@@ -605,11 +607,13 @@ export default function Recruitment() {
                           <div className="space-y-3">
                             <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Roles del sistema</p>
                             <div className="grid grid-cols-2 gap-2">
-                              {Object.keys(ROLES).map(r=>(
-                                <button key={r} type="button" onClick={()=>toggleRole(ROLES[r])}
-                                  className={cn('px-3 py-2 rounded-lg text-[10px] font-black uppercase border transition-all',
-                                    empForm.roles.includes(ROLES[r])?'bg-emerald-600 text-white border-emerald-600 shadow-sm':'bg-white text-gray-400 border-gray-200 hover:border-gray-300')}>
-                                  {ROLE_LABELS[ROLES[r]]}
+                              {Object.values(ROLES).map(rol=>(
+                                <button key={rol} type="button" onClick={()=>toggleRole(rol)}
+                                  disabled={!puedeAsignarRol(misRoles, rol)}
+                                  title={ROL_INFO[rol]?.descripcion || ROL_INFO[rol]?.label}
+                                  className={cn('px-3 py-2 rounded-lg text-[10px] font-black uppercase border transition-all disabled:opacity-40 disabled:cursor-not-allowed',
+                                    empForm.roles.includes(rol)?'bg-emerald-600 text-white border-emerald-600 shadow-sm':'bg-white text-gray-400 border-gray-200 hover:border-gray-300')}>
+                                  {ROL_INFO[rol]?.corto || rol}
                                 </button>
                               ))}
                             </div>

@@ -9,7 +9,7 @@ const DOC_TYPES = [
 ];
 
 // Quién puede administrar el expediente de cualquier técnico.
-const MANAGER_ROLES = ['ADMIN', 'HR', 'SUPERVISOR'];
+const MANAGER_ROLES = ['ADMIN', 'HR', 'HR_RECRUITER', 'SUPERVISOR'];
 
 const rolesDe = (auth) => Array.isArray(auth?.roles) ? auth.roles : [auth?.roles].filter(Boolean);
 const esGestor = (auth) => rolesDe(auth).some(r => MANAGER_ROLES.includes(r));

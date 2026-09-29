@@ -6,17 +6,10 @@ import {
 } from 'lucide-react';
 import { hrService } from '@/api/hrService';
 import { ROLES, useAuth } from '@/store/AuthContext';
+import { ROL_INFO, puede, puedeAsignarRol } from '@/lib/permisos';
 import { cn } from '@/lib/utils';
 
-const ROLE_LABELS = {
-  [ROLES.ADMIN]: 'Admin',
-  [ROLES.HR]: 'RH',
-  [ROLES.OPS]: 'Super',
-  [ROLES.TECH]: 'Tech',
-  [ROLES.SALES]: 'Ventas',
-  [ROLES.PM]: 'Proyectos',
-  [ROLES.COLLABORATOR]: 'Colab'
-};
+
 
 
 const fileToBase64 = (file) => {
@@ -68,6 +61,9 @@ export default function EmployeeDirectory() {
   const [searchQuery, setSearchQuery] = useState('');
 
   const { updateUser, user: currentUser } = useAuth();
+  const misRoles = currentUser?.roles || [currentUser?.role];
+  const puedeAlta = puede(misRoles, 'rh.empleados.alta');
+  const puedeBaja = puede(misRoles, 'rh.empleados.baja');
 
   useEffect(() => { loadData(); }, []);
 
@@ -194,9 +190,11 @@ export default function EmployeeDirectory() {
           <button onClick={() => setIsCategoryModalOpen(true)} className="bg-white border p-2 rounded-xl text-gray-500 hover:bg-gray-50 transition-colors shadow-sm" title="Gestionar Todos los Puestos">
             <Settings className="h-5 w-5" />
           </button>
+          {puedeAlta && (
           <button onClick={() => { setFormData(initialForm); setIsModalOpen(true); }} className="bg-primary text-white px-4 py-2 rounded-xl font-black text-xs uppercase flex items-center gap-2 shadow-lg shadow-primary/20 hover:scale-[1.02] transition-all">
             <UserPlus className="h-4 w-4" /> Nuevo Ingreso
           </button>
+          )}
         </div>
       </div>
 
@@ -323,7 +321,7 @@ export default function EmployeeDirectory() {
                       >
                         <Edit2 className="h-3.5 w-3.5" />
                       </button>
-                      {emp.id !== currentUser.id && (
+                      {puedeBaja && emp.id !== currentUser.id && (
                         <button
                           onClick={(e) => handleDeleteEmployee(e, emp.id, emp.name)}
                           className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-all"
@@ -474,21 +472,28 @@ export default function EmployeeDirectory() {
                           <div className="space-y-3">
                             <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Roles del sistema</p>
                             <div className="grid grid-cols-2 gap-2">
-                              {Object.keys(ROLES).map(r => (
-                                <button
-                                  key={r}
-                                  type="button"
-                                  onClick={() => toggleRole(ROLES[r])}
-                                  className={cn(
-                                    "px-3 py-2 rounded-lg text-[10px] font-black uppercase border transition-all",
-                                    formData.roles.includes(ROLES[r])
-                                      ? "bg-primary text-white border-primary shadow-sm"
-                                      : "bg-white text-gray-400 border-gray-200 hover:border-gray-300"
-                                  )}
-                                >
-                                  {ROLE_LABELS[ROLES[r]]}
-                                </button>
-                              ))}
+                              {/* Solo se pueden prender o apagar los roles que uno
+                                  mismo puede asignar; la API aplica la misma regla. */}
+                              {Object.values(ROLES).map(rol => {
+                                const asignable = puedeAsignarRol(misRoles, rol);
+                                return (
+                                  <button
+                                    key={rol}
+                                    type="button"
+                                    disabled={!asignable}
+                                    title={ROL_INFO[rol]?.descripcion || ROL_INFO[rol]?.label}
+                                    onClick={() => toggleRole(rol)}
+                                    className={cn(
+                                      "px-3 py-2 rounded-lg text-[10px] font-black uppercase border transition-all disabled:opacity-40 disabled:cursor-not-allowed",
+                                      formData.roles.includes(rol)
+                                        ? "bg-primary text-white border-primary shadow-sm"
+                                        : "bg-white text-gray-400 border-gray-200 hover:border-gray-300"
+                                    )}
+                                  >
+                                    {ROL_INFO[rol]?.corto || rol}
+                                  </button>
+                                );
+                              })}
                             </div>
                           </div>
                           <div className="space-y-3">

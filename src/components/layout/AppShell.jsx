@@ -9,6 +9,7 @@ import {
   Map as MapIcon, Sparkles
 } from 'lucide-react';
 import { useAuth, ROLES } from '@/store/AuthContext';
+import { ROLES_RH, ROL_INFO, rolesCon } from '@/lib/permisos';
 import { useTenant } from '@/store/TenantContext';
 import { useTechnicianTracking } from '@/hooks/useTechnicianTracking';
 import { cn } from '@/lib/utils';
@@ -207,31 +208,38 @@ const NAV_STRUCTURE = [
   },
 
   // ── RH ────────────────────────────────────────────────────────────────────
+  // Quién ve cada pantalla sale de src/lib/permisos.js: la misma regla que
+  // aplica la API, para que el menú no ofrezca algo que el servidor niega.
   {
     type: 'group',
-    name: 'Recursos Humanos',
+    name: 'Talento Humano',
     icon: Users,
-    roles: [ROLES.HR, ROLES.ADMIN],
+    roles: [ROLES.ADMIN, ...ROLES_RH],
     defaultOpen: true,
     items: [
-      { name: 'Dashboard',            path: '/hr',              icon: LayoutDashboard, roles: [ROLES.HR, ROLES.ADMIN], exact: true },
-      { name: 'Empleados',            path: '/hr/directory',    icon: Users,           roles: [ROLES.HR, ROLES.ADMIN] },
-      { name: 'Organigrama',          path: '/hr/org-chart',    icon: Users2,          roles: [ROLES.HR, ROLES.ADMIN] },
-      { name: 'Reclutamiento',        path: '/hr/recruitment',  icon: GraduationCap,   roles: [ROLES.HR, ROLES.ADMIN] },
-      { name: 'Asistencia & Vacaciones', path: '/hr/attendance', icon: CalendarCheck,  roles: [ROLES.HR, ROLES.ADMIN] },
-      { name: 'Desempeño',            path: '/hr/performance',  icon: Target,          roles: [ROLES.HR, ROLES.ADMIN] },
-      { name: 'KPIs Técnicos',        path: '/hr/tech-kpis',    icon: BarChart3,       roles: [ROLES.HR, ROLES.ADMIN] },
-      { name: 'Incentivos y Premios', path: '/hr/rewards',      icon: Star,            roles: [ROLES.HR, ROLES.ADMIN] },
-      { name: 'EPP e Inventario',     path: '/hr/assets',       icon: Package,         roles: [ROLES.HR, ROLES.ADMIN] },
-      { name: 'Contratos y Docs',     path: '/hr/documents',    icon: FileText,        roles: [ROLES.HR, ROLES.ADMIN] },
+      { name: 'Dashboard',            path: '/hr',              icon: LayoutDashboard, roles: rolesCon('rh.dashboard'), exact: true },
+      { name: 'Empleados',            path: '/hr/directory',    icon: Users,           roles: rolesCon('rh.expediente.ver') },
+      { name: 'Organigrama',          path: '/hr/org-chart',    icon: Users2,          roles: rolesCon('rh.organigrama') },
+      // Contratación
+      { name: 'Reclutamiento',        path: '/hr/recruitment',  icon: GraduationCap,   roles: rolesCon('rh.reclutamiento') },
+      { name: 'Contratos y Docs',     path: '/hr/documents',    icon: FileText,        roles: rolesCon('rh.expediente.editar') },
       // Documentos con vigencia que el técnico debe traer para entrar a sitio.
-      { name: 'Docs. de Campo',       path: '/hr/documentacion-campo', icon: ShieldCheck, roles: [ROLES.HR, ROLES.ADMIN] },
-      { name: 'Capacitación',         path: '/hr/capacitacion',  icon: GraduationCap,  roles: [ROLES.HR, ROLES.ADMIN] },
-      { name: 'Encuestas de Clima',   path: '/hr/surveys',      icon: ClipboardCheck,  roles: [ROLES.HR, ROLES.ADMIN] },
-      { name: 'Comunicados',          path: '/hr/announcements', icon: Bell,           roles: [ROLES.HR, ROLES.ADMIN] },
-      { name: 'Sistema de Nómina',    path: '/hr/payroll',      icon: Receipt,         roles: [ROLES.HR, ROLES.ADMIN] },
-      { name: 'Reportes',             path: '/hr/reports',      icon: BarChart4,       roles: [ROLES.ADMIN] },
-      { name: 'Configuración',        path: '/hr/settings',     icon: Settings,        roles: [ROLES.ADMIN] },
+      { name: 'Docs. de Campo',       path: '/hr/documentacion-campo', icon: ShieldCheck, roles: rolesCon('rh.docs_campo') },
+      // Nómina y personal
+      { name: 'Asistencia & Vacaciones', path: '/hr/attendance', icon: CalendarCheck,  roles: rolesCon('rh.asistencia') },
+      { name: 'Sistema de Nómina',    path: '/hr/payroll',      icon: Receipt,         roles: rolesCon('rh.nomina.ver') },
+      // Desarrollo
+      { name: 'Capacitación',         path: '/hr/capacitacion',  icon: GraduationCap,  roles: rolesCon('rh.capacitacion') },
+      { name: 'Desempeño',            path: '/hr/performance',  icon: Target,          roles: rolesCon('rh.desempeno') },
+      { name: 'KPIs Técnicos',        path: '/hr/tech-kpis',    icon: BarChart3,       roles: rolesCon('rh.desempeno') },
+      { name: 'Incentivos y Premios', path: '/hr/rewards',      icon: Star,            roles: rolesCon('rh.desempeno') },
+      { name: 'Encuestas de Clima',   path: '/hr/surveys',      icon: ClipboardCheck,  roles: rolesCon('rh.clima') },
+      { name: 'Comunicados',          path: '/hr/announcements', icon: Bell,           roles: rolesCon('rh.clima') },
+      // Pasa a Almacén cuando exista ese rol (ver permisos.js).
+      { name: 'EPP e Inventario',     path: '/hr/assets',       icon: Package,         roles: rolesCon('almacen.epp') },
+      // Jefatura
+      { name: 'Reportes',             path: '/hr/reports',      icon: BarChart4,       roles: rolesCon('rh.reportes') },
+      { name: 'Configuración',        path: '/hr/settings',     icon: Settings,        roles: rolesCon('rh.configuracion') },
     ]
   },
 
@@ -416,10 +424,11 @@ export default function AppShell({ children }) {
   const navigate = useNavigate();
 
   const rawRoles = user?.roles || [user?.role];
-  // El rol RH es exclusivo: un usuario de Recursos Humanos que NO sea ADMIN solo
-  // ve el módulo de RH, aunque tenga otros roles asignados. ADMIN sigue viendo todo.
-  const userRoles = (!rawRoles.includes(ROLES.ADMIN) && rawRoles.includes(ROLES.HR))
-    ? [ROLES.HR]
+  // Los roles de Talento Humano son exclusivos: quien los tiene y NO es ADMIN
+  // solo ve el módulo de RH, aunque tenga otros roles asignados. ADMIN sigue
+  // viendo todo.
+  const userRoles = (!rawRoles.includes(ROLES.ADMIN) && rawRoles.some(r => ROLES_RH.includes(r)))
+    ? rawRoles.filter(r => ROLES_RH.includes(r))
     : rawRoles;
 
   const handleLogout = () => { logout(); navigate('/login'); };
@@ -484,16 +493,7 @@ export default function AppShell({ children }) {
           {!isCollapsed && (
             <div className="px-5 py-2 border-b border-gray-50">
               <span className="text-[9px] font-black text-primary uppercase tracking-widest">
-                {userRoles.map(r =>
-                  r === ROLES.ADMIN ? 'Administrador' :
-                  r === ROLES.SALES ? 'Ventas' :
-                  r === ROLES.OPS   ? 'Operaciones' :
-                  r === ROLES.TECH  ? 'Técnico' :
-                  r === ROLES.HR    ? 'R. Humanos' :
-                  r === ROLES.PM    ? 'Gerente de Proyectos' :
-                  r === ROLES.PURCHASING ? 'Compras' :
-                  r === ROLES.COLLABORATOR ? 'Colaborador' : r
-                ).join(' · ')}
+                {userRoles.map(r => ROL_INFO[r]?.label || r).join(' · ')}
               </span>
             </div>
           )}

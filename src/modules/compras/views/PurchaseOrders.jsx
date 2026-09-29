@@ -7,6 +7,7 @@ import {
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/store/AuthContext';
 import comprasService from '@/api/comprasService';
+import { suscribirCambios } from '@/services/realtime';
 import Pagination from '@/modules/crm/components/Pagination';
 import {
   HeaderPremium, BotonPrimario, BotonFantasma, CajaFiltro, ChipFiltro,
@@ -67,6 +68,17 @@ export default function PurchaseOrders() {
   }, []);
 
   useEffect(() => { cargar(); }, [cargar]);
+
+  /* Compras manda a firma y se queda esperando a que alguien en otra pantalla
+     autorice. Sin esto, la unica forma de saber si ya firmaron era recargar.
+     Silencioso: sin esqueleto de carga encima de quien esta mirando. */
+  useEffect(() => {
+    return suscribirCambios(
+      'PurchaseOrder',
+      async () => { try { setOrdenes(await comprasService.ordenes()); } catch { /* el sondeo de la vista lo recupera */ } },
+      { esperaMs: 400 },
+    );
+  }, []);
 
   const toggleSort = (col) =>
     setSortConfig(c => (c.key === col ? { key: col, dir: -c.dir } : { key: col, dir: 1 }));
