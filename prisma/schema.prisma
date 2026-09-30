@@ -132,6 +132,7 @@ model Employee {
   techAttendance    TechAttendanceLog[]
   panoramizaciones  OtPanoramizacion[]
   notificaciones    Notificacion[]
+  suscripcionesPush SuscripcionPush[]
   conversaciones    MiembroConversacion[]
   mensajes          Mensaje[]
   toolkit           TechToolkit?
@@ -1698,6 +1699,27 @@ model Notificacion {
   // La consulta que corre en cada carga de la campana: las mias, sin leer,
   // de la mas nueva a la mas vieja.
   @@index([destinatarioId, leida, createdAt])
+}
+
+// Un navegador o celular donde la persona activo los avisos con la app
+// cerrada (Web Push). Una persona puede tener varias: la PC de la oficina y
+// su celular. `endpoint` es la direccion que dio el servicio de push del
+// navegador; es unica por dispositivo, y si alguien mas inicia sesion en ese
+// mismo equipo la suscripcion pasa a ser suya.
+model SuscripcionPush {
+  id          String   @id @default(cuid())
+  empleadoId  String
+  empleado    Employee @relation(fields: [empleadoId], references: [id], onDelete: Cascade)
+
+  endpoint    String   @unique
+  p256dh      String
+  auth        String
+  userAgent   String?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([empleadoId])
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

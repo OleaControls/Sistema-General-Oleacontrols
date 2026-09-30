@@ -1,5 +1,6 @@
 import prisma from '../_lib/prisma.js';
 import { authMiddleware } from '../_lib/auth.js';
+import { clavePublicaPush } from '../_lib/push.js';
 
 const POR_PAGINA = 20;
 
@@ -13,6 +14,46 @@ export default async function handler(req, res) {
   const method = req.method?.toUpperCase();
 
   try {
+    // ── GET ?action=push-clave: la clave pública para suscribirse ──────────
+    // Sale de aquí y no de una VITE_ para que cambiarla no obligue a recompilar.
+    if (method === 'GET' && req.query.action === 'push-clave') {
+      return res.status(200).json({ clave: clavePublicaPush });
+    }
+
+    // ── POST ?action=push-suscribir: este dispositivo quiere avisos ────────
+    if (method === 'POST' && req.query.action === 'push-suscribir') {
+      const { endpoint, keys } = req.body?.suscripcion || {};
+      if (!endpoint?.startsWith('https://') || !keys?.p256dh || !keys?.auth) {
+        return res.status(400).json({ error: 'Suscripción inválida' });
+      }
+
+      // Por endpoint y no por persona: si en la PC compartida entra otro, la
+      // suscripción de ese navegador pasa a ser suya y el anterior deja de
+      // recibir ahí avisos que ya no le tocan.
+      const datos = {
+        empleadoId: yo,
+        p256dh: keys.p256dh,
+        auth: keys.auth,
+        userAgent: String(req.headers['user-agent'] || '').slice(0, 300) || null,
+      };
+      await prisma.suscripcionPush.upsert({
+        where: { endpoint },
+        create: { endpoint, ...datos },
+        update: datos,
+      });
+      return res.status(200).json({ ok: true });
+    }
+
+    // ── POST ?action=push-desuscribir: al cerrar sesión o apagar avisos ────
+    if (method === 'POST' && req.query.action === 'push-desuscribir') {
+      const { endpoint } = req.body || {};
+      if (!endpoint) return res.status(400).json({ error: 'Falta endpoint' });
+      // Solo la mía: sin `empleadoId: yo` cualquiera podría apagarle los
+      // avisos a otro conociendo su endpoint.
+      await prisma.suscripcionPush.deleteMany({ where: { endpoint, empleadoId: yo } });
+      return res.status(200).json({ ok: true });
+    }
+
     // ── GET: mis notificaciones + cuántas sin leer ─────────────────────────
     if (method === 'GET') {
       const pagina = Math.max(1, parseInt(req.query.pagina || '1', 10));

@@ -1,9 +1,10 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bell, CheckCheck } from 'lucide-react';
+import { Bell, BellRing, CheckCheck } from 'lucide-react';
 import { notificacionesService } from '@/api/notificacionesService';
 import { suscribirCambios, hayRealtime } from '@/services/realtime';
 import { useAuth } from '@/store/AuthContext';
+import { estadoPush, activarPush, desactivarPush, iniciarPush } from '@/lib/push';
 import { cn } from '@/lib/utils';
 
 const MODULOS = {
@@ -30,6 +31,8 @@ export default function CampanaNotificaciones({ className }) {
   const [lista, setLista] = React.useState([]);
   const [sinLeer, setSinLeer] = React.useState(0);
   const [abierto, setAbierto] = React.useState(false);
+  const [push, setPush] = React.useState(null); // ver estadoPush()
+  const [activando, setActivando] = React.useState(false);
 
   const cargar = React.useCallback(async () => {
     const { notificaciones, sinLeer } = await notificacionesService.listar();
@@ -38,6 +41,30 @@ export default function CampanaNotificaciones({ className }) {
   }, []);
 
   React.useEffect(() => { if (user) cargar(); }, [user, cargar]);
+
+  React.useEffect(() => {
+    if (!user) return;
+    iniciarPush(navegar);
+  }, [user, navegar]);
+
+  // Se consulta al abrir: el permiso puede cambiar desde la configuración del
+  // navegador sin que la app se entere.
+  React.useEffect(() => {
+    if (abierto) estadoPush().then(setPush).catch(() => setPush('no-soportado'));
+  }, [abierto]);
+
+  const alternarPush = async () => {
+    setActivando(true);
+    try {
+      if (push === 'activo') await desactivarPush();
+      else await activarPush();
+    } catch (error) {
+      console.warn('[push]', error.message);
+    } finally {
+      setPush(await estadoPush().catch(() => 'no-soportado'));
+      setActivando(false);
+    }
+  };
 
   // El servidor entrega estos avisos SOLO a las sesiones del destinatario, así
   // que si llega uno es mío y no hace falta comprobar nada.
@@ -112,6 +139,8 @@ export default function CampanaNotificaciones({ className }) {
               )}
             </div>
 
+            <AvisoPush estado={push} ocupado={activando} onAlternar={alternarPush} />
+
             <ul className="max-h-96 overflow-y-auto divide-y divide-gray-50">
               {lista.length === 0 && (
                 <li className="px-4 py-8 text-center">
@@ -154,6 +183,42 @@ export default function CampanaNotificaciones({ className }) {
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+/** Fila para activar los avisos con la app cerrada en este dispositivo. */
+function AvisoPush({ estado, ocupado, onAlternar }) {
+  if (!estado || estado === 'no-soportado') return null;
+
+  if (estado === 'instalar' || estado === 'denegado') {
+    return (
+      <p className="px-4 py-2 border-b border-gray-100 bg-amber-50 text-[11px] font-medium text-amber-800 leading-tight">
+        {estado === 'instalar'
+          ? 'Para recibir avisos en iPhone: Compartir → "Agregar a inicio" y abre la app desde ahí.'
+          : 'Bloqueaste los avisos. Actívalos desde el candado junto a la dirección y recarga.'}
+      </p>
+    );
+  }
+
+  const activo = estado === 'activo';
+  return (
+    <div className="px-4 py-2 border-b border-gray-100 flex items-center justify-between gap-2 bg-gray-50/60">
+      <span className="flex items-center gap-1.5 text-[11px] font-medium text-gray-600">
+        <BellRing className={cn('h-3.5 w-3.5', activo ? 'text-emerald-600' : 'text-gray-400')} />
+        {activo ? 'Avisos activos en este dispositivo' : 'Recibe avisos con la app cerrada'}
+      </span>
+      <button
+        type="button"
+        onClick={onAlternar}
+        disabled={ocupado}
+        className={cn(
+          'shrink-0 text-[10px] font-black px-2 py-1 rounded-lg transition-colors disabled:opacity-50',
+          activo ? 'text-gray-500 hover:text-red-600' : 'bg-primary text-white hover:opacity-90'
+        )}
+      >
+        {ocupado ? '…' : activo ? 'Desactivar' : 'Activar'}
+      </button>
     </div>
   );
 }

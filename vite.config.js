@@ -10,44 +10,23 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: 'autoUpdate',
-      workbox: {
-        skipWaiting: true,
-        clientsClaim: true,
+      // SW propio (src/sw.js) para poder recibir Web Push. El caché en tiempo
+      // de ejecución, skipWaiting y clientsClaim viven ahora ahí.
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'sw.js',
+      injectManifest: {
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024, // 4 MiB
         // Librerías pesadas que solo usan algunas vistas (PDF, Excel, gráficas, mapas).
         // Fuera del precache: el técnico en campo no las descarga en el arranque ni en
         // cada deploy. Quien sí las necesita las baja al abrir la vista y a partir de
-        // ahí quedan en caché por la regla de runtimeCaching de abajo.
+        // ahí quedan en caché por la regla 'vite-chunks' de src/sw.js.
         globIgnores: [
           '**/vendor-pdf-*.js',
           '**/vendor-xlsx-*.js',
           '**/vendor-charts-*.js',
           '**/vendor-maps-*.js',
           '**/vendor-maps-*.css', // el CSS de Leaflet no sirve sin su JS
-        ],
-        runtimeCaching: [
-          {
-            // Chunks de Vite tienen hash en el nombre → son inmutables.
-            // StaleWhileRevalidate: sirve desde caché inmediatamente y actualiza en segundo plano.
-            // Mucho más rápido en móvil que NetworkFirst (sin esperar red).
-            // El patrón debe coincidir con el nombrado real de Vite: `nombre-HASH.js`
-            // (guion + hash base64url), no `nombre.hash.js`.
-            urlPattern: /\/assets\/.+-[\w-]{8}\.(js|css)$/,
-            handler: 'StaleWhileRevalidate',
-            options: {
-              cacheName: 'vite-chunks',
-              expiration: { maxEntries: 80, maxAgeSeconds: 60 * 60 * 24 * 30 },
-            },
-          },
-          {
-            // Archivos sin hash (fuentes, imágenes, SVG) — CacheFirst es suficiente
-            urlPattern: /\.(?:woff2?|png|svg|webp|avif|ico)$/,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'static-media',
-              expiration: { maxEntries: 60, maxAgeSeconds: 60 * 60 * 24 * 30 },
-            },
-          },
         ],
       },
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],

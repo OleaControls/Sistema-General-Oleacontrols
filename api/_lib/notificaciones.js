@@ -1,4 +1,5 @@
 import prisma from './prisma.js';
+import { enviarPush } from './push.js';
 
 /**
  * Crea notificaciones. Lo usan los handlers de todos los módulos.
@@ -6,6 +7,8 @@ import prisma from './prisma.js';
  * NUNCA lanza. Una notificación es un accesorio: si falla su escritura, la OT
  * igual se asignó y el gasto igual se aprobó. Tumbar la petición principal
  * porque no se pudo avisar sería cambiar un problema chico por uno grande.
+ *
+ * También manda el push a los dispositivos del destinatario (ver push.js).
  *
  * El aviso en tiempo real no se manda desde aquí: lo dispara el trigger de la
  * tabla. Así también avisan las notificaciones que se creen desde un script,
@@ -39,6 +42,10 @@ export async function notificar({ para, modulo, tipo, titulo, cuerpo, enlace }) 
       // Un destinatario que ya no existe no debe tumbar el aviso a los demás.
       skipDuplicates: true,
     });
+
+    // El aviso al celular o a la PC con la app cerrada. La campana ya queda
+    // cubierta por la fila de arriba; esto es para quien no la está mirando.
+    await enviarPush(destinatarios, { titulo, cuerpo, enlace });
     return count;
   } catch (error) {
     console.error('[notificar] No se pudo crear la notificación:', error.message);

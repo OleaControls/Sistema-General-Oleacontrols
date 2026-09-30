@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { conectarRealtime, desconectarRealtime } from '@/services/realtime';
 import { ROLES } from '@/lib/permisos';
+import { desactivarPush } from '@/lib/push';
 
 const AuthContext = createContext();
 
@@ -93,6 +94,9 @@ export function AuthProvider({ children }) {
   };
 
   const logout = () => {
+    // Que este equipo deje de recibir los avisos de quien sale: en una PC
+    // compartida le llegarían al siguiente. Va con el token antes de borrarlo.
+    desactivarPush(localStorage.getItem('olea_token'));
     setUser(null);
     localStorage.removeItem('olea_user');
     localStorage.removeItem('olea_token');
