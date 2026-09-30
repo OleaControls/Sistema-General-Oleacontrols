@@ -18,6 +18,7 @@ import UsuariosConectados from '@/components/shared/UsuariosConectados';
 import CampanaNotificaciones from '@/components/shared/CampanaNotificaciones';
 import IndicadorChat from '@/components/shared/IndicadorChat';
 import PendientesPorSubir from '@/components/shared/PendientesPorSubir';
+import BotonActualizar from '@/components/shared/BotonActualizar';
 
 // ── Estructura de navegación por rol ─────────────────────────────────────────
 // Cada entrada define qué roles la ven. Admin solo métricas.
@@ -463,6 +464,7 @@ export default function AppShell({ children }) {
         {/* En movil tambien: es donde estan los tecnicos en campo, y la cabecera
             de escritorio es hidden md:flex, asi que no la verian nunca. */}
         <div className="flex items-center gap-1">
+          <BotonActualizar />
           <PendientesPorSubir />
           <IndicadorChat />
           <CampanaNotificaciones />
@@ -567,6 +569,7 @@ export default function AppShell({ children }) {
               <p className="text-[10px] font-black text-primary uppercase tracking-widest">{activeTenant?.name}</p>
               <p className="text-[9px] font-bold text-gray-400">STATUS: ONLINE</p>
             </div>
+            <BotonActualizar />
             <PendientesPorSubir />
             <IndicadorChat />
             <CampanaNotificaciones />
