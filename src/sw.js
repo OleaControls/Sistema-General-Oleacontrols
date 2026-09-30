@@ -42,21 +42,36 @@ registerRoute(
 // ── Web Push ────────────────────────────────────────────────────────────────
 // Lo manda api/_lib/push.js con { titulo, cuerpo, enlace, tag }.
 //
-// Se muestra SIEMPRE, aunque la app esté abierta: Chrome exige que cada push
-// termine en una notificación visible y, si no, pone una genérica suya.
+// Se muestra aunque la app esté abierta: Chrome exige que cada push termine en
+// una notificación visible, salvo que la app esté al frente.
+//
+// La excepción es `soloSiNoMira`: si la persona ya tiene enfrente la
+// pantalla del aviso, el mensaje le aparece ahí mismo y además sonar sería ruido.
+// Como la app está al frente, Chrome no pone su notificación genérica.
 self.addEventListener('push', (event) => {
   let n = {};
   try { n = event.data ? event.data.json() : {}; } catch { n = { titulo: event.data?.text() }; }
 
-  event.waitUntil(
-    self.registration.showNotification(n.titulo || 'Olea Controls', {
+  event.waitUntil((async () => {
+    if (n.soloSiNoMira && n.enlace) {
+      const ruta = new URL(n.enlace, self.location.origin).pathname;
+      const ventanas = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+      const mirando = ventanas.some(c =>
+        c.focused && c.visibilityState === 'visible' && new URL(c.url).pathname === ruta);
+      if (mirando) return;
+    }
+
+    await self.registration.showNotification(n.titulo || 'Olea Controls', {
       body: n.cuerpo || '',
       icon: '/pwa-192x192.png',
       badge: '/pwa-192x192.png',
       tag: n.tag,
+      // Con tag, la nueva reemplaza a la anterior en silencio; renotify hace
+      // que igual suene y vibre, como un mensaje nuevo.
+      renotify: Boolean(n.tag),
       data: { enlace: n.enlace || '/' },
-    }),
-  );
+    });
+  })());
 });
 
 // Al tocar la notificación: si la app ya está abierta en alguna pestaña se

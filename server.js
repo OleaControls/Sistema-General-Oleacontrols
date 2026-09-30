@@ -36,7 +36,6 @@ import performanceHandler    from './api/_handlers/performance.js';
 import techKpisHandler       from './api/_handlers/tech-kpis.js';
 import announcementsHandler  from './api/_handlers/announcements.js';
 import notificacionesHandler from './api/_handlers/notificaciones.js';
-import chatHandler from './api/_handlers/chat.js';
 import { conIdempotencia } from './api/_lib/idempotencia.js';
 import { motivoRevocacion } from './api/_lib/sesiones.js';
 import surveysHandler        from './api/_handlers/surveys.js';
@@ -128,7 +127,6 @@ app.all('/api/store-inventory', adaptHandler(storeInventoryHandler));
 app.all('/api/zones', adaptHandler(zonesHandler));
 app.all('/api/trainings', adaptHandler(trainingsHandler));
 app.all('/api/notificaciones', adaptHandler(notificacionesHandler));
-app.all('/api/chat', adaptHandler(chatHandler));
 app.all('/api/improvements', adaptHandler(improvementsHandler));
 
 // Categories

@@ -16,7 +16,6 @@ import { cn } from '@/lib/utils';
 import ConnectivityAlert from '@/components/shared/ConnectivityAlert';
 import UsuariosConectados from '@/components/shared/UsuariosConectados';
 import CampanaNotificaciones from '@/components/shared/CampanaNotificaciones';
-import IndicadorChat from '@/components/shared/IndicadorChat';
 import PendientesPorSubir from '@/components/shared/PendientesPorSubir';
 import BotonActualizar from '@/components/shared/BotonActualizar';
 
@@ -466,7 +465,6 @@ export default function AppShell({ children }) {
         <div className="flex items-center gap-1">
           <BotonActualizar />
           <PendientesPorSubir />
-          <IndicadorChat />
           <CampanaNotificaciones />
           <img src={user?.avatar} className="h-8 w-8 rounded-full border shadow-sm ml-1" alt="Profile" />
         </div>
@@ -571,7 +569,6 @@ export default function AppShell({ children }) {
             </div>
             <BotonActualizar />
             <PendientesPorSubir />
-            <IndicadorChat />
             <CampanaNotificaciones />
           </div>
         </header>

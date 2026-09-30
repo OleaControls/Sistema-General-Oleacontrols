@@ -30,19 +30,30 @@ export const clavePublicaPush = configurado ? VAPID_PUBLIC_KEY : null;
  * congela en cuanto responde: un push "en segundo plano" nunca llegaría. El
  * timeout acota ese costo si el servicio de push de algún navegador tarda.
  */
-export async function enviarPush(empleadoIds, { titulo, cuerpo, enlace, tag }) {
+export async function enviarPush(empleadoIds, aviso) {
+  const ids = [...new Set([].concat(empleadoIds).filter(Boolean))];
+  if (!ids.length) return 0;
+  return enviarPushDonde({ empleadoId: { in: ids } }, aviso);
+}
+
+/**
+ * Igual, pero los dispositivos se eligen con un `where` de SuscripcionPush.
+ * Sirve para no gastar una consulta en averiguar primero a quién: el filtro
+ * puede ir por relación (p. ej. "los miembros de X") en la misma consulta.
+ *
+ * `soloSiNoMira: true` le dice al SW que no la muestre si esa persona tiene la
+ * app al frente en esa misma pantalla (ver src/sw.js).
+ */
+export async function enviarPushDonde(where, { titulo, cuerpo, enlace, tag, soloSiNoMira }) {
   if (!configurado) return 0;
   try {
-    const ids = [...new Set([].concat(empleadoIds).filter(Boolean))];
-    if (!ids.length) return 0;
-
     const dispositivos = await prisma.suscripcionPush.findMany({
-      where: { empleadoId: { in: ids } },
+      where,
       select: { id: true, endpoint: true, p256dh: true, auth: true },
     });
     if (!dispositivos.length) return 0;
 
-    const carga = JSON.stringify({ titulo, cuerpo, enlace, tag });
+    const carga = JSON.stringify({ titulo, cuerpo, enlace, tag, soloSiNoMira });
     const caducadas = [];
     let enviados = 0;
 
