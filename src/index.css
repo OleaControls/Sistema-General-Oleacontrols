@@ -151,3 +151,52 @@
 }
 .leaflet-control-zoom a:hover { background: #f8fafc !important; color: #0f172a !important; }
 .leaflet-bar { border: none !important; box-shadow: 0 4px 14px -6px rgba(15, 23, 42, 0.35) !important; }
+
+/* ── Celular y pantallas táctiles ─────────────────────────────────────────────
+   Reglas globales para no repetir el mismo arreglo en 60 pantallas. */
+
+/* En táctil no existe "pasar el mouse encima": los botones que solo aparecían
+   con hover (editar, borrar, mover…) quedaban invisibles e intocables. Aquí se
+   muestran siempre. `hover: none` es el celular/tablet; la PC no cambia. */
+@media (hover: none) {
+  [class*="group-hover:opacity-100"],
+  [class*="hover:opacity-100"] {
+    opacity: 1 !important;
+  }
+  [class*="group-hover:visible"] {
+    visibility: visible !important;
+  }
+}
+
+/* Un campo dentro de una fila flex no se encoge por debajo de su ancho natural
+   (~20 caracteres) y empuja a sus vecinos fuera de la pantalla. Va en la capa
+   base para que un `min-w-*` explícito siga ganando. */
+@layer base {
+  input, select, textarea { min-width: 0; }
+}
+
+/* iPhone hace zoom al tocar un campo con letra de menos de 16 px y deja la
+   pantalla descuadrada. En celular todos los campos van a 16 px. */
+@media (max-width: 767px) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]),
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
+/* Fondo de ventana emergente (modal) a prueba de pantallas chicas.
+   Sin esto, un formulario más alto que el celular quedaba cortado y sin
+   desplazamiento: el botón de Guardar era inalcanzable.
+   `safe center` centra cuando cabe y alinea arriba cuando no; los navegadores
+   que no lo entienden ignoran esa línea y se quedan con `center`.
+   Va fuera de las capas de Tailwind para ganarle a `items-center`. */
+.modal-seguro {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+/* Las hojas que suben desde abajo (items-end) conservan su alineación. */
+.modal-seguro:not([class*="items-end"]):not([class*="items-start"]) {
+  align-items: center;
+  align-items: safe center;
+}

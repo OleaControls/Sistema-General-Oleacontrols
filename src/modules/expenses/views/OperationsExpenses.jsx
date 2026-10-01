@@ -888,7 +888,7 @@ export default function OperationsExpenses() {
 
       {/* ── MODAL EVIDENCIA ──────────────────────────────────────────────── */}
       {selectedImage && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4 md:p-10">
+        <div className="fixed inset-0 modal-seguro bg-black/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4 md:p-10">
           <button
             onClick={() => setSelectedImage(null)}
             className="absolute top-5 right-5 p-3 bg-white/10 hover:bg-white/20 text-white rounded-full transition-all"

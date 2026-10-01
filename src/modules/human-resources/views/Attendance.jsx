@@ -314,10 +314,10 @@ export default function Attendance() {
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b border-gray-100 gap-1">
+      <div className="flex border-b border-gray-100 gap-1 overflow-x-auto">
         {TABS.map(t=>(
           <button key={t.id} onClick={()=>setTab(t.id)}
-            className={cn('px-4 py-3 text-[11px] font-black uppercase tracking-widest transition-all border-b-2 whitespace-nowrap',
+            className={cn('px-4 py-3 text-[11px] font-black uppercase tracking-widest transition-all border-b-2 whitespace-nowrap shrink-0',
               tab===t.id?'border-primary text-primary':'border-transparent text-gray-400 hover:text-gray-600')}>
             {t.label}
           </button>
@@ -369,6 +369,7 @@ export default function Attendance() {
                 <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Sin registros{search?' que coincidan':' este mes'}</p>
               </div>
             ):(
+              <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-gray-100 bg-gray-50/80 text-[10px] font-black text-gray-400 uppercase tracking-widest">
@@ -428,6 +429,7 @@ export default function Attendance() {
                   })}
                 </tbody>
               </table>
+              </div>
             )}
             {filtered.length>0&&(
               <div className="px-5 py-3 border-t border-gray-50 bg-gray-50/50">
@@ -494,6 +496,7 @@ export default function Attendance() {
             <div className="space-y-2">
               <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest px-1 mt-4">Historial Reciente</p>
               <div className="bg-white border border-gray-100 rounded-2xl overflow-hidden shadow-sm">
+                <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-gray-100 bg-gray-50/80 text-[10px] font-black text-gray-400 uppercase tracking-widest">
@@ -537,6 +540,7 @@ export default function Attendance() {
                     ))}
                   </tbody>
                 </table>
+                </div>
               </div>
             </div>
           )}
@@ -546,6 +550,7 @@ export default function Attendance() {
       {/* ── Tab: Bolsas de Días ─────────────────────────────────────────────── */}
       {tab==='BALANCES'&&(
         <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50/80 text-[10px] font-black text-gray-400 uppercase tracking-widest">
@@ -599,6 +604,7 @@ export default function Attendance() {
               })}
             </tbody>
           </table>
+          </div>
         </div>
       )}
 
@@ -607,7 +613,7 @@ export default function Attendance() {
 
       {/* ── Modal: Registrar Incidencia ─────────────────────────────────────── */}
       {showAttModal&&(
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={()=>setShowAttModal(false)}>
+        <div className="fixed inset-0 modal-seguro z-50 flex items-center justify-center p-4" onClick={()=>setShowAttModal(false)}>
           <div className="absolute inset-0 bg-black/30 backdrop-blur-sm"/>
           <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4 animate-in zoom-in-95 duration-200" onClick={e=>e.stopPropagation()}>
             <div className="flex items-center justify-between">
@@ -656,7 +662,7 @@ export default function Attendance() {
 
       {/* ── Modal: Nueva Solicitud Vacaciones ──────────────────────────────── */}
       {showVacModal&&(
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={()=>setShowVacModal(false)}>
+        <div className="fixed inset-0 modal-seguro z-50 flex items-center justify-center p-4" onClick={()=>setShowVacModal(false)}>
           <div className="absolute inset-0 bg-black/30 backdrop-blur-sm"/>
           <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4 animate-in zoom-in-95 duration-200" onClick={e=>e.stopPropagation()}>
             <div className="flex items-center justify-between">
@@ -701,7 +707,7 @@ export default function Attendance() {
 
       {/* ── Modal: Ajuste Manual Balance ────────────────────────────────────── */}
       {adjustEmp&&(
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={()=>setAdjustEmp(null)}>
+        <div className="fixed inset-0 modal-seguro z-50 flex items-center justify-center p-4" onClick={()=>setAdjustEmp(null)}>
           <div className="absolute inset-0 bg-black/30 backdrop-blur-sm"/>
           <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4 animate-in zoom-in-95 duration-200" onClick={e=>e.stopPropagation()}>
             <div className="flex items-center justify-between">

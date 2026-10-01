@@ -316,7 +316,7 @@ export default function ProjectsList() {
           <p className="text-[11px] font-bold text-gray-300 mt-1">Ajusta la búsqueda o el filtro.</p>
         </div>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {filtered.map((p) => {
             const st = PROJECT_STATUS[normalizePhase(p.status)] || PROJECT_STATUS.INICIACION;
             const svc = PROJECT_SERVICES[normalizeService(p.serviceType)];
@@ -451,7 +451,7 @@ export default function ProjectsList() {
                 <textarea rows={2} value={form.scope} onChange={(e) => setForm({ ...form, scope: e.target.value })} className="input" />
               </Field>
 
-              <div className="grid sm:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <Field label="Nombre">
                   <input value={form.sponsor} onChange={(e) => setForm({ ...form, sponsor: e.target.value })} className="input" />
                 </Field>
@@ -471,7 +471,7 @@ export default function ProjectsList() {
                 <p className="text-[9px] font-black text-primary uppercase tracking-widest mb-4">
                   Operación
                 </p>
-                <div className="grid sm:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <Field label="Tipo de proyecto">
                     <select value={form.projectType} onChange={(e) => setForm({ ...form, projectType: e.target.value })} className="input">
                       {PROJECT_TYPE_KEYS.map(k => (
@@ -495,7 +495,7 @@ export default function ProjectsList() {
                     </datalist>
                   </Field>
                 </div>
-                <div className="grid sm:grid-cols-3 gap-4 mt-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4">
                   <Field label="Ubicación">
                     <input value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })}
                       className="input" placeholder="Dirección o sitio" />
@@ -516,7 +516,7 @@ export default function ProjectsList() {
                 <p className="text-[9px] font-black text-primary uppercase tracking-widest mb-4">
                   Encargado del cliente
                 </p>
-                <div className="grid sm:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <Field label="Nombre">
                     <input value={form.clientContactName} onChange={(e) => setForm({ ...form, clientContactName: e.target.value })}
                       className="input" placeholder="A quién se le llama" />
@@ -532,7 +532,7 @@ export default function ProjectsList() {
                 </div>
               </div>
 
-              <div className="grid sm:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <Field label="Fecha inicio">
                   <input type="date" value={form.startDate} onChange={(e) => setForm({ ...form, startDate: e.target.value })} className="input" />
                 </Field>

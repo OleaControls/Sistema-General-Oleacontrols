@@ -213,7 +213,7 @@ export default function ZonesMap() {
           tone={sinZona.projects + sinZona.assignments > 0 ? 'warn' : undefined} />
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,24rem)]">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,24rem)]">
         {/* ── Mapa ─────────────────────────────────────────────────────── */}
         <div className="bg-white p-2 rounded-3xl border shadow-sm overflow-hidden">
           <div className="relative z-0 h-[30rem] rounded-[1.35rem] overflow-hidden">
@@ -370,7 +370,7 @@ export default function ZonesMap() {
 
       {/* ── Detalle de la zona seleccionada ────────────────────────────── */}
       {selected && (
-        <div className="grid gap-6 lg:grid-cols-2">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <section className="bg-white p-6 rounded-3xl border shadow-sm">
             <h3 className="text-[11px] font-black uppercase tracking-wider text-gray-700 mb-4">
               Proyectos · {selected}
@@ -437,7 +437,7 @@ export default function ZonesMap() {
          una medida fija, para que crezca con la pantalla de cada quien. */}
       {editando && (
         <div className="bg-white rounded-3xl border shadow-sm overflow-hidden">
-          <div className="grid xl:grid-cols-[minmax(0,30rem)_minmax(0,1fr)]">
+          <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,30rem)_minmax(0,1fr)]">
 
             {/* ── Datos ───────────────────────────────────────────────── */}
             <div className="p-7 space-y-4 border-b xl:border-b-0 xl:border-r border-gray-100
@@ -457,7 +457,7 @@ export default function ZonesMap() {
                 </button>
               </div>
 
-              <div className="grid sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Field label="Nombre *">
                   <input value={modal.name} onChange={(e) => setModal({ ...modal, name: e.target.value })}
                     className="zone-input" placeholder="Ej. Norte" />
@@ -486,7 +486,7 @@ export default function ZonesMap() {
                 </select>
               </Field>
 
-              <div className="grid sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Field label="Prioridad">
                   <select value={modal.priority} onChange={(e) => setModal({ ...modal, priority: e.target.value })} className="zone-input">
                     {PRIORITY_KEYS.map(k => <option key={k} value={k}>{PRIORITIES[k].label}</option>)}
@@ -507,7 +507,7 @@ export default function ZonesMap() {
 
               {/* El clic en el mapa llena estos tres; se dejan editables por si
                   llegan unas coordenadas ya medidas. */}
-              <div className="grid sm:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <Field label="Latitud">
                   <input value={modal.latitude ?? ''} onChange={(e) => setModal({ ...modal, latitude: e.target.value })} className="zone-input" />
                 </Field>

@@ -321,7 +321,7 @@ export default function Trainings() {
             </div>
 
             <div className="p-7 space-y-4">
-              <div className="grid sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Field label="Técnico *">
                   <select value={form.employeeId} onChange={(e) => setForm({ ...form, employeeId: e.target.value })} className="cap-input">
                     <option value="">— Selecciona —</option>
@@ -339,7 +339,7 @@ export default function Trainings() {
                   className="cap-input" placeholder="Puntos que cubre la capacitación" />
               </Field>
 
-              <div className="grid sm:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <Field label="Instructor">
                   <input value={form.instructor || ''} onChange={(e) => setForm({ ...form, instructor: e.target.value })} className="cap-input" />
                 </Field>
@@ -351,7 +351,7 @@ export default function Trainings() {
                 </Field>
               </div>
 
-              <div className="grid sm:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <Field label="Resultado">
                   <select value={form.result} onChange={(e) => setForm({ ...form, result: e.target.value })} className="cap-input">
                     {RESULTADO_KEYS.map(k => <option key={k} value={k}>{RESULTADOS[k].label}</option>)}

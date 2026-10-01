@@ -489,7 +489,7 @@ export default function ExpensesList({ otId = null, hideHeader = false, refreshT
 
       {/* Modal de Previsualización de Imagen */}
       {selectedImage && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4 md:p-10 animate-in fade-in duration-300">
+        <div className="fixed inset-0 modal-seguro bg-black/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4 md:p-10 animate-in fade-in duration-300">
           <button
             onClick={() => setSelectedImage(null)}
             className="absolute top-6 right-6 p-3 bg-white/10 hover:bg-white/20 text-white rounded-full transition-all"

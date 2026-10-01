@@ -251,7 +251,7 @@ export default function ClientsList() {
                 <ShieldCheck className="h-3 w-3 text-emerald-500" /> Base de Datos CRM OleaControls
               </p>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <button
                 onClick={exportCSV}
                 className="flex items-center gap-2 bg-white border border-gray-200 text-gray-600 px-4 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-gray-50 hover:text-emerald-600 transition-all"
@@ -326,6 +326,7 @@ export default function ClientsList() {
             </div>
           ) : (
             <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden mt-4">
+              <div className="overflow-x-auto">
               <table className="w-full border-collapse text-left">
                 <thead className="sticky top-0 z-10">
                   <tr className="bg-gray-50 border-b border-gray-200">
@@ -412,6 +413,7 @@ export default function ClientsList() {
                   })}
                 </tbody>
               </table>
+              </div>
 
               {/* Paginación (hojas) */}
               <Pagination
@@ -435,7 +437,7 @@ export default function ClientsList() {
             animate={{ x: 0, opacity: 1 }}
             exit={{ x: 420, opacity: 0 }}
             transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-            className="w-[420px] flex-shrink-0 bg-white border-l border-gray-100 flex flex-col overflow-hidden shadow-2xl"
+            className="fixed inset-0 z-50 w-full md:static md:inset-auto md:z-auto md:w-[420px] flex-shrink-0 bg-white border-l border-gray-100 flex flex-col overflow-hidden shadow-2xl"
           >
             {/* Panel header */}
             <div className="p-5 border-b border-gray-100 flex-shrink-0">

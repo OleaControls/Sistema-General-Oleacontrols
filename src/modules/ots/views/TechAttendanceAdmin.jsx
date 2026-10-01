@@ -401,7 +401,7 @@ export default function TechAttendanceAdmin() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 bg-gray-100 p-1 rounded-2xl w-fit">
+      <div className="flex gap-1 bg-gray-100 p-1 rounded-2xl w-fit max-w-full overflow-x-auto">
         {[
           { id: 'asistencia',      label: 'Asistencia',         icon: UserCheck },
           { id: 'goals',           label: 'Metas del día',      icon: ClipboardList },
@@ -413,7 +413,7 @@ export default function TechAttendanceAdmin() {
             key={t.id}
             onClick={() => setActiveTab(t.id)}
             className={cn(
-              'flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all',
+              'flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all shrink-0 whitespace-nowrap',
               activeTab === t.id ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
             )}
           >
@@ -862,7 +862,7 @@ export default function TechAttendanceAdmin() {
                     </button>
 
                     {isOpen && (
-                      <div className="px-4 pb-4 grid md:grid-cols-2 gap-2 animate-in fade-in duration-200">
+                      <div className="px-4 pb-4 grid grid-cols-1 md:grid-cols-2 gap-2 animate-in fade-in duration-200">
                         {FIELDS.map(f => (
                           <div key={f.key} className="rounded-2xl bg-gray-50 border border-gray-100 p-3">
                             <p className="text-[9px] font-black text-violet-600 uppercase tracking-widest mb-1 flex items-center gap-1.5">
@@ -997,7 +997,7 @@ export default function TechAttendanceAdmin() {
 
       {/* Modal lightbox fotos */}
       {photoModal && (
-        <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4" onClick={() => setPhotoModal(null)}>
+        <div className="fixed inset-0 modal-seguro z-50 bg-black/90 flex items-center justify-center p-4" onClick={() => setPhotoModal(null)}>
           <div className="relative max-w-2xl w-full" onClick={e => e.stopPropagation()}>
             <img
               src={photoModal.photos[photoModal.index]}

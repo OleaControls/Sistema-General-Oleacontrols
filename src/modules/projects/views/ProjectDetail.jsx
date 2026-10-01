@@ -767,7 +767,7 @@ function KpisTab({ kpis, project }) {
 
   return (
     <div className="space-y-6">
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {cards.map((c) => (
           <div key={c.label} className="bg-white p-6 rounded-3xl border shadow-sm">
             <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-2">{c.label}</p>
@@ -777,7 +777,7 @@ function KpisTab({ kpis, project }) {
         ))}
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {/* Presupuesto vs Real */}
         <div className="bg-white p-6 rounded-3xl border shadow-sm">
           <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4">Presupuesto vs Gasto real</p>
@@ -1241,7 +1241,7 @@ function ActaTab({ project, onSaved, employees, otClients = [], onClientCreated 
             onToggle={() => setOpen(o => ({ ...o, [group.title]: !o[group.title] }))}
             sectionRef={(el) => { sectionRefs.current[group.title] = el; }}
           >
-            <div className="grid sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {groupFieldNames(group, autoProgress).map(name => {
                 const f = ACTA_FIELD_MAP[name];
                 return (
@@ -1434,7 +1434,7 @@ function VinculosTab({ project, onSaved }) {
   const quoteById = (qid) => quotes.find(q => q.id === qid);
 
   return (
-    <div className="grid gap-4 lg:grid-cols-2">
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
       {/* OTs vinculadas */}
       <LinkCard
         title="Órdenes de Trabajo"
@@ -1733,7 +1733,7 @@ function CrudSection({ section, items, projectId, onChanged, employees }) {
               <button onClick={() => setModal(null)} className="p-2.5 hover:bg-gray-100 rounded-xl transition-colors"><X className="h-5 w-5 text-gray-400" /></button>
             </div>
             <div className="p-8 space-y-5">
-              <div className="grid sm:grid-cols-2 gap-5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                 {section.fields.map(f => (
                   <div key={f.name} className={(f.type === 'textarea' || f.type === 'depends' || f.type === 'file') ? 'sm:col-span-2' : ''}>
                     <FieldInput field={f} value={modal[f.name]} onChange={(v) => setModal({ ...modal, [f.name]: v })}

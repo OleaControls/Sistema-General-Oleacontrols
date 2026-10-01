@@ -275,14 +275,14 @@ export default function Suppliers() {
                 </div>
               )}
 
-              <div className="grid sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div><label className={label}>Razón social *</label>
                   <input value={form.name} onChange={setF('name')} className={input} placeholder="Proveedora del Norte SA de CV" autoFocus /></div>
                 <div><label className={label}>RFC</label>
                   <input value={form.rfc} onChange={setF('rfc')} className={input} placeholder="XAXX010101000" /></div>
               </div>
 
-              <div className="grid sm:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div><label className={label}>Contacto</label>
                   <input value={form.contactName} onChange={setF('contactName')} className={input} placeholder="Nombre" /></div>
                 <div><label className={label}>Teléfono</label>
@@ -294,14 +294,14 @@ export default function Suppliers() {
               <div><label className={label}>Dirección</label>
                 <input value={form.address} onChange={setF('address')} className={input} placeholder="Calle y número, colonia" /></div>
 
-              <div className="grid sm:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
                 <div><label className={label}>Ciudad</label><input value={form.city} onChange={setF('city')} className={input} /></div>
                 <div><label className={label}>Estado</label><input value={form.state} onChange={setF('state')} className={input} /></div>
                 <div><label className={label}>C.P.</label><input value={form.zip} onChange={setF('zip')} className={input} /></div>
                 <div><label className={label}>País</label><input value={form.country} onChange={setF('country')} className={input} /></div>
               </div>
 
-              <div className="grid sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div><label className={label}>Condiciones de pago</label>
                   <input value={form.paymentTerms} onChange={setF('paymentTerms')} className={input} placeholder="Crédito 30 días" /></div>
                 <div><label className={label}>Notas</label>

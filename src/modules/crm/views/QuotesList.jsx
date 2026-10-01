@@ -324,7 +324,7 @@ function ProductSearchModal({ onSelect, onClose }) {
     `${cur === 'USD' ? 'US$' : 'MX$'} ${parseFloat(n || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}`;
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
+    <div className="fixed inset-0 modal-seguro bg-black/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
       <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl flex flex-col" style={{ maxHeight: '80vh' }}>
         {/* Header */}
         <div className="flex items-center gap-3 p-5 border-b border-gray-100">
@@ -977,7 +977,7 @@ export default function QuotesList() {
     <div className="space-y-6 pb-20">
 
       {/* ── Header Premium ───────────────────────────────────────────────────── */}
-      <div style={{ position: 'relative', overflow: 'hidden', background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 60%, #0f2027 100%)', borderRadius: 28, padding: '36px 40px' }}>
+      <div className="px-5 py-6 md:px-10 md:py-9" style={{ position: 'relative', overflow: 'hidden', background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 60%, #0f2027 100%)', borderRadius: 28 }}>
         <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(circle, rgba(255,255,255,.05) 1px, transparent 1px)', backgroundSize: '28px 28px' }} />
         <div style={{ position: 'absolute', right: -80, top: -80, width: 360, height: 360, background: 'radial-gradient(circle, rgba(16,185,129,.07) 0%, transparent 65%)' }} />
         <div style={{ position: 'absolute', left: '40%', bottom: -40, width: 200, height: 200, background: 'radial-gradient(circle, rgba(99,102,241,.06) 0%, transparent 70%)' }} />
@@ -1315,7 +1315,7 @@ export default function QuotesList() {
       {/* ── Modal: Detalle / Edición de cotización ─────────────────────────── */}
       <AnimatePresence>
         {selectedQuote && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-50 flex items-end sm:items-center justify-center p-0 sm:p-6">
+          <div className="fixed inset-0 modal-seguro bg-black/60 backdrop-blur-md z-50 flex items-end sm:items-center justify-center p-0 sm:p-6">
             <motion.div
               initial={{ opacity: 0, y: 80 }}
               animate={{ opacity: 1, y: 0 }}
@@ -1460,7 +1460,7 @@ export default function QuotesList() {
             </div>
           );
           return (
-          <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={e => { if (e.target === e.currentTarget) { setShowAddModal(false); setFromDealMeta(null); } }}>
+          <div className="fixed inset-0 modal-seguro bg-black/70 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={e => { if (e.target === e.currentTarget) { setShowAddModal(false); setFromDealMeta(null); } }}>
             <motion.div
               initial={{ opacity: 0, y: 60, scale: .97 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}

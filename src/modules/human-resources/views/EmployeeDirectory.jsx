@@ -679,7 +679,7 @@ export default function EmployeeDirectory() {
 
       {/* Modal de Categorías (Puestos) */}
       {isCategoryModalOpen && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[70] flex items-center justify-center p-4">
+        <div className="fixed inset-0 modal-seguro bg-black/50 backdrop-blur-sm z-[70] flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl md:rounded-[2.5rem] shadow-2xl w-full max-w-md overflow-hidden">
             <div className="p-5 md:p-8">
               <div className="flex justify-between items-center mb-6">

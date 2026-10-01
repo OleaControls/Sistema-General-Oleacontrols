@@ -1623,7 +1623,7 @@ export default function OTDetail() {
 
       {/* ── Funds Modal ── */}
       {isFundsModalOpen && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[110] flex items-center justify-center p-4">
+        <div className="fixed inset-0 modal-seguro bg-black/50 backdrop-blur-sm z-[110] flex items-center justify-center p-4">
           <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-sm overflow-hidden animate-in zoom-in-95 duration-200 border border-gray-100">
             <div className="bg-gray-950 px-7 py-6 flex items-center justify-between">
               <div>
@@ -1666,7 +1666,7 @@ export default function OTDetail() {
 
       {/* ── Finish Modal ── */}
       {isFinishModalOpen && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4">
+        <div className="fixed inset-0 modal-seguro bg-black/50 backdrop-blur-sm z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4">
           <div className="bg-white rounded-t-[2rem] sm:rounded-[2rem] shadow-2xl w-full max-w-lg overflow-hidden animate-in slide-in-from-bottom-8 sm:zoom-in-95 duration-300">
             <div className="bg-gray-950 px-7 py-6 flex items-center justify-between">
               <div>
@@ -1706,7 +1706,7 @@ export default function OTDetail() {
 
       {/* ── MODAL DESBLOQUEO OT (solo ADMIN) ──────────────────────────────── */}
       {isUnlockModalOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
+        <div className="fixed inset-0 modal-seguro bg-black/60 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
           <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-md overflow-hidden">
             {/* Header */}
             <div className="bg-amber-50 border-b border-amber-100 px-7 py-5 flex items-center gap-3">

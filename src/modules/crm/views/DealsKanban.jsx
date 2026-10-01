@@ -577,7 +577,7 @@ export default function DealsKanban() {
       {/* ── Modal: Razón de cierre (Ganado / Perdido) ──────────────────────── */}
       <AnimatePresence>
         {closeModal.show && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-50 flex items-center justify-center p-6">
+          <div className="fixed inset-0 modal-seguro bg-black/60 backdrop-blur-md z-50 flex items-center justify-center p-6">
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -1636,6 +1636,7 @@ function SeguimientosSection({ seguimientos, loading, newSeg, setNewSeg, deals, 
                 </p>
               </div>
             ) : (
+              <div className="overflow-x-auto">
               <table className="w-full text-left">
                 <thead>
                   <tr className="border-b border-gray-100 bg-gray-50/50">
@@ -1683,6 +1684,7 @@ function SeguimientosSection({ seguimientos, loading, newSeg, setNewSeg, deals, 
                   ))}
                 </tbody>
               </table>
+              </div>
             )}
           </div>
         </div>

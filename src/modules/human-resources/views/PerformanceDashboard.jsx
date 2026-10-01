@@ -168,6 +168,7 @@ export default function PerformanceDashboard() {
              <BarChart3 className="h-4 w-4" /> Ranking de Técnicos (Esta Quincena)
            </h3>
            <div className="bg-white border rounded-[3rem] overflow-hidden shadow-sm">
+             <div className="overflow-x-auto">
              <table className="w-full text-left">
                <thead className="bg-gray-50 border-b">
                  <tr>
@@ -197,6 +198,7 @@ export default function PerformanceDashboard() {
                  ))}
                </tbody>
              </table>
+             </div>
            </div>
         </div>
       )}
@@ -319,7 +321,7 @@ export default function PerformanceDashboard() {
 
       {/* Modal de Configuración (Idéntico al anterior pero con refresco quincenal) */}
       {isEditModalOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 modal-seguro bg-black/60 backdrop-blur-md z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-[3rem] shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in duration-300">
             <div className="p-10 space-y-8">
               <div className="flex justify-between items-center">

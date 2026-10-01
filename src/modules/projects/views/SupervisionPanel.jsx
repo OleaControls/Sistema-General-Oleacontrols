@@ -139,7 +139,7 @@ export default function SupervisionPanel() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {zones.length > 0 && (
               <div className="relative">
                 <MapIcon className="h-3.5 w-3.5 text-gray-300 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -193,7 +193,7 @@ export default function SupervisionPanel() {
         {porAsignar.length === 0 ? (
           <Empty text="Ningún proyecto entró en ventana sin asignación." />
         ) : (
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
             {porAsignar.map(p => {
               const w = assignmentWindow(p);
               const t = typeMeta(p.projectType);
@@ -311,7 +311,7 @@ export default function SupervisionPanel() {
         )}
       </section>
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,24rem)]">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,24rem)]">
         {/* ── Proyectos ─────────────────────────────────────────────────── */}
         <section className="bg-white p-6 rounded-3xl border shadow-sm">
           <SectionTitle icon={FolderKanban} title="Proyectos"

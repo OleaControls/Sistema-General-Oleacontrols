@@ -48,6 +48,7 @@ export default function InvoicesOrders() {
           </div>
         </div>
         
+        <div className="overflow-x-auto">
         <table className="w-full text-left">
           <thead className="bg-white border-b">
             <tr className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
@@ -90,6 +91,7 @@ export default function InvoicesOrders() {
             ))}
           </tbody>
         </table>
+        </div>
       </div>
     </div>
   );

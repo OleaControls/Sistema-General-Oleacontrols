@@ -301,7 +301,7 @@ export default function TechKPIs() {
       {/* Selector de periodo + navegación de fechas */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white border border-gray-100 rounded-2xl shadow-sm p-3">
         {/* Segmentado día/quincena/mes/año/todo */}
-        <div className="flex bg-gray-100 rounded-xl p-1 gap-1">
+        <div className="flex bg-gray-100 rounded-xl p-1 gap-1 max-w-full overflow-x-auto">
           {PERIODS.map(p => (
             <button key={p.key} onClick={()=>setPeriod(p.key)}
               className={cn('px-3 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-wider transition-all',
@@ -313,7 +313,7 @@ export default function TechKPIs() {
 
         {/* Navegación de fecha (oculta cuando es "Todo") */}
         {period !== 'all' ? (
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button onClick={()=>shift(-1)} className="h-8 w-8 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors">
               <ChevronLeft className="h-4 w-4 text-gray-500"/>
             </button>

@@ -1153,7 +1153,7 @@ export default function SupervisorOTs() {
 
       {/* ── MODAL: horario de creación de OTs (solo ADMIN) ─────────────────── */}
       {windowModalOpen && isAdmin && (
-        <div className="fixed inset-0 z-[100] bg-black/50 flex items-center justify-center p-4"
+        <div className="fixed inset-0 modal-seguro z-[100] bg-black/50 flex items-center justify-center p-4"
              onClick={() => !windowSaving && setWindowModalOpen(false)}>
           <div className="bg-white rounded-3xl w-full max-w-md overflow-hidden shadow-2xl"
                onClick={e => e.stopPropagation()}>
@@ -1694,6 +1694,7 @@ export default function SupervisorOTs() {
                                       <p className="text-[9px] font-mono text-gray-300 uppercase">Sin gastos registrados</p>
                                     </div>
                                   ) : (
+                                    <div className="overflow-x-auto">
                                     <table className="w-full">
                                       <thead className="sticky top-0 bg-white border-b border-gray-50">
                                         <tr>
@@ -1721,6 +1722,7 @@ export default function SupervisorOTs() {
                                         ))}
                                       </tbody>
                                     </table>
+                                    </div>
                                   )}
                                 </div>
                               </div>
@@ -1934,7 +1936,7 @@ export default function SupervisorOTs() {
 
         {/* Paginación */}
         {otTotal > OT_PAGE_SIZE && (
-          <div className="flex items-center justify-between px-5 py-3 border-t border-gray-100 bg-gray-50/40">
+          <div className="flex flex-wrap items-center justify-center sm:justify-between gap-2 px-4 sm:px-5 py-3 border-t border-gray-100 bg-gray-50/40">
             <p className="text-[10px] font-mono text-gray-400">
               Mostrando{' '}
               <span className="font-bold text-gray-600">
@@ -1942,7 +1944,7 @@ export default function SupervisorOTs() {
               </span>{' '}
               de <span className="font-bold text-gray-600">{otTotal}</span> OTs
             </p>
-            <div className="flex items-center gap-1.5">
+            <div className="flex flex-wrap items-center justify-center gap-1.5">
               <button
                 disabled={otPage === 1}
                 onClick={() => goToPage(otPage - 1)}
@@ -1990,7 +1992,7 @@ export default function SupervisorOTs() {
 
       {/* ══════ MODAL NUEVA OT — SPLIT PANEL ══════ */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-md z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+        <div className="fixed inset-0 modal-seguro bg-slate-900/70 backdrop-blur-md z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
           <div className="bg-white rounded-3xl shadow-2xl ring-1 ring-black/5 w-full flex overflow-hidden animate-in zoom-in-95 slide-in-from-bottom-2 duration-300" style={{ maxWidth: 1200, maxHeight: '94vh' }}>
 
             {/* ── SIDEBAR IZQUIERDO ── */}
@@ -2812,7 +2814,7 @@ export default function SupervisorOTs() {
 
       {/* Modal Eliminación */}
       {isDeleteModalOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+        <div className="fixed inset-0 modal-seguro bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
           <div className="bg-white rounded-[3rem] shadow-2xl w-full max-w-md p-10 text-center space-y-8 animate-in zoom-in-95">
             <div className="h-24 w-24 bg-red-50 text-red-600 rounded-full flex items-center justify-center mx-auto border-4 border-red-100">
               <AlertCircle className="h-12 w-12" />

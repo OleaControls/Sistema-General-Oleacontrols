@@ -559,6 +559,7 @@ function SellerDetailModal({ data, color, rank, allDeals, allActivities, allQuot
                   <p style={{ fontSize:10, fontWeight:800, textTransform:'uppercase' }}>Sin tratos</p>
                 </div>
               ) : (
+                <div className="overflow-x-auto">
                 <table style={{ width:'100%', borderCollapse:'collapse' }}>
                   <thead>
                     <tr style={{ background:'#f8fafc', borderBottom:'2px solid #e2e8f0' }}>
@@ -610,6 +611,7 @@ function SellerDetailModal({ data, color, rank, allDeals, allActivities, allQuot
                     })}
                   </tbody>
                 </table>
+                </div>
               )}
             </div>
           )}
@@ -663,6 +665,7 @@ function SellerDetailModal({ data, color, rank, allDeals, allActivities, allQuot
                   <p style={{ fontSize:10, fontWeight:800, textTransform:'uppercase' }}>Sin cotizaciones</p>
                 </div>
               ) : (
+                <div className="overflow-x-auto">
                 <table style={{ width:'100%', borderCollapse:'collapse' }}>
                   <thead>
                     <tr style={{ background:'#f8fafc', borderBottom:'2px solid #e2e8f0' }}>
@@ -697,6 +700,7 @@ function SellerDetailModal({ data, color, rank, allDeals, allActivities, allQuot
                     })}
                   </tbody>
                 </table>
+                </div>
               )}
             </div>
           )}
@@ -1411,7 +1415,7 @@ function QuotesViewerSection({ quotes, metrics }) {
 
       {/* Resumen de cotizaciones autorizadas */}
       {acceptedQuotes.length > 0 && (
-        <div className="grid gap-3 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
           <div className="rounded-2xl p-5 text-white relative overflow-hidden" style={{ background:'linear-gradient(135deg,#065f46,#0f172a)' }}>
             <p style={{ fontSize:8, fontWeight:900, color:'#6ee7b7', textTransform:'uppercase', letterSpacing:'0.14em' }}>Total Autorizado</p>
             <p style={{ fontSize:28, fontWeight:900, marginTop:6, fontFamily:'monospace', letterSpacing:'-0.02em', lineHeight:1 }}>{fmtMXN(totalAccepted)}</p>
@@ -1450,6 +1454,7 @@ function QuotesViewerSection({ quotes, metrics }) {
               <p style={{ fontSize:10, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.08em' }}>Sin cotizaciones</p>
             </div>
           ) : (
+            <div className="overflow-x-auto">
             <table style={{ width:'100%', borderCollapse:'collapse' }}>
               <thead>
                 <tr style={{ borderBottom:'2px solid #f1f5f9' }}>
@@ -1498,6 +1503,7 @@ function QuotesViewerSection({ quotes, metrics }) {
                 })}
               </tbody>
             </table>
+            </div>
           )}
         </div>
       </div>
@@ -1545,6 +1551,7 @@ function QuotesViewerSection({ quotes, metrics }) {
             {/* Tabla de items */}
             <div style={{ padding:'0 24px 16px' }}>
               <p style={{ fontSize:8, fontWeight:800, color:'#94a3b8', textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:8 }}>Conceptos</p>
+              <div className="overflow-x-auto">
               <table style={{ width:'100%', borderCollapse:'collapse', fontSize:11 }}>
                 <thead>
                   <tr style={{ background:'#f8fafc' }}>
@@ -1569,6 +1576,7 @@ function QuotesViewerSection({ quotes, metrics }) {
                   ))}
                 </tbody>
               </table>
+              </div>
             </div>
 
             {/* Totales */}

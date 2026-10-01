@@ -71,7 +71,7 @@ export default function Pagination({
 
       {/* Controles de páginas */}
       {totalPages > 1 && (
-        <div className="flex items-center gap-1">
+        <div className="flex flex-wrap items-center justify-center gap-1">
           <button className={cn(btn, "bg-white border border-slate-200 text-slate-500 hover:bg-slate-900 hover:text-white")}
             onClick={() => go(1)} disabled={page === 1} title="Primera hoja">
             <ChevronsLeft size={14} />

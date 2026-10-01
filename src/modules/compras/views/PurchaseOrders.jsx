@@ -447,7 +447,7 @@ export default function PurchaseOrders() {
         <p className="mb-3 text-[9px] font-black uppercase tracking-widest text-slate-400">
           Política de autorización por monto
         </p>
-        <div className="grid gap-3 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           {[1000, 10000, 50000].map(monto => {
             const t = tramoDe(monto);
             return (

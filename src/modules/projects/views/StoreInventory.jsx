@@ -154,14 +154,14 @@ export default function StoreInventory() {
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-2 bg-gray-50 rounded-xl px-3 py-2 border border-gray-100">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-1 min-w-[180px] items-center gap-2 bg-gray-50 rounded-xl px-3 py-2 border border-gray-100">
             <Search className="h-3.5 w-3.5 text-gray-400" />
             <input
               value={busqueda}
               onChange={e => setBusqueda(e.target.value)}
               placeholder="Buscar marca, material, clave o ubicación..."
-              className="bg-transparent border-none outline-none text-xs font-bold text-gray-900 w-56"
+              className="bg-transparent border-none outline-none text-xs font-bold text-gray-900 w-full min-w-0 md:w-56"
             />
           </div>
           {marcas.length > 0 && (

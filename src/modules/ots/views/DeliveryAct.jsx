@@ -963,7 +963,7 @@ export default function DeliveryAct() {
                                     {idx + 1}
                                 </div>
                                 <input 
-                                    className="flex-1 px-5 py-2 border rounded-2xl font-bold text-sm outline-none focus:border-primary shadow-sm"
+                                    className="flex-1 min-w-0 px-5 py-2 border rounded-2xl font-bold text-sm outline-none focus:border-primary shadow-sm"
                                     placeholder="Descripción del pendiente..."
                                     value={task.description}
                                     onChange={e => {
@@ -1173,7 +1173,7 @@ export default function DeliveryAct() {
 
       {/* ── Modal de diagnóstico (temporal para debug en móvil) ── */}
       {showDebug && (
-        <div className="fixed inset-0 bg-black/80 z-[200] flex items-end justify-center p-4">
+        <div className="fixed inset-0 modal-seguro bg-black/80 z-[200] flex items-end justify-center p-4">
           <div className="bg-gray-950 rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl">
             <div className="flex items-center justify-between px-5 py-4 border-b border-white/10">
               <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Diagnóstico de cierre</p>

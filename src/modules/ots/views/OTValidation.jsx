@@ -30,8 +30,10 @@ export default function OTValidation() {
 
   const loadData = async () => {
     setLoading(true);
-    const allOTs = await otService.getOTs();
-    const foundOT = allOTs.find(o => o.id === id);
+    // Se pide la OT directo. Antes se buscaba en la lista, que solo trae las
+    // 50 más recientes (y con el folio como id): una más vieja no aparecía y
+    // la pantalla tronaba al leer `ot.id`.
+    const foundOT = await otService.getById(id).catch(() => null);
     setOt(foundOT);
 
     const allExpenses = await expenseService.getAll();
@@ -46,13 +48,19 @@ export default function OTValidation() {
   };
 
   if (loading) return <div className="p-10 text-center animate-pulse font-black text-gray-400">CARGANDO AUDITORÍA...</div>;
+  if (!ot) return (
+    <div className="p-10 text-center space-y-3">
+      <p className="font-black text-gray-500">No se encontró la orden de trabajo.</p>
+      <button onClick={() => navigate('/ots')} className="text-xs font-black text-primary uppercase tracking-widest">Volver a OTs</button>
+    </div>
+  );
 
   return (
     <div className="max-w-6xl mx-auto space-y-6 md:space-y-8 pb-10 md:pb-20 px-4 md:px-0 animate-in fade-in duration-500">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-white p-6 md:p-8 rounded-[2rem] md:rounded-[2.5rem] border shadow-sm relative overflow-hidden">
         <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 blur-3xl rounded-full" />
-        <div className="space-y-4 relative z-10 w-full md:w-auto">
+        <div className="space-y-4 relative z-10 w-full md:w-auto min-w-0 md:flex-1">
           <button 
             onClick={() => navigate('/ots')}
             className="flex items-center gap-2 text-[10px] font-black text-gray-400 hover:text-primary transition-colors uppercase tracking-widest"
@@ -60,7 +68,7 @@ export default function OTValidation() {
             <ChevronLeft className="h-4 w-4" /> Volver a OTs
           </button>
           <div className="space-y-1">
-            <h2 className="text-2xl md:text-3xl font-black text-gray-900 leading-tight">Validación de Trabajo: {ot.id}</h2>
+            <h2 className="text-2xl md:text-3xl font-black text-gray-900 leading-tight">Validación de Trabajo: <span className="break-all">{ot.otNumber || ot.id}</span></h2>
             <p className="text-sm font-bold text-gray-500">{ot.title}</p>
           </div>
           <div className="flex flex-wrap gap-2 md:gap-4 pt-2">
@@ -68,18 +76,19 @@ export default function OTValidation() {
               <User className="h-3.5 w-3.5 text-primary" /> {ot.leadTechName || ot.assignedToName}
             </div>
             <div className="flex items-center gap-1.5 text-[10px] md:text-xs font-bold text-gray-500 bg-gray-50 px-3 py-1.5 rounded-lg border">
-              <Calendar className="h-3.5 w-3.5 text-primary" /> 25 Feb 2026
+              <Calendar className="h-3.5 w-3.5 text-primary" /> {/* Antes decía "25 Feb 2026" fijo para todas. */}
+              {(ot.scheduledDate || ot.createdAt) ? new Date(ot.scheduledDate || ot.createdAt).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Sin fecha'}
             </div>
           </div>
         </div>
 
-        <div className="flex flex-col sm:flex-row gap-3 relative z-10 w-full md:w-auto">
-          <button className="w-full sm:flex-1 md:flex-none flex items-center justify-center gap-2 bg-red-50 text-red-600 px-6 py-3.5 rounded-xl md:rounded-2xl font-black text-[10px] md:text-xs uppercase tracking-wider hover:bg-red-100 transition-all border border-red-100">
+        <div className="flex flex-col sm:flex-row gap-3 relative z-10 w-full md:w-auto md:shrink-0">
+          <button className="w-full sm:flex-1 md:flex-none md:w-auto flex items-center justify-center gap-2 bg-red-50 text-red-600 px-6 py-3.5 rounded-xl md:rounded-2xl font-black text-[10px] md:text-xs uppercase tracking-wider hover:bg-red-100 transition-all border border-red-100">
             <XCircle className="h-4 w-4" /> Rechazar
           </button>
           <button 
             onClick={handleApprove}
-            className="w-full sm:flex-1 md:flex-none flex items-center justify-center gap-2 bg-emerald-600 text-white px-8 py-3.5 rounded-xl md:rounded-2xl font-black text-[10px] md:text-xs uppercase tracking-wider hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-100"
+            className="w-full sm:flex-1 md:flex-none md:w-auto flex items-center justify-center gap-2 bg-emerald-600 text-white px-8 py-3.5 rounded-xl md:rounded-2xl font-black text-[10px] md:text-xs uppercase tracking-wider hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-100"
           >
             <CheckCircle2 className="h-4 w-4" /> Validar OT
           </button>

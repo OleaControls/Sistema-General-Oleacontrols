@@ -218,6 +218,7 @@ export default function RewardManager() {
               <button onClick={openNew} className="mt-4 text-[10px] font-black text-primary uppercase tracking-widest hover:underline">Crear primer premio</button>
             </div>
           ):(
+            <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-100 bg-gray-50/80 text-[10px] font-black text-gray-400 uppercase tracking-widest">
@@ -285,6 +286,7 @@ export default function RewardManager() {
                 ))}
               </tbody>
             </table>
+            </div>
           )}
         </div>
       )}
@@ -319,6 +321,7 @@ export default function RewardManager() {
                 <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Sin datos de ranking para este período</p>
               </div>
             ):(
+              <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-gray-100 bg-gray-50/80 text-[10px] font-black text-gray-400 uppercase tracking-widest">
@@ -395,6 +398,7 @@ export default function RewardManager() {
                   })}
                 </tbody>
               </table>
+              </div>
             )}
           </div>
         </div>
@@ -519,7 +523,7 @@ export default function RewardManager() {
 
       {/* ── Modal: Crear / Editar Premio ─────────────────────────────────────── */}
       {showForm&&(
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={()=>setShowForm(false)}>
+        <div className="fixed inset-0 modal-seguro z-50 flex items-center justify-center p-4" onClick={()=>setShowForm(false)}>
           <div className="absolute inset-0 bg-black/30 backdrop-blur-sm"/>
           <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4 animate-in zoom-in-95 duration-200" onClick={e=>e.stopPropagation()}>
             <div className="flex items-center justify-between">

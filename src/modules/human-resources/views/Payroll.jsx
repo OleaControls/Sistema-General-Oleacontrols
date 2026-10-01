@@ -473,6 +473,7 @@ function CulturaModal({ item, catalog = DEFAULT_CULTURA, onClose, onSave }) {
               <span className="text-sm font-black text-emerald-700">{fmt(totalPerc)}</span>
             </div>
             <div className="bg-emerald-50/50 rounded-xl border border-emerald-100 overflow-hidden">
+              <div className="overflow-x-auto">
               <table className="w-full text-xs">
                 <thead><tr className="bg-emerald-100/60">
                   <th className="text-left px-3 py-2 font-black text-emerald-800 text-[9px] uppercase tracking-wider">Concepto</th>
@@ -502,6 +503,7 @@ function CulturaModal({ item, catalog = DEFAULT_CULTURA, onClose, onSave }) {
                   <td className="px-3 py-2 text-right font-black text-emerald-800 text-sm">{fmt(totalPerc)}</td>
                 </tr></tfoot>
               </table>
+              </div>
             </div>
           </div>
 
@@ -512,6 +514,7 @@ function CulturaModal({ item, catalog = DEFAULT_CULTURA, onClose, onSave }) {
               <span className="text-sm font-black text-rose-600">{fmt(totalEsc)}</span>
             </div>
             <div className="bg-rose-50/50 rounded-xl border border-rose-100 overflow-hidden">
+              <div className="overflow-x-auto">
               <table className="w-full text-xs">
                 <thead><tr className="bg-rose-100/60">
                   <th className="text-left px-3 py-2 font-black text-rose-800 text-[9px] uppercase tracking-wider">Concepto</th>
@@ -541,6 +544,7 @@ function CulturaModal({ item, catalog = DEFAULT_CULTURA, onClose, onSave }) {
                   <td className="px-3 py-2 text-right font-black text-rose-800 text-sm">{fmt(totalEsc)}</td>
                 </tr></tfoot>
               </table>
+              </div>
             </div>
           </div>
 
@@ -579,6 +583,7 @@ function CulturaSection({ title, accent, list, onField, onRemove, onAdd }) {
         </button>
       </div>
       <div className={cn('rounded-xl border overflow-hidden', accent.border)}>
+        <div className="overflow-x-auto">
         <table className="w-full text-xs">
           <thead><tr className={accent.head}>
             <th className={cn('text-left px-3 py-2 font-black text-[9px] uppercase tracking-wider', accent.headText)}>Concepto</th>
@@ -609,6 +614,7 @@ function CulturaSection({ title, accent, list, onField, onRemove, onAdd }) {
             ))}
           </tbody>
         </table>
+        </div>
       </div>
     </div>
   );
@@ -1160,7 +1166,7 @@ function CreatePeriodModal({ onClose, onCreated }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
+    <div className="fixed inset-0 modal-seguro z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div className="absolute inset-0 bg-black/30 backdrop-blur-sm"/>
       <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4 animate-in zoom-in-95 duration-200" onClick={e=>e.stopPropagation()}>
         <div className="flex items-center justify-between">
@@ -1347,6 +1353,7 @@ export default function Payroll() {
             <p className="text-[10px] font-bold text-gray-300 mt-1">Genera tu primera nómina con el botón de arriba</p>
           </div>
         ):(
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50/80 text-[10px] font-black text-gray-400 uppercase tracking-widest">
@@ -1410,6 +1417,7 @@ export default function Payroll() {
               })}
             </tbody>
           </table>
+          </div>
         )}
       </div>
 

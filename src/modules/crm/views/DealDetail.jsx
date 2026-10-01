@@ -1415,7 +1415,7 @@ export default function DealDetail() {
       {/* ── Modal: Razón de cierre ────────────────────────────────────────────── */}
       <AnimatePresence>
         {closeModal.show && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-50 flex items-center justify-center p-6">
+          <div className="fixed inset-0 modal-seguro bg-black/60 backdrop-blur-md z-50 flex items-center justify-center p-6">
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -1465,7 +1465,7 @@ export default function DealDetail() {
       {/* ── Modal: Datos de cliente para cotización ──────────────────────────── */}
       <AnimatePresence>
         {quoteModal.show && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-50 flex items-center justify-center p-6">
+          <div className="fixed inset-0 modal-seguro bg-black/60 backdrop-blur-md z-50 flex items-center justify-center p-6">
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -1515,7 +1515,7 @@ export default function DealDetail() {
           const accentBorder = isPre ? '#bfdbfe' : '#bbf7d0';
           return (
             <div
-              className="fixed inset-0 bg-black/60 backdrop-blur-md z-50 flex items-end sm:items-center justify-center p-0 sm:p-6"
+              className="fixed inset-0 modal-seguro bg-black/60 backdrop-blur-md z-50 flex items-end sm:items-center justify-center p-0 sm:p-6"
               onClick={e => { if (e.target === e.currentTarget) setViewQuote(null); }}
             >
               <motion.div

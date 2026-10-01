@@ -12,7 +12,9 @@ export const ACENTO = '#10b981';   // el mismo verde de cotizaciones
 /** Cabecera oscura con eyebrow, título grande, acción principal y KPIs. */
 export function HeaderPremium({ eyebrow, titulo, subtitulo, accion, kpis = [], children }) {
   return (
-    <div style={{ position: 'relative', overflow: 'hidden', background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 60%, #0f2027 100%)', borderRadius: 28, padding: '36px 40px' }}>
+    // El relleno va en clases y no en `style`: en celular 40 px por lado dejaban
+    // 270 px útiles y los botones se salían de la tarjeta.
+    <div className="px-5 py-6 md:px-10 md:py-9" style={{ position: 'relative', overflow: 'hidden', background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 60%, #0f2027 100%)', borderRadius: 28 }}>
       <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(circle, rgba(255,255,255,.05) 1px, transparent 1px)', backgroundSize: '28px 28px' }} />
       <div style={{ position: 'absolute', right: -80, top: -80, width: 360, height: 360, background: 'radial-gradient(circle, rgba(16,185,129,.07) 0%, transparent 65%)' }} />
       <div style={{ position: 'absolute', left: '40%', bottom: -40, width: 200, height: 200, background: 'radial-gradient(circle, rgba(99,102,241,.06) 0%, transparent 70%)' }} />
@@ -33,7 +35,9 @@ export function HeaderPremium({ eyebrow, titulo, subtitulo, accion, kpis = [], c
               <p style={{ fontSize: 11, color: '#475569', fontWeight: 600, margin: '6px 0 0', letterSpacing: '.06em' }}>{subtitulo}</p>
             )}
           </div>
-          {accion && <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', flexShrink: 0 }}>{accion}</div>}
+          {/* Sin flexShrink: 0, que lo fijaba a su ancho completo y no dejaba
+              que los botones bajaran de renglón en pantallas angostas. */}
+          {accion && <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', minWidth: 0, maxWidth: '100%' }}>{accion}</div>}
         </div>
 
         {kpis.length > 0 && (

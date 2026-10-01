@@ -677,7 +677,7 @@ export default function Seguimientos() {
 
       {/* ── Modal Confirmar Eliminar ───────────────────────────────────────── */}
       {deletingDeal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+        <div className="fixed inset-0 modal-seguro z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm p-6 space-y-5">
             <div className="flex flex-col items-center text-center gap-3">
               <div className="h-14 w-14 rounded-2xl bg-red-50 flex items-center justify-center">

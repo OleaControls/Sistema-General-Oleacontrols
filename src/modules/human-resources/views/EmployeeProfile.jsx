@@ -605,7 +605,7 @@ function AttendanceSection({ employeeId, employee, isSupervisor }) {
 
       {/* Modal registrar/editar */}
       {showModal && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowModal(false)}>
+        <div className="fixed inset-0 modal-seguro bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowModal(false)}>
           <div className="bg-white rounded-[2.5rem] p-8 w-full max-w-md shadow-2xl space-y-5" onClick={e => e.stopPropagation()}>
             <h3 className="font-black text-gray-900 uppercase text-xs tracking-widest">
               {editing ? 'Editar Registro' : 'Registrar Incidencia'}

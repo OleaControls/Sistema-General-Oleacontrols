@@ -1367,7 +1367,7 @@ export default function MyProfile() {
 
       {/* ── MODAL SOLICITUD VACACIONES ── */}
       {showRequestModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-in fade-in duration-200" style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)' }}>
+        <div className="fixed inset-0 modal-seguro z-50 flex items-center justify-center p-4 animate-in fade-in duration-200" style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)' }}>
           <div className="w-full max-w-lg overflow-hidden rounded-[28px] bg-white animate-in zoom-in-95 duration-300" style={{ boxShadow: '0 40px 120px rgba(0,0,0,0.3)' }}>
             <div className="relative overflow-hidden px-8 py-7" style={{ background: 'linear-gradient(135deg, #0f172a, #1e293b)' }}>
               <div className="absolute -top-8 -right-8 opacity-[0.08] pointer-events-none"><Palmtree className="h-24 w-24 text-white" /></div>

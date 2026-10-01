@@ -432,11 +432,13 @@ export default function PurchaseOrderDetail() {
       )}
 
       {/* ── Datos de la orden ──────────────────────────────────────────── */}
-      <fieldset disabled={!editable} className="space-y-5 disabled:opacity-70">
+      {/* min-w-0: un fieldset por omisión no se encoge más que su contenido más
+          ancho (la tabla de partidas) y empujaba toda la página de lado. */}
+      <fieldset disabled={!editable} className="space-y-5 disabled:opacity-70 min-w-0">
         <div className="rounded-2xl border border-slate-200 bg-white shadow-sm p-5 space-y-4">
           <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Datos de la orden</p>
 
-          <div className="grid sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Campo titulo="Proveedor *">
               <select value={form.supplierId} onChange={elegirProveedor} className={input}>
                 <option value="">— Selecciona —</option>
@@ -455,7 +457,7 @@ export default function PurchaseOrderDetail() {
             <input value={form.subject} onChange={setF('subject')} className={input} placeholder="Ej. Material eléctrico para Tienda Norte" />
           </Campo>
 
-          <div className="grid sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <Campo titulo="Propietario de la orden">
               <input value={form.ownerName} onChange={setF('ownerName')} className={input} placeholder="Quién la solicita" />
             </Campo>
@@ -467,7 +469,7 @@ export default function PurchaseOrderDetail() {
             </Campo>
           </div>
 
-          <div className="grid sm:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
             <Campo titulo="Forma de pago">
               <select value={form.paymentMethod} onChange={setF('paymentMethod')} className={input}>
                 <option value="">— Selecciona —</option>
@@ -504,7 +506,7 @@ export default function PurchaseOrderDetail() {
               <Copy className="h-3 w-3" /> Copiar a envío
             </button>
           </div>
-          <div className="grid sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Campo titulo="Domicilio de facturación">
               <textarea rows={3} value={form.billingAddress} onChange={setF('billingAddress')}
                 className={cn(input, 'resize-none')} placeholder="Calle, colonia, ciudad, estado, C.P." />

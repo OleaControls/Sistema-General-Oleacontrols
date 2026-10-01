@@ -123,7 +123,7 @@ export default function CotizadorEdificiosView() {
         </div>
 
         <div className="mt-5 pt-5 border-t border-gray-100 space-y-3">
-          <div className="grid gap-4 sm:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <div>
               <label className="block text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1.5">
                 Edificio
@@ -160,7 +160,7 @@ export default function CotizadorEdificiosView() {
         <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-3">
           Sistema
         </p>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
           {result.systems.map(s => {
             const Icon = ICONS[s.key] || Package;
             const active = s.key === systemKey;
@@ -393,7 +393,7 @@ export default function CotizadorEdificiosView() {
               </table>
             </div>
 
-            <div className="grid gap-6 md:grid-cols-2 pt-2 border-t border-gray-100">
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-2 pt-2 border-t border-gray-100">
               {/* Peso de cada sistema dentro de la cotización unida. */}
               <div>
                 <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-3">
@@ -487,7 +487,7 @@ export default function CotizadorEdificiosView() {
           </div>
         </div>
 
-        <div className="grid gap-4 lg:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           <div>
             <label className="block text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1.5">
               Términos y condiciones

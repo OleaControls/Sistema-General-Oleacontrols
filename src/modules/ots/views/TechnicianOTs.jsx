@@ -365,13 +365,13 @@ export default function TechnicianOTs() {
         <div className="absolute -bottom-10 -left-6 h-32 w-32 rounded-full bg-white/5 blur-2xl pointer-events-none" />
 
         {/* Top row */}
-        <div className="relative flex items-start justify-between mb-4">
-          <div>
+        <div className="relative flex flex-col gap-3 min-[420px]:flex-row min-[420px]:items-start min-[420px]:justify-between mb-4">
+          <div className="min-w-0">
             <div className="flex items-center gap-2 mb-1.5">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-ping" />
               <span className="text-[9px] font-black tracking-[0.3em] uppercase text-emerald-400">Operativo Activo</span>
             </div>
-            <h1 className="text-2xl sm:text-3xl font-black tracking-tighter leading-none">Mi Jornada</h1>
+            <h1 className="text-2xl sm:text-3xl font-black tracking-tighter leading-none whitespace-nowrap">Mi Jornada</h1>
             <p className="text-gray-400 text-[10px] font-bold uppercase tracking-widest mt-1">
               {new Date().toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' })}
             </p>

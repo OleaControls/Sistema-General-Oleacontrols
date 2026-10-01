@@ -204,7 +204,7 @@ export default function ContinuousImprovement() {
       )}
 
       {/* ── Tablero por estado ─────────────────────────────────────────── */}
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
         {ESTADOS.map(estado => {
           const lista = visibles.filter(i => i.status === estado.key);
           return (
@@ -305,7 +305,7 @@ export default function ContinuousImprovement() {
             </div>
 
             <div className="p-7 space-y-4">
-              <div className="grid sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Field label="Área *">
                   <input list="mejora-areas" value={modal.area} onChange={(e) => {
                     const area = e.target.value;
@@ -338,7 +338,7 @@ export default function ContinuousImprovement() {
                   className="mej-input" placeholder="A qué se quiere llegar y cómo se mide" />
               </Field>
 
-              <div className="grid sm:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
                 <Field label="Responsable">
                   <select value={modal.ownerName || ''} onChange={(e) => setModal({ ...modal, ownerName: e.target.value })} className="mej-input">
                     <option value="">— Selecciona —</option>
@@ -360,7 +360,7 @@ export default function ContinuousImprovement() {
                 </Field>
               </div>
 
-              <div className="grid sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Field label="Zona (opcional)">
                   <input value={modal.zone || ''} onChange={(e) => setModal({ ...modal, zone: e.target.value })} className="mej-input" />
                 </Field>

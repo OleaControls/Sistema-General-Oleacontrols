@@ -377,6 +377,7 @@ export default function OTCatalogs() {
             </table>
           ) : (
             /* ── Tabla Plantillas OT ── */
+            <div className="overflow-x-auto">
             <table className="w-full min-w-[820px]">
               <thead>
                 <tr className="bg-gray-50/70 border-b border-gray-100">
@@ -448,6 +449,7 @@ export default function OTCatalogs() {
                 )}
               </tbody>
             </table>
+            </div>
           )}
         </div>
 

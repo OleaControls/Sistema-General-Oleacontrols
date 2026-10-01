@@ -918,7 +918,7 @@ export default function OpsCalendar() {
 
         return (
           <div
-            className="fixed inset-0 z-[60] flex items-center justify-center p-4"
+            className="fixed inset-0 modal-seguro z-[60] flex items-center justify-center p-4"
             style={{ background: 'rgba(0,0,0,.55)', backdropFilter: 'blur(8px)' }}
             onClick={() => { setSelectedEvent(null); setConvertedOT(null); }}
           >
@@ -1408,7 +1408,7 @@ export default function OpsCalendar() {
 
       {/* ══ MODAL EDITAR EVENTO ══ */}
       {isEditModalOpen && editEvent && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,.55)', backdropFilter: 'blur(8px)' }} onClick={() => setIsEditModalOpen(false)}>
+        <div className="fixed inset-0 modal-seguro z-[70] flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,.55)', backdropFilter: 'blur(8px)' }} onClick={() => setIsEditModalOpen(false)}>
           <div className="bg-white w-full overflow-hidden" style={{ maxWidth: 520, borderRadius: 20, boxShadow: '0 32px 80px rgba(0,0,0,.22)' }} onClick={e => e.stopPropagation()}>
 
             {/* Header */}
@@ -1530,7 +1530,7 @@ export default function OpsCalendar() {
 
       {/* ══ MODAL CONFIRMAR BORRADO ══ */}
       {isDeleteModalOpen && selectedEvent && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,.55)', backdropFilter: 'blur(8px)' }} onClick={() => !deleting && setIsDeleteModalOpen(false)}>
+        <div className="fixed inset-0 modal-seguro z-[70] flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,.55)', backdropFilter: 'blur(8px)' }} onClick={() => !deleting && setIsDeleteModalOpen(false)}>
           <div className="bg-white w-full" style={{ maxWidth: 400, borderRadius: 20, boxShadow: '0 32px 80px rgba(0,0,0,.22)', overflow: 'hidden' }} onClick={e => e.stopPropagation()}>
             <div style={{ padding: '32px 28px 24px', textAlign: 'center' }}>
               <div style={{ width: 60, height: 60, borderRadius: 18, background: '#fef2f2', border: '1.5px solid #fecaca', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
@@ -1560,7 +1560,7 @@ export default function OpsCalendar() {
 
       {/* ══ MODAL PORTALES ══ */}
       {isPortalModalOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 modal-seguro bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-2xl overflow-hidden animate-in zoom-in-95 duration-200">
             <div className="bg-emerald-600 p-8 text-white relative">
               <button onClick={() => setIsPortalModalOpen(false)} className="absolute top-6 right-6 p-2 hover:bg-white/10 rounded-xl transition-colors"><X className="h-5 w-5" /></button>
@@ -1598,7 +1598,7 @@ export default function OpsCalendar() {
 
       {/* ══ MODAL NUEVO EVENTO ══ */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 modal-seguro bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200">
             <div className="bg-gray-950 p-8 text-white relative">
               <button onClick={() => setIsModalOpen(false)} className="absolute top-6 right-6 p-2 hover:bg-white/10 rounded-xl transition-colors"><X className="h-5 w-5" /></button>
@@ -1653,7 +1653,7 @@ export default function OpsCalendar() {
           MODAL CONVERTIR A OT — 3 PASOS (igual que SupervisorOTs)
       ══════════════════════════════════════════════════════════════════════ */}
       {isConvertModalOpen && convertOT && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 modal-seguro bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full flex overflow-hidden" style={{ maxWidth: 960, maxHeight: '92vh' }}>
 
             {/* ── Sidebar izquierdo ── */}

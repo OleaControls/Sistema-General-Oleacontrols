@@ -463,6 +463,7 @@ export default function HRDocuments() {
             <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Sin resultados</p>
           </div>
         ):(
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50/80 text-[10px] font-black text-gray-400 uppercase tracking-widest">
@@ -532,6 +533,7 @@ export default function HRDocuments() {
               })}
             </tbody>
           </table>
+          </div>
         )}
         {filtered.length>0&&(
           <div className="px-5 py-3 border-t border-gray-50 bg-gray-50/50">
