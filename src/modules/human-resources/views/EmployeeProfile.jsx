@@ -89,6 +89,7 @@ const MetricsSection = ({ targetId }) => {
 };
 import { hrService } from '@/api/hrService';
 import { ROLES } from '@/store/AuthContext';
+import { ROL_INFO } from '@/lib/permisos';
 import { cn } from '@/lib/utils';
 
 const PROFILE_TABS = [
@@ -133,7 +134,11 @@ export default function EmployeeProfile() {
   // Corregir detección de rol principal (priorizando roles que no sean COLLABORATOR)
   const allRoles = Array.isArray(employee.roles) ? employee.roles : [employee.role || ROLES.COLLABORATOR];
   const mainRole = allRoles.find(r => r !== ROLES.COLLABORATOR) || ROLES.COLLABORATOR;
-  const roleInfo = ROLE_CONFIG[mainRole] || ROLE_CONFIG[ROLES.COLLABORATOR];
+  // Los roles de área (Prospectores, Experienciadores, Activos) toman su
+  // nombre de permisos.js en vez de caer en "Colaborador".
+  const roleInfo = ROLE_CONFIG[mainRole]
+    || (ROL_INFO[mainRole] && { label: ROL_INFO[mainRole].label, color: 'bg-slate-50 text-slate-600 border-slate-100', icon: Briefcase })
+    || ROLE_CONFIG[ROLES.COLLABORATOR];
 
   return (
     <div className="w-full space-y-6">

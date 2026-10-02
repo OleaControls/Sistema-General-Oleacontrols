@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bell, BellRing, CheckCheck } from 'lucide-react';
+import { Bell, BellRing, CheckCheck, Trash2, X } from 'lucide-react';
 import { notificacionesService } from '@/api/notificacionesService';
 import { suscribirCambios, hayRealtime } from '@/services/realtime';
 import { useAuth } from '@/store/AuthContext';
@@ -70,7 +70,9 @@ export default function CampanaNotificaciones({ className }) {
   // que si llega uno es mío y no hace falta comprobar nada.
   React.useEffect(() => {
     if (!user) return;
-    return suscribirCambios('Notificacion', cargar);
+    // esperaMs: "borrar todas" quita muchas filas y llega un aviso por cada
+    // una; así se recarga una sola vez y no 20.
+    return suscribirCambios('Notificacion', cargar, { esperaMs: 400 });
   }, [user, cargar]);
 
   // Respaldo con el servidor de la oficina caído. Cada 2 minutos: una
@@ -99,6 +101,32 @@ export default function CampanaNotificaciones({ className }) {
     setLista(l => l.map(x => ({ ...x, leida: true })));
     await notificacionesService.marcarLeida();
   };
+
+  // Borrar también es optimista. Al terminar se recarga: la lista trae de 20
+  // en 20, y al quitar unas suben las que seguían.
+  const borrarUna = async (e, n) => {
+    e.stopPropagation();
+    setLista(l => l.filter(x => x.id !== n.id));
+    if (!n.leida) setSinLeer(s => Math.max(0, s - 1));
+    await notificacionesService.borrar({ id: n.id });
+    cargar();
+  };
+
+  const borrarLeidas = async () => {
+    setLista(l => l.filter(x => !x.leida));
+    await notificacionesService.borrar({ leidas: true });
+    cargar();
+  };
+
+  const borrarTodas = async () => {
+    if (!window.confirm('¿Borrar todas tus notificaciones? No se pueden recuperar.')) return;
+    setLista([]);
+    setSinLeer(0);
+    await notificacionesService.borrar({ todas: true });
+    cargar();
+  };
+
+  const hayLeidas = lista.some(n => n.leida);
 
   if (!user) return null;
 
@@ -139,6 +167,19 @@ export default function CampanaNotificaciones({ className }) {
               )}
             </div>
 
+            {lista.length > 0 && (
+              <div className="px-4 py-1.5 border-b border-gray-100 flex items-center justify-end gap-3 bg-gray-50/60">
+                {hayLeidas && (
+                  <button onClick={borrarLeidas} className="flex items-center gap-1 text-[10px] font-black text-gray-500 hover:text-gray-800">
+                    <Trash2 className="h-3 w-3" /> Borrar leídas
+                  </button>
+                )}
+                <button onClick={borrarTodas} className="flex items-center gap-1 text-[10px] font-black text-gray-500 hover:text-red-600">
+                  <Trash2 className="h-3 w-3" /> Borrar todas
+                </button>
+              </div>
+            )}
+
             <AvisoPush estado={push} ocupado={activando} onAlternar={alternarPush} />
 
             <ul className="max-h-96 overflow-y-auto divide-y divide-gray-50">
@@ -150,13 +191,10 @@ export default function CampanaNotificaciones({ className }) {
               {lista.map(n => {
                 const mod = MODULOS[n.modulo] || { etiqueta: n.modulo, color: 'bg-gray-50 text-gray-600' };
                 return (
-                  <li key={n.id}>
+                  <li key={n.id} className={cn('group flex items-start', !n.leida && 'bg-blue-50/40')}>
                     <button
                       onClick={() => abrir(n)}
-                      className={cn(
-                        'w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors flex gap-3',
-                        !n.leida && 'bg-blue-50/40'
-                      )}
+                      className="flex-1 min-w-0 text-left pl-4 pr-1 py-3 hover:bg-gray-50 transition-colors flex gap-3"
                     >
                       <span className={cn('h-1.5 w-1.5 rounded-full mt-1.5 shrink-0',
                         n.leida ? 'bg-transparent' : 'bg-blue-500')} />
@@ -175,6 +213,16 @@ export default function CampanaNotificaciones({ className }) {
                           </p>
                         )}
                       </div>
+                    </button>
+                    {/* En PC aparece al pasar el mouse; en celular siempre
+                        está visible (regla global en index.css). */}
+                    <button
+                      onClick={(e) => borrarUna(e, n)}
+                      title="Borrar"
+                      aria-label="Borrar notificación"
+                      className="shrink-0 m-1.5 h-8 w-8 rounded-lg flex items-center justify-center text-gray-300 hover:text-red-500 hover:bg-red-50 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-all"
+                    >
+                      <X className="h-3.5 w-3.5" />
                     </button>
                   </li>
                 );

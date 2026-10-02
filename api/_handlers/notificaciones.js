@@ -87,6 +87,22 @@ export default async function handler(req, res) {
       return res.status(200).json({ ok: true, marcadas: count });
     }
 
+    // ── POST: borrar ───────────────────────────────────────────────────────
+    // { id } una, { leidas: true } las ya leídas, { todas: true } todas.
+    // Siempre dentro de las mías: el `destinatarioId: yo` impide borrar las
+    // de otro aunque se mande su id.
+    if (method === 'POST' && req.query.action === 'borrar') {
+      const { id, leidas, todas } = req.body || {};
+      const where = id ? { id, destinatarioId: yo }
+        : leidas ? { destinatarioId: yo, leida: true }
+        : todas ? { destinatarioId: yo }
+        : null;
+      if (!where) return res.status(400).json({ error: 'Indica id, leidas o todas' });
+
+      const { count } = await prisma.notificacion.deleteMany({ where });
+      return res.status(200).json({ ok: true, borradas: count });
+    }
+
     return res.status(405).json({ error: 'Método no permitido' });
   } catch (error) {
     console.error('[notificaciones]', error);

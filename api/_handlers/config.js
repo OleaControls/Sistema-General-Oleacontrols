@@ -1,4 +1,5 @@
 import prisma from '../_lib/prisma.js'
+import { puede, rolesEfectivos } from '../_lib/permisos.js';
 import { authMiddleware } from '../_lib/auth.js'
 import { OT_WINDOW_KEY, normalizeWindow } from '../_lib/otWindow.js'
 
@@ -47,9 +48,9 @@ export default async function handler(req, res) {
   const userId = caller.id;
 
   const emp     = await prisma.employee.findUnique({ where: { id: userId }, select: { roles: true } });
-  const roles   = emp?.roles || [];
+  const roles   = rolesEfectivos(emp?.roles || []);
   const isAdmin = roles.includes('ADMIN');
-  const isSales = roles.includes('SALES') && !isAdmin;
+  const isSales = roles.includes('SALES') && !isAdmin && !puede(roles, 'crm.ver_todo');
 
   if (method === 'GET') {
     try {

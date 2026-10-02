@@ -1,4 +1,5 @@
 import prisma from '../_lib/prisma.js'
+import { puede } from '../_lib/permisos.js';
 import { authMiddleware } from '../_lib/auth.js'
 
 /* Inventario de tiendas. Es uno solo para toda la operación: el material que
@@ -15,7 +16,8 @@ import { authMiddleware } from '../_lib/auth.js'
 const EDITOR_ROLES = ['ADMIN', 'PROJECT_MANAGER', 'SUPERVISOR'];
 
 const rolesDe = (auth) => Array.isArray(auth?.roles) ? auth.roles : [auth?.roles].filter(Boolean);
-const puedeEditar = (auth) => rolesDe(auth).some(r => EDITOR_ROLES.includes(r));
+// Almacén y Recursos materiales (área Activos) también lo capturan.
+const puedeEditar = (auth) => rolesDe(auth).some(r => EDITOR_ROLES.includes(r)) || puede(rolesDe(auth), 'almacen.inventario');
 
 const aFecha = (v) => {
   if (v === undefined || v === null || v === '') return null;

@@ -149,6 +149,27 @@ const DashboardSelector = () => {
     case ROLES.SALES:  return <DealsKanban />;
     case ROLES.PM:     return <ProjectsList />;
     case ROLES.PURCHASING: return <PurchaseOrders />;
+    // Prospectores: el embudo, como Asesoría Comercial.
+    case ROLES.PROS_JEFE:
+    case ROLES.PROS_PUBLICIDAD:
+    case ROLES.PROS_MERCADOTECNIA:
+    case ROLES.PROS_PROSPECCION:
+    case ROLES.PROS_ATENCION: return <DealsKanban />;
+    // Experienciadores: la cartera de clientes.
+    case ROLES.EXP_JEFE:
+    case ROLES.EXP_RESIDENCIAL:
+    case ROLES.EXP_COMERCIAL:
+    case ROLES.EXP_SOPORTE:
+    case ROLES.EXP_ATENCION:
+    case ROLES.EXP_SEGUIMIENTO:
+    case ROLES.EXP_EXPERIENCIA: return <ClientsList />;
+    // Activos: Finanzas ve el control de gastos; Almacén, su inventario.
+    case ROLES.ACT_JEFE:
+    case ROLES.ACT_FINANZAS:
+    case ROLES.ACT_CONTABILIDAD:
+    case ROLES.ACT_COSTOS: return <OperationsExpenses />;
+    case ROLES.ACT_ALMACEN:
+    case ROLES.ACT_RECURSOS: return <Assets />;
     default:           return <MyProfile />;
   }
 };

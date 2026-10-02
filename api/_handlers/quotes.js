@@ -1,5 +1,6 @@
 import prisma from '../_lib/prisma.js'
 import { uploadToR2 } from '../_lib/r2.js'
+import { puede } from '../_lib/permisos.js';
 import { authMiddleware } from '../_lib/auth.js'
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -671,7 +672,8 @@ export default async function handler(req, res) {
   // Roles desde el JWT (ya incluidos en el token al hacer login, evita consulta extra a DB)
   const roles   = caller.roles || [];
   const isAdmin = roles.includes('ADMIN');
-  const isSales = roles.includes('SALES') && !isAdmin;
+  // SALES ve solo lo suyo; el Jefe de Prospectores hereda SALES pero ve todo.
+  const isSales = roles.includes('SALES') && !isAdmin && !puede(roles, 'crm.ver_todo');
 
   if (method === 'GET') {
     try {

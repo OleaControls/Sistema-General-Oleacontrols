@@ -1,6 +1,7 @@
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import dotenv from 'dotenv';
+import { rolesEfectivos } from './permisos.js';
 
 /* El .env se lee aquí y no solo en prisma.js. En ESM los imports se evalúan
    antes del cuerpo del módulo, así que si un handler importara este archivo
@@ -122,5 +123,9 @@ export function authMiddleware(req, res) {
     return null;
   }
 
+  // Los puestos que heredan otro rol (p. ej. Publicidad → SALES) llegan a los
+  // handlers con ambos, así las comprobaciones de siempre los reconocen. La
+  // revisión de sesión del gateway compara los roles crudos, no estos.
+  decoded.roles = rolesEfectivos(decoded.roles);
   return decoded;
 }

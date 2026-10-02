@@ -1,5 +1,6 @@
 import prisma from '../_lib/prisma.js'
 import { notificarARoles } from '../_lib/notificaciones.js';
+import { puede } from '../_lib/permisos.js';
 import { authMiddleware } from '../_lib/auth.js'
 
 export default async function handler(req, res) {
@@ -17,7 +18,25 @@ export default async function handler(req, res) {
   // Roles desde el JWT (ya incluidos al hacer login)
   const roles   = caller.roles || [];
   const isAdmin = roles.includes('ADMIN');
-  const isSales = roles.includes('SALES') && !isAdmin;
+  // SALES ve solo lo suyo; el Jefe de Prospectores hereda SALES pero ve todo.
+  const isSales = roles.includes('SALES') && !isAdmin && !puede(roles, 'crm.ver_todo');
+
+  /* Quién entra al CRM. Antes bastaba con tener sesión: cualquiera que no
+     fuera vendedor —un técnico, Almacén, Finanzas— pedía /api/crm/leads y
+     recibía los prospectos de todos, aunque su menú no mostrara el CRM.
+
+     Las únicas pantallas que llaman aquí son las del módulo de CRM, y a ellas
+     llegan Comercial (SALES y quien lo hereda), ADMIN y, para Clientes y
+     Actividad, los Experienciadores. */
+  const comercial = isAdmin || puede(roles, 'crm.acceso');
+  const SERVICIO_LECTURA = ['clients', 'deals', 'deal-activities', 'activity-feed', 'seguimientos'];
+  const servicio = puede(roles, 'crm.clientes') && (
+    (method === 'GET' && SERVICIO_LECTURA.includes(resource)) ||
+    (resource === 'clients' && (method === 'POST' || method === 'PUT'))
+  );
+  if (!comercial && !servicio) {
+    return res.status(403).json({ error: 'Sin acceso al CRM' });
+  }
 
   console.log(`[CRM] ${method} /${resource} | user:${userId} | roles:${JSON.stringify(roles)} | isSales:${isSales}`);
 
@@ -91,9 +110,12 @@ export default async function handler(req, res) {
         const where = {};
         if (filterDeal) where.dealId = filterDeal;
         if (filterType) where.type = filterType;
-        // Admin puede filtrar por vendedor; SALES solo ve sus propios tratos
-        if (isAdmin && sellerId) where.deal = { assignedToId: sellerId };
-        if (!isAdmin)            where.deal = { assignedToId: userId };
+        // Admin, el Jefe de Prospectores y Experienciadores (que dan
+        // seguimiento al cliente) ven la actividad de todos y pueden filtrar
+        // por vendedor; un vendedor solo ve la de sus propios tratos.
+        const veTodaActividad = isAdmin || puede(roles, 'crm.ver_todo') || puede(roles, 'crm.clientes');
+        if (veTodaActividad && sellerId) where.deal = { assignedToId: sellerId };
+        if (!veTodaActividad)            where.deal = { assignedToId: userId };
 
         const activities = await prisma.dealActivity.findMany({
           where,

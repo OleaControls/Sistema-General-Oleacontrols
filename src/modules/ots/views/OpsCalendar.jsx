@@ -37,6 +37,7 @@ import { TILE_LAYER } from '@/lib/mapTiles';
 import { otService } from '@/api/otService';
 import { hrService } from '@/api/hrService';
 import { apiFetch } from '@/lib/api';
+import AgendarActividadModal from '@/modules/ots/components/AgendarActividadModal';
 import { useAuth, ROLES } from '@/store/AuthContext';
 import { cn } from '@/lib/utils';
 import { suscribirCambios } from '@/services/realtime';
@@ -199,9 +200,11 @@ export default function OpsCalendar() {
     const dayOts = ots.filter(ot => ot.scheduledDate?.startsWith(dateStr)).map(ot => ({
       ...ot, type: 'OT', id: `ot-${ot.id}`, title: ot.title, time: ot.arrivalTime || '—'
     }));
+    const hhmm = (d) => new Date(d).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
     const dayEvents = events.filter(e => toLocalDateStr(new Date(e.startDate)) === dateStr).map(e => ({
       ...e, id: `ev-${e.id}`,
-      time: new Date(e.startDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })
+      // Con hora de fin se ve el rango; "todo el día" no tiene hora.
+      time: e.allDay ? 'Todo el día' : e.endDate ? `${hhmm(e.startDate)}–${hhmm(e.endDate)}` : hhmm(e.startDate),
     }));
     // Citas solicitadas por el cliente desde el login público
     const dayCitas = appointments
@@ -276,23 +279,6 @@ export default function OpsCalendar() {
     }
   };
 
-  // ── Save new calendar event ───────────────────────────────────────────────
-  const handleSaveEvent = async (e) => {
-    e.preventDefault();
-    try {
-      const start = new Date(`${newEvent.startDate}T${newEvent.startTime}`);
-      await apiFetch('/api/calendar', {
-        method: 'POST',
-        body: JSON.stringify({ ...newEvent, startDate: start.toISOString(), color: EVENT_TYPES[newEvent.type].color })
-      });
-      setIsModalOpen(false);
-      setNewEvent({ title: '', description: '', type: 'VISIT', startDate: '', startTime: '09:00', color: '#3b82f6', otClientId: '' });
-      fetchData();
-    } catch (error) {
-      alert('Error al guardar: ' + error.message);
-    }
-  };
-
   // ── Edit calendar event ───────────────────────────────────────────────────
   const openEditModal = () => {
     if (!selectedEvent || selectedEvent.id?.startsWith('ot-')) return;
@@ -307,6 +293,9 @@ export default function OpsCalendar() {
       startDate: toLocalDateStr(d),
       startTime: d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }),
       otClientId: raw.otClientId || '',
+      // Se guarda la duración para recorrer la hora de fin si cambian la fecha
+      // o la hora de inicio; si no, el rango quedaría en el día viejo.
+      duracionMs: raw.endDate ? new Date(raw.endDate) - d : null,
     });
     setIsEditModalOpen(true);
   };
@@ -324,6 +313,7 @@ export default function OpsCalendar() {
           description: editEvent.description,
           type: editEvent.type,
           startDate: start.toISOString(),
+          ...(editEvent.duracionMs ? { endDate: new Date(start.getTime() + editEvent.duracionMs).toISOString() } : {}),
           otClientId: editEvent.otClientId || null,
         })
       });
@@ -625,7 +615,8 @@ export default function OpsCalendar() {
           <button
             onClick={() => {
               setSelectedDate(new Date());
-              setNewEvent({ ...newEvent, startDate: new Date().toISOString().split('T')[0] });
+              // Fecha local: con toISOString, después de las 6 p. m. en México ya era "mañana".
+              setNewEvent({ ...newEvent, startDate: toLocalDateStr(new Date()) });
               setIsModalOpen(true);
             }}
             className="flex items-center gap-2 bg-gray-950 text-white px-5 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-gray-800 transition-all shadow-lg shadow-gray-200"
@@ -651,7 +642,7 @@ export default function OpsCalendar() {
               <div
                 key={i}
                 className={cn('border-r border-b border-gray-50 p-3 transition-colors group relative', !d.day && 'bg-gray-50/30', d.day && 'hover:bg-gray-50/50 cursor-pointer')}
-                onClick={() => { if (d.date) { setSelectedDate(d.date); setNewEvent({ ...newEvent, startDate: d.date.toISOString().split('T')[0] }); setIsModalOpen(true); } }}
+                onClick={() => { if (d.date) { setSelectedDate(d.date); setNewEvent({ ...newEvent, startDate: toLocalDateStr(d.date) }); setIsModalOpen(true); } }}
               >
                 {d.day && (
                   <div className="flex flex-col h-full">
@@ -1597,57 +1588,14 @@ export default function OpsCalendar() {
       )}
 
       {/* ══ MODAL NUEVO EVENTO ══ */}
-      {isModalOpen && (
-        <div className="fixed inset-0 modal-seguro bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200">
-            <div className="bg-gray-950 p-8 text-white relative">
-              <button onClick={() => setIsModalOpen(false)} className="absolute top-6 right-6 p-2 hover:bg-white/10 rounded-xl transition-colors"><X className="h-5 w-5" /></button>
-              <div className="flex items-center gap-4 mb-2">
-                <div className="h-12 w-12 bg-white/10 rounded-2xl flex items-center justify-center"><CalendarIcon className="h-6 w-6 text-emerald-400" /></div>
-                <div>
-                  <p className="text-[10px] font-mono font-bold text-gray-500 uppercase tracking-[0.2em]">Agenda Operativa</p>
-                  <h2 className="text-2xl font-black uppercase tracking-tight">Agendar Actividad</h2>
-                </div>
-              </div>
-            </div>
-            <form onSubmit={handleSaveEvent} className="p-8 space-y-6">
-              <div className="grid grid-cols-2 gap-6">
-                <div className="col-span-2">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1 mb-2 block">Título</label>
-                  <input required type="text" className="w-full px-5 py-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none focus:bg-white focus:border-gray-900 transition-all font-bold text-sm" value={newEvent.title} onChange={e => setNewEvent({ ...newEvent, title: e.target.value })} />
-                </div>
-                <div className="col-span-2">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1 mb-2 block">Vincular a Cliente (Opcional)</label>
-                  <select className="w-full px-5 py-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none focus:bg-white focus:border-gray-900 transition-all font-bold text-sm" value={newEvent.otClientId} onChange={e => setNewEvent({ ...newEvent, otClientId: e.target.value })}>
-                    <option value="">No vincular</option>
-                    {clients.map(c => <option key={c.id} value={c.id}>{c.name} {c.storeName ? `(${c.storeName})` : ''}</option>)}
-                  </select>
-                </div>
-                <div className="col-span-2">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1 mb-2 block">Tipo</label>
-                  <div className="grid grid-cols-3 gap-3">
-                    {Object.entries(EVENT_TYPES).filter(([k]) => !['OT','CITA','GARANTIA'].includes(k)).map(([key, meta]) => (
-                      <button key={key} type="button" onClick={() => setNewEvent({ ...newEvent, type: key })} className={cn('flex flex-col items-center gap-2 p-4 rounded-2xl border-2 transition-all', newEvent.type === key ? 'bg-gray-950 border-gray-950 text-white' : 'bg-white border-gray-100 text-gray-400')}>
-                        <meta.icon className="h-5 w-5" />
-                        <span className="text-[9px] font-black uppercase tracking-widest">{meta.label.split(' ')[0]}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1 mb-2 block">Fecha</label>
-                  <input required type="date" className="w-full px-5 py-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none focus:bg-white focus:border-gray-900 transition-all font-bold text-sm" value={newEvent.startDate} onChange={e => setNewEvent({ ...newEvent, startDate: e.target.value })} />
-                </div>
-                <div>
-                  <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1 mb-2 block">Hora</label>
-                  <input required type="time" className="w-full px-5 py-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none focus:bg-white focus:border-gray-900 transition-all font-bold text-sm" value={newEvent.startTime} onChange={e => setNewEvent({ ...newEvent, startTime: e.target.value })} />
-                </div>
-              </div>
-              <button type="submit" className="w-full bg-gray-950 text-white py-5 rounded-3xl font-black text-[10px] uppercase tracking-[0.2em]">Guardar Actividad</button>
-            </form>
-          </div>
-        </div>
-      )}
+      <AgendarActividadModal
+        open={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onSaved={fetchData}
+        clients={clients}
+        fechaInicial={newEvent.startDate}
+        tipos={Object.fromEntries(Object.entries(EVENT_TYPES).filter(([k]) => !['OT', 'CITA', 'GARANTIA'].includes(k)))}
+      />
 
       {/* ══════════════════════════════════════════════════════════════════════
           MODAL CONVERTIR A OT — 3 PASOS (igual que SupervisorOTs)

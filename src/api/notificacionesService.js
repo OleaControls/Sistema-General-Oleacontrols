@@ -16,4 +16,13 @@ export const notificacionesService = {
     });
     return res.ok;
   },
+
+  /** Borra: `{ id }` una, `{ leidas: true }` las leídas, `{ todas: true }` todas las mías. */
+  async borrar(cuales) {
+    const res = await apiFetch('/api/notificaciones?action=borrar', {
+      method: 'POST',
+      body: JSON.stringify(cuales),
+    });
+    return res.ok;
+  },
 };

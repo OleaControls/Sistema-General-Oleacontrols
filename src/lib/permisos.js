@@ -27,14 +27,38 @@ export const ROLES = {
   HR_RECRUITER: 'HR_RECRUITER',
   HR_DEVELOPMENT: 'HR_DEVELOPMENT',
   HR_PAYROLL: 'HR_PAYROLL',
+
+  // Prospectores — Comercial. La Asesoría Comercial es el `SALES` de siempre.
+  PROS_JEFE:          'PROS_JEFE',
+  PROS_PUBLICIDAD:    'PROS_PUBLICIDAD',
+  PROS_MERCADOTECNIA: 'PROS_MERCADOTECNIA',
+  PROS_PROSPECCION:   'PROS_PROSPECCION',
+  PROS_ATENCION:      'PROS_ATENCION',
+
+  // Experienciadores — Clientes y Servicios.
+  EXP_JEFE:           'EXP_JEFE',
+  EXP_RESIDENCIAL:    'EXP_RESIDENCIAL',
+  EXP_COMERCIAL:      'EXP_COMERCIAL',
+  EXP_SOPORTE:        'EXP_SOPORTE',
+  EXP_ATENCION:       'EXP_ATENCION',
+  EXP_SEGUIMIENTO:    'EXP_SEGUIMIENTO',
+  EXP_EXPERIENCIA:    'EXP_EXPERIENCIA',
+
+  // Activos — Administración y Finanzas. Compras es el `PURCHASING` de siempre.
+  ACT_JEFE:           'ACT_JEFE',
+  ACT_FINANZAS:       'ACT_FINANZAS',
+  ACT_CONTABILIDAD:   'ACT_CONTABILIDAD',
+  ACT_COSTOS:         'ACT_COSTOS',
+  ACT_ALMACEN:        'ACT_ALMACEN',
+  ACT_RECURSOS:       'ACT_RECURSOS',
 };
 
-/* Las cinco áreas de la empresa. Por ahora solo Talento Humano tiene roles
- * propios; las demás se irán llenando conforme se migren. */
+/* Las cinco áreas de la empresa. Ejecutores todavía usa los roles operativos
+ * de antes (Supervisor, Técnico, Gerente de Proyectos). */
 export const AREAS = {
-  PROSPECTORES:      { nombre: 'Prospectores',      subtitulo: 'Área Comercial',                        subareas: ['Publicidad', 'Asesoras', 'Mercadotecnia'] },
-  EXPERIENCIADORES:  { nombre: 'Experienciadores',  subtitulo: 'Experiencia de Servicio al Cliente',    subareas: ['Residencial', 'Comercial'] },
-  ACTIVOS:           { nombre: 'Activos',           subtitulo: 'Administración y Finanzas',             subareas: ['Costos', 'Almacén', 'Compras', 'Contabilidad'] },
+  PROSPECTORES:      { nombre: 'Prospectores',      subtitulo: 'Comercial',                             subareas: ['Publicidad', 'Mercadotecnia', 'Asesoría Comercial', 'Prospección', 'Atención a clientes'] },
+  EXPERIENCIADORES:  { nombre: 'Experienciadores',  subtitulo: 'Clientes y Servicios',                  subareas: ['Residencial', 'Comercial', 'Soporte', 'Atención al cliente', 'Seguimiento de proyectos', 'Experiencia del cliente'] },
+  ACTIVOS:           { nombre: 'Activos',           subtitulo: 'Administración y Finanzas',             subareas: ['Finanzas', 'Contabilidad', 'Costos', 'Compras', 'Almacén', 'Recursos materiales'] },
   EJECUTORES:        { nombre: 'Ejecutores',        subtitulo: 'Ingeniería',                            subareas: ['Procesos', 'Proyectos', 'Sistemas', 'Operaciones'] },
   INSTRUCTORES:      { nombre: 'Instructores',      subtitulo: 'Talento Humano',                        subareas: ['Desarrollo', 'Contratación'] },
 };
@@ -45,9 +69,11 @@ export const ROL_INFO = {
   [ROLES.ADMIN]:          { label: 'Administrador',            corto: 'Admin',      area: null },
   [ROLES.OPS]:            { label: 'Supervisor de Operaciones', corto: 'Super',     area: 'EJECUTORES' },
   [ROLES.TECH]:           { label: 'Técnico',                  corto: 'Tech',       area: 'EJECUTORES' },
-  [ROLES.SALES]:          { label: 'Ventas',                   corto: 'Ventas',     area: 'PROSPECTORES' },
+  [ROLES.SALES]:          { label: 'Asesoría Comercial',       corto: 'Asesoría',   area: 'PROSPECTORES', subarea: 'Asesoría Comercial',
+                            descripcion: 'Vendedor: embudo, prospectos, clientes, cotizaciones y agenda. Ve solo lo suyo.' },
   [ROLES.PM]:             { label: 'Gerente de Proyectos',     corto: 'Proyectos',  area: 'EJECUTORES' },
-  [ROLES.PURCHASING]:     { label: 'Compras',                  corto: 'Compras',    area: 'ACTIVOS' },
+  [ROLES.PURCHASING]:     { label: 'Compras',                  corto: 'Compras',    area: 'ACTIVOS', subarea: 'Compras',
+                            descripcion: 'Órdenes de compra y proveedores. Captura y autoriza.' },
   [ROLES.COLLABORATOR]:   { label: 'Colaborador',              corto: 'Colab',      area: null },
 
   [ROLES.HR]: {
@@ -66,11 +92,81 @@ export const ROL_INFO = {
     label: 'Nómina y Personal', corto: 'RH Nómina', area: 'INSTRUCTORES', subarea: 'Contratación',
     descripcion: 'Asistencia, incidencias y vacaciones. Calcula la nómina; no la aprueba.',
   },
+
+  // ── Prospectores ──
+  [ROLES.PROS_JEFE]: {
+    label: 'Jefe(a) de Prospectores', corto: 'Pros. Jefe', area: 'PROSPECTORES',
+    descripcion: 'Ve todo el CRM del equipo: tratos, prospectos, cotizaciones y métricas de todos los vendedores.',
+  },
+  [ROLES.PROS_PUBLICIDAD]:    { label: 'Publicidad',    corto: 'Publicidad', area: 'PROSPECTORES', subarea: 'Publicidad',    descripcion: 'Acceso al CRM como vendedor: ve solo sus propios registros.' },
+  [ROLES.PROS_MERCADOTECNIA]: { label: 'Mercadotecnia', corto: 'Mercadot.',  area: 'PROSPECTORES', subarea: 'Mercadotecnia', descripcion: 'Acceso al CRM como vendedor: ve solo sus propios registros.' },
+  [ROLES.PROS_PROSPECCION]:   { label: 'Prospección',   corto: 'Prospecc.',  area: 'PROSPECTORES', subarea: 'Prospección',   descripcion: 'Acceso al CRM como vendedor: ve solo sus propios registros.' },
+  [ROLES.PROS_ATENCION]:      { label: 'Atención a clientes (Comercial)', corto: 'Pros. Atenc.', area: 'PROSPECTORES', subarea: 'Atención a clientes', descripcion: 'Acceso al CRM como vendedor: ve solo sus propios registros.' },
+
+  // ── Experienciadores ──
+  [ROLES.EXP_JEFE]: {
+    label: 'Jefe(a) de Experienciadores', corto: 'Exp. Jefe', area: 'EXPERIENCIADORES',
+    descripcion: 'Supervisa la experiencia del cliente. Clientes, actividad y seguimiento, proyectos (consulta) y agenda de citas.',
+  },
+  [ROLES.EXP_RESIDENCIAL]: { label: 'Residencial',              corto: 'Residenc.',    area: 'EXPERIENCIADORES', subarea: 'Residencial',              descripcion: 'Clientes, actividad y seguimiento, proyectos (consulta) y agenda de citas.' },
+  [ROLES.EXP_COMERCIAL]:   { label: 'Comercial (Servicio)',     corto: 'Exp. Comerc.', area: 'EXPERIENCIADORES', subarea: 'Comercial',                descripcion: 'Clientes, actividad y seguimiento, proyectos (consulta) y agenda de citas.' },
+  [ROLES.EXP_SOPORTE]:     { label: 'Soporte',                  corto: 'Soporte',      area: 'EXPERIENCIADORES', subarea: 'Soporte',                  descripcion: 'Clientes, actividad y seguimiento, proyectos (consulta) y agenda de citas.' },
+  [ROLES.EXP_ATENCION]:    { label: 'Atención al cliente',      corto: 'Atención',     area: 'EXPERIENCIADORES', subarea: 'Atención al cliente',      descripcion: 'Clientes, actividad y seguimiento, proyectos (consulta) y agenda de citas.' },
+  [ROLES.EXP_SEGUIMIENTO]: { label: 'Seguimiento de proyectos', corto: 'Seguim.',      area: 'EXPERIENCIADORES', subarea: 'Seguimiento de proyectos', descripcion: 'Clientes, actividad y seguimiento, proyectos (consulta) y agenda de citas.' },
+  [ROLES.EXP_EXPERIENCIA]: { label: 'Experiencia del cliente',  corto: 'Experiencia',  area: 'EXPERIENCIADORES', subarea: 'Experiencia del cliente',  descripcion: 'Clientes, actividad y seguimiento, proyectos (consulta) y agenda de citas.' },
+
+  // ── Activos ──
+  [ROLES.ACT_JEFE]: {
+    label: 'Jefe(a) de Activos', corto: 'Act. Jefe', area: 'ACTIVOS',
+    descripcion: 'Ve todo el área: gastos de toda la empresa, compras, proveedores, almacén y EPP. No autoriza compras ni aprueba gastos.',
+  },
+  [ROLES.ACT_FINANZAS]:     { label: 'Finanzas',            corto: 'Finanzas',  area: 'ACTIVOS', subarea: 'Finanzas',            descripcion: 'Consulta los gastos de toda la empresa y el control de gastos. No los aprueba.' },
+  [ROLES.ACT_CONTABILIDAD]: { label: 'Contabilidad',        corto: 'Contab.',   area: 'ACTIVOS', subarea: 'Contabilidad',        descripcion: 'Consulta los gastos de toda la empresa y el control de gastos. No los aprueba.' },
+  [ROLES.ACT_COSTOS]:       { label: 'Costos',              corto: 'Costos',    area: 'ACTIVOS', subarea: 'Costos',              descripcion: 'Consulta los gastos de toda la empresa y el control de gastos. No los aprueba.' },
+  [ROLES.ACT_ALMACEN]:      { label: 'Almacén',             corto: 'Almacén',   area: 'ACTIVOS', subarea: 'Almacén',             descripcion: 'EPP e inventario, inventario de tiendas, y consulta de órdenes de compra y proveedores.' },
+  [ROLES.ACT_RECURSOS]:     { label: 'Recursos materiales', corto: 'Rec. Mat.', area: 'ACTIVOS', subarea: 'Recursos materiales', descripcion: 'EPP e inventario, inventario de tiendas, y consulta de órdenes de compra y proveedores.' },
 };
 
 export const ROLES_RH = [ROLES.HR, ROLES.HR_RECRUITER, ROLES.HR_DEVELOPMENT, ROLES.HR_PAYROLL];
 
-const { HR, HR_RECRUITER, HR_DEVELOPMENT, HR_PAYROLL } = ROLES;
+const {
+  HR, HR_RECRUITER, HR_DEVELOPMENT, HR_PAYROLL,
+  SALES, PURCHASING,
+  PROS_JEFE, PROS_PUBLICIDAD, PROS_MERCADOTECNIA, PROS_PROSPECCION, PROS_ATENCION,
+  EXP_JEFE, EXP_RESIDENCIAL, EXP_COMERCIAL, EXP_SOPORTE, EXP_ATENCION, EXP_SEGUIMIENTO, EXP_EXPERIENCIA,
+  ACT_JEFE, ACT_FINANZAS, ACT_CONTABILIDAD, ACT_COSTOS, ACT_ALMACEN, ACT_RECURSOS,
+} = ROLES;
+
+export const ROLES_PROSPECTORES = [PROS_JEFE, SALES, PROS_PUBLICIDAD, PROS_MERCADOTECNIA, PROS_PROSPECCION, PROS_ATENCION];
+export const ROLES_EXPERIENCIADORES = [EXP_JEFE, EXP_RESIDENCIAL, EXP_COMERCIAL, EXP_SOPORTE, EXP_ATENCION, EXP_SEGUIMIENTO, EXP_EXPERIENCIA];
+export const ROLES_ACTIVOS = [ACT_JEFE, ACT_FINANZAS, ACT_CONTABILIDAD, ACT_COSTOS, PURCHASING, ACT_ALMACEN, ACT_RECURSOS];
+
+/* Jefaturas de área: como la de RH, solo las da la jefatura de RH o ADMIN
+ * (si las diera Contratación, cualquiera podría nombrarse jefe). */
+export const JEFATURAS = [HR, PROS_JEFE, EXP_JEFE, ACT_JEFE];
+
+/* Roles que heredan a otro rol existente.
+ *
+ * El CRM entero (menú y API) pregunta por 'SALES': un vendedor ve solo lo
+ * suyo. Antes que reescribir esas comprobaciones, los puestos comerciales
+ * nuevos "son SALES" para el sistema. El Jefe de Prospectores también lo
+ * hereda para ver el módulo, pero con 'crm.ver_todo' se le quita la
+ * restricción de "solo lo mío". */
+export const HEREDA = {
+  [PROS_JEFE]:          [SALES],
+  [PROS_PUBLICIDAD]:    [SALES],
+  [PROS_MERCADOTECNIA]: [SALES],
+  [PROS_PROSPECCION]:   [SALES],
+  [PROS_ATENCION]:      [SALES],
+};
+
+/** Los roles de la persona más los que heredan. Lo usan el menú y la API. */
+export function rolesEfectivos(roles) {
+  const lista = (Array.isArray(roles) ? roles : [roles]).filter(Boolean);
+  const salida = new Set(lista);
+  for (const r of lista) for (const h of HEREDA[r] || []) salida.add(h);
+  return [...salida];
+}
 
 /* Permiso → roles que lo tienen. ADMIN los tiene todos sin listarlo.
  *
@@ -108,11 +204,33 @@ export const PERMISOS = {
   'rh.reportes':           [HR],
   'rh.configuracion':      [],
 
-  /* EPP e inventario: se decidió que pertenece a Almacén (área Activos).
-     Mientras ese rol no exista, lo sigue llevando la jefatura de RH para que
-     nadie pierda acceso; al crear el rol de Almacén se cambia solo esta
-     línea. */
-  'almacen.epp':           [HR],
+  /* EPP e inventario: se decidió que pertenece a Almacén (área Activos) y
+     ahí vive desde que existe el rol. RH deja de llevarlo. */
+  'almacen.epp':           [ACT_JEFE, ACT_ALMACEN, ACT_RECURSOS],
+
+  // ── Prospectores ──
+  // Entrar al CRM (embudo, prospectos, clientes, actividad). Los puestos de
+  // Prospectores lo tienen porque heredan SALES.
+  'crm.acceso':            [SALES],
+  // Quita la restricción de "solo lo mío" que lleva SALES en el CRM.
+  'crm.ver_todo':          [PROS_JEFE],
+
+  // ── Experienciadores ──
+  'exp.modulo':            ROLES_EXPERIENCIADORES,
+  // CRM de servicio: clientes (ver, crear, editar) y consulta de tratos y
+  // actividad. Sin borrar ni mover el embudo de ventas.
+  'crm.clientes':          ROLES_EXPERIENCIADORES,
+  // Proyectos en consulta: crear y editar sigue siendo del Gerente de Proyectos.
+  'proyectos.ver':         ROLES_EXPERIENCIADORES,
+
+  // ── Activos ──
+  // Ver los gastos de todos, no solo los propios. Aprobar sigue siendo de
+  // Operaciones (SUPERVISOR) y ADMIN.
+  'gastos.ver_todo':       [ACT_JEFE, ACT_FINANZAS, ACT_CONTABILIDAD, ACT_COSTOS],
+  // Consultar órdenes de compra y proveedores. Capturar y autorizar sigue
+  // siendo de Compras (PURCHASING).
+  'compras.ver':           [PURCHASING, ACT_JEFE, ACT_ALMACEN, ACT_RECURSOS],
+  'almacen.inventario':    [ACT_JEFE, ACT_ALMACEN, ACT_RECURSOS],
 };
 
 /** ¿Alguno de estos roles tiene el permiso? */
@@ -132,14 +250,14 @@ export function rolesCon(permiso) {
 /* ¿Puede este usuario dar o quitar ese rol?
  *
  * - ADMIN solo lo da un ADMIN.
- * - Los roles de RH solo los da la jefatura (o ADMIN): si Contratación
- *   pudiera, se daría a sí misma el de jefa.
+ * - Los roles de RH y las jefaturas de área solo los da la jefatura de RH (o
+ *   ADMIN): si Contratación pudiera, se daría a sí misma el de jefa.
  * - Los roles operativos (técnico, ventas…) los puede dar Contratación, que es
  *   quien da de alta a la gente nueva. */
 export function puedeAsignarRol(rolesActor, rol) {
   const actor = Array.isArray(rolesActor) ? rolesActor : [rolesActor];
   if (actor.includes(ROLES.ADMIN)) return true;
   if (rol === ROLES.ADMIN) return false;
-  if (ROLES_RH.includes(rol)) return actor.includes(ROLES.HR);
+  if (ROLES_RH.includes(rol) || JEFATURAS.includes(rol)) return actor.includes(ROLES.HR);
   return puede(actor, 'rh.empleados.alta');
 }

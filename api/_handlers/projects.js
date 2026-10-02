@@ -1,4 +1,5 @@
 import prisma from '../_lib/prisma.js'
+import { puede } from '../_lib/permisos.js';
 import { authMiddleware } from '../_lib/auth.js'
 import { createProjectWithCode } from '../_lib/projectCode.js'
 import { conSurtido } from '../_lib/requisiciones.js'
@@ -218,7 +219,9 @@ export default async function handler(req, res) {
   if (!caller) return;
 
   // Solo Gerente de Proyectos / Admin pueden gestionar proyectos.
-  if (!canManage(caller)) {
+  // Experienciadores los consultan (GET) para dar seguimiento al cliente.
+  const soloConsulta = method === 'GET' && puede(caller.roles || [], 'proyectos.ver');
+  if (!canManage(caller) && !soloConsulta) {
     return res.status(403).json({ error: 'No autorizado para gestionar proyectos' });
   }
 

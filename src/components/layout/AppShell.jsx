@@ -9,7 +9,7 @@ import {
   Map as MapIcon, Sparkles
 } from 'lucide-react';
 import { useAuth, ROLES } from '@/store/AuthContext';
-import { ROLES_RH, ROL_INFO, rolesCon } from '@/lib/permisos';
+import { ROLES_RH, ROL_INFO, rolesCon, rolesEfectivos } from '@/lib/permisos';
 import { useTenant } from '@/store/TenantContext';
 import { useTechnicianTracking } from '@/hooks/useTechnicianTracking';
 import { cn } from '@/lib/utils';
@@ -69,6 +69,23 @@ const NAV_STRUCTURE = [
       { name: 'Métricas Ventas',    path: '/sales/metricas',      icon: TrendingUp, roles: [ROLES.SALES] },
       { name: 'Catálogo Productos', path: '/crm/catalog',         icon: Package,    roles: [ROLES.SALES] },
       { name: 'Config. Embudo',     path: '/crm/settings',        icon: Sliders,    roles: [ROLES.SALES] },
+      { name: 'Actividad del Equipo', path: '/crm/activity',      icon: Activity,   roles: [ROLES.PROS_JEFE] },
+    ]
+  },
+
+  // ── EXPERIENCIADORES — Clientes y Servicios ──────────────────────────────
+  // Proyectos en consulta: crear y editar sigue siendo del Gerente de Proyectos.
+  {
+    type: 'group',
+    name: 'Clientes y Servicio',
+    icon: Users2,
+    roles: rolesCon('exp.modulo'),
+    defaultOpen: true,
+    items: [
+      { name: 'Clientes',              path: '/crm/clients',  icon: Users2,        roles: rolesCon('exp.modulo') },
+      { name: 'Actividad y Seguimiento', path: '/crm/activity', icon: Activity,    roles: rolesCon('exp.modulo') },
+      { name: 'Proyectos',             path: '/projects',     icon: FolderKanban,  roles: rolesCon('proyectos.ver'), exact: true },
+      { name: 'Agenda de Citas',       path: '/ops/calendar', icon: CalendarCheck, roles: rolesCon('exp.modulo') },
     ]
   },
 
@@ -199,11 +216,36 @@ const NAV_STRUCTURE = [
     type: 'group',
     name: 'Compras',
     icon: ShoppingCart,
-    roles: [ROLES.PURCHASING, ROLES.ADMIN],
+    roles: rolesCon('compras.ver'),
     defaultOpen: true,
     items: [
-      { name: 'Órdenes de Compra', path: '/compras',             icon: ShoppingCart, roles: [ROLES.PURCHASING, ROLES.ADMIN], exact: true },
-      { name: 'Proveedores',       path: '/compras/proveedores', icon: Building2,    roles: [ROLES.PURCHASING, ROLES.ADMIN] },
+      { name: 'Órdenes de Compra', path: '/compras',             icon: ShoppingCart, roles: rolesCon('compras.ver'), exact: true },
+      { name: 'Proveedores',       path: '/compras/proveedores', icon: Building2,    roles: rolesCon('compras.ver') },
+    ]
+  },
+
+  // ── ACTIVOS — Finanzas (consulta: aprobar gastos sigue en Operaciones) ────
+  {
+    type: 'group',
+    name: 'Finanzas',
+    icon: Wallet,
+    roles: rolesCon('gastos.ver_todo'),
+    defaultOpen: true,
+    items: [
+      { name: 'Control de Gastos', path: '/ops/expenses/control', icon: BarChart3, roles: rolesCon('gastos.ver_todo') },
+    ]
+  },
+
+  // ── ACTIVOS — Almacén ─────────────────────────────────────────────────────
+  {
+    type: 'group',
+    name: 'Almacén',
+    icon: Boxes,
+    roles: rolesCon('almacen.epp'),
+    defaultOpen: true,
+    items: [
+      { name: 'EPP e Inventario',      path: '/hr/assets',                   icon: Package, roles: rolesCon('almacen.epp') },
+      { name: 'Inventario de Tiendas', path: '/projects/inventario-tiendas', icon: Boxes,   roles: rolesCon('almacen.inventario') },
     ]
   },
 
@@ -235,8 +277,6 @@ const NAV_STRUCTURE = [
       { name: 'Incentivos y Premios', path: '/hr/rewards',      icon: Star,            roles: rolesCon('rh.desempeno') },
       { name: 'Encuestas de Clima',   path: '/hr/surveys',      icon: ClipboardCheck,  roles: rolesCon('rh.clima') },
       { name: 'Comunicados',          path: '/hr/announcements', icon: Bell,           roles: rolesCon('rh.clima') },
-      // Pasa a Almacén cuando exista ese rol (ver permisos.js).
-      { name: 'EPP e Inventario',     path: '/hr/assets',       icon: Package,         roles: rolesCon('almacen.epp') },
       // Jefatura
       { name: 'Reportes',             path: '/hr/reports',      icon: BarChart4,       roles: rolesCon('rh.reportes') },
       { name: 'Configuración',        path: '/hr/settings',     icon: Settings,        roles: rolesCon('rh.configuracion') },
@@ -427,9 +467,13 @@ export default function AppShell({ children }) {
   // Los roles de Talento Humano son exclusivos: quien los tiene y NO es ADMIN
   // solo ve el módulo de RH, aunque tenga otros roles asignados. ADMIN sigue
   // viendo todo.
-  const userRoles = (!rawRoles.includes(ROLES.ADMIN) && rawRoles.some(r => ROLES_RH.includes(r)))
-    ? rawRoles.filter(r => ROLES_RH.includes(r))
-    : rawRoles;
+  // Además se suman los roles heredados (Publicidad, Prospección… ven el CRM
+  // como Asesoría Comercial). Ver HEREDA en permisos.js.
+  const userRoles = rolesEfectivos(
+    (!rawRoles.includes(ROLES.ADMIN) && rawRoles.some(r => ROLES_RH.includes(r)))
+      ? rawRoles.filter(r => ROLES_RH.includes(r))
+      : rawRoles
+  );
 
   const handleLogout = () => { logout(); navigate('/login'); };
 

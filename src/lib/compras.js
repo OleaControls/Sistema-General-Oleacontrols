@@ -15,6 +15,8 @@
  * dos lados.
  */
 
+import { puede } from './permisos.js';
+
 // ── Estados ────────────────────────────────────────────────────────────────
 export const PO_STATUS_KEYS = [
   'BORRADOR', 'SOLICITADA', 'EN_REVISION', 'APROBADA', 'ENVIADA',
@@ -134,7 +136,9 @@ export const ROL_COMPRAS = 'PURCHASING';
 const tiene = (roles, r) => Array.isArray(roles) && roles.includes(r);
 
 /** Entrar al módulo. */
-export const puedeVerCompras = (roles = []) => tiene(roles, ROL_COMPRAS) || tiene(roles, 'ADMIN');
+// Consultar: también Almacén, Recursos materiales y Jefe de Activos (ver
+// 'compras.ver' en permisos.js). Capturar y autorizar sigue siendo de Compras.
+export const puedeVerCompras = (roles = []) => tiene(roles, ROL_COMPRAS) || tiene(roles, 'ADMIN') || puede(roles, 'compras.ver');
 
 /** Crear y editar órdenes. */
 export const puedeEditarCompras = (roles = []) => tiene(roles, ROL_COMPRAS) || tiene(roles, 'ADMIN');

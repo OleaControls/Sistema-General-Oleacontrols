@@ -1,9 +1,10 @@
 import prisma from '../_lib/prisma.js'
+import { puede, rolesEfectivos } from '../_lib/permisos.js';
 import { authMiddleware } from '../_lib/auth.js'
 
 async function getCallerRoles(id) {
   const emp = await prisma.employee.findUnique({ where: { id }, select: { roles: true } });
-  return emp?.roles || [];
+  return rolesEfectivos(emp?.roles || []);
 }
 
 export default async function handler(req, res) {
@@ -14,11 +15,13 @@ export default async function handler(req, res) {
   const userId  = caller.id;
   const roles   = await getCallerRoles(userId);
   const isAdmin = roles.includes('ADMIN');
-  const isSales = roles.includes('SALES') && !isAdmin;
+  // Jefe de Prospectores: consulta como el admin (todos los vendedores).
+  const veTodo  = isAdmin || puede(roles, 'crm.ver_todo');
+  const isSales = roles.includes('SALES') && !veTodo;
 
   // El admin puede consultar datos de cualquier vendedor pasando ?sellerId=xxx
   // El vendedor SALES siempre consulta sus propios datos
-  const targetSeller = (isAdmin && req.query.sellerId) ? req.query.sellerId : userId;
+  const targetSeller = (veTodo && req.query.sellerId) ? req.query.sellerId : userId;
 
   try {
     // ─── GET ────────────────────────────────────────────────────────────
@@ -26,7 +29,7 @@ export default async function handler(req, res) {
       const { type } = req.query;
 
       // Admin sin sellerId específico → todos los vendedores (para métricas globales)
-      if (isAdmin && !req.query.sellerId && type) {
+      if (veTodo && !req.query.sellerId && type) {
         if (type === 'bitacora') {
           const data = await prisma.salesBitacora.findMany({
             include: { seller: { select: { id: true, name: true } } },
@@ -74,7 +77,7 @@ export default async function handler(req, res) {
       }
 
       // Resumen de todos los vendedores (solo admin)
-      if (type === 'summary' && isAdmin) {
+      if (type === 'summary' && veTodo) {
         const sellers = await prisma.employee.findMany({
           where: { roles: { has: 'SALES' } },
           select: { id: true, name: true, avatar: true }

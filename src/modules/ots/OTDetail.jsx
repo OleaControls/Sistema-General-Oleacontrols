@@ -154,7 +154,7 @@ const JornadasHistorial = ({ jornadas }) => (
 );
 
 const TABS = [
-  { id: 'INFO', label: 'Hoja de Servicio', icon: FileText },
+  { id: 'INFO', label: 'Hoja de Servicio', corto: 'Hoja', icon: FileText },
   { id: 'ACTIONS', label: 'Ejecución', icon: Activity },
   // Evidencias e incidentes en vivo: aplica a toda OT, no solo a las de tienda.
   { id: 'EVIDENCE', label: 'Evidencias', icon: Camera },
@@ -166,9 +166,78 @@ const TABS = [
 const PROJECT_TABS = [
   { id: 'RESOURCES', label: 'Recursos',      icon: PackagePlus },
   { id: 'INVENTORY', label: 'Inventario',    icon: Boxes },
-  { id: 'DOCS',      label: 'Documentación', icon: FolderOpen },
+  { id: 'DOCS',      label: 'Documentación', corto: 'Docs', icon: FolderOpen },
   { id: 'PENDINGS',  label: 'Pendientes',    icon: ListTodo },
 ];
+
+function PestanasOT({ deOrden, deProyecto, activa, onCambiar }) {
+  const boton = (tab, compacto) => {
+    const esActiva = activa === tab.id;
+    const deProy = deProyecto.includes(tab);
+    return (
+      <button
+        key={tab.id}
+        type="button"
+        onClick={() => onCambiar(tab.id)}
+        aria-current={esActiva ? 'page' : undefined}
+        className={cn(
+          'cursor-pointer transition-all font-black uppercase',
+          compacto
+            ? 'flex flex-col items-center justify-center gap-1 min-w-0 py-2.5 px-1 rounded-xl border text-[9px] tracking-wide'
+            : 'shrink-0 whitespace-nowrap flex items-center gap-1.5 px-2.5 xl:px-3 py-2 rounded-lg text-[10px] tracking-wider',
+          esActiva
+            ? (deProy ? 'bg-violet-600 text-white border-violet-600 shadow-sm' : 'bg-gray-950 text-white border-gray-950 shadow-sm')
+            : compacto
+              ? 'bg-white text-gray-500 border-gray-100 active:bg-gray-50'
+              : 'text-gray-400 hover:text-gray-700 hover:bg-white'
+        )}
+      >
+        <tab.icon className={cn('shrink-0', compacto ? 'h-4 w-4' : 'h-3.5 w-3.5')} />
+        <span className={cn(compacto && 'truncate max-w-full')}>{compacto ? (tab.corto || tab.label) : tab.label}</span>
+      </button>
+    );
+  };
+
+  const etiqueta = (texto, color) => (
+    <span className={cn('text-[9px] font-black uppercase tracking-[0.2em]', color)}>{texto}</span>
+  );
+
+  return (
+    <nav className="pb-4 -mt-1" aria-label="Secciones de la orden">
+      {/* Celular */}
+      <div className="sm:hidden space-y-2">
+        <div className="grid grid-cols-4 gap-1.5">{deOrden.map(t => boton(t, true))}</div>
+        {deProyecto.length > 0 && (
+          <>
+            <div className="flex items-center gap-2 pt-1">
+              {etiqueta('Proyecto de tienda', 'text-violet-500')}
+              <span className="h-px flex-1 bg-violet-100" />
+            </div>
+            <div className="grid grid-cols-4 gap-1.5">{deProyecto.map(t => boton(t, true))}</div>
+          </>
+        )}
+      </div>
+
+      {/* Tableta y escritorio */}
+      <div className="hidden sm:flex flex-wrap items-center gap-x-3 gap-y-2">
+        <div className="flex items-center gap-1 bg-gray-50 rounded-xl p-1 border border-gray-100">
+          {deOrden.map(t => boton(t, false))}
+        </div>
+        {deProyecto.length > 0 && (
+          <div className="flex items-center gap-2">
+            {/* Sin etiqueta de texto: el tono violeta ya marca el grupo y así
+                caben las ocho en una fila en una pantalla normal. */}
+            {/* Solo cuando caben en una fila; al bajar de renglón quedaría suelta. */}
+            <span className="hidden xl:block h-6 w-px bg-gray-200" />
+            <div className="flex items-center gap-1 bg-violet-50/60 rounded-xl p-1 border border-violet-100" title="Proyecto de tienda">
+              {deProyecto.map(t => boton(t, false))}
+            </div>
+          </div>
+        )}
+      </div>
+    </nav>
+  );
+}
 
 export default function OTDetail() {
   const { id } = useParams();
@@ -647,7 +716,7 @@ export default function OTDetail() {
                     {isLead ? 'Técnico Líder' : isSupport ? 'Apoyo' : isSupervisor ? 'Supervisor' : 'Consulta'}
                   </span>
                 </div>
-                <h1 className="text-xl md:text-2xl font-black text-gray-900 tracking-tight leading-tight truncate">{ot.title}</h1>
+                <h1 className="text-xl md:text-2xl font-black text-gray-900 tracking-tight leading-tight line-clamp-2">{ot.title}</h1>
                 <div className="flex items-center gap-3 mt-1">
                   <div className="flex items-center gap-1.5">
                     <div className="h-5 w-5 rounded-full bg-gray-100 flex items-center justify-center">
@@ -675,37 +744,23 @@ export default function OTDetail() {
                 title="Desbloquear OT para modificar el acta"
               >
                 <LockOpen className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">Desbloquear</span>
+                <span>Desbloquear acta</span>
               </button>
             )}
           </div>
 
-          {/* Pestañas en su propia fila: con las cuatro de proyecto llegan a ocho
-              y no caben junto al título en escritorio. Si aún sobran, la fila
-              hace scroll horizontal en vez de desbordarse. */}
-          <div className="pb-4 -mt-1 overflow-x-auto scrollbar-hide">
-            <div className="inline-flex items-center gap-1 bg-gray-50 rounded-xl p-1 border border-gray-100">
-              {[
-                ...TABS.filter(tab => tab.id === 'INFO' || isInvolved || isSupervisor),
-                // Las pestañas del proyecto solo existen para OT de tienda ya vinculadas.
-                ...(esTienda && (isInvolved || isSupervisor) ? PROJECT_TABS : []),
-              ].map(tab => (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={cn(
-                    "cursor-pointer shrink-0 whitespace-nowrap flex items-center gap-1.5 px-3 lg:px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all",
-                    activeTab === tab.id
-                      ? "bg-gray-950 text-white shadow-sm"
-                      : "text-gray-400 hover:text-gray-600"
-                  )}
-                >
-                  <tab.icon className="h-3.5 w-3.5 shrink-0" />
-                  <span className="hidden sm:inline">{tab.label}</span>
-                </button>
-              ))}
-            </div>
-          </div>
+          {/* Pestañas. Son dos grupos: las de la orden (siempre) y las del
+              proyecto de tienda (solo OT de tienda vinculadas).
+              - Celular: cuadrícula con ícono y nombre. Antes eran ocho íconos
+                sueltos sin nombre y el último quedaba cortado.
+              - Escritorio: dos grupos con etiqueta que bajan de renglón si no
+                caben; antes la fila se cortaba en "Pendientes". */}
+          <PestanasOT
+            deOrden={TABS.filter(tab => tab.id === 'INFO' || isInvolved || isSupervisor)}
+            deProyecto={esTienda && (isInvolved || isSupervisor) ? PROJECT_TABS : []}
+            activa={activeTab}
+            onCambiar={setActiveTab}
+          />
         </div>
       </div>
 

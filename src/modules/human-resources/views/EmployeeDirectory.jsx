@@ -6,7 +6,19 @@ import {
 } from 'lucide-react';
 import { hrService } from '@/api/hrService';
 import { ROLES, useAuth } from '@/store/AuthContext';
-import { ROL_INFO, puede, puedeAsignarRol } from '@/lib/permisos';
+import { ROL_INFO, AREAS, JEFATURAS, puede, puedeAsignarRol } from '@/lib/permisos';
+
+/* Los roles agrupados por área, en el orden del organigrama. Con casi 30
+   roles, una lista plana era imposible de leer. */
+const GRUPOS_ROLES = [
+  { titulo: 'General', roles: Object.values(ROLES).filter(r => !ROL_INFO[r]?.area) },
+  ...Object.entries(AREAS).map(([clave, area]) => ({
+    titulo: `${area.nombre} · ${area.subtitulo}`,
+    // La jefatura primero, luego las subáreas.
+    roles: Object.values(ROLES).filter(r => ROL_INFO[r]?.area === clave)
+      .sort((a, b) => JEFATURAS.includes(b) - JEFATURAS.includes(a)),
+  })),
+].filter(g => g.roles.length);
 import { cn } from '@/lib/utils';
 
 
@@ -362,21 +374,16 @@ export default function EmployeeDirectory() {
         </p>
       )}
 
-      {/* Drawer: Alta / Actualización */}
+      {/* Expediente: Alta / Actualización a pantalla completa. Antes era un
+          panel lateral de ~900 px; el expediente tiene muchos campos y
+          documentos, así que ahora usa toda la pantalla. */}
       {(isModalOpen || isEditModalOpen) && (
-        <div className="fixed inset-0 z-50 flex">
-          {/* Backdrop */}
-          <div
-            className="hidden md:block flex-1 bg-black/30 backdrop-blur-sm"
-            onClick={() => { setIsModalOpen(false); setIsEditModalOpen(false); }}
-          />
-
-          {/* Panel */}
-          <div className="w-full md:max-w-4xl ml-auto bg-white shadow-2xl flex flex-col h-[100dvh] animate-in slide-in-from-right duration-300">
+        <div className="fixed inset-0 z-[60] flex">
+          <div className="w-full bg-gray-50 flex flex-col h-[100dvh] animate-in fade-in duration-200">
 
             {/* Header */}
-            <div className="flex items-center justify-between px-4 md:px-7 py-3 md:py-4 border-b bg-white shrink-0">
-              <div className="flex items-center gap-3">
+            <div className="flex items-center justify-between gap-3 px-4 md:px-8 py-3 md:py-4 border-b bg-white shrink-0">
+              <div className="flex items-center gap-3 min-w-0">
                 <div className={cn(
                   "h-9 w-9 rounded-xl flex items-center justify-center shrink-0",
                   isEditModalOpen ? "bg-amber-50" : "bg-primary/10"
@@ -384,10 +391,12 @@ export default function EmployeeDirectory() {
                   <UserIcon className={cn("h-4.5 w-4.5", isEditModalOpen ? "text-amber-600 h-[18px] w-[18px]" : "text-primary h-[18px] w-[18px]")} />
                 </div>
                 <div>
-                  <h3 className="text-base font-black text-gray-900 leading-tight">
+                  <h3 className="text-base md:text-lg font-black text-gray-900 leading-tight">
                     {isEditModalOpen ? 'Actualizar Expediente' : 'Alta de Colaborador'}
                   </h3>
-                  <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Olea Controls · Capital Humano</p>
+                  <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest truncate">
+                    {isEditModalOpen && formData.name ? `${formData.name} · ` : ''}Olea Controls · Capital Humano
+                  </p>
                 </div>
               </div>
               <button
@@ -402,7 +411,7 @@ export default function EmployeeDirectory() {
             <div className="flex flex-col md:flex-row flex-1 overflow-hidden">
 
               {/* Left nav */}
-              <div className="md:w-52 bg-gray-50/80 border-b md:border-b-0 md:border-r flex flex-row md:flex-col overflow-x-auto md:overflow-visible py-2 md:py-4 px-3 shrink-0 gap-1">
+              <div className="md:w-60 bg-white border-b md:border-b-0 md:border-r flex flex-row md:flex-col overflow-x-auto md:overflow-visible py-2 md:py-5 px-3 shrink-0 gap-1">
                 <p className="hidden md:block text-[9px] font-black text-gray-300 uppercase tracking-widest px-2 mb-2">Secciones</p>
                 {[
                   { id: 'PERSONAL',  label: 'Datos Personales', desc: 'Info. básica y docs',    icon: UserIcon,      accent: 'text-blue-500',   bg: 'bg-blue-50'    },
@@ -418,7 +427,7 @@ export default function EmployeeDirectory() {
                       onClick={() => setActiveFormTab(s.id)}
                       className={cn(
                         "flex items-center gap-2 md:gap-3 px-3 py-2 md:py-2.5 rounded-xl text-left transition-all group shrink-0",
-                        active ? "bg-white shadow-sm" : "hover:bg-white/70"
+                        active ? "bg-gray-100" : "hover:bg-gray-50"
                       )}
                     >
                       <div className={cn("h-7 w-7 rounded-lg flex items-center justify-center shrink-0 transition-colors", active ? s.bg : "bg-gray-100")}>
@@ -440,7 +449,8 @@ export default function EmployeeDirectory() {
                 onSubmit={isEditModalOpen ? handleUpdateEmployee : handleCreateEmployee}
                 className="flex-1 flex flex-col overflow-hidden"
               >
-                <div className="flex-1 overflow-y-auto overscroll-contain px-4 md:px-8 py-5 md:py-6 space-y-5 md:space-y-6">
+                <div className="flex-1 overflow-y-auto overscroll-contain px-4 md:px-8 py-5 md:py-8">
+                <div className="max-w-5xl mx-auto space-y-5 md:space-y-6">
 
                   {/* ── PERSONAL ── */}
                   {activeFormTab === 'PERSONAL' && (
@@ -489,10 +499,13 @@ export default function EmployeeDirectory() {
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                           <div className="space-y-3">
                             <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Roles del sistema</p>
+                            {/* Solo se pueden prender o apagar los roles que uno
+                                mismo puede asignar; la API aplica la misma regla. */}
+                            {GRUPOS_ROLES.map(grupo => (
+                            <div key={grupo.titulo} className="space-y-1.5">
+                            <p className="text-[9px] font-black text-gray-300 uppercase tracking-widest pt-1">{grupo.titulo}</p>
                             <div className="grid grid-cols-2 gap-2">
-                              {/* Solo se pueden prender o apagar los roles que uno
-                                  mismo puede asignar; la API aplica la misma regla. */}
-                              {Object.values(ROLES).map(rol => {
+                              {grupo.roles.map(rol => {
                                 const asignable = puedeAsignarRol(misRoles, rol);
                                 return (
                                   <button
@@ -502,17 +515,19 @@ export default function EmployeeDirectory() {
                                     title={ROL_INFO[rol]?.descripcion || ROL_INFO[rol]?.label}
                                     onClick={() => toggleRole(rol)}
                                     className={cn(
-                                      "px-3 py-2 rounded-lg text-[10px] font-black uppercase border transition-all disabled:opacity-40 disabled:cursor-not-allowed",
+                                      "px-3 py-2 rounded-lg text-[10px] font-black uppercase border transition-all disabled:opacity-40 disabled:cursor-not-allowed text-left leading-tight break-words",
                                       formData.roles.includes(rol)
                                         ? "bg-primary text-white border-primary shadow-sm"
                                         : "bg-white text-gray-400 border-gray-200 hover:border-gray-300"
                                     )}
                                   >
-                                    {ROL_INFO[rol]?.corto || rol}
+                                    {ROL_INFO[rol]?.label || rol}
                                   </button>
                                 );
                               })}
                             </div>
+                            </div>
+                            ))}
                           </div>
                           <div className="space-y-3">
                             <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Credenciales</p>
@@ -653,9 +668,11 @@ export default function EmployeeDirectory() {
                   )}
 
                 </div>
+                </div>
 
                 {/* Footer */}
-                <div className="border-t bg-white px-4 md:px-8 pt-3 md:pt-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] md:pb-4 flex items-center gap-3 shrink-0">
+                <div className="border-t bg-white px-4 md:px-8 pt-3 md:pt-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] md:pb-4 shrink-0">
+                <div className="max-w-5xl mx-auto flex items-center gap-3">
                   <button
                     type="submit"
                     disabled={isSaving}
@@ -670,6 +687,7 @@ export default function EmployeeDirectory() {
                   >
                     Cancelar
                   </button>
+                </div>
                 </div>
               </form>
             </div>
@@ -803,7 +821,7 @@ function DrawerSection({ title, icon: Icon, color = "blue", children }) {
     }[color] || { bg: "bg-gray-100", text: "text-gray-500" };
 
     return (
-        <div className="rounded-xl border border-gray-100 overflow-hidden">
+        <div className="rounded-xl border border-gray-100 overflow-hidden bg-white shadow-sm">
             <div className="flex items-center gap-2.5 px-4 py-3 bg-gray-50 border-b border-gray-100">
                 <div className={cn("h-6 w-6 rounded-md flex items-center justify-center", colors.bg)}>
                     <Icon className={cn("h-3.5 w-3.5", colors.text)} />

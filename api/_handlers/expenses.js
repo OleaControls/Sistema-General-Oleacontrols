@@ -1,5 +1,6 @@
 import prisma from '../_lib/prisma.js'
 import { uploadToR2 } from '../_lib/r2.js'
+import { puede } from '../_lib/permisos.js';
 import { authMiddleware } from '../_lib/auth.js'
 import { notificar } from '../_lib/notificaciones.js'
 
@@ -42,8 +43,9 @@ export default async function handler(req, res) {
       if (status) where.status = status;
 
       // Quien no aprueba solo ve sus propios gastos, sin importar lo que pida
-      // en la consulta.
-      if (!aprobador) where.employeeId = auth.id;
+      // en la consulta. Finanzas, Contabilidad y Costos consultan todos, pero
+      // no aprueban: eso sigue en `aprobador`.
+      if (!aprobador && !puede(rolesDe(auth), 'gastos.ver_todo')) where.employeeId = auth.id;
       
       // Si recibimos otId, buscamos la OT real primero
       if (otId) {

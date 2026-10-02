@@ -4,6 +4,7 @@ import {
 } from 'lucide-react';
 import storeInventoryService from '@/api/storeInventoryService';
 import { useAuth, ROLES } from '@/store/AuthContext';
+import { puede } from '@/lib/permisos';
 import { cn } from '@/lib/utils';
 
 /* Inventario de tiendas: el material que surte el cliente y se resguarda en
@@ -41,7 +42,7 @@ const aFormulario = (item) => ({
 export default function StoreInventory() {
   const { user } = useAuth();
   const roles = user?.roles || [];
-  const puedeEditar = [ROLES.ADMIN, ROLES.PM, ROLES.OPS].some(r => roles.includes(r));
+  const puedeEditar = [ROLES.ADMIN, ROLES.PM, ROLES.OPS].some(r => roles.includes(r)) || puede(roles, 'almacen.inventario');
 
   const [items, setItems] = useState([]);
   const [cargando, setCargando] = useState(true);
