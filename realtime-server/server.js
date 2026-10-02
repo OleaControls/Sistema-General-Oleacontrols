@@ -351,6 +351,14 @@ const escrituras = new pg.Pool({
   idleTimeoutMillis: 30_000,
 });
 
+// Si se cae el internet con una conexion inactiva en el pool, pg emite 'error'
+// en el pool. Sin este manejador Node lo toma como excepcion no atrapada y
+// tumba TODO el proceso, desconectando a todos los clientes. El pool descarta
+// esa conexion solo y abre otra en la siguiente consulta.
+escrituras.on('error', (err) => {
+  console.error('!! Pool de escrituras:', err.message);
+});
+
 async function persistirUbicaciones() {
   const pendientes = [...ubicaciones.values()].filter(p => p.sinGuardar);
   if (!pendientes.length) return;
@@ -405,10 +413,18 @@ servidor.listen(PUERTO, '0.0.0.0', () => {
 for (const senal of ['SIGINT', 'SIGTERM']) {
   process.on(senal, () => {
     console.log('\nCerrando servidor realtime...');
+    // servidor.close() espera a que se cierren TODAS las conexiones, y el
+    // tunel de Cloudflare mantiene las suyas abiertas (keep-alive): sin este
+    // tope el proceso no termina y el servicio de Windows se queda en
+    // "deteniendo" para siempre.
+    setTimeout(() => process.exit(0), 8_000).unref();
     // Si no se guarda aqui, un apagado (o el aviso del no-break) se lleva
     // hasta 5 minutos de posiciones que estaban solo en memoria.
     persistirUbicaciones()
       .catch(() => {})
-      .finally(() => io.close(() => servidor.close(() => process.exit(0))));
+      .finally(() => {
+        io.close(() => servidor.close(() => process.exit(0)));
+        servidor.closeAllConnections();
+      });
   });
 }

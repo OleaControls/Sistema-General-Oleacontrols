@@ -20,6 +20,7 @@ import OTEvidenceTab from './components/OTEvidenceTab';
 import { suscribirCambios } from '@/services/realtime';
 import FieldDocsAlert from './components/FieldDocsAlert';
 import techDocsService from '@/api/techDocsService';
+import { useTechShift } from './utils/useTechShift';
 
 // ── Requisitos previos — tarjeta de puerta ───────────────────────────────────
 // Muestra qué falta antes de aceptar la OT o iniciar la jornada. `blocking`
@@ -276,6 +277,7 @@ export default function OTDetail() {
 
   // ── Requisitos previos (asistencia + checklist + panoramización) ───────────
   const [gate, setGate] = useState({ checkInTime: null, checklistDone: false, panoraDone: false, loaded: false });
+  const { shift } = useTechShift();
   const [isPanoraModalOpen, setIsPanoraModalOpen] = useState(false);
 
   // Proyecto vinculado (solo OT de tienda). Se carga aparte porque vive en el
@@ -1340,7 +1342,7 @@ export default function OTDetail() {
                   {
                     key: 'attendance', icon: LogIn,
                     label: 'Entrada del día registrada',
-                    detail: gate.checkInTime ? `Entrada ${gate.checkInTime}` : 'Sin registrar — horario 09:00',
+                    detail: gate.checkInTime ? `Entrada ${gate.checkInTime}` : `Sin registrar — horario ${shift.start}`,
                     done: Boolean(gate.checkInTime),
                     action: gateBlocks ? () => navigate('/tech/attendance') : null,
                     actionLabel: 'Ir a asistencia',

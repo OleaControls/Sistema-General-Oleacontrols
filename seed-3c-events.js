@@ -4,6 +4,7 @@
  * Uso: node seed-3c-events.js
  */
 
+
 import dotenv from 'dotenv';
 dotenv.config();
 

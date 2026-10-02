@@ -530,8 +530,18 @@ model TechAttendanceLog {
   goalId       String?
   goal         TechDailyGoal? @relation(fields: [goalId], references: [id])
 
-  checkInTime  String?        // "08:30"
+  checkInTime  String?        // "08:30" — la pone el servidor, nunca el celular
   checkOutTime String?        // "18:00"
+
+  // Salida antes de la ventana permitida: lleva motivo y la revisa un supervisor
+  earlyCheckOutReason     String?
+  earlyCheckOutStatus     String?    // PENDIENTE | APROBADA | RECHAZADA
+  earlyCheckOutReviewedBy String?
+  earlyCheckOutReviewedAt DateTime?
+
+  // Correcciones manuales de entrada/salida (supervisor/ADMIN), en orden:
+  // [{ at, byId, byName, reason, before: {checkInTime, checkOutTime}, after: {…} }]
+  corrections Json?
 
   // Checklist 1 — Equipo personal (JSON)
   // { uniform, epp, toolsBasic, toolsSpecial, materials } → true/false/null

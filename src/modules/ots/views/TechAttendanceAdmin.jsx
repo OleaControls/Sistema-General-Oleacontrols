@@ -8,10 +8,13 @@ import { cn } from '@/lib/utils';
 import { apiFetch } from '@/lib/api';
 import { hrService } from '@/api/hrService';
 import { useAuth, ROLES } from '@/store/AuthContext';
+import { puede } from '@/lib/permisos';
 import { generateAttendanceReportPDF } from '../utils/attendanceReportPDF';
 import {
-  SHIFT_LABEL, getCheckInStatus, getCheckOutStatus, workedLabel,
+  shiftLabel, shiftRulesLabel, getCheckInStatus, getCheckOutStatus, workedLabel, isUnclosed,
 } from '../utils/attendanceSchedule';
+import { useTechShift } from '../utils/useTechShift';
+import { checkInWindow, checkOutWindow } from '@/lib/techShift';
 import { TOOLS_KEYS } from '../utils/toolsCatalog';
 
 // Paleta por tono sobre fondo claro — puntualidad de la entrada / salida
@@ -154,6 +157,69 @@ export default function TechAttendanceAdmin() {
   const [openGoal,  setOpenGoal]  = useState(null); // meta con checklist abierto
   const [toolkits,  setToolkits]  = useState({});   // techId → inventario de herramienta
 
+  // Horario de los técnicos — editable por ADMIN y Supervisor
+  const { shift, saveShift } = useTechShift();
+  const canEditShift = puede(user?.roles || [user?.role], 'ops.horario_tecnicos');
+  const [shiftDraft,  setShiftDraft]  = useState(null); // null = modal cerrado
+  const [shiftSaving, setShiftSaving] = useState(false);
+
+  // Corrección manual y revisión de salidas anticipadas — supervisor/ADMIN
+  const canManage = puede(user?.roles || [user?.role], 'ops.asistencia_tecnicos');
+  const [correction,       setCorrection]       = useState(null); // { tech, checkInTime, checkOutTime, reason }
+  const [correctionSaving, setCorrectionSaving] = useState(false);
+  const [reviewingId,      setReviewingId]      = useState(null);
+
+  const postAttendance = async (path, payload) => {
+    const r = await apiFetch(`/api/tech-attendance/${path}`, { method: 'POST', body: JSON.stringify(payload) });
+    const data = await r.json().catch(() => null);
+    if (!r.ok) throw new Error(data?.error || 'No se pudo guardar');
+    return data;
+  };
+
+  const handleSaveCorrection = async () => {
+    if (correction.reason.trim().length < 5) { alert('Escribe el motivo de la corrección.'); return; }
+    if (correction.checkOutTime && !correction.checkInTime) { alert('No puede haber salida sin entrada.'); return; }
+    setCorrectionSaving(true);
+    try {
+      await postAttendance('correct', {
+        techId: correction.tech.id, date: viewDate,
+        checkInTime: correction.checkInTime || null,
+        checkOutTime: correction.checkOutTime || null,
+        reason: correction.reason.trim(),
+      });
+      setCorrection(null);
+      await load();
+    } catch (e) { alert(e.message); }
+    finally { setCorrectionSaving(false); }
+  };
+
+  const reviewEarly = async (logId, decision) => {
+    setReviewingId(logId);
+    try { await postAttendance('review-early', { id: logId, decision }); await load(); }
+    catch (e) { alert(e.message); }
+    finally { setReviewingId(null); }
+  };
+
+  const handleSaveShift = async () => {
+    if (shiftDraft.start === shiftDraft.end) {
+      alert('La hora de entrada y la de salida no pueden ser la misma.');
+      return;
+    }
+    if (Number(shiftDraft.lateMin) < Number(shiftDraft.graceMin)) {
+      alert('"Tarde" no puede empezar antes que "Retardo".');
+      return;
+    }
+    setShiftSaving(true);
+    try {
+      await saveShift(shiftDraft);
+      setShiftDraft(null);
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setShiftSaving(false);
+    }
+  };
+
   useEffect(() => {
     hrService.getEmployees().then(data => {
       const all = Array.isArray(data) ? data : data?.employees || [];
@@ -253,8 +319,9 @@ export default function TechAttendanceAdmin() {
         log,
         checkInTime:  log?.checkInTime  || null,
         checkOutTime: log?.checkOutTime || null,
-        checkIn:      getCheckInStatus(log?.checkInTime),
-        checkOut:     getCheckOutStatus(log?.checkOutTime),
+        checkIn:      getCheckInStatus(log?.checkInTime, shift),
+        checkOut:     getCheckOutStatus(log?.checkOutTime, shift, log),
+        unclosed:     isUnclosed(log, viewDate, today),
       };
     })
     .sort((a, b) => {
@@ -267,6 +334,8 @@ export default function TechAttendanceAdmin() {
   const retardoCount = attendanceRows.filter(r => r.checkIn?.key === 'retardo').length;
   const tardeCount   = attendanceRows.filter(r => r.checkIn?.key === 'tarde').length;
   const absentCount  = attendanceRows.filter(r => !r.checkInTime).length;
+  const pendingEarlyCount = attendanceRows.filter(r => r.log?.earlyCheckOutStatus === 'PENDIENTE').length;
+  const unclosedCount     = attendanceRows.filter(r => r.unclosed).length;
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
@@ -429,7 +498,7 @@ export default function TechAttendanceAdmin() {
       {activeTab === 'asistencia' && (
         <div className="space-y-4">
 
-          {/* Resumen de puntualidad — horario 09:00 – 18:00 */}
+          {/* Resumen de puntualidad — según el horario configurado */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {[
               { label: 'A tiempo',      value: onTimeCount,  cls: 'text-emerald-500', icon: CheckCircle2 },
@@ -447,9 +516,34 @@ export default function TechAttendanceAdmin() {
             ))}
           </div>
 
-          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-1">
-            Horario {SHIFT_LABEL} · Retardo desde 09:05 · Tarde desde 09:10
-          </p>
+          <div className="flex flex-wrap items-center gap-2 px-1">
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+              Horario {shiftLabel(shift)} · {shiftRulesLabel(shift)}
+            </p>
+            {canEditShift && (
+              <button
+                onClick={() => setShiftDraft(shift)}
+                className="flex items-center gap-1 px-2 py-1 rounded-lg border bg-white text-[9px] font-black uppercase tracking-widest text-gray-500 hover:bg-gray-50 transition-all"
+              >
+                <Pencil className="h-3 w-3" /> Cambiar horario
+              </button>
+            )}
+          </div>
+
+          {(pendingEarlyCount > 0 || unclosedCount > 0) && (
+            <div className="flex flex-wrap gap-2 px-1">
+              {pendingEarlyCount > 0 && (
+                <span className="text-[10px] font-black px-3 py-1.5 rounded-full border uppercase tracking-wider text-amber-700 bg-amber-50 border-amber-300">
+                  {pendingEarlyCount} salida{pendingEarlyCount > 1 ? 's' : ''} anticipada{pendingEarlyCount > 1 ? 's' : ''} por revisar
+                </span>
+              )}
+              {unclosedCount > 0 && (
+                <span className="text-[10px] font-black px-3 py-1.5 rounded-full border uppercase tracking-wider text-rose-700 bg-rose-50 border-rose-300">
+                  {unclosedCount} jornada{unclosedCount > 1 ? 's' : ''} sin cierre
+                </span>
+              )}
+            </div>
+          )}
 
           {loading ? (
             <div className="bg-white rounded-3xl border border-gray-100 divide-y divide-gray-50">
@@ -471,7 +565,7 @@ export default function TechAttendanceAdmin() {
               </div>
 
               <div className="divide-y divide-gray-50">
-                {attendanceRows.map(({ tech, log, checkInTime, checkOutTime, checkIn, checkOut }) => {
+                {attendanceRows.map(({ tech, log, checkInTime, checkOutTime, checkIn, checkOut, unclosed }) => {
                   const worked  = workedLabel(checkInTime, checkOutTime);
                   const tone    = checkIn ? TONE_LIGHT[checkIn.tone] : null;
                   const outTone = checkOut ? TONE_LIGHT[checkOut.tone] : null;
@@ -480,11 +574,16 @@ export default function TechAttendanceAdmin() {
                     log?.goal?.otNumber && { label: log.goal.otNumber, cls: 'text-blue-600 bg-blue-50 border-blue-200' },
                     log?.status === 'COMPLETE' && { label: 'Checklist enviado', cls: 'text-violet-600 bg-violet-50 border-violet-200' },
                     (log?.personalReportSent || log?.vehicleReportSent) && { label: 'Reporte de faltantes', cls: 'text-amber-600 bg-amber-50 border-amber-200' },
-                    checkInTime && { label: checkOutTime ? 'Jornada cerrada' : 'En jornada', cls: 'text-gray-500 bg-gray-50 border-gray-200' },
+                    checkInTime && (unclosed
+                      ? { label: 'Sin cierre', cls: 'text-rose-700 bg-rose-50 border-rose-300' }
+                      : { label: checkOutTime ? 'Jornada cerrada' : 'En jornada', cls: 'text-gray-500 bg-gray-50 border-gray-200' }),
+                    checkOut?.key === 'early' && { label: checkOut.label, cls: TONE_LIGHT[checkOut.tone].pill },
+                    checkOut?.overtimeMin > 0 && { label: checkOut.detail, cls: 'text-blue-600 bg-blue-50 border-blue-200' },
+                    Array.isArray(log?.corrections) && log.corrections.length > 0 && { label: 'Corregido', cls: 'text-gray-600 bg-gray-100 border-gray-300' },
                   ].filter(Boolean);
 
                   return (
-                    <div key={tech.id} className={cn(checkIn?.key === 'tarde' && 'bg-rose-50/40')}>
+                    <div key={tech.id} className={cn((checkIn?.key === 'tarde' || unclosed) && 'bg-rose-50/40')}>
                       <button
                         onClick={() => setExpanded(isOpen ? null : tech.id)}
                         className="w-full grid grid-cols-[1fr_auto] md:grid-cols-[1fr_84px_84px_96px_120px_32px] gap-3 items-center px-4 py-3 text-left hover:bg-gray-50/60 transition-all"
@@ -560,6 +659,54 @@ export default function TechAttendanceAdmin() {
                                 </span>
                               ))}
                             </div>
+                          )}
+
+                          {/* Salida anticipada: motivo + aprobar / rechazar */}
+                          {log?.earlyCheckOutStatus && (
+                            <div className={cn('rounded-2xl border p-3', TONE_LIGHT[checkOut?.tone || 'amber'].tile)}>
+                              <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">
+                                Salida anticipada · {log.earlyCheckOutStatus.toLowerCase()}
+                                {log.earlyCheckOutReviewedBy && ` por ${log.earlyCheckOutReviewedBy}`}
+                              </p>
+                              <p className="text-[13px] font-bold text-gray-800">{log.earlyCheckOutReason || 'Sin motivo'}</p>
+                              {canManage && log.earlyCheckOutStatus === 'PENDIENTE' && (
+                                <div className="flex gap-2 mt-2">
+                                  <button onClick={() => reviewEarly(log.id, 'APROBADA')} disabled={reviewingId === log.id}
+                                    className="flex-1 py-2 rounded-xl bg-emerald-600 text-white text-[10px] font-black uppercase tracking-widest disabled:opacity-50">
+                                    Aprobar
+                                  </button>
+                                  <button onClick={() => reviewEarly(log.id, 'RECHAZADA')} disabled={reviewingId === log.id}
+                                    className="flex-1 py-2 rounded-xl bg-rose-600 text-white text-[10px] font-black uppercase tracking-widest disabled:opacity-50">
+                                    Rechazar
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Historial de correcciones */}
+                          {Array.isArray(log?.corrections) && log.corrections.length > 0 && (
+                            <div className="rounded-2xl bg-gray-50 border border-gray-100 p-3 space-y-1.5">
+                              <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Correcciones</p>
+                              {log.corrections.map((c, i) => (
+                                <p key={i} className="text-[11px] font-bold text-gray-600 leading-relaxed">
+                                  <span className="tabular-nums">
+                                    {c.before?.checkInTime || '--:--'}–{c.before?.checkOutTime || '--:--'} → {c.after?.checkInTime || '--:--'}–{c.after?.checkOutTime || '--:--'}
+                                  </span>
+                                  {' · '}{c.byName || 'Supervisor'}, {new Date(c.at).toLocaleString('es-MX', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                                  <span className="block text-gray-400">{c.reason}</span>
+                                </p>
+                              ))}
+                            </div>
+                          )}
+
+                          {canManage && (
+                            <button
+                              onClick={() => setCorrection({ tech, checkInTime: checkInTime || '', checkOutTime: checkOutTime || '', reason: '' })}
+                              className="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl border bg-white text-[10px] font-black uppercase tracking-widest text-gray-600 hover:bg-gray-50 transition-all"
+                            >
+                              <Pencil className="h-3 w-3" /> {unclosed ? 'Registrar salida' : 'Corregir entrada / salida'}
+                            </button>
                           )}
 
                           {log?.goal && (
@@ -1099,6 +1246,111 @@ export default function TechAttendanceAdmin() {
               <button onClick={handleSave} disabled={saving}
                 className="flex-1 py-3 rounded-2xl bg-primary text-white text-[10px] font-black uppercase tracking-widest hover:bg-primary/90 transition-all disabled:opacity-50">
                 {saving ? 'Guardando...' : editGoalId ? 'Actualizar' : 'Asignar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: corrección manual de entrada / salida */}
+      {correction && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => !correctionSaving && setCorrection(null)}>
+          <div className="bg-white rounded-[2.5rem] p-8 w-full max-w-md shadow-2xl space-y-5 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div>
+              <h3 className="font-black text-gray-900 uppercase text-xs tracking-widest">Corregir asistencia</h3>
+              <p className="text-[11px] font-bold text-gray-400 mt-1 capitalize">{correction.tech.name} · {dayLabel}</p>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              {[
+                { key: 'checkInTime',  label: 'Entrada' },
+                { key: 'checkOutTime', label: 'Salida' },
+              ].map(f => (
+                <div key={f.key}>
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1">{f.label}</label>
+                  <input type="time" value={correction[f.key]}
+                    onChange={e => setCorrection(c => ({ ...c, [f.key]: e.target.value }))}
+                    className="w-full border rounded-xl px-3 py-2 text-sm font-bold text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary/30" />
+                </div>
+              ))}
+            </div>
+            <div>
+              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1">Motivo</label>
+              <textarea value={correction.reason} onChange={e => setCorrection(c => ({ ...c, reason: e.target.value }))} rows={2} maxLength={500}
+                placeholder="Ej. Olvidó cerrar, trabajó horas extra hasta las 21:30"
+                className="w-full border rounded-xl px-3 py-2 text-sm font-bold text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none" />
+            </div>
+            <p className="text-[11px] font-bold text-gray-400 leading-relaxed">
+              Deja un campo vacío para borrar esa marca. La corrección queda registrada con tu nombre.
+            </p>
+            <div className="flex gap-3 pt-2">
+              <button onClick={() => setCorrection(null)} disabled={correctionSaving}
+                className="flex-1 py-3 rounded-2xl border text-[10px] font-black uppercase tracking-widest text-gray-500 hover:bg-gray-50 transition-all disabled:opacity-50">
+                Cancelar
+              </button>
+              <button onClick={handleSaveCorrection} disabled={correctionSaving}
+                className="flex-1 py-3 rounded-2xl bg-primary text-white text-[10px] font-black uppercase tracking-widest hover:bg-primary/90 transition-all disabled:opacity-50">
+                {correctionSaving ? 'Guardando...' : 'Guardar corrección'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: horario de los técnicos */}
+      {shiftDraft && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => !shiftSaving && setShiftDraft(null)}>
+          <div className="bg-white rounded-[2.5rem] p-8 w-full max-w-md shadow-2xl space-y-5 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <h3 className="font-black text-gray-900 uppercase text-xs tracking-widest">Horario de los técnicos</h3>
+            <div className="grid grid-cols-2 gap-4">
+              {[
+                { key: 'start', label: 'Entrada' },
+                { key: 'end',   label: 'Salida' },
+              ].map(f => (
+                <div key={f.key}>
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1">{f.label}</label>
+                  <input type="time" value={shiftDraft[f.key]}
+                    onChange={e => setShiftDraft(d => ({ ...d, [f.key]: e.target.value }))}
+                    className="w-full border rounded-xl px-3 py-2 text-sm font-bold text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary/30" />
+                </div>
+              ))}
+              {[
+                { key: 'graceMin', label: 'Retardo a partir de (min)' },
+                { key: 'lateMin',  label: 'Tarde a partir de (min)' },
+                { key: 'checkInOpensMin',  label: 'Entrada se habilita (min antes)' },
+                { key: 'checkOutOpensMin', label: 'Salida se habilita (min antes)' },
+              ].map(f => (
+                <div key={f.key}>
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1">{f.label}</label>
+                  <input type="number" min={0} max={180} value={shiftDraft[f.key]}
+                    onChange={e => setShiftDraft(d => ({ ...d, [f.key]: e.target.value }))}
+                    className="w-full border rounded-xl px-3 py-2 text-sm font-bold text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary/30" />
+                </div>
+              ))}
+            </div>
+            <label className="flex items-center justify-between gap-4 cursor-pointer">
+              <span>
+                <span className="block text-sm font-bold text-gray-800">Permitir salida anticipada</span>
+                <span className="block text-[11px] text-gray-400 mt-0.5">
+                  Encendido: antes de la ventana pide motivo y queda para revisión. Apagado: solo el supervisor puede registrarla.
+                </span>
+              </span>
+              <input type="checkbox" checked={shiftDraft.allowEarlyCheckOut}
+                onChange={e => setShiftDraft(d => ({ ...d, allowEarlyCheckOut: e.target.checked }))}
+                className="h-5 w-5 shrink-0 accent-blue-600 cursor-pointer" />
+            </label>
+            <p className="text-[11px] font-bold text-gray-500 leading-relaxed">
+              Horario {shiftLabel(shiftDraft)} · {shiftRulesLabel(shiftDraft)}.
+              Entrada desde las {checkInWindow(shiftDraft, '00:00').opensAt}, salida normal desde las {checkOutWindow(shiftDraft, '00:00').opensAt}.
+              Aplica a todos los técnicos, también al recalcular días anteriores.
+            </p>
+            <div className="flex gap-3 pt-2">
+              <button onClick={() => setShiftDraft(null)} disabled={shiftSaving}
+                className="flex-1 py-3 rounded-2xl border text-[10px] font-black uppercase tracking-widest text-gray-500 hover:bg-gray-50 transition-all disabled:opacity-50">
+                Cancelar
+              </button>
+              <button onClick={handleSaveShift} disabled={shiftSaving}
+                className="flex-1 py-3 rounded-2xl bg-primary text-white text-[10px] font-black uppercase tracking-widest hover:bg-primary/90 transition-all disabled:opacity-50">
+                {shiftSaving ? 'Guardando...' : 'Guardar horario'}
               </button>
             </div>
           </div>

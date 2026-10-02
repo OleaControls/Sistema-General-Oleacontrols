@@ -231,6 +231,12 @@ export const PERMISOS = {
   // siendo de Compras (PURCHASING).
   'compras.ver':           [PURCHASING, ACT_JEFE, ACT_ALMACEN, ACT_RECURSOS],
   'almacen.inventario':    [ACT_JEFE, ACT_ALMACEN, ACT_RECURSOS],
+
+  // ── Ejecutores ──
+  // Cambiar el horario de entrada y salida de los técnicos (Asistencia Técnicos).
+  'ops.horario_tecnicos':  [ROLES.OPS],
+  // Corregir entradas/salidas y aprobar o rechazar salidas anticipadas.
+  'ops.asistencia_tecnicos': [ROLES.OPS],
 };
 
 /** ¿Alguno de estos roles tiene el permiso? */

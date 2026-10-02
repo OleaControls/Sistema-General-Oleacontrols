@@ -1,30 +1,39 @@
 // ── Horario laboral y reglas de puntualidad ──────────────────────────────────
-// Entrada 09:00 · Salida 18:00
-//   09:00 – 09:04  → A tiempo  (verde)
-//   09:05 – 09:09  → Retardo   (amarillo)
-//   09:10 en adelante → Tarde  (rojo)
+// El horario ya no es fijo: se guarda en SystemConfig (ver src/lib/techShift.js)
+// y las pantallas lo traen con useTechShift(). Con el de por defecto:
+//   Entrada 10:00 · Salida 19:00
+//   10:00 – 10:04  → A tiempo  (verde)
+//   10:05 – 10:09  → Retardo   (amarillo)
+//   10:10 en adelante → Tarde  (rojo)
+//
+// Todas las funciones reciben el horario como último argumento; si no se pasa,
+// usan el de por defecto.
 
-export const SHIFT_START = '09:00';
-export const SHIFT_END   = '18:00';
+import {
+  DEFAULT_TECH_SHIFT, normalizeShift, hmToMinutes as toMinutes, minutesToHM as toHM,
+} from '@/lib/techShift';
 
-export const GRACE_MIN = 5;   // minutos de tolerancia antes de contar retardo
-export const LATE_MIN  = 10;  // minutos a partir de los cuales ya es "tarde"
+export { toMinutes };
 
-export const SHIFT_LABEL = `${SHIFT_START} – ${SHIFT_END}`;
+const durationLabel = (mins) => `${Math.floor(mins / 60)}h ${String(mins % 60).padStart(2, '0')}m`;
 
-// "HH:MM" → minutos desde medianoche. null si el formato no es válido.
-export const toMinutes = (hm) => {
-  if (!hm || typeof hm !== 'string') return null;
-  const [h, m] = hm.split(':').map(Number);
-  if (Number.isNaN(h) || Number.isNaN(m)) return null;
-  return h * 60 + m;
+export const shiftLabel = (shift = DEFAULT_TECH_SHIFT) => {
+  const s = normalizeShift(shift);
+  return `${s.start} – ${s.end}`;
+};
+
+// "Retardo desde 10:05 · Tarde desde 10:10"
+export const shiftRulesLabel = (shift = DEFAULT_TECH_SHIFT) => {
+  const s = normalizeShift(shift);
+  const start = toMinutes(s.start);
+  return `Retardo desde ${toHM(start + s.graceMin)} · Tarde desde ${toHM(start + s.lateMin)}`;
 };
 
 // Minutos de retardo respecto a la hora de entrada (0 si llegó puntual o antes)
-export const minutesLate = (checkInTime) => {
+export const minutesLate = (checkInTime, shift = DEFAULT_TECH_SHIFT) => {
   const t = toMinutes(checkInTime);
   if (t === null) return null;
-  return Math.max(0, t - toMinutes(SHIFT_START));
+  return Math.max(0, t - toMinutes(normalizeShift(shift).start));
 };
 
 /**
@@ -32,18 +41,19 @@ export const minutesLate = (checkInTime) => {
  * @returns {{ key: 'ontime'|'retardo'|'tarde', tone: 'emerald'|'amber'|'rose',
  *             label: string, minutesLate: number, detail: string|null } | null}
  */
-export const getCheckInStatus = (checkInTime) => {
-  const late = minutesLate(checkInTime);
+export const getCheckInStatus = (checkInTime, shift = DEFAULT_TECH_SHIFT) => {
+  const s = normalizeShift(shift);
+  const late = minutesLate(checkInTime, s);
   if (late === null) return null;
 
-  if (late < GRACE_MIN) {
-    const early = toMinutes(SHIFT_START) - toMinutes(checkInTime);
+  if (late < s.graceMin) {
+    const early = toMinutes(s.start) - toMinutes(checkInTime);
     return {
       key: 'ontime', tone: 'emerald', label: 'A tiempo', minutesLate: late,
       detail: early > 0 ? `${early} min antes` : null,
     };
   }
-  if (late < LATE_MIN) {
+  if (late < s.lateMin) {
     return {
       key: 'retardo', tone: 'amber', label: 'Retardo', minutesLate: late,
       detail: `${late} min tarde`,
@@ -56,19 +66,38 @@ export const getCheckInStatus = (checkInTime) => {
 };
 
 /**
- * Estado de la salida respecto a las 18:00.
- * @returns {{ key: 'complete'|'early', tone: 'blue'|'amber',
- *             label: string, minutesEarly: number, detail: string|null } | null}
+ * Estado de la salida respecto a la hora de salida del horario.
+ * Si se pasa el log, una salida anticipada muestra su revisión (pendiente,
+ * aprobada o rechazada).
+ * @returns {{ key: 'complete'|'early', tone: 'blue'|'amber'|'emerald'|'rose',
+ *             label: string, minutesEarly: number, overtimeMin: number,
+ *             detail: string|null } | null}
  */
-export const getCheckOutStatus = (checkOutTime) => {
+export const getCheckOutStatus = (checkOutTime, shift = DEFAULT_TECH_SHIFT, log = null) => {
   const t = toMinutes(checkOutTime);
   if (t === null) return null;
-  const early = toMinutes(SHIFT_END) - t;
+  const early = toMinutes(normalizeShift(shift).end) - t;
   if (early > 0) {
-    return { key: 'early', tone: 'amber', label: 'Salida anticipada', minutesEarly: early, detail: `${early} min antes` };
+    const review = log?.earlyCheckOutStatus;
+    const base = { key: 'early', minutesEarly: early, overtimeMin: 0, detail: `${early} min antes` };
+    if (review === 'APROBADA')  return { ...base, tone: 'emerald', label: 'Salida aprobada' };
+    if (review === 'RECHAZADA') return { ...base, tone: 'rose',    label: 'Salida rechazada' };
+    if (review === 'PENDIENTE') return { ...base, tone: 'amber',   label: 'Salida por revisar' };
+    return { ...base, tone: 'amber', label: 'Salida anticipada' };
   }
-  return { key: 'complete', tone: 'blue', label: 'Turno completo', minutesEarly: 0, detail: null };
+  const overtime = -early;
+  return {
+    key: 'complete', tone: 'blue', label: 'Turno completo', minutesEarly: 0, overtimeMin: overtime,
+    detail: overtime > 0 ? `+${durationLabel(overtime)} extra` : null,
+  };
 };
+
+/**
+ * Jornada que quedó abierta: hay entrada, no hay salida y el día ya pasó.
+ * `day` y `today` son "YYYY-MM-DD".
+ */
+export const isUnclosed = (log, day, today) =>
+  Boolean(log?.checkInTime && !log?.checkOutTime && day < today);
 
 // Duración de la jornada — soporta cruce de medianoche
 export const workedLabel = (checkInTime, checkOutTime) => {
@@ -77,5 +106,5 @@ export const workedLabel = (checkInTime, checkOutTime) => {
   if (a === null || b === null) return null;
   let mins = b - a;
   if (mins < 0) mins += 24 * 60;
-  return `${Math.floor(mins / 60)}h ${String(mins % 60).padStart(2, '0')}m`;
+  return durationLabel(mins);
 };

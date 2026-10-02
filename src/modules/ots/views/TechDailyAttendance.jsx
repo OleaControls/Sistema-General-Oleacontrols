@@ -13,8 +13,10 @@ import { apiFetch } from '@/lib/api';
 import { useAuth } from '@/store/AuthContext';
 import { generateAttendanceReportPDF } from '../utils/attendanceReportPDF';
 import {
-  SHIFT_LABEL, getCheckInStatus, getCheckOutStatus, workedLabel,
+  shiftLabel, getCheckInStatus, getCheckOutStatus, workedLabel,
 } from '../utils/attendanceSchedule';
+import { useTechShift } from '../utils/useTechShift';
+import { checkInWindow, checkOutWindow, businessNowHM } from '@/lib/techShift';
 import PanoramizacionModal from '../components/PanoramizacionModal';
 
 // Paleta por tono sobre fondo oscuro — puntualidad de la entrada / salida
@@ -958,6 +960,7 @@ function ChecklistModal({ goal, techName, log: existingLog, onClose }) {
 // ── Vista principal ──────────────────────────────────────────────────────────
 export default function TechDailyAttendance() {
   const { user } = useAuth();
+  const { shift } = useTechShift();
   const today = (() => {
     const n = new Date();
     return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}`;
@@ -1016,50 +1019,60 @@ export default function TechDailyAttendance() {
   }, [userId, load]);
 
   // ── Asistencia diaria — independiente de metas, checklist y panoramización ──
-  const nowHM = () => new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', hour12: false });
+  // La hora la pone el servidor. Aquí la ventana solo sirve para deshabilitar
+  // el botón y avisar; la API valida con la misma regla (src/lib/techShift.js).
+  const [nowTick, setNowTick] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNowTick(Date.now()), 30000);
+    return () => clearInterval(t);
+  }, []);
+  const nowHM = businessNowHM(nowTick);
+  const inWin  = checkInWindow(shift, nowHM);
+  const outWin = checkOutWindow(shift, nowHM);
 
-  // Crea (o recupera) el registro del día. No requiere metas asignadas.
-  const ensureLogId = async () => {
-    if (log?.id) return log.id;
-    const r = await apiFetch('/api/tech-attendance/log', {
+  const [earlyModal,  setEarlyModal]  = useState(false);
+  const [earlyReason, setEarlyReason] = useState('');
+
+  const postAttendance = async (path, payload = {}) => {
+    const r = await apiFetch(`/api/tech-attendance/${path}`, {
       method: 'POST',
-      body: JSON.stringify({ techId: userId, goalId: goals[0]?.id || null }),
+      body: JSON.stringify(payload),
     });
-    if (!r.ok) throw new Error('No se pudo crear el registro del día');
-    const created = await r.json();
-    setLog(created);
-    return created.id;
-  };
-
-  const patchLog = async (payload) => {
-    const logId = await ensureLogId();
-    const r = await apiFetch('/api/tech-attendance/log', {
-      method: 'PATCH',
-      body: JSON.stringify({ id: logId, ...payload }),
-    });
-    if (!r.ok) throw new Error('No se pudo actualizar el registro');
-    setLog(await r.json());
+    const data = await r.json().catch(() => null);
+    // 409 = ya estaba registrada (p. ej. doble toque): se muestra lo guardado
+    if (r.status === 409 && data?.log) { setLog(data.log); return; }
+    if (!r.ok) throw new Error(data?.error || 'No se pudo registrar');
+    setLog(data);
   };
 
   const registerCheckIn = async () => {
     if (!userId || log?.checkInTime) return;
     setCheckingIn(true);
-    try { await patchLog({ checkInTime: nowHM() }); }
-    catch { alert('Error al registrar la entrada'); }
+    try { await postAttendance('check-in', { goalId: goals[0]?.id || null }); }
+    catch (e) { alert(e.message); }
     finally { setCheckingIn(false); }
   };
 
-  const registerCheckOut = async () => {
+  const registerCheckOut = async (reason) => {
     if (!userId || !log?.checkInTime || log?.checkOutTime) return;
+    if (outWin.mode === 'blocked') {
+      alert(`La salida se habilita a las ${outWin.opensAt}. Si necesitas salir antes, pide a tu supervisor que la registre.`);
+      return;
+    }
+    // Antes de la ventana: primero pedir el motivo
+    if (outWin.mode === 'early' && reason === undefined) { setEarlyModal(true); return; }
     setCheckingOut(true);
-    try { await patchLog({ checkOutTime: nowHM() }); }
-    catch { alert('Error al registrar la salida'); }
+    try {
+      await postAttendance('check-out', reason ? { reason } : {});
+      setEarlyModal(false);
+      setEarlyReason('');
+    } catch (e) { alert(e.message); }
     finally { setCheckingOut(false); }
   };
 
-  // Puntualidad (09:00 / 18:00) y duración de la jornada
-  const checkIn  = getCheckInStatus(log?.checkInTime);
-  const checkOut = getCheckOutStatus(log?.checkOutTime);
+  // Puntualidad (según el horario configurado) y duración de la jornada
+  const checkIn  = getCheckInStatus(log?.checkInTime, shift);
+  const checkOut = getCheckOutStatus(log?.checkOutTime, shift, log);
   const worked   = workedLabel(log?.checkInTime, log?.checkOutTime);
 
   const confirmGoal = async (goalId, confirmed) => {
@@ -1109,6 +1122,39 @@ export default function TechDailyAttendance() {
         />
       )}
 
+      {/* Motivo de salida anticipada */}
+      {earlyModal && (
+        <div className="fixed inset-0 bg-black/70 z-50 flex items-end sm:items-center justify-center p-4" onClick={() => !checkingOut && setEarlyModal(false)}>
+          <div className="bg-gray-950 border border-white/10 rounded-[2rem] p-6 w-full max-w-md text-white space-y-4" onClick={e => e.stopPropagation()}>
+            <div>
+              <h3 className="text-base font-black">Salida anticipada</h3>
+              <p className="text-[11px] font-bold text-gray-400 mt-1 leading-relaxed">
+                La salida normal se habilita a las {outWin.opensAt}. Si sales antes, escribe el motivo: tu supervisor lo revisará.
+              </p>
+            </div>
+            <textarea
+              value={earlyReason}
+              onChange={e => setEarlyReason(e.target.value)}
+              rows={3}
+              maxLength={500}
+              autoFocus
+              placeholder="Ej. Terminé el servicio en sitio, emergencia familiar, permiso del supervisor…"
+              className="w-full rounded-xl bg-white/5 border border-white/15 px-3 py-2 text-sm font-bold text-white placeholder:text-gray-600 focus:outline-none focus:border-amber-400 resize-none"
+            />
+            <div className="flex gap-3">
+              <button onClick={() => setEarlyModal(false)} disabled={checkingOut}
+                className="flex-1 min-h-[48px] rounded-2xl border border-white/15 text-[11px] font-black uppercase tracking-widest text-gray-300 disabled:opacity-50">
+                Cancelar
+              </button>
+              <button onClick={() => registerCheckOut(earlyReason.trim())} disabled={checkingOut || earlyReason.trim().length < 5}
+                className="flex-1 min-h-[48px] rounded-2xl bg-amber-600 text-[11px] font-black uppercase tracking-widest text-white disabled:opacity-50">
+                {checkingOut ? 'Registrando...' : 'Registrar salida'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ══ APARTADO 1 · ASISTENCIA DIARIA ═══════════════════════════════════
           Entrada y salida del día. Independiente del checklist y de la
           panoramización — se registra aunque no haya metas asignadas. */}
@@ -1125,7 +1171,7 @@ export default function TechDailyAttendance() {
             </p>
             <h1 className="text-2xl font-black leading-tight">Mi Asistencia</h1>
             <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mt-1">
-              Horario {SHIFT_LABEL}
+              Horario {shiftLabel(shift)}
             </p>
           </div>
           <div className="flex flex-col items-end gap-1.5 shrink-0">
@@ -1182,8 +1228,21 @@ export default function TechDailyAttendance() {
             <AlertTriangle className={cn('h-3.5 w-3.5 shrink-0 mt-0.5', TONE_DARK[checkIn.tone].icon)} />
             <p className={cn('text-[10px] font-black leading-relaxed', TONE_DARK[checkIn.tone].time)}>
               {checkIn.key === 'retardo'
-                ? `Retardo — entraste ${checkIn.minutesLate} min después de las 09:00.`
-                : `Llegada tarde — entraste ${checkIn.minutesLate} min después de las 09:00.`}
+                ? `Retardo — entraste ${checkIn.minutesLate} min después de las ${shift.start}.`
+                : `Llegada tarde — entraste ${checkIn.minutesLate} min después de las ${shift.start}.`}
+            </p>
+          </div>
+        )}
+
+        {/* Salida anticipada — motivo y estado de la revisión */}
+        {log?.earlyCheckOutStatus && (
+          <div className={cn('mt-2 flex items-start gap-2 px-3 py-2 rounded-xl border', TONE_DARK[checkOut?.tone || 'amber'].tile)}>
+            <AlertTriangle className={cn('h-3.5 w-3.5 shrink-0 mt-0.5', TONE_DARK[checkOut?.tone || 'amber'].icon)} />
+            <p className={cn('text-[10px] font-black leading-relaxed', TONE_DARK[checkOut?.tone || 'amber'].time)}>
+              {log.earlyCheckOutStatus === 'PENDIENTE' && 'Salida anticipada — tu supervisor la revisará.'}
+              {log.earlyCheckOutStatus === 'APROBADA'  && `Salida anticipada aprobada${log.earlyCheckOutReviewedBy ? ` por ${log.earlyCheckOutReviewedBy}` : ''}.`}
+              {log.earlyCheckOutStatus === 'RECHAZADA' && `Salida anticipada rechazada${log.earlyCheckOutReviewedBy ? ` por ${log.earlyCheckOutReviewedBy}` : ''}.`}
+              {log.earlyCheckOutReason && <span className="block font-bold opacity-80">Motivo: {log.earlyCheckOutReason}</span>}
             </p>
           </div>
         )}
@@ -1200,23 +1259,44 @@ export default function TechDailyAttendance() {
         {/* Acciones */}
         <div className="mt-4">
           {!log?.checkInTime ? (
-            <button
-              onClick={registerCheckIn}
-              disabled={checkingIn}
-              className="w-full min-h-[52px] rounded-2xl bg-emerald-500 text-white font-black text-sm uppercase tracking-widest flex items-center justify-center gap-2 active:bg-emerald-600 disabled:opacity-50 shadow-lg shadow-emerald-900/40 touch-manipulation transition-all"
-            >
-              <LogIn className="h-4 w-4" />
-              {checkingIn ? 'Registrando...' : 'Registrar Entrada'}
-            </button>
+            <>
+              <button
+                onClick={registerCheckIn}
+                disabled={checkingIn || !inWin.open}
+                className="w-full min-h-[52px] rounded-2xl bg-emerald-500 text-white font-black text-sm uppercase tracking-widest flex items-center justify-center gap-2 active:bg-emerald-600 disabled:opacity-50 shadow-lg shadow-emerald-900/40 touch-manipulation transition-all"
+              >
+                <LogIn className="h-4 w-4" />
+                {checkingIn ? 'Registrando...' : 'Registrar Entrada'}
+              </button>
+              {!inWin.open && (
+                <p className="mt-2 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">
+                  Se habilita a las {inWin.opensAt}
+                </p>
+              )}
+            </>
           ) : !log?.checkOutTime ? (
-            <button
-              onClick={registerCheckOut}
-              disabled={checkingOut}
-              className="w-full min-h-[52px] rounded-2xl bg-blue-600 text-white font-black text-sm uppercase tracking-widest flex items-center justify-center gap-2 active:bg-blue-700 disabled:opacity-50 shadow-lg shadow-blue-900/40 touch-manipulation transition-all"
-            >
-              <LogOut className="h-4 w-4" />
-              {checkingOut ? 'Registrando...' : 'Registrar Salida'}
-            </button>
+            <>
+              <button
+                onClick={() => registerCheckOut()}
+                disabled={checkingOut || outWin.mode === 'blocked'}
+                className={cn(
+                  'w-full min-h-[52px] rounded-2xl text-white font-black text-sm uppercase tracking-widest flex items-center justify-center gap-2 disabled:opacity-50 shadow-lg touch-manipulation transition-all',
+                  outWin.mode === 'normal'
+                    ? 'bg-blue-600 active:bg-blue-700 shadow-blue-900/40'
+                    : 'bg-amber-600 active:bg-amber-700 shadow-amber-900/40'
+                )}
+              >
+                <LogOut className="h-4 w-4" />
+                {checkingOut ? 'Registrando...' : outWin.mode === 'normal' ? 'Registrar Salida' : 'Salida anticipada'}
+              </button>
+              {outWin.mode !== 'normal' && (
+                <p className="mt-2 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">
+                  {outWin.mode === 'early'
+                    ? `Salida normal desde las ${outWin.opensAt} · antes pide motivo`
+                    : `La salida se habilita a las ${outWin.opensAt}`}
+                </p>
+              )}
+            </>
           ) : (
             <div className={cn(
               'flex items-center justify-center gap-2 py-3 rounded-2xl border',

@@ -3,6 +3,27 @@ import { authMiddleware } from '../_lib/auth.js';
 import { sendTelegramDocument, sendTelegramPhoto, sendTelegramPhotoUrl } from '../_lib/telegram.js';
 import { uploadToR2 } from '../_lib/r2.js';
 import { businessDay } from '../_lib/businessDay.js';
+import { puede, rolesEfectivos } from '../_lib/permisos.js';
+// businessNowHM: la entrada y la salida se registran con la hora del servidor
+// y nunca con la que mande el celular: el reloj del teléfono se puede mover, y
+// el body de la petición también.
+import {
+  TECH_SHIFT_KEY, normalizeShift, checkInWindow, checkOutWindow, businessNowHM,
+} from '../_lib/techShift.js';
+
+const HM = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+async function loadShift() {
+  const cfg = await prisma.systemConfig.findUnique({ where: { key: TECH_SHIFT_KEY } });
+  return normalizeShift(cfg?.value);
+}
+
+/** Supervisor/ADMIN que corrige o revisa asistencia. null si no tiene permiso. */
+async function attendanceManager(userId) {
+  const emp = await prisma.employee.findUnique({ where: { id: userId }, select: { id: true, name: true, roles: true } });
+  if (!emp || !puede(rolesEfectivos(emp.roles || []), 'ops.asistencia_tecnicos')) return null;
+  return emp;
+}
 
 // Medianoche UTC — para attendance logs (necesario por el @@unique([techId, date]))
 const toUTCDay = (str) => {
@@ -205,10 +226,157 @@ export default async function handler(req, res) {
       return res.status(200).json(log);
     }
 
-    // PATCH — actualiza checklists / step / checkout
+    // POST — marcar entrada. El técnico solo puede marcar la suya y la hora
+    // la pone el servidor.
+    if (method === 'POST' && resource === 'check-in') {
+      const shift = await loadShift();
+      const now   = businessNowHM();
+      const win   = checkInWindow(shift, now);
+      if (!win.open) {
+        return res.status(403).json({
+          error: `Todavía no puedes registrar tu entrada. Se habilita a las ${win.opensAt}.`,
+          code: 'CHECKIN_NOT_OPEN', opensAt: win.opensAt,
+        });
+      }
+
+      const techId = auth.id;
+      const date   = businessDay();
+      const log = await prisma.techAttendanceLog.upsert({
+        where:  { techId_date: { techId, date } },
+        create: { techId, date, goalId: body.goalId || null, step: 'PERSONAL' },
+        update: {},
+        include: { goal: true },
+      });
+      if (log.checkInTime) return res.status(409).json({ error: 'La entrada de hoy ya está registrada', log });
+
+      const updated = await prisma.techAttendanceLog.update({
+        where: { id: log.id }, data: { checkInTime: now }, include: { goal: true },
+      });
+      return res.status(200).json(updated);
+    }
+
+    // POST — marcar salida. Antes de la ventana pide motivo y queda para
+    // revisión del supervisor (o se rechaza si la salida anticipada está
+    // desactivada en el horario).
+    if (method === 'POST' && resource === 'check-out') {
+      const techId = auth.id;
+      const log = await prisma.techAttendanceLog.findUnique({
+        where: { techId_date: { techId, date: businessDay() } },
+      });
+      if (!log?.checkInTime) return res.status(400).json({ error: 'Primero registra tu entrada' });
+      if (log.checkOutTime)  return res.status(409).json({ error: 'La salida de hoy ya está registrada', log });
+
+      const shift = await loadShift();
+      const now   = businessNowHM();
+      const win   = checkOutWindow(shift, now);
+      const data  = { checkOutTime: now };
+
+      if (win.mode === 'blocked') {
+        return res.status(403).json({
+          error: `La salida se habilita a las ${win.opensAt}. Si necesitas salir antes, pide a tu supervisor que la registre.`,
+          code: 'CHECKOUT_NOT_OPEN', opensAt: win.opensAt,
+        });
+      }
+      if (win.mode === 'early') {
+        const reason = String(body.reason || '').trim();
+        if (reason.length < 5) {
+          return res.status(400).json({
+            error: `Antes de las ${win.opensAt} la salida necesita un motivo.`,
+            code: 'REASON_REQUIRED', opensAt: win.opensAt,
+          });
+        }
+        data.earlyCheckOutReason = reason.slice(0, 500);
+        data.earlyCheckOutStatus = 'PENDIENTE';
+      }
+
+      const updated = await prisma.techAttendanceLog.update({
+        where: { id: log.id }, data, include: { goal: true },
+      });
+      return res.status(200).json(updated);
+    }
+
+    // POST — corrección manual de entrada/salida (supervisor/ADMIN). Sirve para
+    // quien olvidó cerrar o marcó mal. Queda en `corrections` quién, cuándo,
+    // por qué y qué había antes.
+    if (method === 'POST' && resource === 'correct') {
+      const manager = await attendanceManager(auth.id);
+      if (!manager) return res.status(403).json({ error: 'Solo un supervisor o administrador puede corregir la asistencia' });
+
+      const { techId, date } = body;
+      const reason = String(body.reason || '').trim();
+      if (!techId || !date) return res.status(400).json({ error: 'techId y date son requeridos' });
+      if (reason.length < 5) return res.status(400).json({ error: 'Escribe el motivo de la corrección' });
+
+      // '' o null = borrar esa marca; ausente = no tocarla
+      const parse = (v) => (v === undefined ? undefined : (v === null || v === '' ? null : v));
+      const inT  = parse(body.checkInTime);
+      const outT = parse(body.checkOutTime);
+      for (const v of [inT, outT]) {
+        if (v !== undefined && v !== null && !HM.test(v)) return res.status(400).json({ error: 'Hora inválida, usa HH:MM' });
+      }
+
+      const day = toUTCDay(date);
+      const log = await prisma.techAttendanceLog.upsert({
+        where:  { techId_date: { techId, date: day } },
+        create: { techId, date: day, step: 'PERSONAL' },
+        update: {},
+      });
+
+      const finalIn  = inT  !== undefined ? inT  : log.checkInTime;
+      const finalOut = outT !== undefined ? outT : log.checkOutTime;
+      if (finalOut && !finalIn) return res.status(400).json({ error: 'No puede haber salida sin entrada' });
+
+      const data = {
+        checkInTime: finalIn,
+        checkOutTime: finalOut,
+        corrections: [
+          ...(Array.isArray(log.corrections) ? log.corrections : []),
+          {
+            at: new Date().toISOString(), byId: manager.id, byName: manager.name, reason: reason.slice(0, 500),
+            before: { checkInTime: log.checkInTime, checkOutTime: log.checkOutTime },
+            after:  { checkInTime: finalIn, checkOutTime: finalOut },
+          },
+        ],
+      };
+      // Si el supervisor fija la salida, la decisión ya es suya: la revisión
+      // de salida anticipada que hubiera queda sin efecto.
+      if (finalOut !== log.checkOutTime) {
+        data.earlyCheckOutReason = null;
+        data.earlyCheckOutStatus = null;
+        data.earlyCheckOutReviewedBy = null;
+        data.earlyCheckOutReviewedAt = null;
+      }
+
+      const updated = await prisma.techAttendanceLog.update({ where: { id: log.id }, data, include: { goal: true } });
+      return res.status(200).json(updated);
+    }
+
+    // POST — aprobar o rechazar una salida anticipada (supervisor/ADMIN)
+    if (method === 'POST' && resource === 'review-early') {
+      const manager = await attendanceManager(auth.id);
+      if (!manager) return res.status(403).json({ error: 'Solo un supervisor o administrador puede revisar salidas' });
+
+      const { id, decision } = body;
+      if (!id || !['APROBADA', 'RECHAZADA'].includes(decision))
+        return res.status(400).json({ error: 'id y decision (APROBADA | RECHAZADA) son requeridos' });
+
+      const log = await prisma.techAttendanceLog.findUnique({ where: { id } });
+      if (!log?.earlyCheckOutStatus) return res.status(400).json({ error: 'Este registro no tiene salida anticipada' });
+
+      const updated = await prisma.techAttendanceLog.update({
+        where: { id },
+        data: { earlyCheckOutStatus: decision, earlyCheckOutReviewedBy: manager.name, earlyCheckOutReviewedAt: new Date() },
+        include: { goal: true },
+      });
+      return res.status(200).json(updated);
+    }
+
+    // PATCH — actualiza checklists / step. La entrada y la salida ya no se
+    // escriben aquí: van por check-in / check-out (hora del servidor) o por
+    // correct (supervisor, con motivo).
     if (method === 'PATCH' && resource === 'log') {
       const { id, step, checklistPersonal, checklistVehicle, personalMissing, vehicleMissing,
-              personalReportSent, vehicleReportSent, checkInTime, checkOutTime, status } = body;
+              personalReportSent, vehicleReportSent, status } = body;
       if (!id) return res.status(400).json({ error: 'id requerido' });
 
       const data = {};
@@ -219,8 +387,6 @@ export default async function handler(req, res) {
       if (vehicleMissing     !== undefined) data.vehicleMissing     = vehicleMissing;
       if (personalReportSent !== undefined) data.personalReportSent = personalReportSent;
       if (vehicleReportSent  !== undefined) data.vehicleReportSent  = vehicleReportSent;
-      if (checkInTime        !== undefined) data.checkInTime        = checkInTime;
-      if (checkOutTime       !== undefined) data.checkOutTime       = checkOutTime;
       if (status             !== undefined) data.status             = status;
 
       const log = await prisma.techAttendanceLog.update({ where: { id }, data, include: { goal: true } });
